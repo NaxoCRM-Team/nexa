@@ -35,6 +35,7 @@ $required = @(
     'database/shared/migrations/0008_identity_security.sql', 'packages/sso/composer.lock',
     'docs/development/identity-provider-testing.md', 'docs/operations/identity-incident-recovery.md',
     'tests/auth/IdentitySecurityTest.php', 'espocrm/bin/configure-identity-provider.php',
+    'tests/dashboard/TenantDashboardTest.php', 'tests/browser/dashboard.spec.js', 'tests/browser/fixtures/dashboard.html',
     'database/shared/seeds/0002_two_tenant_isolation.sql', 'espocrm/bin/provision-demo-tenants.php',
     'database/shared/table-ownership-manifest.json', 'espocrm/application/Espo/Resources/tenant-table-ownership.json',
     'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/InstallationBootstrapTest.php',
@@ -140,6 +141,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Authentication experience suite' } else { Fail 'Authentication experience suite failed.' }
     & php (Join-Path $root 'tests\auth\IdentitySecurityTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Identity security contract suite' } else { Fail 'Identity security contract suite failed.' }
+    & php (Join-Path $root 'tests\dashboard\TenantDashboardTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Tenant dashboard contract suite' } else { Fail 'Tenant dashboard contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Module convention suite' } else { Fail 'Module convention suite failed.' }
 }
