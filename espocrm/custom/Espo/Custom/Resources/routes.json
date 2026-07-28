@@ -71,6 +71,11 @@
         "noAuth":  true
     },
     {
+        "route":  "/Nexa/dashboard/summary",
+        "method":  "get",
+        "actionClassName":  "Espo\\Custom\\Tools\\Dashboard\\Api\\GetSummary"
+    },
+    {
         "route":  "/Nexa/auth/recovery",
         "method":  "post",
         "actionClassName":  "Espo\\Custom\\Tools\\Auth\\Api\\PostRecovery",
