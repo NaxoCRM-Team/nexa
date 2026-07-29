@@ -1,5 +1,15 @@
 require(['views/login', 'views/user/password-change-request'], (LoginView, PasswordResetView) => {
-    const applicationBaseUrl = new URL('./', location.href);
+    // Espo publishes the route-relative asset base in the loader contract.
+    // Reuse it so custom API and provider requests also escape /login/.
+    const loaderBasePath = (() => {
+        try {
+            const source = document.querySelector('script[data-name="loader-params"]')?.textContent;
+            return source ? JSON.parse(source).basePath || '' : '';
+        } catch {
+            return '';
+        }
+    })();
+    const applicationBaseUrl = new URL(loaderBasePath || './', location.href);
     const applicationUrl = path => new URL(String(path).replace(/^\/+/, ''), applicationBaseUrl);
     const defaultData = LoginView.prototype.data;
     const defaultSetup = LoginView.prototype.setup;

@@ -37,7 +37,12 @@ $assert(
     NexaApplicationPath::baseHref('/espocrm_boye') === '/espocrm_boye/',
     'Relative assets and API calls must receive a trailing-slash base URL.'
 );
+$assert(
+    NexaApplicationPath::isRoute('/espocrm_boye/login', '/espocrm_boye', 'login'),
+    'Friendly routes must be recognized within a copied application mount point.'
+);
 
+$publicEntry = file_get_contents($root . '/espocrm/public/index.php');
 $landing = file_get_contents($root . '/espocrm/public/landing/index.html');
 $landingScript = file_get_contents($root . '/espocrm/public/landing/script.js');
 $loginScript = file_get_contents($root . '/espocrm/client/custom/login-patch.js');
@@ -54,15 +59,21 @@ $assert(
     str_contains($landingScript, "applicationUrl('api/v1/Nexa/auth/providers')") &&
     str_contains($loginScript, "applicationUrl('api/v1/Nexa/auth/recovery')") &&
     !str_contains($landingScript, "fetch('/api/v1/") &&
-    !str_contains($loginScript, "fetch('/api/v1/"),
+    !str_contains($loginScript, "fetch('/api/v1/") &&
+    str_contains($loginScript, 'loaderBasePath'),
     'Authentication and signup APIs must not escape to the server root.'
 );
 $assert(
-    str_contains($rewriteRules, 'RewriteRule ^login/?$') &&
+    str_contains($rewriteRules, 'RewriteRule ^login$ %{ENV:BASE}login/') &&
+    str_contains($rewriteRules, 'RewriteRule ^login/$') &&
     !str_contains($landing, 'login=1') &&
     !str_contains($landingCss, "url('/client/") &&
     !str_contains($landingCss, "url('/landing/"),
     'Friendly login navigation and landing assets must remain inside the application mount point.'
+);
+$assert(
+    str_contains($publicEntry, 'setClientBasePath($isFriendlyLoginRequest ? \'../\' : \'\')'),
+    'The Espo client loader must step back from /login before resolving application assets.'
 );
 
 fwrite(STDOUT, '[PASS] Portable root and subfolder paths are supported.' . PHP_EOL);

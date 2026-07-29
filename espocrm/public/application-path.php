@@ -31,6 +31,13 @@ final class NexaApplicationPath
         return $requestPath === $basePath;
     }
 
+    public static function isRoute(string $requestPath, string $basePath, string $route): bool
+    {
+        $routePath = ($basePath === '' ? '' : $basePath) . '/' . trim($route, '/');
+
+        return rtrim('/' . trim($requestPath, '/'), '/') === $routePath;
+    }
+
     public static function baseHref(string $basePath): string
     {
         return ($basePath === '' ? '' : $basePath) . '/';

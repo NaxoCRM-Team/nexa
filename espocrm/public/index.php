@@ -31,6 +31,7 @@ require_once __DIR__ . '/application-path.php';
 
 $basePath = NexaApplicationPath::fromScriptName($_SERVER['SCRIPT_NAME'] ?? '/public/index.php');
 $requestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+$isFriendlyLoginRequest = NexaApplicationPath::isRoute($requestPath, $basePath, 'login');
 $isLandingRequest = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
     && NexaApplicationPath::isApplicationRoot($requestPath, $basePath)
     && !isset($_GET['login'])
@@ -62,6 +63,7 @@ use Espo\Core\ApplicationRunners\Client;
 use Espo\Core\ApplicationRunners\EntryPoint;
 
 $app = new Application();
+$app->setClientBasePath($isFriendlyLoginRequest ? '../' : '');
 
 if (filter_has_var(INPUT_GET, 'entryPoint')) {
     $app->run(EntryPoint::class);
