@@ -36,6 +36,7 @@ $required = @(
     'docs/development/identity-provider-testing.md', 'docs/operations/identity-incident-recovery.md',
     'tests/auth/IdentitySecurityTest.php', 'espocrm/bin/configure-identity-provider.php',
     'tests/dashboard/TenantDashboardTest.php', 'tests/browser/dashboard.spec.js', 'tests/browser/fixtures/dashboard.html',
+    'espocrm/client/custom/src/views/tenant-dashboard.js',
     'database/shared/seeds/0002_two_tenant_isolation.sql', 'espocrm/bin/provision-demo-tenants.php',
     'database/shared/table-ownership-manifest.json', 'espocrm/application/Espo/Resources/tenant-table-ownership.json',
     'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/InstallationBootstrapTest.php',

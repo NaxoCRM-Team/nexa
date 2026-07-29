@@ -5,6 +5,7 @@ $service = file_get_contents($root . '/espocrm/custom/Espo/Custom/Tools/Dashboar
 $route = json_decode(file_get_contents($root . '/espocrm/custom/Espo/Custom/Resources/routes.json'), true, flags: JSON_THROW_ON_ERROR);
 $clientDefs = json_decode(file_get_contents($root . '/espocrm/custom/Espo/Custom/Resources/metadata/clientDefs/Home.json'), true, flags: JSON_THROW_ON_ERROR);
 $template = file_get_contents($root . '/espocrm/client/custom/res/templates/tenant-dashboard.tpl');
+$viewPath = $root . '/espocrm/client/custom/src/views/tenant-dashboard.js';
 
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -20,6 +21,11 @@ $assert(str_contains($service, 'checkReadAll'), 'Dashboard aggregates must requi
 $dashboardRoute = array_values(array_filter($route, static fn (array $item): bool => $item['route'] === '/Nexa/dashboard/summary'));
 $assert(count($dashboardRoute) === 1 && !isset($dashboardRoute[0]['noAuth']), 'Dashboard summary must be authenticated.');
 $assert(($clientDefs['view'] ?? null) === 'custom:views/tenant-dashboard', 'Home must use the Nexa tenant dashboard view.');
+$assert(is_file($viewPath), 'Custom dashboard view must use EspoCRM client/custom/src module resolution.');
+$assert(
+    str_contains((string) file_get_contents($viewPath), "define('custom:views/tenant-dashboard'"),
+    'Custom dashboard module ID must match the Home client definition.'
+);
 foreach (['loading', 'empty', 'error', 'denied', 'ready'] as $state) {
     $assert(str_contains($template, 'data-dashboard-state="' . $state . '"'), "Dashboard {$state} state is missing.");
 }
