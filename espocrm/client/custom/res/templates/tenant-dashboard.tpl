@@ -1,5 +1,4 @@
-<div class="nexa-dashboard" aria-labelledby="nexa-dashboard-title">
-    <header class="nexa-dashboard-hero">
+<header class="nexa-dashboard-hero">
         <div>
             <div class="nexa-workspace-context"><span class="nexa-workspace-dot" aria-hidden="true"></span>{{tenant.displayName}} workspace</div>
             <h1 id="nexa-dashboard-title">Good to see you, {{firstName}}</h1>
@@ -44,10 +43,9 @@
         <div class="page-header dashboard-header nexa-saved-dashboard-header">
             <div><p>Custom workspace</p><h2 id="nexa-saved-dashboard-title">Your dashboard</h2></div>
             <div class="nexa-dashboard-actions">
-                {{#ifNotEqual dashboardLayout.length 1}}<div class="btn-group dashboard-tabs">{{#each dashboardLayout}}<button class="btn btn-text{{#ifEqual @index ../currentTab}} active{{/ifEqual}}" data-action="selectTab" data-tab="{{@index}}">{{name}}</button>{{/each}}</div>{{/ifNotEqual}}
+                {{#ifNotEqual dashboardLayout.length 1}}<div class="btn-group dashboard-tabs" role="tablist" aria-label="Dashboard workspaces">{{#each dashboardLayout}}<button class="btn btn-text{{#ifEqual @index ../currentTab}} active{{/ifEqual}}" role="tab" aria-selected="{{#ifEqual @index ../currentTab}}true{{else}}false{{/ifEqual}}" aria-controls="nexa-dashboard-widgets" data-action="selectTab" data-tab="{{@index}}">{{name}}</button>{{/each}}</div>{{/ifNotEqual}}
                 {{#unless layoutReadOnly}}<div class="btn-group dashboard-buttons"><button class="btn btn-default btn-icon dropdown-toggle" data-toggle="dropdown" aria-label="Dashboard settings" title="Dashboard settings"><span class="fas fa-cog" aria-hidden="true"></span></button><ul class="dropdown-menu pull-right dropdown-menu-with-icons"><li><a role="button" tabindex="0" data-action="editTabs"><span class="fas fa-pencil-alt fa-sm"></span><span class="item-text">{{translate 'Edit Dashboard'}}</span></a></li>{{#if hasAdd}}<li><a role="button" tabindex="0" data-action="addDashlet"><span class="fas fa-plus"></span><span class="item-text">{{translate 'Add Dashlet'}}</span></a></li>{{/if}}</ul></div>{{/unless}}
             </div>
         </div>
-        <div class="dashlets grid-stack grid-stack-12">{{{dashlets}}}</div>
     </section>
-</div>
+<div id="nexa-dashboard-widgets" class="dashlets grid-stack grid-stack-12" aria-label="Dashboard widgets">{{{dashlets}}}</div>

@@ -9,6 +9,7 @@ use Espo\Core\Acl\Table;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Tenant\ServiceEntitlementChecker;
 use Espo\Core\Tenant\TenantContextStore;
+use Espo\Core\Utils\Config;
 use Espo\ORM\EntityManager;
 use PDO;
 
@@ -21,6 +22,7 @@ final class TenantDashboardService
         private ServiceEntitlementChecker $entitlements,
         private Acl $acl,
         private EntityManager $entityManager,
+        private Config $config,
     ) {}
 
     /** @return array<string, mixed> */
@@ -89,7 +91,7 @@ final class TenantDashboardService
                     'value' => $pipelineValue,
                 ],
             ],
-            'currency' => 'GBP',
+            'currency' => (string) ($this->config->get('baseCurrency') ?: 'USD'),
             'pipeline' => $pipeline,
             'activities' => $activities,
             'permissions' => $permissions,

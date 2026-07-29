@@ -1,6 +1,83 @@
 define('custom:views/tenant-dashboard', ['views/dashboard'], DashboardView => class extends DashboardView {
     template = 'custom:tenant-dashboard';
 
+    setupCurrentTabLayout() {
+        const savedLayout = this.getPreferences().get('dashboardLayout');
+
+        if (!this.dashboardLayout && this.isLegacyDashboardLayout(savedLayout)) {
+            this.dashboardLayout = this.buildDefaultDashboardLayout();
+        }
+
+        super.setupCurrentTabLayout();
+    }
+
+    isLegacyDashboardLayout(layout) {
+        if (!Array.isArray(layout) || layout.length !== 1) return false;
+
+        const items = layout[0]?.layout || [];
+        const names = items.map(item => item.name).sort();
+
+        return names.length === 2 && names[0] === 'Activities' && names[1] === 'Stream';
+    }
+
+    buildDefaultDashboardLayout() {
+        const tabs = [
+            {
+                id: 'nexa-overview',
+                name: 'Overview',
+                layout: [
+                    {id: 'nexa-activities', name: 'Activities', x: 0, y: 0, width: 2, height: 4},
+                    {id: 'nexa-sales-pipeline', name: 'SalesPipeline', x: 2, y: 0, width: 1, height: 2},
+                    {id: 'nexa-opportunities-stage', name: 'OpportunitiesByStage', x: 3, y: 0, width: 1, height: 4},
+                    {id: 'nexa-sales-month', name: 'SalesByMonth', x: 2, y: 2, width: 1, height: 2},
+                    {id: 'nexa-stream', name: 'Stream', x: 0, y: 4, width: 2, height: 4},
+                    {id: 'nexa-tasks', name: 'Tasks', x: 2, y: 4, width: 2, height: 4},
+                ],
+            },
+            {
+                id: 'nexa-sales',
+                name: 'Sales',
+                layout: [
+                    {id: 'nexa-sales-leads', name: 'Leads', x: 0, y: 0, width: 2, height: 4},
+                    {id: 'nexa-sales-opportunities', name: 'Opportunities', x: 2, y: 0, width: 2, height: 4},
+                    {id: 'nexa-sales-funnel', name: 'SalesPipeline', x: 0, y: 4, width: 2, height: 3},
+                    {id: 'nexa-sales-stage', name: 'OpportunitiesByStage', x: 2, y: 4, width: 1, height: 3},
+                    {id: 'nexa-sales-trend', name: 'SalesByMonth', x: 3, y: 4, width: 1, height: 3},
+                ],
+            },
+            {
+                id: 'nexa-schedule',
+                name: 'Schedule',
+                layout: [
+                    {id: 'nexa-calendar', name: 'Calendar', x: 0, y: 0, width: 2, height: 5},
+                    {id: 'nexa-schedule-activities', name: 'Activities', x: 2, y: 0, width: 2, height: 4},
+                    {id: 'nexa-schedule-tasks', name: 'Tasks', x: 0, y: 5, width: 2, height: 4},
+                    {id: 'nexa-calls', name: 'Calls', x: 2, y: 4, width: 1, height: 4},
+                    {id: 'nexa-meetings', name: 'Meetings', x: 3, y: 4, width: 1, height: 4},
+                ],
+            },
+        ];
+
+        // Core dashlets remain responsible for record ACL; filtering here avoids unusable empty widgets.
+        return tabs.map(tab => ({
+            ...tab,
+            layout: tab.layout.filter(item => this.isDashletAvailable(item.name)),
+        }));
+    }
+
+    isDashletAvailable(name) {
+        const definitions = this.getMetadata().get(['dashlets', name]);
+
+        if (!definitions) return false;
+        if (definitions.aclScope && !this.getAcl().check(definitions.aclScope)) return false;
+        if (definitions.accessDataList &&
+            !Espo.Utils.checkAccessDataList(definitions.accessDataList, this.getAcl(), this.getUser())) {
+            return false;
+        }
+
+        return true;
+    }
+
     data() {
         const data = super.data();
         const tenant = this.getHelper().getAppParam('nexaTenant') || {};
@@ -10,6 +87,8 @@ define('custom:views/tenant-dashboard', ['views/dashboard'], DashboardView => cl
     }
 
     afterRender() {
+        this.element.classList.add('nexa-dashboard');
+        this.element.setAttribute('aria-labelledby', 'nexa-dashboard-title');
         super.afterRender();
         this.summaryElement = this.element.querySelector('[data-dashboard-summary]');
         this.rangeElement = this.element.querySelector('[data-dashboard-range]');
