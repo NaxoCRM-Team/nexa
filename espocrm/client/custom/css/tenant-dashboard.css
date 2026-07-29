@@ -43,8 +43,14 @@
 .nexa-saved-dashboard { margin-top: 28px; }
 .nexa-saved-dashboard-header { align-items: center; border-bottom: 1px solid #dce5e8; display: flex; justify-content: space-between; margin: 0 0 12px; padding: 0 0 12px; }
 .nexa-dashboard-actions { align-items: center; display: flex; gap: 8px; min-width: 0; }
+.nexa-dashboard-tabs { display: flex; gap: 2px; }
+.nexa-dashboard-tabs .btn { border-bottom: 2px solid transparent; color: #52646b; font-weight: 700; }
+.nexa-dashboard-tabs .btn.active { border-bottom-color: #16758a; color: #17353d; }
+.nexa-dashboard > .dashlets { min-height: 260px; }
 .nexa-dashboard .dashlets.fallback > div { margin-bottom: 14px; }
-.nexa-dashboard .dashlet-container > .panel { border-color: #dce5e8; border-radius: 6px; box-shadow: none; }
+.nexa-dashboard .dashlet-container > .panel { border-color: #dce5e8; border-radius: 6px; box-shadow: 0 1px 2px rgba(25, 50, 58, .05); }
+.nexa-dashboard .dashlet-container .panel-heading { background: #fff; border-bottom-color: #e3eaec; }
+.nexa-dashboard .dashlet-container .panel-title { color: #253d45; font-size: 15px; font-weight: 700; }
 @media (max-width: 1199px) { .nexa-metric-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 767px) { .nexa-dashboard { padding: 16px 14px 36px; } .nexa-dashboard-hero { align-items: stretch; flex-direction: column; } .nexa-dashboard-controls { flex-basis: auto; width: 100%; } .nexa-dashboard-controls small { text-align: left; } .nexa-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nexa-dashboard-insights { grid-template-columns: 1fr; } .nexa-saved-dashboard-header { align-items: flex-start; gap: 12px; } .nexa-dashboard-actions { align-items: flex-end; flex-direction: column-reverse; } .nexa-dashboard-tabs { display: flex; max-width: 60vw; overflow-x: auto; } }
 @media (max-width: 420px) { .nexa-dashboard-hero h1 { font-size: 25px; } .nexa-metric-grid { grid-template-columns: 1fr; } .nexa-metric { min-height: 82px; } .nexa-section-heading { align-items: flex-start; gap: 8px; } }

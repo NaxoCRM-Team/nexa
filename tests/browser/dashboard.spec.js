@@ -27,3 +27,14 @@ test('dashboard period filter and tenant identity are keyboard accessible', asyn
     await expect(page.getByText('Atlas Advisory workspace')).toBeVisible();
     await expect(page.locator('.nexa-metric-grid')).toBeVisible();
 });
+
+test('dashboard workspaces and operational widgets are complete', async ({page}) => {
+    await page.goto(fixture);
+    await expect(page.getByRole('tab')).toHaveCount(3);
+    await expect(page.locator('.dashlet-container')).toHaveCount(4);
+    await expect(page.locator('.dashlet-container .menu-button')).toHaveCount(4);
+    await expect(page.getByRole('heading', {name: 'My Activities'})).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Sales Pipeline'})).toBeVisible();
+    await page.getByRole('tab', {name: 'Sales'}).click();
+    await expect(page.getByRole('tab', {name: 'Sales'})).toHaveAttribute('aria-selected', 'true');
+});

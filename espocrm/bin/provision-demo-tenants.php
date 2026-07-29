@@ -7,6 +7,7 @@ require dirname(__DIR__) . '/bootstrap.php';
 use Espo\Core\Application;
 use Espo\Core\ORM\EntityManager;
 use Espo\Core\Tenant\TenantResolver;
+use Espo\Core\Utils\Config;
 
 const DEMO_SERVICE_ID = '20000000-0000-4000-8000-000000000001';
 
@@ -62,6 +63,7 @@ function getDemoProfile(string $slug): array
                 ['key' => 'analytics-expansion', 'name' => 'Analytics Platform Expansion', 'account' => 'northstar', 'contact' => 'ava-morgan', 'amount' => 48000, 'stage' => 'Negotiation', 'probability' => 75, 'days' => 21],
                 ['key' => 'retail-automation', 'name' => 'Retail Automation Pilot', 'account' => 'cedar-finch', 'contact' => 'mia-chen', 'amount' => 22000, 'stage' => 'Proposal', 'probability' => 55, 'days' => 35],
                 ['key' => 'sales-enablement', 'name' => 'Sales Enablement Rollout', 'account' => 'northstar', 'contact' => 'daniel-okafor', 'amount' => 15000, 'stage' => 'Qualification', 'probability' => 35, 'days' => 50],
+                ['key' => 'customer-success', 'name' => 'Customer Success Expansion', 'account' => 'northstar', 'contact' => 'ava-morgan', 'amount' => 34000, 'stage' => 'Closed Won', 'probability' => 100, 'days' => -35],
             ],
         ];
     }
@@ -85,6 +87,7 @@ function getDemoProfile(string $slug): array
             ['key' => 'patient-engagement', 'name' => 'Patient Engagement Programme', 'account' => 'harbor-health', 'contact' => 'olivia-bennett', 'amount' => 62000, 'stage' => 'Proposal', 'probability' => 60, 'days' => 28],
             ['key' => 'operations-workspace', 'name' => 'Operations Workspace', 'account' => 'harbor-health', 'contact' => 'noah-adeyemi', 'amount' => 28000, 'stage' => 'Qualification', 'probability' => 40, 'days' => 42],
             ['key' => 'partner-portal', 'name' => 'Partner Portal Launch', 'account' => 'atlas-works', 'contact' => 'lucas-martin', 'amount' => 36000, 'stage' => 'Negotiation', 'probability' => 70, 'days' => 18],
+            ['key' => 'care-rollout', 'name' => 'Care Network Rollout', 'account' => 'harbor-health', 'contact' => 'olivia-bennett', 'amount' => 52000, 'stage' => 'Closed Won', 'probability' => 100, 'days' => -48],
         ],
     ];
 }
@@ -97,7 +100,8 @@ function provisionDemoCrmData(
     string $tenantId,
     string $tenantSlug,
     string $adminId,
-    array $profile
+    array $profile,
+    string $currency
 ): int {
     $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
     $dateTime = static fn (string $change): string => $now->modify($change)->format('Y-m-d H:i:s');
@@ -195,7 +199,7 @@ function provisionDemoCrmData(
             'source' => $lead['source'],
             'industry' => 'Technology',
             'opportunity_amount' => $lead['amount'],
-            'opportunity_amount_currency' => 'GBP',
+            'opportunity_amount_currency' => $currency,
             'account_name' => $lead['accountName'],
             'description' => 'Synthetic inbound lead for qualification.',
             'created_at' => $dateTime('-' . (8 - $index) . ' days'),
@@ -233,7 +237,7 @@ function provisionDemoCrmData(
             'id' => $id,
             'name' => $opportunity['name'],
             'amount' => $opportunity['amount'],
-            'amount_currency' => 'GBP',
+            'amount_currency' => $currency,
             'stage' => $opportunity['stage'],
             'last_stage' => $opportunity['stage'],
             'probability' => $opportunity['probability'],
@@ -355,7 +359,9 @@ $application = new Application();
 $container = $application->getContainer();
 $entityManager = $container->getByClass(EntityManager::class);
 $tenantResolver = $container->getByClass(TenantResolver::class);
+$config = $container->getByClass(Config::class);
 $pdo = $entityManager->getPDO();
+$currency = (string) ($config->get('baseCurrency') ?: 'USD');
 
 $find = $pdo->prepare(
     'SELECT id FROM user WHERE tenant_id = :tenantId AND user_name = :userName AND deleted = 0 LIMIT 1'
@@ -428,7 +434,8 @@ try {
             $tenant->tenantId,
             $account['slug'],
             $id,
-            getDemoProfile($account['slug'])
+            getDemoProfile($account['slug']),
+            $currency
         );
         $action = $created ? 'created' : 'updated';
         fwrite(
