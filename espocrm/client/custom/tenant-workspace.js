@@ -76,6 +76,112 @@ require(['views/site/navbar'], NavbarView => {
         itemList: group.modules.map(createPlannedModule),
     });
 
+    const createTenantIdentity = (tenant, className) => {
+        const displayName = tenant.displayName || tenant.slug;
+        const initials = displayName
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(part => part.charAt(0).toUpperCase())
+            .join('');
+        const identity = document.createElement(className.includes('nexa-header-tenant') ? 'li' : 'div');
+        const mark = document.createElement('span');
+        const copy = document.createElement('span');
+        const label = document.createElement('span');
+        const name = document.createElement('strong');
+
+        identity.className = className;
+        identity.dataset.tenantId = tenant.id;
+        identity.title = `Current workspace: ${displayName}`;
+        identity.setAttribute('aria-label', identity.title);
+        if (identity.tagName === 'DIV') identity.setAttribute('role', 'group');
+        mark.className = 'nexa-tenant-mark';
+        mark.textContent = initials || 'N';
+        copy.className = 'nexa-tenant-copy';
+        label.className = 'nexa-tenant-label';
+        label.textContent = 'Workspace';
+        name.className = 'nexa-tenant-name';
+        name.textContent = displayName;
+        copy.append(label, name);
+        identity.append(mark, copy);
+
+        return identity;
+    };
+
+    const enhanceHeaderControls = view => {
+        const root = view.element;
+        const navbar = root?.querySelector('.navbar');
+        const brand = root?.querySelector('.navbar-brand');
+
+        navbar?.classList.add('nexa-premium-header');
+
+        if (brand && !brand.querySelector('.nexa-brand-lockup')) {
+            const originalLogo = brand.querySelector('img.logo');
+            const lockup = document.createElement('span');
+            const mark = document.createElement('span');
+            const copy = document.createElement('span');
+            const product = document.createElement('strong');
+            const category = document.createElement('small');
+
+            brand.setAttribute('aria-label', 'Nexa CRM home');
+            brand.title = 'Nexa CRM';
+            originalLogo?.setAttribute('aria-hidden', 'true');
+            lockup.className = 'nexa-brand-lockup';
+            mark.className = 'nexa-brand-mark';
+            mark.textContent = 'N';
+            copy.className = 'nexa-brand-copy';
+            product.textContent = 'Nexa';
+            category.textContent = 'CRM';
+            copy.append(product, category);
+            lockup.append(mark, copy);
+            brand.append(lockup);
+        }
+
+        const searchInput = root?.querySelector('.global-search-input');
+        const searchButton = root?.querySelector('.global-search-button');
+        const quickCreate = root?.querySelector('#nav-quick-create-dropdown');
+        const notifications = root?.querySelector('.notifications-button');
+        const menu = root?.querySelector('#nav-menu-dropdown');
+
+        if (searchInput) {
+            searchInput.placeholder = 'Search customers, deals and more';
+            searchInput.setAttribute('aria-label', 'Search across this workspace');
+            searchInput.setAttribute('autocomplete', 'off');
+        }
+        if (searchButton) {
+            searchButton.setAttribute('aria-label', 'Search workspace');
+            searchButton.setAttribute('role', 'button');
+            searchButton.setAttribute('tabindex', '0');
+        }
+        quickCreate?.setAttribute('aria-label', 'Create a new record');
+        notifications?.setAttribute('aria-label', 'Open notifications');
+
+        if (menu && !menu.querySelector('.nexa-profile-avatar')) {
+            const user = view.getUser();
+            const displayName = user.get('name') || user.get('userName') || 'Account';
+            const initials = displayName
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map(part => part.charAt(0).toUpperCase())
+                .join('');
+            const avatar = document.createElement('span');
+            const name = document.createElement('span');
+            const caret = document.createElement('span');
+
+            menu.replaceChildren();
+            menu.setAttribute('aria-label', `Open account menu for ${displayName}`);
+            menu.title = 'Account menu';
+            avatar.className = 'nexa-profile-avatar';
+            avatar.textContent = initials || 'U';
+            name.className = 'nexa-profile-name';
+            name.textContent = displayName;
+            caret.className = 'fas fa-chevron-down nexa-profile-caret';
+            caret.setAttribute('aria-hidden', 'true');
+            menu.append(avatar, name, caret);
+        }
+    };
+
     NavbarView.prototype.data = function () {
         const data = defaultData.call(this);
 
@@ -115,6 +221,7 @@ require(['views/site/navbar'], NavbarView => {
 
         try {
             document.body.classList.toggle('nexa-side-navigation', this.isSide());
+            enhanceHeaderControls(this);
 
             const navigation = this.element?.querySelector('.navbar-body');
             const toggle = this.element?.querySelector('.navbar-toggle');
@@ -168,42 +275,16 @@ require(['views/site/navbar'], NavbarView => {
 
             const tenant = this.getHelper().getAppParam('nexaTenant');
             const container = this.element?.querySelector('.navbar-right-container');
+            const rightList = container?.querySelector('.navbar-right');
+            const mobileHeader = this.element?.querySelector('.navbar-header');
 
-            if (!tenant || !container) {
+            if (!tenant || !container || !rightList || !mobileHeader) {
                 return result;
             }
 
-            container.querySelector('.nexa-tenant-identity')?.remove();
-
-            const displayName = tenant.displayName || tenant.slug;
-            const initials = displayName
-                .split(/\s+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map(part => part.charAt(0).toUpperCase())
-                .join('');
-            const identity = document.createElement('div');
-            const mark = document.createElement('span');
-            const copy = document.createElement('span');
-            const label = document.createElement('span');
-            const name = document.createElement('strong');
-
-            identity.className = 'nexa-tenant-identity';
-            identity.dataset.tenantId = tenant.id;
-            identity.title = `Current workspace: ${displayName}`;
-            identity.setAttribute('aria-label', identity.title);
-
-            mark.className = 'nexa-tenant-mark';
-            mark.textContent = initials || 'N';
-            copy.className = 'nexa-tenant-copy';
-            label.className = 'nexa-tenant-label';
-            label.textContent = 'Workspace';
-            name.className = 'nexa-tenant-name';
-            name.textContent = displayName;
-
-            copy.append(label, name);
-            identity.append(mark, copy);
-            container.prepend(identity);
+            this.element.querySelectorAll('.nexa-tenant-identity').forEach(element => element.remove());
+            rightList.prepend(createTenantIdentity(tenant, 'nexa-tenant-identity nexa-header-tenant'));
+            mobileHeader.append(createTenantIdentity(tenant, 'nexa-tenant-identity nexa-mobile-tenant'));
             document.body.dataset.tenantSlug = tenant.slug;
         } catch (error) {
             console.warn('Unable to enhance the tenant workspace navigation.', error);

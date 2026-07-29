@@ -8,11 +8,25 @@
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; background: #f6f8fa; }
-        header { align-items: center; background: #fff; border-bottom: 1px solid var(--nexa-border); display: flex; height: 56px; justify-content: space-between; padding: 0 20px; }
-        .brand { font-size: 20px; font-weight: 750; }
-        .tenant { align-items: center; display: flex; gap: 8px; }
-        .tenant span { background: var(--nexa-action); border-radius: 4px; color: #fff; padding: 6px; }
-        .layout { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: calc(100vh - 56px); }
+        .app-header { align-items: center; background: #fff; border-bottom: 1px solid var(--nexa-border); box-shadow: 0 3px 12px rgba(23, 32, 42, .06); display: flex; height: 64px; }
+        .brand-zone { align-items: center; align-self: stretch; background: #17202a; color: #fff; display: flex; flex: 0 0 248px; gap: 10px; padding: 0 18px; text-decoration: none; }
+        .brand-mark, .tenant-mark, .avatar { align-items: center; display: inline-flex; justify-content: center; }
+        .brand-mark { background: #fff; border-radius: 6px; color: #0f766e; font-size: 18px; font-weight: 800; height: 34px; width: 34px; }
+        .brand-copy { align-items: baseline; display: flex; gap: 5px; }
+        .brand-copy strong { font-size: 18px; } .brand-copy small { color: #9fb0bf; font-size: 10px; font-weight: 700; }
+        .header-content { align-items: center; display: flex; flex: 1; gap: 8px; min-width: 0; padding: 0 18px 0 20px; }
+        .tenant { align-items: center; border-right: 1px solid #dce4e8; display: flex; gap: 8px; margin-right: 10px; max-width: 230px; padding-right: 20px; }
+        .tenant-mark { background: var(--nexa-action); border-radius: 5px; color: #fff; flex: 0 0 30px; font-size: 11px; font-weight: 750; height: 30px; }
+        .tenant-copy { display: flex; flex-direction: column; min-width: 0; } .tenant-copy small { color: #52646b; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+        #tenant-name { color: #263f47; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .workspace-search { display: flex; height: 42px; margin-left: auto; max-width: 520px; width: 38vw; }
+        .workspace-search input { background: #f4f7f8; border: 1px solid #d6e0e3; border-radius: 6px 0 0 6px; color: #20383f; min-width: 0; padding: 0 14px; width: 100%; }
+        .workspace-search button, .header-action { background: #fff; border: 1px solid #dce4e8; color: #40545c; height: 40px; min-width: 40px; }
+        .workspace-search button { background: #f4f7f8; border-left: 0; border-radius: 0 6px 6px 0; height: 42px; }
+        .header-action { align-items: center; border-radius: 6px; display: inline-flex; justify-content: center; position: relative; }
+        .notification-count { background: #c2412d; border: 2px solid #fff; border-radius: 10px; color: #fff; font-size: 9px; font-weight: 750; min-width: 18px; padding: 2px 4px; position: absolute; right: -5px; top: -7px; }
+        .account { gap: 8px; padding: 0 9px 0 5px; } .avatar { background: #20383f; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 750; height: 30px; width: 30px; }
+        .layout { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: calc(100vh - 64px); }
         nav { background: #17202a; color: #fff; overflow-y: auto; padding: 16px 12px; }
         nav a { border-radius: 4px; color: #fff; display: block; padding: 10px 12px; text-decoration: none; }
         nav a[aria-current=page] { background: #344054; }
@@ -20,22 +34,39 @@
         .panel { background: #fff; border: 1px solid var(--nexa-border); border-radius: 6px; padding: 20px; }
         .menu { display: none; }
         @media (max-width: 767px) {
-            header { padding: 0 12px; } .menu { display: inline-flex; }
-            .layout { display: block; } nav { display: none; height: calc(100vh - 56px); position: fixed; width: min(88vw, 320px); z-index: 2; }
+            .app-header { height: 58px; } .brand-zone { flex-basis: 150px; padding: 0 8px; } .brand-copy small { display: none; }
+            .header-content { justify-content: flex-end; padding: 0 8px; } .menu { display: inline-flex; order: -1; }
+            .tenant { border: 0; margin: 0; padding: 0; } .tenant-copy { display: none; }
+            .workspace-search, .create, .account { display: none; }
+            .layout { display: block; min-height: calc(100vh - 58px); } nav { display: none; height: calc(100vh - 58px); position: fixed; width: min(88vw, 320px); z-index: 2; }
             nav.open { display: block; } main { padding: 16px; }
         }
     </style>
 </head>
 <body>
-<header><button class="nexa-button nexa-button--secondary menu" aria-controls="modules" aria-expanded="false">Menu</button><div class="brand">Nexa CRM</div><div class="tenant"><span aria-hidden="true">AA</span><strong id="tenant-name">Atlas Advisory</strong></div></header>
+<header class="app-header">
+    <a class="brand-zone" href="#" aria-label="Nexa CRM home"><span class="brand-mark" aria-hidden="true">N</span><span class="brand-copy"><strong>Nexa</strong><small>CRM</small></span></a>
+    <div class="header-content">
+        <button type="button" class="header-action menu" aria-label="Open workspace navigation" aria-controls="modules" aria-expanded="false"><span aria-hidden="true">&#9776;</span></button>
+        <div class="tenant" role="group" aria-label="Current workspace: Atlas Advisory"><span class="tenant-mark" aria-hidden="true">AA</span><span class="tenant-copy"><small>Workspace</small><strong id="tenant-name">Atlas Advisory</strong></span></div>
+        <form class="workspace-search" role="search"><label class="sr-only" for="workspace-search">Search across this workspace</label><input id="workspace-search" type="search" placeholder="Search customers, deals and more"><button type="submit" aria-label="Search workspace"><span aria-hidden="true">&#128269;</span></button></form>
+        <button type="button" class="header-action create" aria-label="Create a new record"><span aria-hidden="true">+</span></button>
+        <button type="button" class="header-action notification" aria-label="Open notifications"><span aria-hidden="true">&#128276;</span><span class="notification-count">3</span></button>
+        <button type="button" class="header-action account" aria-label="Open account menu for Demo Admin"><span class="avatar" aria-hidden="true">DA</span><span>Demo Admin</span></button>
+    </div>
+</header>
 <div class="layout"><nav id="modules" aria-label="Workspace modules"><a href="#" aria-current="page">Home</a><a href="#">Accounts</a><a href="#">Contacts</a><a href="#">Marketing</a><a href="#">Automation</a><a href="#">Analytics</a><a href="#">Settings</a></nav>
 <main><div class="nexa-toolbar"><h1>Customer workspace</h1><button class="nexa-button">Create contact</button></div><section class="panel" aria-labelledby="pipeline"><h2 id="pipeline">Sales pipeline</h2><div class="nexa-table-wrap" role="region" aria-label="Sales pipeline records" tabindex="0"><table class="nexa-table"><thead><tr><th>Deal</th><th>Stage</th><th>Owner</th></tr></thead><tbody><tr><td>Expansion programme</td><td>Qualified</td><td>Demo Admin</td></tr></tbody></table></div></section></main></div>
 <script>
     const params = new URLSearchParams(location.search);
-    if (params.get('tenant') === 'b') document.querySelector('#tenant-name').textContent = 'Beacon Studio';
+    if (params.get('tenant') === 'b') {
+        document.querySelector('#tenant-name').textContent = 'Beacon Studio';
+        document.querySelector('.tenant').setAttribute('aria-label', 'Current workspace: Beacon Studio');
+    }
     const button = document.querySelector('.menu'); const nav = document.querySelector('nav');
     button.addEventListener('click', () => { const open = nav.classList.toggle('open'); button.setAttribute('aria-expanded', String(open)); if (open) nav.querySelector('a').focus(); });
     nav.addEventListener('keydown', event => { if (event.key === 'Escape') { nav.classList.remove('open'); button.setAttribute('aria-expanded', 'false'); button.focus(); } });
+    document.querySelector('.workspace-search').addEventListener('submit', event => event.preventDefault());
 </script>
 </body>
 </html>

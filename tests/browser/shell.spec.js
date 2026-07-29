@@ -28,9 +28,9 @@ for (const [name, url] of [
 test('mobile drawer transfers focus and closes with Escape', async ({page}, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile');
     await page.goto(fixture('shell.html'));
-    const menu = page.getByRole('button', {name: 'Menu'});
+    const menu = page.getByRole('button', {name: 'Open workspace navigation'});
     await menu.click();
-    await expect(page.getByRole('link', {name: 'Home'})).toBeFocused();
+    await expect(page.getByRole('link', {name: 'Home', exact: true})).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(menu).toBeFocused();
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
@@ -60,4 +60,32 @@ test('login reflows without horizontal overlap at a 200 percent zoom equivalent'
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     await expect(page.getByRole('button', {name: 'Sign in'})).toBeVisible();
+});
+
+test('premium authenticated header exposes the complete workspace toolset', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop');
+    await page.goto(fixture('shell.html'));
+
+    await expect(page.getByRole('link', {name: 'Nexa CRM home'})).toBeVisible();
+    await expect(page.getByLabel('Current workspace: Atlas Advisory')).toBeVisible();
+    await expect(page.getByRole('searchbox', {name: 'Search across this workspace'})).toHaveAttribute(
+        'placeholder',
+        'Search customers, deals and more'
+    );
+    await expect(page.getByRole('button', {name: 'Create a new record'})).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Open notifications'})).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Open account menu for Demo Admin'})).toBeVisible();
+});
+
+test('premium header keeps tenant identity and actions separated on small screens', async ({page}, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile');
+    await page.goto(`${fixture('shell.html')}?tenant=b`);
+
+    const tenant = page.getByLabel('Current workspace: Beacon Studio');
+    const notifications = page.getByRole('button', {name: 'Open notifications'});
+    await expect(tenant).toBeVisible();
+    await expect(notifications).toBeVisible();
+
+    const [tenantBox, notificationBox] = await Promise.all([tenant.boundingBox(), notifications.boundingBox()]);
+    expect(tenantBox.x + tenantBox.width).toBeLessThanOrEqual(notificationBox.x);
 });
