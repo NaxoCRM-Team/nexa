@@ -65,7 +65,7 @@ final class AuthProviderRegistry
                 'key' => $key,
                 'label' => $definition['label'],
                 'icon' => $definition['icon'],
-                'startUrl' => '/api/v1/Nexa/auth/provider/' . $key . '/start',
+                'startUrl' => 'api/v1/Nexa/auth/provider/' . $key . '/start',
             ];
         }
 

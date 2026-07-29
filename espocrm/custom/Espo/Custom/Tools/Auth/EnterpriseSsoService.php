@@ -371,6 +371,8 @@ final class EnterpriseSsoService
 
     private function oidcCallbackUrl(string $id): string { return $this->siteUrl() . '/api/v1/Nexa/auth/sso/' . rawurlencode($id) . '/oidc/callback'; }
     private function samlCallbackUrl(string $id): string { return $this->siteUrl() . '/api/v1/Nexa/auth/sso/' . rawurlencode($id) . '/saml/acs'; }
+    public function failureRedirectUrl(string $reason): string { return $this->failureUrl($reason); }
+
     private function failureUrl(string $reason): string { return $this->siteUrl() . '/?login=1&socialError=' . rawurlencode($reason); }
     private function completionUrl(string $token, string $plan): string { return $this->siteUrl() . '/?signup=complete&plan=' . rawurlencode($plan) . '#nexa-onboarding=' . rtrim(strtr(base64_encode($token), '+/', '-_'), '='); }
     private function siteUrl(): string { return rtrim((string) $this->config->get('siteUrl'), '/'); }

@@ -209,12 +209,19 @@ See [XAMPP Development Setup](docs/development/xampp-setup.md) for PHP settings,
 
 ## WampServer Setup
 
-WampServer follows the same one-command setup. Clone the repository, configure
-the `nexa.local` virtual host, then run `setup-native-windows.ps1` with the
-WampServer PHP and MariaDB 10.11 or 11.x executable paths. No application download,
-manual database creation or browser installer is required.
+WampServer supports both the normal `nexa.local` project setup and a portable
+subfolder mode. A prepared `espocrm` folder can be placed directly under
+`C:\wamp64\www\espocrm_boye` and opened at
+`http://localhost/espocrm_boye/`; no virtual host or Windows hosts-file entry is
+required. Apache `mod_rewrite` and `AllowOverride All` must remain enabled.
 
-See [WampServer Development Setup](docs/development/wampserver-setup.md) for the complete virtual-host, database, migration, scheduled-job and update workflow.
+Portable copies still need their imported database and machine-specific values
+in `espocrm/data/config.php`. Set `siteUrl` to the exact folder URL and ensure
+`isInstalled` is `true` in `espocrm/data/config-internal.php`. This bypasses the
+browser installer while keeping landing, login, signup, recovery, API and social
+identity routes inside the copied folder.
+
+See [WampServer Development Setup](docs/development/wampserver-setup.md) for both the one-command full repository workflow and the portable copied-folder workflow.
 
 ## Signup Email And SMTP
 

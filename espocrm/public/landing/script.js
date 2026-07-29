@@ -1,4 +1,6 @@
 (() => {
+    const applicationBaseUrl = new URL(document.querySelector('base')?.href || './', location.href);
+    const applicationUrl = path => new URL(String(path).replace(/^\/+/, ''), applicationBaseUrl);
     const header = document.querySelector('[data-header]');
     const nav = document.querySelector('[data-nav]');
     const navToggle = document.querySelector('[data-nav-toggle]');
@@ -206,7 +208,7 @@
     };
 
     const api = async (path, payload) => {
-        const response = await fetch(`/api/v1/Nexa/signup${path}`, {
+        const response = await fetch(applicationUrl(`api/v1/Nexa/signup${path}`), {
             method: 'POST',
             credentials: 'same-origin',
             headers: {'Content-Type': 'application/json'},
@@ -240,7 +242,7 @@
         });
     };
 
-    fetch('/api/v1/Nexa/auth/providers', {credentials: 'same-origin'})
+    fetch(applicationUrl('api/v1/Nexa/auth/providers'), {credentials: 'same-origin'})
         .then(response => response.ok ? response.json() : {providers: []})
         .then(({providers = []}) => {
             providers.forEach(provider => {
@@ -248,10 +250,10 @@
                 button.type = 'button';
                 button.className = 'social-auth-button social-auth-button--' + provider.key;
                 button.innerHTML = provider.key === 'google'
-                    ? '<img class="google-auth-icon" src="/client/custom/img/google-g.svg" alt=""><span>Continue with Google</span>'
+                    ? `<img class="google-auth-icon" src="${applicationUrl('client/custom/img/google-g.svg')}" alt=""><span>Continue with Google</span>`
                     : '<span class="fab fa-' + provider.icon + '" aria-hidden="true"></span><span>Continue with ' + provider.label + '</span>';
                 button.addEventListener('click', () => {
-                    const target = new URL(provider.startUrl, location.origin);
+                    const target = applicationUrl(provider.startUrl);
                     target.searchParams.set('intent', 'signup');
                     target.searchParams.set('plan', selectedPlan);
                     location.assign(target);
@@ -414,7 +416,7 @@
             const encoded = location.hash.slice('#nexa-onboarding='.length).replace(/-/g, '+').replace(/_/g, '/');
             attemptToken = atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '='));
             showProfile('social', attemptToken, params.get('plan') || 'growth');
-            history.replaceState(null, '', `/?signup=complete&plan=${encodeURIComponent(selectedPlan)}`);
+            history.replaceState(null, '', applicationUrl(`?signup=complete&plan=${encodeURIComponent(selectedPlan)}`));
         } catch {
             openDialog(params.get('plan') || 'growth');
             methodMessage.textContent = 'Your social signup session could not be restored. Please try again.';

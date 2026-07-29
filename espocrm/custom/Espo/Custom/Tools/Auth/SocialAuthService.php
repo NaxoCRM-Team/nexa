@@ -239,6 +239,16 @@ final class SocialAuthService
         return rtrim((string) $this->config->get('siteUrl'), '/') . '/?login=1#nexa-social=' . $payload;
     }
 
+    public function failureRedirectUrl(string $reason): string
+    {
+        return $this->failureUrl($reason);
+    }
+
+    public function callbackCookiePath(string $provider): string
+    {
+        return (string) (parse_url($this->callbackUrl($provider), PHP_URL_PATH) ?: '/');
+    }
+
     private function failureUrl(string $reason): string
     {
         return rtrim((string) $this->config->get('siteUrl'), '/') . '/?login=1&socialError=' . rawurlencode($reason);

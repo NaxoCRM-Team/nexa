@@ -23,7 +23,7 @@ $providers = AuthProviderRegistry::normalize([
 $assert(count($providers) === 1, 'Only allow-listed enabled providers may be published.');
 $assert($providers[0]['key'] === 'google', 'Google provider metadata is missing.');
 $assert(
-    $providers[0]['startUrl'] === '/api/v1/Nexa/auth/provider/google/start',
+    $providers[0]['startUrl'] === 'api/v1/Nexa/auth/provider/google/start',
     'Provider entry point must remain behind the M04 contract.'
 );
 
@@ -57,7 +57,7 @@ $assert(
     str_contains($loginTemplateSource, 'Good to see you again') &&
     str_contains($loginTemplateSource, 'modern-login-proof') &&
     str_contains($loginTemplateSource, 'type="button" class="modern-login-forgot"') &&
-    str_contains($loginTemplateSource, 'href="/" aria-label="Nexa CRM home"'),
+    str_contains($loginTemplateSource, 'href="./" aria-label="Nexa CRM home"'),
     'The primary sign-in view must render the distinct Nexa authentication experience.'
 );
 $assert(
@@ -86,8 +86,8 @@ $landingCssSource = file_get_contents(
     dirname(__DIR__, 2) . '/espocrm/public/landing/styles.css'
 );
 $assert(
-    str_contains($loginAdapterSource, '/client/custom/img/google-g.svg') &&
-    str_contains($landingSource, '/client/custom/img/google-g.svg') &&
+    str_contains($loginAdapterSource, "applicationUrl('client/custom/img/google-g.svg')") &&
+    str_contains($landingSource, "applicationUrl('client/custom/img/google-g.svg')") &&
     str_contains($loginCssSource, '.modern-social-button--google') &&
     str_contains($landingCssSource, '.social-auth-button--google'),
     'Google sign in and signup must share recognizable provider branding.'

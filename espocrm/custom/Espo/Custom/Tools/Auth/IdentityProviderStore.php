@@ -67,7 +67,7 @@ final class IdentityProviderStore
                 'key' => $row['provider_key'],
                 'label' => $row['display_name'],
                 'protocol' => $row['protocol'],
-                'startUrl' => '/api/v1/Nexa/auth/sso/' . rawurlencode($row['id']) . '/start',
+                'startUrl' => 'api/v1/Nexa/auth/sso/' . rawurlencode($row['id']) . '/start',
             ];
         }
 
