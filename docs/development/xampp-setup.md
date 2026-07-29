@@ -175,7 +175,7 @@ No browser installation is used. Opening <http://nexa.local> now shows the
 landing or login experience directly. The command can be run again after
 `git pull`; it applies pending migrations and refreshes development fixtures.
 
-Both demo accounts sign in through <http://nexa.local/?login=1>. Use the
+Both demo accounts sign in through <http://nexa.local/login>. Use the
 `DEMO_TENANT_A_ADMIN_*` or `DEMO_TENANT_B_ADMIN_*` values from `.env`. The
 submitted login identity selects the tenant; separate login domains are not
 required.
@@ -258,7 +258,7 @@ powershell -ExecutionPolicy Bypass -File scripts/dev/check-environment.ps1
 
 The environment is complete only when:
 
-- <http://nexa.local/?login=1> loads;
+- <http://nexa.local/login> loads;
 - `setup-native-windows.ps1` finishes successfully;
 - <http://nexa.local/install/> redirects away from the installer;
 - the verifier reports at least 158 tables, 147 tenant columns, 138 service

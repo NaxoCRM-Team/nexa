@@ -207,7 +207,7 @@ final class SignupService
         $context=new TenantContext($identity['tenant_id'],$identity['slug'],'signup-complete',$identity['display_name']);
         $token=$this->tenantContextStore->runWith($context,fn()=>$this->authTokenManager->create(AuthTokenData::create(['userId'=>$identity['user_id']])));
         $payload=rtrim(strtr(base64_encode(json_encode(['userName'=>$identity['user_name'],'token'=>$token->getToken()],JSON_THROW_ON_ERROR)),'+/','-_'),'=');
-        return rtrim((string)$this->config->get('siteUrl'),'/').'/?login=1#nexa-social='.$payload;
+        return rtrim((string)$this->config->get('siteUrl'),'/').'/login#nexa-social='.$payload;
     }
 
     private function enforceRateLimit(PDO $pdo,string $fingerprint,string $action,int $limit): void

@@ -32,7 +32,7 @@ function Measure-Endpoint([string] $Label, [string] $Url, [string] $Authorizatio
 }
 
 try {
-    $loginP95 = Measure-Endpoint 'Shared login' "$($BaseUrl.TrimEnd('/'))/?login=1"
+    $loginP95 = Measure-Endpoint 'Shared login' "$($BaseUrl.TrimEnd('/'))/login"
     if ($loginP95 -gt $WarmLimitSeconds) {
         throw "Shared login p95 $($loginP95.ToString('N3'))s exceeds the $WarmLimitSeconds second limit."
     }

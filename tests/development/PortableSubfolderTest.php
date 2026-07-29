@@ -41,6 +41,8 @@ $assert(
 $landing = file_get_contents($root . '/espocrm/public/landing/index.html');
 $landingScript = file_get_contents($root . '/espocrm/public/landing/script.js');
 $loginScript = file_get_contents($root . '/espocrm/client/custom/login-patch.js');
+$rewriteRules = file_get_contents($root . '/espocrm/.htaccess');
+$landingCss = file_get_contents($root . '/espocrm/public/landing/styles.css');
 
 $assert(
     str_contains($landing, '<base href="{{baseHref}}">') &&
@@ -54,6 +56,13 @@ $assert(
     !str_contains($landingScript, "fetch('/api/v1/") &&
     !str_contains($loginScript, "fetch('/api/v1/"),
     'Authentication and signup APIs must not escape to the server root.'
+);
+$assert(
+    str_contains($rewriteRules, 'RewriteRule ^login/?$') &&
+    !str_contains($landing, 'login=1') &&
+    !str_contains($landingCss, "url('/client/") &&
+    !str_contains($landingCss, "url('/landing/"),
+    'Friendly login navigation and landing assets must remain inside the application mount point.'
 );
 
 fwrite(STDOUT, '[PASS] Portable root and subfolder paths are supported.' . PHP_EOL);

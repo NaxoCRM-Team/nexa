@@ -95,7 +95,7 @@ Open <http://localhost:8080>. Local administrator credentials are stored in the 
 
 Development setup also creates two isolated demo tenants with separate local-only credentials in the ignored `.env` file. Each tenant receives its own synthetic accounts, contacts, leads, opportunities, tasks and meetings:
 
-Both accounts sign in through <http://localhost:8080/?login=1>. The application resolves the correct tenant from the submitted login identity:
+Both accounts sign in through <http://localhost:8080/login>. The application resolves the correct tenant from the submitted login identity:
 
 - Tenant A uses `DEMO_TENANT_A_ADMIN_USERNAME` and `DEMO_TENANT_A_ADMIN_PASSWORD`.
 - Tenant B uses `DEMO_TENANT_B_ADMIN_USERNAME` and `DEMO_TENANT_B_ADMIN_PASSWORD`.
@@ -193,7 +193,7 @@ rebuilds the application, blocks the browser installer and verifies the login.
 If the generated MariaDB root password is not valid, the command securely
 prompts for the current local root password.
 
-Both demo accounts use <http://nexa.local/?login=1>. Their usernames and passwords are the `DEMO_TENANT_A_ADMIN_*` and `DEMO_TENANT_B_ADMIN_*` values in `.env`; the submitted identity selects the correct tenant.
+Both demo accounts use <http://nexa.local/login>. Their usernames and passwords are the `DEMO_TENANT_A_ADMIN_*` and `DEMO_TENANT_B_ADMIN_*` values in `.env`; the submitted identity selects the correct tenant.
 
 ### 4. Enable Scheduled Jobs
 

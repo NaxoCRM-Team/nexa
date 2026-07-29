@@ -225,7 +225,7 @@ ALTER USER 'espocrm'@'127.0.0.1' IDENTIFIED BY '$escapedPassword';
 
     if (-not $SkipHttpCheck) {
         try {
-            $loginUrl = $SiteUrl.TrimEnd('/') + '/?login=1'
+            $loginUrl = $SiteUrl.TrimEnd('/') + '/login'
             $login = Invoke-WebRequest -Uri $loginUrl -UseBasicParsing -MaximumRedirection 5 -TimeoutSec 30
             if ($login.StatusCode -ne 200) { throw "Login returned HTTP $($login.StatusCode)." }
 

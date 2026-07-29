@@ -38,7 +38,7 @@ final class RecoveryService
             $identity = $this->resolveIdentity($email);
 
             if ($identity !== null) {
-                $url = rtrim((string) $this->config->get('siteUrl', ''), '/') . '/?login=1&source=recovery';
+                $url = rtrim((string) $this->config->get('siteUrl', ''), '/') . '/login?source=recovery';
                 $this->tenantContextStore->runWith(
                     $identity['tenant'],
                     fn () => $this->coreRecoveryService->request($email, $identity['username'], $url)

@@ -173,7 +173,7 @@ No browser installation is used. After setup, opening <http://nexa.local>
 shows the landing or login experience directly. The command is idempotent: on
 later runs it applies pending migrations and refreshes development fixtures.
 
-Both tenants sign in through <http://nexa.local/?login=1>. Use the
+Both tenants sign in through <http://nexa.local/login>. Use the
 `DEMO_TENANT_A_ADMIN_*` or `DEMO_TENANT_B_ADMIN_*` values from `.env`.
 
 Reapply SMTP settings after editing `.env`:
@@ -248,7 +248,7 @@ new forward migration for further changes.
 
 WampServer setup is complete only when:
 
-- <http://nexa.local/?login=1> loads;
+- <http://nexa.local/login> loads;
 - `setup-native-windows.ps1` passes;
 - <http://nexa.local/install/> redirects away from the installer;
 - validation reports at least 158 tables, 147 tenant columns, 138 service
