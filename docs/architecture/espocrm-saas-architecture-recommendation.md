@@ -70,6 +70,13 @@ A production cell may later host its own copy of this shared schema for capacity
 - Dedicated workers process marketing email, automation, imports, webhooks and schedules with immutable tenant context.
 - Central logs and traces include tenant, service, request and correlation identity.
 
+### 4.4 Unified Customer Domain
+
+The modular monolith shares one canonical customer identity and history across CRM, sales, service and marketing. Contacts and Accounts remain the known person and company masters; anonymous visitor identities, leads, opportunities, cases, campaigns, segments, scores and external identities link to those records through tenant-scoped contracts.
+
+The first cross-module schema package after the SaaS control plane defines Customer 360 identity links, typed relationships, lifecycle state/history, timeline events, behavioral events, consent evidence and reliable outbox publication. Module-specific schemas then build on those primitives instead of creating independent customer stores.
+
+The [Unified Product Specification](../product/unified-product-specification.md) defines required behavior, the [Requirements Traceability Matrix](../product/requirements-traceability.md) assigns ownership and phases, and the [SaaS Data Architecture](saas-data-architecture.md) controls physical schema and isolation rules.
 ## 5. Request and Login Flow
 
 1. A user opens the common Nexa login and submits a globally unambiguous username.
@@ -138,6 +145,8 @@ The versioned shared-schema migration creates:
 - `nexa_outbox_event`.
 
 The `nexa_` prefix prevents collisions with Espo table names and makes ownership clear.
+
+These are the existing SaaS control-plane foundations, not the complete future product schema. Customer identity, relationships, lifecycle, timeline, behavior, consent and later module tables require separate reviewed migrations after their requirement and data contracts are approved.
 
 ## 9. EspoCRM Conversion Plan
 

@@ -2,13 +2,13 @@
 
 ## Purpose
 
-This document lists the required functional capabilities and non-functional SaaS requirements for Nexa CRM.
+This document is the canonical inventory of Nexa's **86 advanced SaaS, marketing and growth capabilities** and **70 non-functional SaaS requirements**. Every listed requirement must be implemented and operational in the product.
 
-The inventory contains **86 functional requirements**. Every listed requirement must be implemented and operational in the product.
+The operational CRM, sales, service, marketing automation, data, API and delivery requirements are defined in the [Unified CRM and Marketing Automation Specification](unified-product-specification.md). The [Requirements Traceability Matrix](requirements-traceability.md) connects both requirement sets to modules, phases, dependencies and acceptance evidence.
 
 Implementation order is defined in the [Nexa CRM Module and Build Roadmap](module-build-roadmap.md).
 
-## Functional Requirements
+## Advanced Functional Requirements
 
 | ID | Domain | Requirement |
 |---|---|---|
@@ -99,7 +99,28 @@ Implementation order is defined in the [Nexa CRM Module and Build Roadmap](modul
 | F-085 | Email API | Marketing email single-send API |
 | F-086 | Integrations | YouTube analytics integration |
 
-## Missing Non-Functional SaaS Requirements
+## Core Product Requirement Namespaces
+
+The detailed specification uses stable domain namespaces so operational requirements can be traced without renumbering the advanced `F-*` catalogue.
+
+| Namespace | Product area |
+|---|---|
+| `PLAT-*` | Platform runtime, shared services, jobs, files and notifications |
+| `IAM-*` | Identity, teams, permissions, sessions, privacy and security |
+| `CRM-*` | Unified customer record, core entities, lifecycle and associations |
+| `SALES-*` | Opportunities, pipelines, activities, calendars and forecasting |
+| `SERVICE-*` | Cases, SLAs, queues, portals and operational email |
+| `MKT-*` | Consent, segments, campaigns, forms, content and marketing email |
+| `EVENT-*` | Visitor identity, behavioral events and customer timeline |
+| `AUTO-*` | Workflow definitions, execution, branching, delays and actions |
+| `ANALYTICS-*` | Reports, dashboards, attribution and governed metrics |
+| `EXT-*` | APIs, webhooks, provider connections and synchronization |
+| `DATA-*` | Customization, relationships, formulas and data management |
+| `DEL-*` | Source, schema, documentation, testing and release evidence |
+
+The ranges and module assignments are controlled by the [Requirements Traceability Matrix](requirements-traceability.md). A requirement is not implementation-ready merely because it has a namespace; its backlog issue must satisfy the readiness contract below.
+
+## Non-Functional SaaS Requirements
 
 ### Tenancy and SaaS Operations
 
@@ -211,9 +232,9 @@ Implementation order is defined in the [Nexa CRM Module and Build Roadmap](modul
 | NFR-069 | Global navigation, search and notifications across all product modules |
 | NFR-070 | Clear loading, empty, error, partial-failure and recovery states |
 
-## Backlog Fields Required Next
+## Required Traceability Fields
 
-Every functional and non-functional item must eventually include:
+Every advanced, core-product and non-functional requirement must include before implementation:
 
 | Field | Purpose |
 |---|---|

@@ -42,6 +42,7 @@ $required = @(
     'database/shared/table-ownership-manifest.json', 'espocrm/application/Espo/Resources/tenant-table-ownership.json',
     'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/InstallationBootstrapTest.php',
     'tests/tenant/CrmDatabaseSmokeTest.php', 'tests/architecture/ModuleConventionTest.php',
+    'tests/architecture/ProductRequirementsAlignmentTest.php',
     'tests/browser/shell.spec.js', 'tests/browser/fixtures/login.html', 'tests/browser/fixtures/shell.html',
     'tests/browser/fixtures/components.html',
     'tests/browser/fixtures/dialog.html',
@@ -121,6 +122,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\configure-auth-
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\install-native-application.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CrmDatabaseSmokeTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\PortableSubfolderTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
@@ -149,6 +151,7 @@ if ($php) {
     & php (Join-Path $root 'tests\dashboard\TenantDashboardTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant dashboard contract suite' } else { Fail 'Tenant dashboard contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
+    & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Module convention suite' } else { Fail 'Module convention suite failed.' }
 }
 
