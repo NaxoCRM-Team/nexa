@@ -5,6 +5,7 @@ declare(strict_types=1);
 $root = dirname(__DIR__, 2);
 
 require_once $root . '/espocrm/public/application-path.php';
+require_once $root . '/espocrm/bootstrap.php';
 
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -41,6 +42,33 @@ $assert(
     NexaApplicationPath::isRoute('/espocrm_boye/login', '/espocrm_boye', 'login'),
     'Friendly routes must be recognized within a copied application mount point.'
 );
+
+$originalScriptName = $_SERVER['SCRIPT_NAME'] ?? null;
+$originalRequestUri = $_SERVER['REQUEST_URI'] ?? null;
+$_SERVER['SCRIPT_NAME'] = '/public/api/v1/index.php';
+$_SERVER['REQUEST_URI'] = '/espocrm2/espocrm/api/v1/App/user';
+
+$assert(
+    \Espo\Core\Utils\Route::detectBasePath() === '/espocrm2/espocrm/api/v1',
+    'A WampServer rewrite must preserve the nested API mount point for Slim routing.'
+);
+
+$_SERVER['SCRIPT_NAME'] = '/espocrm2/espocrm/api/v1/App/user';
+$assert(
+    \Espo\Core\Utils\Route::detectBasePath() === '/espocrm2/espocrm/api/v1',
+    'An original-route SCRIPT_NAME must not make Slim consume /App/user as its base path.'
+);
+
+if ($originalScriptName === null) {
+    unset($_SERVER['SCRIPT_NAME']);
+} else {
+    $_SERVER['SCRIPT_NAME'] = $originalScriptName;
+}
+if ($originalRequestUri === null) {
+    unset($_SERVER['REQUEST_URI']);
+} else {
+    $_SERVER['REQUEST_URI'] = $originalRequestUri;
+}
 
 $publicEntry = file_get_contents($root . '/espocrm/public/index.php');
 $landing = file_get_contents($root . '/espocrm/public/landing/index.html');

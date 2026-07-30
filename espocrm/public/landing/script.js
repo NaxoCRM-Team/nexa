@@ -153,7 +153,6 @@
     const success = document.querySelector('[data-signup-success]');
     const verificationError = document.querySelector('[data-signup-error]');
     const verificationForm = document.querySelector('[data-verification-form]');
-    const localCode = document.querySelector('[data-local-code]');
     const signupSocial = document.querySelector('[data-signup-social]');
     const signupDivider = document.querySelector('[data-signup-divider]');
     const emailFields = document.querySelector('[data-email-fields]');
@@ -217,6 +216,30 @@
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw Object.assign(new Error(body.message || 'Something went wrong.'), {body});
         return body;
+    };
+
+    const encodeBase64 = value => {
+        const bytes = new TextEncoder().encode(value);
+        let binary = '';
+        bytes.forEach(byte => binary += String.fromCharCode(byte));
+
+        return btoa(binary);
+    };
+
+    const openAuthenticatedWorkspace = session => {
+        if (!session?.userName || !session?.token) {
+            throw new Error('Your workspace was created, but sign-in could not be completed.');
+        }
+
+        // Mirror Espo's successful login storage contract before loading the
+        // application. The verification view stays visible until navigation.
+        localStorage.removeItem('espo-user-anotherUser');
+        localStorage.setItem(
+            'espo-user-auth',
+            encodeBase64(`${session.userName}:${session.token}`)
+        );
+        document.cookie = `auth-token=${session.token}; SameSite=Lax; path=/`;
+        location.replace(applicationUrl('?login=1'));
     };
 
     const setLoading = (button, loading) => {
@@ -343,18 +366,12 @@
         setLoading(submit, true);
         try {
             const result = await api('/complete', payload);
-            if (result.status === 'active' && result.loginUrl) {
-                showState(success, 'verify');
-                window.setTimeout(() => location.assign(result.loginUrl), 450);
+            if (result.status === 'active' && result.session) {
+                showState(verifying, 'verify');
+                openAuthenticatedWorkspace(result.session);
                 return;
             }
             document.querySelector('[data-pending-email]').textContent = result.email;
-            if (result.verificationCode) {
-                localCode.textContent = 'Local verification code: ' + result.verificationCode;
-                localCode.hidden = false;
-            } else {
-                localCode.hidden = true;
-            }
             showState(pending, 'verify');
             window.setTimeout(() => verificationForm.elements.code.focus(), 50);
         } catch (error) {
@@ -372,10 +389,6 @@
             const result = await api('/resend', {attemptToken});
             message.textContent = result.message;
             message.classList.add('is-success');
-            if (result.verificationCode) {
-                localCode.textContent = 'Local verification code: ' + result.verificationCode;
-                localCode.hidden = false;
-            }
         } catch (error) {
             message.textContent = error.message;
             message.classList.add('is-error');
@@ -394,8 +407,7 @@
         showState(verifying, 'verify');
         try {
             const result = await api('/verify', {attemptToken, code: verificationForm.elements.code.value});
-            showState(success, 'verify');
-            if (result.loginUrl) window.setTimeout(() => location.assign(result.loginUrl), 450);
+            openAuthenticatedWorkspace(result.session);
         } catch (error) {
             document.querySelector('[data-verification-error]').textContent = error.message;
             showState(verificationError, 'verify');

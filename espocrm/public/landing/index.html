@@ -9,8 +9,8 @@
     <title>Nexa CRM | Customer growth, connected</title>
     <link rel="icon" type="image/png" href="landing/assets/favicon.png">
     <link rel="stylesheet" href="client/css/font-awesome.min.css">
-    <link rel="stylesheet" href="landing/styles.css?v=20260729-2">
-    <script src="landing/script.js?v=20260729-1" defer></script>
+    <link rel="stylesheet" href="landing/styles.css?v=20260730-1">
+    <script src="landing/script.js?v=20260730-1" defer></script>
 </head>
 <body>
 <header class="site-header" data-header>
@@ -180,7 +180,7 @@
             <section class="signup-state" data-signup-pending hidden aria-labelledby="verification-title">
                 <span class="state-icon"><span class="fas fa-envelope" aria-hidden="true"></span></span><p class="eyebrow dark">Check your inbox</p><h3 id="verification-title">Enter your verification code</h3><p>We sent an eight-digit code to <strong data-pending-email></strong>. It expires in 15 minutes.</p>
                 <form data-verification-form novalidate><label for="signup-verification-code">Verification code</label><input id="signup-verification-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" aria-describedby="verification-help" required><small id="verification-help">Enter all eight digits from the email.</small><div class="form-message" data-code-message role="alert" hidden></div><button class="button button-coral" type="submit"><span>Verify and create workspace</span><span class="fas fa-arrow-right" aria-hidden="true"></span></button></form>
-                <p class="local-code" data-local-code hidden></p><button class="text-button" type="button" data-resend>Send a new code</button><p class="state-note" data-resend-message role="status" aria-live="polite"></p>
+                <button class="text-button" type="button" data-resend>Send a new code</button><p class="state-note" data-resend-message role="status" aria-live="polite"></p>
             </section>
             <section class="signup-state" data-signup-verifying hidden><span class="state-icon loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span></span><h3>Creating your workspace</h3><p>We are verifying your identity and applying your selected plan.</p></section>
             <section class="signup-state" data-signup-success hidden><span class="state-icon success"><span class="fas fa-check" aria-hidden="true"></span></span><p class="eyebrow dark">Workspace active</p><h3>Welcome to Nexa CRM</h3><p>Your workspace is ready. We are taking you there now.</p></section>
