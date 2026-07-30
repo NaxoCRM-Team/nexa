@@ -75,6 +75,7 @@ $apiStarter = file_get_contents($root . '/espocrm/application/Espo/Core/Api/Star
 $landing = file_get_contents($root . '/espocrm/public/landing/index.html');
 $landingScript = file_get_contents($root . '/espocrm/public/landing/script.js');
 $loginScript = file_get_contents($root . '/espocrm/client/custom/login-patch.js');
+$mainHtml = file_get_contents($root . '/espocrm/html/main.html');
 $rewriteRules = file_get_contents($root . '/espocrm/.htaccess');
 $landingCss = file_get_contents($root . '/espocrm/public/landing/styles.css');
 
@@ -110,7 +111,14 @@ $assert(
     'Slim route caches must be isolated by application mount path.'
 );
 $assert(
-    str_contains($loginScript, 'App.prototype.onAuth = async function') &&
+    str_contains($mainHtml, "document.createElement('base')") &&
+    str_contains($mainHtml, "window.location.href.split(/[?#]/)[0]") &&
+    str_contains($mainHtml, 'showStartupFailure') &&
+    str_contains($mainHtml, "window.location.reload()"),
+    'Lazy client assets must remain anchored to the original application mount after URL normalization.'
+);
+$assert(
+    str_contains($loginScript, 'App.prototype.initRouter = function') &&
     str_contains($loginScript, 'showApplicationUrl();') &&
     str_contains($loginScript, 'showLoginUrl();'),
     'Authentication must establish the correct pathname before Backbone initializes its router root.'

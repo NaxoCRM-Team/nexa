@@ -13,6 +13,38 @@
         <link rel="alternate icon" href="{{basePath}}{{faviconAlternate}}" type="image/x-icon">
         <link rel="icon" href="{{basePath}}{{favicon}}" type="{{faviconType}}">
         <script nonce="{{nonce}}">
+            // Espo lazy-loads bundles and theme assets after authentication. Keep
+            // their relative URLs anchored to the page that booted the client,
+            // even when the friendly /login/ pathname is later normalized.
+            const runtimeBase = document.createElement('base');
+            runtimeBase.href = window.location.href.split(/[?#]/)[0];
+            document.head.append(runtimeBase);
+
+            const showStartupFailure = () => {
+                const loader = document.querySelector('.nexa-app-loading');
+
+                if (!loader || loader.dataset.failed) {
+                    return;
+                }
+
+                loader.dataset.failed = 'true';
+                loader.setAttribute('role', 'alert');
+                loader.innerHTML = `
+                    <span class="nexa-app-loading-mark" aria-hidden="true">N</span>
+                    <strong>We couldn't open your workspace.</strong>
+                    <span>Please check the connection and try again.</span>
+                    <button type="button" class="btn btn-primary">Try again</button>
+                `;
+                loader.querySelector('button').addEventListener('click', () => window.location.reload());
+            };
+
+            window.addEventListener('error', event => {
+                if (event.target instanceof HTMLScriptElement || event.target instanceof HTMLLinkElement) {
+                    showStartupFailure();
+                }
+            }, true);
+            window.addEventListener('unhandledrejection', showStartupFailure);
+
             let loadedApp;
 
             const run = app => {

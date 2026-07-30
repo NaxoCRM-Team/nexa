@@ -22,18 +22,18 @@ require(['views/login', 'views/user/password-change-request', 'app'], (LoginView
         url.search = location.search;
         replaceUrl(url);
     };
-    const defaultOnAuth = App.prototype.onAuth;
+    const defaultInitRouter = App.prototype.initRouter;
     const defaultData = LoginView.prototype.data;
     const defaultSetup = LoginView.prototype.setup;
     const defaultAfterRender = LoginView.prototype.afterRender;
     const defaultResetSetup = PasswordResetView.prototype.setup;
 
-    // Normalize the pathname before Espo initializes Backbone history. Otherwise
-    // every authenticated route inherits /login/ as its permanent router root.
-    App.prototype.onAuth = async function (...args) {
+    // Espo lazy-loads CRM bundles during authentication. Keep /login/ until those
+    // assets finish, then normalize immediately before Backbone selects its root.
+    App.prototype.initRouter = function (...args) {
         showApplicationUrl();
 
-        return defaultOnAuth.apply(this, args);
+        return defaultInitRouter.apply(this, args);
     };
 
     LoginView.prototype.data = function () {
