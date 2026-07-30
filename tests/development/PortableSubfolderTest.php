@@ -71,6 +71,7 @@ if ($originalRequestUri === null) {
 }
 
 $publicEntry = file_get_contents($root . '/espocrm/public/index.php');
+$apiStarter = file_get_contents($root . '/espocrm/application/Espo/Core/Api/Starter.php');
 $landing = file_get_contents($root . '/espocrm/public/landing/index.html');
 $landingScript = file_get_contents($root . '/espocrm/public/landing/script.js');
 $loginScript = file_get_contents($root . '/espocrm/client/custom/login-patch.js');
@@ -102,6 +103,17 @@ $assert(
 $assert(
     str_contains($publicEntry, 'setClientBasePath($isFriendlyLoginRequest ? \'../\' : \'\')'),
     'The Espo client loader must step back from /login before resolving application assets.'
+);
+$assert(
+    str_contains($apiStarter, "hash('sha256', \$basePath)") &&
+    str_contains($apiStarter, 'setCacheFile($this->routeCacheFile($basePath))'),
+    'Slim route caches must be isolated by application mount path.'
+);
+$assert(
+    str_contains($loginScript, 'App.prototype.onAuth = async function') &&
+    str_contains($loginScript, 'showApplicationUrl();') &&
+    str_contains($loginScript, 'showLoginUrl();'),
+    'Authentication must establish the correct pathname before Backbone initializes its router root.'
 );
 
 fwrite(STDOUT, '[PASS] Portable root and subfolder paths are supported.' . PHP_EOL);
