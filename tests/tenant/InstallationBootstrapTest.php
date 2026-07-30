@@ -56,7 +56,7 @@ foreach ([
     'forward migrations' => 'apply-shared-schema.ps1',
     'application installer' => 'install-native-application.php',
     'demo tenants and verification' => 'complete-local-setup.ps1',
-    'HTTP login verification' => '/?login=1',
+    'HTTP login verification' => '/login',
 ] as $requirement => $marker) {
     if (!str_contains($nativeSetup, $marker)) {
         throw new RuntimeException('Native setup is missing ' . $requirement . '.');

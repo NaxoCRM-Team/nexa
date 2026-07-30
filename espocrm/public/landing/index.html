@@ -2,24 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <base href="{{baseHref}}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Nexa CRM brings sales, marketing, service and customer intelligence into one focused workspace.">
     <meta name="theme-color" content="#102627">
     <title>Nexa CRM | Customer growth, connected</title>
-    <link rel="icon" type="image/png" href="/landing/assets/favicon.png">
-    <link rel="stylesheet" href="/client/css/font-awesome.min.css">
-    <link rel="stylesheet" href="/landing/styles.css?v=20260717-3">
-    <script src="/landing/script.js?v=20260717-3" defer></script>
+    <link rel="icon" type="image/png" href="landing/assets/favicon.png">
+    <link rel="stylesheet" href="client/css/font-awesome.min.css">
+    <link rel="stylesheet" href="landing/styles.css?v=20260730-1">
+    <script src="landing/script.js?v=20260730-1" defer></script>
 </head>
 <body>
 <header class="site-header" data-header>
     <div class="nav-shell">
-        <a class="brand" href="/" aria-label="Nexa CRM home"><span class="brand-mark" aria-hidden="true">N</span><span>Nexa CRM</span></a>
+        <a class="brand" href="./" aria-label="Nexa CRM home"><span class="brand-mark" aria-hidden="true">N</span><span>Nexa CRM</span></a>
         <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" data-nav-toggle><span class="fas fa-bars" aria-hidden="true"></span></button>
         <nav class="site-nav" aria-label="Primary navigation" data-nav>
-            <a href="#platform">Product</a><a href="#capabilities">Capabilities</a><a href="#automation">Automation</a><a href="#integrations">Integrations</a><a href="#pricing">Pricing</a><a class="mobile-nav-login" href="/?login=1&amp;source=landing">Sign in</a>
+            <a href="#platform">Product</a><a href="#capabilities">Capabilities</a><a href="#automation">Automation</a><a href="#integrations">Integrations</a><a href="#pricing">Pricing</a><a class="mobile-nav-login" href="login">Sign in</a>
         </nav>
-        <div class="nav-actions"><a class="nav-login" href="/?login=1&amp;source=landing">Sign in</a><a class="button button-small button-coral" href="?signup=growth" data-signup-plan="growth">Start free</a></div>
+        <div class="nav-actions"><a class="nav-login" href="login">Sign in</a><a class="button button-small button-coral" href="?signup=growth" data-signup-plan="growth">Start free</a></div>
     </div>
 </header>
 <main>
@@ -116,7 +117,7 @@
         </div></div>
     </section>
 
-    <section class="closing-cta"><div class="section-shell"><p class="eyebrow">One customer story. Every team aligned.</p><h2>Build your next stage of growth on Nexa CRM.</h2><div><a class="button button-coral" href="#pricing">View pricing</a><a class="button button-ghost" href="/?login=1&amp;source=landing">Sign in</a></div></div></section>
+    <section class="closing-cta"><div class="section-shell"><p class="eyebrow">One customer story. Every team aligned.</p><h2>Build your next stage of growth on Nexa CRM.</h2><div><a class="button button-coral" href="#pricing">View pricing</a><a class="button button-ghost" href="login">Sign in</a></div></div></section>
 </main>
 <footer class="site-footer">
     <div class="section-shell footer-main">
@@ -130,7 +131,7 @@
             <div><strong>Product</strong><a href="#platform">Platform</a><a href="#capabilities">89 capabilities</a><a href="#automation">Automation</a><a href="#pricing">Pricing</a></div>
             <div><strong>Teams</strong><a href="#platform">Sales</a><a href="#platform">Marketing</a><a href="#platform">Service</a><a href="#platform">Operations</a></div>
             <div><strong>Connect</strong><a href="#integrations">Integrations</a><a href="#integrations">Developer API</a><a href="mailto:support@nexa.local">Support</a><a href="mailto:sales@nexa.local">Contact</a></div>
-            <div><strong>Workspace</strong><a href="/?login=1&amp;source=landing">Sign in</a><a href="?signup=launch" data-signup-plan="launch">Create workspace</a><a href="#faq">FAQ</a></div>
+            <div><strong>Workspace</strong><a href="login">Sign in</a><a href="?signup=launch" data-signup-plan="launch">Create workspace</a><a href="#faq">FAQ</a></div>
         </div>
     </div>
     <div class="section-shell footer-bottom"><span>&copy; 2026 Nexa CRM. All rights reserved.</span><span>Built on EspoCRM open-source software.</span></div>
@@ -158,7 +159,7 @@
                     <small data-email-start-error></small>
                     <button class="button button-dark" type="submit"><span>Continue with email</span><span class="fas fa-arrow-right" aria-hidden="true"></span></button>
                 </form>
-                <p class="signin-link">Already have a workspace? <a href="/?login=1&amp;source=landing">Sign in</a></p>
+                <p class="signin-link">Already have a workspace? <a href="login">Sign in</a></p>
             </section>
             <form class="signup-form" data-signup-form novalidate hidden>
                 <header class="signup-form-heading field-wide"><p class="eyebrow dark">Workspace details</p><h3>Tell us about your team</h3><p data-profile-help>Complete your profile to continue.</p></header>
@@ -179,7 +180,7 @@
             <section class="signup-state" data-signup-pending hidden aria-labelledby="verification-title">
                 <span class="state-icon"><span class="fas fa-envelope" aria-hidden="true"></span></span><p class="eyebrow dark">Check your inbox</p><h3 id="verification-title">Enter your verification code</h3><p>We sent an eight-digit code to <strong data-pending-email></strong>. It expires in 15 minutes.</p>
                 <form data-verification-form novalidate><label for="signup-verification-code">Verification code</label><input id="signup-verification-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" aria-describedby="verification-help" required><small id="verification-help">Enter all eight digits from the email.</small><div class="form-message" data-code-message role="alert" hidden></div><button class="button button-coral" type="submit"><span>Verify and create workspace</span><span class="fas fa-arrow-right" aria-hidden="true"></span></button></form>
-                <p class="local-code" data-local-code hidden></p><button class="text-button" type="button" data-resend>Send a new code</button><p class="state-note" data-resend-message role="status" aria-live="polite"></p>
+                <button class="text-button" type="button" data-resend>Send a new code</button><p class="state-note" data-resend-message role="status" aria-live="polite"></p>
             </section>
             <section class="signup-state" data-signup-verifying hidden><span class="state-icon loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span></span><h3>Creating your workspace</h3><p>We are verifying your identity and applying your selected plan.</p></section>
             <section class="signup-state" data-signup-success hidden><span class="state-icon success"><span class="fas fa-check" aria-hidden="true"></span></span><p class="eyebrow dark">Workspace active</p><h3>Welcome to Nexa CRM</h3><p>Your workspace is ready. We are taking you there now.</p></section>

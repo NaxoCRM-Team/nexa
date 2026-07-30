@@ -80,9 +80,7 @@ final class SignupService
 
         if ($attempt['method'] === 'social') return $this->provision($token);
         $sent = $this->mailer->sendVerification($data['company'], $data['firstName'], $attempt['email'], (string) $code);
-        $result = ['status' => 'verification_pending', 'email' => $this->maskEmail($attempt['email']), 'emailSent' => $sent];
-        if ($this->canExposeLocalVerification()) $result['verificationCode'] = $code;
-        return $result;
+        return ['status' => 'verification_pending', 'email' => $this->maskEmail($attempt['email']), 'emailSent' => $sent];
     }
 
     /** @return array<string,mixed> */
@@ -116,13 +114,11 @@ final class SignupService
         $pdo = $this->entityManager->getPDO();
         $this->enforceRateLimit($pdo, $fingerprint, 'resend', 3);
         $attempt = $this->attempt($pdo, $token);
-        $result = ['status' => 'accepted', 'message' => 'If the signup is pending, a new verification code has been sent.'];
-        if (!$attempt || $attempt['method'] !== 'email' || $attempt['status'] !== 'verification_pending') return $result;
+        if (!$attempt || $attempt['method'] !== 'email' || $attempt['status'] !== 'verification_pending') return ['status' => 'accepted', 'message' => 'If the signup is pending, a new verification code has been sent.'];
         $code = $this->verificationCode();
         $this->execute($pdo, 'UPDATE nexa_signup_attempt SET verification_code_hash=?, verification_expires_at=DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL 15 MINUTE) WHERE id=?', [$this->codeHash($attempt['normalized_email'], $code), $attempt['id']]);
         $this->mailer->sendVerification($attempt['company_name'], $attempt['first_name'], $attempt['email'], $code);
-        if ($this->canExposeLocalVerification()) $result['verificationCode'] = $code;
-        return $result;
+        return ['status' => 'accepted', 'message' => 'If the signup is pending, a new verification code has been sent.'];
     }
 
     /** @return array<string,mixed> */
@@ -135,7 +131,7 @@ final class SignupService
             if ($attempt['status'] === 'completed') {
                 $identity = $this->identityByEmail($pdo, $attempt['normalized_email']);
                 $pdo->commit();
-                return ['status' => 'active', 'loginUrl' => $this->sessionUrl($identity)];
+                return ['status' => 'active', 'session' => $this->sessionData($identity)];
             }
             if ($attempt['status'] !== 'ready' || !$attempt['email_verified_at'] || !$attempt['company_name'] || !$attempt['selected_plan_key']) {
                 throw new SignupProblem(409, 'signup_incomplete', 'Complete and verify signup before creating a workspace.');
@@ -163,7 +159,7 @@ final class SignupService
             throw $e;
         }
         $identity=['tenant_id'=>$tenantId,'slug'=>$slug,'display_name'=>$attempt['company_name'],'user_id'=>$userId,'user_name'=>$attempt['normalized_email']];
-        return ['status'=>'active','trialEndsAt'=>$trialEnd,'loginUrl'=>$this->sessionUrl($identity)];
+        return ['status'=>'active','trialEndsAt'=>$trialEnd,'session'=>$this->sessionData($identity)];
     }
 
     /** @param array<string,string> $profile */
@@ -201,13 +197,18 @@ final class SignupService
     /** @return array<string,string> */
     private function identityByEmail(PDO $pdo,string $email): array { $s=$pdo->prepare('SELECT i.tenant_id,i.owner_user_id user_id,t.slug,t.display_name,u.user_name FROM nexa_tenant_owner_identity i JOIN nexa_tenant t ON t.id=i.tenant_id JOIN `user` u ON u.id=i.owner_user_id AND u.tenant_id=i.tenant_id WHERE i.normalized_email=? AND i.status=\'active\''); $s->execute([$email]); return $s->fetch(PDO::FETCH_ASSOC) ?: throw new SignupProblem(409,'signup_incomplete','Workspace identity is unavailable.'); }
 
-    /** @param array<string,string> $identity */
-    private function sessionUrl(array $identity): string
+    /**
+     * @param array<string,string> $identity
+     * @return array{userName:string,token:string}
+     */
+    private function sessionData(array $identity): array
     {
         $context=new TenantContext($identity['tenant_id'],$identity['slug'],'signup-complete',$identity['display_name']);
         $token=$this->tenantContextStore->runWith($context,fn()=>$this->authTokenManager->create(AuthTokenData::create(['userId'=>$identity['user_id']])));
-        $payload=rtrim(strtr(base64_encode(json_encode(['userName'=>$identity['user_name'],'token'=>$token->getToken()],JSON_THROW_ON_ERROR)),'+/','-_'),'=');
-        return rtrim((string)$this->config->get('siteUrl'),'/').'/?login=1#nexa-social='.$payload;
+
+        // The browser stores this short-lived handoff through the same keys used
+        // by Espo's normal login flow; it is never placed in a URL or server log.
+        return ['userName'=>$identity['user_name'],'token'=>$token->getToken()];
     }
 
     private function enforceRateLimit(PDO $pdo,string $fingerprint,string $action,int $limit): void
@@ -223,7 +224,6 @@ final class SignupService
 
     private function audit(PDO $pdo,string $tenantId,string $userId,string $action): void { $this->execute($pdo,'INSERT INTO nexa_audit_event (id,tenant_id,service_id,actor_type,actor_user_id,action,subject_type,subject_id,source,metadata_json) VALUES (?,?,?,\'user\',?,?,\'tenant\',?,\'self-service-signup\',JSON_OBJECT())',[$this->uuid(),$tenantId,self::CRM_SERVICE_ID,$userId,$action,$tenantId]); }
     /** @param list<mixed> $params */ private function execute(PDO $pdo,string $sql,array $params): void { $s=$pdo->prepare($sql);$s->execute($params); }
-    private function canExposeLocalVerification(): bool { $enabled=filter_var(getenv('NEXA_SIGNUP_EXPOSE_VERIFICATION_CODE')?:false,FILTER_VALIDATE_BOOL)===true||$this->config->get('nexaSignupExposeVerificationCode')===true; $host=strtolower((string)parse_url((string)$this->config->get('siteUrl',''),PHP_URL_HOST)); return $enabled&&in_array($host,['localhost','127.0.0.1','nexa.local'],true); }
     private function codeHash(string $email,string $code): string { return hash_hmac('sha256',strtolower($email).':'.$code,(string)$this->config->get('hashSecretKey','nexa')); }
     private function tokenHash(string $token): string { return hash_hmac('sha256',$token,(string)$this->config->get('hashSecretKey','nexa')); }
     private function verificationCode(): string { return str_pad((string)random_int(0, 99999999),8,'0',STR_PAD_LEFT); }

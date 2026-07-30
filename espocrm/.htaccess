@@ -28,6 +28,11 @@ Options -Indexes
     RewriteCond %{REQUEST_URI}::$1 ^(.*?/)(.*)::\2$
     RewriteRule ^(.*)$ - [E=BASE:%1]
 
+    # Treat login as a directory so Espo's initial and lazy-loaded relative
+    # assets share one stable base in both root and subfolder installations.
+    RewriteRule ^login$ %{ENV:BASE}login/ [R=302,L,NE]
+    RewriteRule ^login/$ %{ENV:BASE}/public/index.php?login=1 [QSA,L,NC]
+
     # Add trailing slash.
     RewriteCond %{DOCUMENT_ROOT}/%{ENV:BASE}/public/$1 -d
     RewriteRule ^(.*?[^/])$ %{REQUEST_URI}/ [L,R=301,NE]

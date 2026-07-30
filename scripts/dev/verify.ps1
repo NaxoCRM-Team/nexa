@@ -25,6 +25,7 @@ $required = @(
     'scripts/dev/initialize-local-database.ps1', 'scripts/dev/complete-local-setup.ps1',
     'scripts/dev/setup-native-windows.ps1', 'scripts/dev/mariadb-version-policy.ps1',
     'scripts/dev/install-native-application.php', 'tests/development/MariaDbVersionPolicyTest.ps1',
+    'tests/development/PortableSubfolderTest.php',
     'scripts/dev/configure-smtp.php', 'scripts/dev/configure-auth-experience.php', 'scripts/dev/install-development-seeds.php',
     'scripts/dev/verify-local-install.php',
     'database/shared/testing/0000_espocrm_9_1_9_schema.sql',
@@ -120,6 +121,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\configure-auth-
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\install-native-application.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CrmDatabaseSmokeTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\PortableSubfolderTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -140,6 +142,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'SMTP environment suite' } else { Fail 'SMTP environment suite failed.' }
     & php (Join-Path $root 'tests\signup\AuthExperienceTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Authentication experience suite' } else { Fail 'Authentication experience suite failed.' }
+    & php (Join-Path $root 'tests\development\PortableSubfolderTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Portable subfolder suite' } else { Fail 'Portable subfolder suite failed.' }
     & php (Join-Path $root 'tests\auth\IdentitySecurityTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Identity security contract suite' } else { Fail 'Identity security contract suite failed.' }
     & php (Join-Path $root 'tests\dashboard\TenantDashboardTest.php')

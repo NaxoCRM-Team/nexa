@@ -20,7 +20,7 @@ final class GetSsoStart implements Action
 
             return ResponseComposer::empty()->setStatus(302)->setHeader('Location', $url)->setHeader('Cache-Control', 'no-store');
         } catch (Throwable) {
-            return ResponseComposer::empty()->setStatus(302)->setHeader('Location', '/?login=1&socialError=provider_unavailable');
+            return ResponseComposer::empty()->setStatus(302)->setHeader('Location', $this->service->failureRedirectUrl('provider_unavailable'));
         }
     }
 }

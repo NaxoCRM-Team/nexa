@@ -55,7 +55,6 @@ $writer->setMultiple([
     'applicationName' => ($environment['CRM_NAME'] ?? '') ?: 'Nexa CRM',
     'passwordRecoveryNoExposure' => true,
     'passwordRecoveryResendCooldown' => $recoveryCooldown,
-    'nexaSignupExposeVerificationCode' => $enabled('NEXA_SIGNUP_EXPOSE_VERIFICATION_CODE'),
     'nexaPublicAuthProviders' => [
         'google' => $enabled('NEXA_AUTH_GOOGLE_ENABLED'),
         'microsoft' => $enabled('NEXA_AUTH_MICROSOFT_ENABLED'),

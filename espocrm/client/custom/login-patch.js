@@ -1,4 +1,16 @@
 require(['views/login', 'views/user/password-change-request'], (LoginView, PasswordResetView) => {
+    // Espo publishes the route-relative asset base in the loader contract.
+    // Reuse it so custom API and provider requests also escape /login/.
+    const loaderBasePath = (() => {
+        try {
+            const source = document.querySelector('script[data-name="loader-params"]')?.textContent;
+            return source ? JSON.parse(source).basePath || '' : '';
+        } catch {
+            return '';
+        }
+    })();
+    const applicationBaseUrl = new URL(loaderBasePath || './', location.href);
+    const applicationUrl = path => new URL(String(path).replace(/^\/+/, ''), applicationBaseUrl);
     const defaultData = LoginView.prototype.data;
     const defaultSetup = LoginView.prototype.setup;
     const defaultAfterRender = LoginView.prototype.afterRender;
@@ -115,7 +127,7 @@ require(['views/login', 'views/user/password-change-request'], (LoginView, Passw
             submit.disabled = true;
             dismissRecoveryMessage();
             try {
-                const response = await fetch('/api/v1/Nexa/auth/recovery', {
+                const response = await fetch(applicationUrl('api/v1/Nexa/auth/recovery'), {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {'Content-Type': 'application/json'},
@@ -134,7 +146,7 @@ require(['views/login', 'views/user/password-change-request'], (LoginView, Passw
             }
         });
 
-        fetch('/api/v1/Nexa/auth/providers', {credentials: 'same-origin'})
+        fetch(applicationUrl('api/v1/Nexa/auth/providers'), {credentials: 'same-origin'})
             .then(response => response.ok ? response.json() : {providers: []})
             .then(({providers = []}) => {
                 const target = this.element.querySelector('[data-auth-providers]');
@@ -145,10 +157,10 @@ require(['views/login', 'views/user/password-change-request'], (LoginView, Passw
                     button.type = 'button';
                     button.className = 'modern-social-button modern-social-button--' + provider.key;
                     button.innerHTML = provider.key === 'google'
-                        ? '<img class="google-auth-icon" src="/client/custom/img/google-g.svg" alt=""><span>Continue with Google</span>'
+                        ? `<img class="google-auth-icon" src="${applicationUrl('client/custom/img/google-g.svg')}" alt=""><span>Continue with Google</span>`
                         : '<span class="fab fa-' + provider.icon + '" aria-hidden="true"></span><span>Continue with ' + provider.label + '</span>';
                     button.addEventListener('click', () => {
-                        const url = new URL(provider.startUrl, location.origin);
+                        const url = applicationUrl(provider.startUrl);
                         url.searchParams.set('intent', 'login');
                         location.assign(url);
                     });

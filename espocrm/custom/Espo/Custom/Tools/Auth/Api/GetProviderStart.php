@@ -21,14 +21,15 @@ final class GetProviderStart implements Action
             parse_str((string) parse_url($url, PHP_URL_QUERY), $parameters);
             $state = rawurlencode((string) ($parameters['state'] ?? ''));
             $secure = $request->getUri()->getScheme() === 'https' ? '; Secure' : '';
+            $cookiePath = $this->service->callbackCookiePath($provider);
 
             return ResponseComposer::empty()
                 ->setStatus(302)
                 ->setHeader('Location', $url)
                 ->setHeader('Cache-Control', 'no-store')
-                ->setHeader('Set-Cookie', "nexa_oauth_state={$state}; Max-Age=600; Path=/api/v1/Nexa/auth/provider/{$provider}/callback; HttpOnly; SameSite=Lax{$secure}");
+                ->setHeader('Set-Cookie', "nexa_oauth_state={$state}; Max-Age=600; Path={$cookiePath}; HttpOnly; SameSite=Lax{$secure}");
         } catch (Throwable $e) {
-            return ResponseComposer::empty()->setStatus(302)->setHeader('Location', '/?login=1&socialError=provider_unavailable');
+            return ResponseComposer::empty()->setStatus(302)->setHeader('Location', $this->service->failureRedirectUrl('provider_unavailable'));
         }
     }
 }

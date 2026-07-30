@@ -27,9 +27,13 @@
  * these Appropriate Legal Notices must retain the display of the "EspoCRM" word.
  ************************************************************************/
 
-$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+require_once __DIR__ . '/application-path.php';
+
+$basePath = NexaApplicationPath::fromScriptName($_SERVER['SCRIPT_NAME'] ?? '/public/index.php');
+$requestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+$isFriendlyLoginRequest = NexaApplicationPath::isRoute($requestPath, $basePath, 'login');
 $isLandingRequest = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
-    && ($requestPath === '/' || $requestPath === '')
+    && NexaApplicationPath::isApplicationRoot($requestPath, $basePath)
     && !isset($_GET['login'])
     && !filter_has_var(INPUT_GET, 'entryPoint');
 
@@ -37,7 +41,13 @@ if ($isLandingRequest) {
     header('Cache-Control: no-store, no-cache, must-revalidate');
     header('Pragma: no-cache');
     header('Expires: 0');
-    readfile(__DIR__ . '/landing/index.html');
+    $landing = file_get_contents(__DIR__ . '/landing/index.html');
+
+    echo str_replace(
+        '{{baseHref}}',
+        htmlspecialchars(NexaApplicationPath::baseHref($basePath), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        $landing === false ? '' : $landing
+    );
 
     exit;
 }
@@ -53,6 +63,7 @@ use Espo\Core\ApplicationRunners\Client;
 use Espo\Core\ApplicationRunners\EntryPoint;
 
 $app = new Application();
+$app->setClientBasePath($isFriendlyLoginRequest ? '../' : '');
 
 if (filter_has_var(INPUT_GET, 'entryPoint')) {
     $app->run(EntryPoint::class);

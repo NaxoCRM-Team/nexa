@@ -104,6 +104,39 @@ Add this entry to `C:\Windows\System32\drivers\etc\hosts` as Administrator:
 Restart all WampServer services. Do not add obsolete Apache directives such as
 `ClearModuleList` or `AddModule mod_rewrite.c`.
 
+## 3A. Portable Folder Mode Without A Virtual Host
+
+Use this mode when a teammate receives only a prepared application folder and a
+matching SQL export. It does not require `nexa.local`, a virtual host, the hosts
+file, Git, or the browser installer.
+
+1. Copy the prepared folder to `C:\wamp64\www\espocrm_boye`.
+2. Import the supplied SQL file into MariaDB.
+3. Enable Apache `mod_rewrite` and confirm the WampServer `www` directory allows
+   `.htaccess` overrides with `AllowOverride All`.
+4. Edit `C:\wamp64\www\espocrm_boye\data\config.php` and set the imported
+   database name, database username, database password, and:
+
+```php
+'siteUrl' => 'http://localhost/espocrm_boye',
+```
+
+5. Confirm this entry exists in `data/config-internal.php`:
+
+```php
+'isInstalled' => true,
+```
+
+6. Clear the contents of `data/cache` and `data/tmp`, restart WampServer, then
+   open <http://localhost/espocrm_boye/>.
+
+The folder name may be changed, but `siteUrl` must match it exactly. Google and
+Microsoft callback URLs must also use the same base, for example
+`http://localhost/espocrm_boye/api/v1/Nexa/auth/provider/google/callback`.
+Database credentials and the exact local URL are machine-specific, so those are
+the only unavoidable configuration values. Do not copy another developer's
+SMTP password, encryption keys, or production secrets into the package.
+
 ## 4. Run The Complete Setup
 
 Run one command from an Administrator PowerShell after MariaDB and Apache are
@@ -140,7 +173,7 @@ No browser installation is used. After setup, opening <http://nexa.local>
 shows the landing or login experience directly. The command is idempotent: on
 later runs it applies pending migrations and refreshes development fixtures.
 
-Both tenants sign in through <http://nexa.local/?login=1>. Use the
+Both tenants sign in through <http://nexa.local/login>. Use the
 `DEMO_TENANT_A_ADMIN_*` or `DEMO_TENANT_B_ADMIN_*` values from `.env`.
 
 Reapply SMTP settings after editing `.env`:
@@ -215,7 +248,7 @@ new forward migration for further changes.
 
 WampServer setup is complete only when:
 
-- <http://nexa.local/?login=1> loads;
+- <http://nexa.local/login> loads;
 - `setup-native-windows.ps1` passes;
 - <http://nexa.local/install/> redirects away from the installer;
 - validation reports at least 158 tables, 147 tenant columns, 138 service

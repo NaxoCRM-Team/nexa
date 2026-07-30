@@ -1,8 +1,8 @@
-@font-face { font-family: 'Font Awesome 5 Free'; src: url('/client/fonts/fa-solid-900.woff2') format('woff2'); font-weight: 900; font-style: normal; font-display: block; }
-@font-face { font-family: 'Font Awesome 5 Brands'; src: url('/client/fonts/fa-brands-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'Font Awesome 5 Free'; src: url('../client/fonts/fa-solid-900.woff2') format('woff2'); font-weight: 900; font-style: normal; font-display: block; }
+@font-face { font-family: 'Font Awesome 5 Brands'; src: url('../client/fonts/fa-brands-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
 .fas { font-family: 'Font Awesome 5 Free'; font-weight: 900; }
 .fab { font-family: 'Font Awesome 5 Brands'; font-weight: 400; }
-@font-face { font-family: Inter; src: url('/client/fonts/inter/InterVariable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+@font-face { font-family: Inter; src: url('../client/fonts/inter/InterVariable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
 
 :root {
     --ink: #142323;
@@ -64,7 +64,7 @@ p { margin-top: 0; }
 .button-dark { color: #fff; background: var(--deep); border-color: var(--deep); }
 .button-dark:hover { background: var(--teal); border-color: var(--teal); }
 
-.hero { min-height: min(790px, 92vh); position: relative; display: flex; align-items: center; isolation: isolate; color: #fff; background-color: var(--deep); background-image: url('/landing/assets/nexa-dashboard-hero.jpg'); background-position: center; background-size: cover; }
+.hero { min-height: min(790px, 92vh); position: relative; display: flex; align-items: center; isolation: isolate; color: #fff; background-color: var(--deep); background-image: url('assets/nexa-dashboard-hero.jpg'); background-position: center; background-size: cover; }
 .hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(8,24,26,.70); }
 .hero::after { content: ''; position: absolute; inset: 76px 52% 0 0; z-index: -1; background: rgba(8,24,26,.34); }
 .hero-content { padding-top: 95px; }
@@ -307,7 +307,6 @@ details p { padding: 0 48px 24px 0; color: var(--ink-soft); font-size: 14px; }
 .signup-state form input:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(8, 127, 120, .12); }
 .signup-state form small { color: var(--ink-soft); font-size: 11px; }
 .signup-state form .button { width: 100%; margin-top: 8px; }
-.local-code { margin-top: 14px; padding: 10px; border: 1px dashed var(--teal); color: var(--teal) !important; background: var(--teal-soft); font-family: monospace; font-weight: 700; }
 .state-icon { width: 64px; height: 64px; margin: 0 auto 24px; display: grid; place-items: center; border-radius: 50%; color: var(--teal); background: var(--teal-soft); font-size: 24px; }
 .state-icon.success { color: #fff; background: var(--green); }
 .state-icon.error { color: #fff; background: #b83c35; }
@@ -374,7 +373,7 @@ details p { padding: 0 48px 24px 0; color: var(--ink-soft); font-size: 14px; }
     min-height: 760px;
     color: var(--ink);
     background-color: #f7f9f8;
-    background-image: url('/landing/assets/nexa-team-hero-v2.jpg');
+    background-image: url('assets/nexa-team-hero-v2.jpg');
     background-position: center center;
     background-size: cover;
 }

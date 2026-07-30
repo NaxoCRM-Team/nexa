@@ -23,7 +23,7 @@ $providers = AuthProviderRegistry::normalize([
 $assert(count($providers) === 1, 'Only allow-listed enabled providers may be published.');
 $assert($providers[0]['key'] === 'google', 'Google provider metadata is missing.');
 $assert(
-    $providers[0]['startUrl'] === '/api/v1/Nexa/auth/provider/google/start',
+    $providers[0]['startUrl'] === 'api/v1/Nexa/auth/provider/google/start',
     'Provider entry point must remain behind the M04 contract.'
 );
 
@@ -33,8 +33,9 @@ $signupSource = file_get_contents(
 $assert(str_contains($signupSource, 'random_int(0, 99999999)'), 'Verification must use an eight-digit random code.');
 $assert(str_contains($signupSource, "INTERVAL 15 MINUTE"), 'Resent codes must expire after 15 minutes.');
 $assert(
-    str_contains($signupSource, 'nexaSignupExposeVerificationCode'),
-    'Native setup must expose local verification codes through application configuration.'
+    !str_contains($signupSource, "result['verificationCode']") &&
+    !str_contains($signupSource, 'canExposeLocalVerification'),
+    'Verification codes must only be delivered through email and never returned by the signup API.'
 );
 $authConfigSource = file_get_contents(
     dirname(__DIR__, 2) . '/scripts/dev/configure-auth-experience.php'
@@ -57,7 +58,7 @@ $assert(
     str_contains($loginTemplateSource, 'Good to see you again') &&
     str_contains($loginTemplateSource, 'modern-login-proof') &&
     str_contains($loginTemplateSource, 'type="button" class="modern-login-forgot"') &&
-    str_contains($loginTemplateSource, 'href="/" aria-label="Nexa CRM home"'),
+    str_contains($loginTemplateSource, 'href="./" aria-label="Nexa CRM home"'),
     'The primary sign-in view must render the distinct Nexa authentication experience.'
 );
 $assert(
@@ -79,6 +80,22 @@ $assert(
 $landingSource = file_get_contents(
     dirname(__DIR__, 2) . '/espocrm/public/landing/script.js'
 );
+$landingTemplateSource = file_get_contents(
+    dirname(__DIR__, 2) . '/espocrm/public/landing/index.html'
+);
+$assert(
+    !str_contains($landingSource, 'result.verificationCode') &&
+    !str_contains($landingTemplateSource, 'data-local-code'),
+    'The verification screen must never render a local verification code.'
+);
+$assert(
+    str_contains($landingSource, "localStorage.setItem(") &&
+    str_contains($landingSource, "localStorage.removeItem('espo-user-anotherUser')") &&
+    str_contains($landingSource, "'espo-user-auth'") &&
+    str_contains($landingSource, "location.replace(applicationUrl('?login=1'))") &&
+    !str_contains($landingSource, 'location.assign(result.loginUrl)'),
+    'Successful verification must retain its loading state and hand off directly to the authenticated application.'
+);
 $loginCssSource = file_get_contents(
     dirname(__DIR__, 2) . '/espocrm/client/custom/css/modern-login.css'
 );
@@ -86,8 +103,8 @@ $landingCssSource = file_get_contents(
     dirname(__DIR__, 2) . '/espocrm/public/landing/styles.css'
 );
 $assert(
-    str_contains($loginAdapterSource, '/client/custom/img/google-g.svg') &&
-    str_contains($landingSource, '/client/custom/img/google-g.svg') &&
+    str_contains($loginAdapterSource, "applicationUrl('client/custom/img/google-g.svg')") &&
+    str_contains($landingSource, "applicationUrl('client/custom/img/google-g.svg')") &&
     str_contains($loginCssSource, '.modern-social-button--google') &&
     str_contains($landingCssSource, '.social-auth-button--google'),
     'Google sign in and signup must share recognizable provider branding.'

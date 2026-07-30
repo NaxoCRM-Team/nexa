@@ -66,7 +66,10 @@ test('premium authenticated header exposes the complete workspace toolset', asyn
     test.skip(testInfo.project.name !== 'desktop');
     await page.goto(fixture('shell.html'));
 
-    await expect(page.getByRole('link', {name: 'Nexa CRM home'})).toBeVisible();
+    const brand = page.getByRole('link', {name: 'Nexa CRM home'});
+    await expect(brand).toBeVisible();
+    await expect(brand).toContainText('Nexa');
+    await expect(brand).toContainText('CRM');
     await expect(page.getByLabel('Current workspace: Atlas Advisory')).toBeVisible();
     await expect(page.getByRole('searchbox', {name: 'Search across this workspace'})).toHaveAttribute(
         'placeholder',
@@ -75,6 +78,13 @@ test('premium authenticated header exposes the complete workspace toolset', asyn
     await expect(page.getByRole('button', {name: 'Create a new record'})).toBeVisible();
     await expect(page.getByRole('button', {name: 'Open notifications'})).toBeVisible();
     await expect(page.getByRole('button', {name: 'Open account menu for Demo Admin'})).toBeVisible();
+
+    const search = await page.getByRole('searchbox', {name: 'Search across this workspace'}).boundingBox();
+    const searchButton = await page.getByRole('button', {name: 'Search workspace'}).boundingBox();
+    expect(search.width).toBeGreaterThan(300);
+    expect(search.height).toBe(38);
+    expect(searchButton.height).toBe(38);
+    expect(Math.abs(search.x + search.width - searchButton.x)).toBeLessThanOrEqual(1);
 });
 
 test('premium header keeps tenant identity and actions separated on small screens', async ({page}, testInfo) => {

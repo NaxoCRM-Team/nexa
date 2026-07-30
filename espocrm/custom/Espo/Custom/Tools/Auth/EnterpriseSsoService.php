@@ -315,7 +315,7 @@ final class EnterpriseSsoService
             'userName' => $identity['user_name'], 'token' => $token->getToken(),
         ], JSON_THROW_ON_ERROR)), '+/', '-_'), '=');
 
-        return $this->siteUrl() . '/?login=1#nexa-social=' . $payload;
+        return $this->siteUrl() . '/login#nexa-social=' . $payload;
     }
 
     /** @param array<string,mixed> $provider */
@@ -371,7 +371,9 @@ final class EnterpriseSsoService
 
     private function oidcCallbackUrl(string $id): string { return $this->siteUrl() . '/api/v1/Nexa/auth/sso/' . rawurlencode($id) . '/oidc/callback'; }
     private function samlCallbackUrl(string $id): string { return $this->siteUrl() . '/api/v1/Nexa/auth/sso/' . rawurlencode($id) . '/saml/acs'; }
-    private function failureUrl(string $reason): string { return $this->siteUrl() . '/?login=1&socialError=' . rawurlencode($reason); }
+    public function failureRedirectUrl(string $reason): string { return $this->failureUrl($reason); }
+
+    private function failureUrl(string $reason): string { return $this->siteUrl() . '/login?socialError=' . rawurlencode($reason); }
     private function completionUrl(string $token, string $plan): string { return $this->siteUrl() . '/?signup=complete&plan=' . rawurlencode($plan) . '#nexa-onboarding=' . rtrim(strtr(base64_encode($token), '+/', '-_'), '='); }
     private function siteUrl(): string { return rtrim((string) $this->config->get('siteUrl'), '/'); }
     private function randomToken(): string { return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '='); }

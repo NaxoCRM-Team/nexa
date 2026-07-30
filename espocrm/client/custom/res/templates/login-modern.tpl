@@ -1,6 +1,6 @@
 <main class="modern-login-shell">
     <section class="modern-login-visual" aria-label="A bright collaborative workspace">
-        <a class="modern-login-brand" href="/" aria-label="Nexa CRM home">
+        <a class="modern-login-brand" href="./" aria-label="Nexa CRM home">
             <span class="modern-login-mark" aria-hidden="true">N</span>
             <span class="modern-login-brand-name">Nexa CRM</span>
         </a>
@@ -17,7 +17,7 @@
     </section>
 
     <section class="modern-login-auth">
-        <a class="modern-login-mobile-brand" href="/" aria-label="Nexa CRM home">
+        <a class="modern-login-mobile-brand" href="./" aria-label="Nexa CRM home">
             <span class="modern-login-mark" aria-hidden="true">N</span>
             <span class="modern-login-brand-name">Nexa CRM</span>
         </a>
@@ -72,7 +72,7 @@
                 </div>
             </form>
 
-            <p class="modern-create-account">New to Nexa? <a href="/?signup=growth">Create an account</a></p>
+            <p class="modern-create-account">New to Nexa? <a href="?signup=growth">Create an account</a></p>
             <p class="modern-login-security"><span class="fas fa-shield-alt" aria-hidden="true"></span>Tenant-aware sign in protected by Nexa</p>
         </div>
 

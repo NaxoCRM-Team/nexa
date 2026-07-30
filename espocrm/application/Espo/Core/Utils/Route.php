@@ -223,6 +223,13 @@ class Route
         /** @noinspection HttpUrlsUsage */
         $uri = parse_url('http://any.com' . $serverRequestUri, PHP_URL_PATH);
 
+        // REQUEST_URI is the reliable source for rewritten Apache requests.
+        // WampServer may leave SCRIPT_NAME as either the internal index.php or
+        // the original /App/user route, so resolve the API mount before using it.
+        if (preg_match('~^(.*?/api/v1)(?:/|$)~i', $uri, $matches) === 1) {
+            return rtrim($matches[1], '/');
+        }
+
         if (stripos($uri, $scriptName) === 0) {
             return $scriptName;
         }
