@@ -65,6 +65,7 @@ Team members should read the documents relevant to their work before modifying s
 - [Superseded database-per-tenant ADR](docs/architecture/ADR-0001-tenant-database-isolation.md): retained decision history.
 - [SaaS data architecture](docs/architecture/saas-data-architecture.md): tenant scope, services, migration and operational model.
 - [Unified customer data contract](docs/architecture/unified-customer-data-contract.md): Customer 360 primitives, migration slices and database acceptance gates.
+- [Existing schema audit and requirement map](docs/architecture/existing-schema-audit.md): Current-table inventory and retain, extend or new decisions for all 47 specification areas.
 - [Development collaboration](docs/development/phase-0-collaboration.md): shared code and database workflow.
 - [Environment baseline](docs/development/environment-baseline.md): required versions and extensions.
 - [Git workflow](docs/development/git-workflow.md): branches, commits, pull requests and releases.

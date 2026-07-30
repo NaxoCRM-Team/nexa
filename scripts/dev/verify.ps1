@@ -34,6 +34,8 @@ $required = @(
     'database/shared/migrations/0005_self_service_tenant_signup.sql', 'database/shared/migrations/0006_social_identity.sql',
     'database/shared/migrations/0007_progressive_signup.sql', 'espocrm/custom/Espo/Custom/Tools/Signup/Api/PostComplete.php',
     'database/shared/migrations/0008_identity_security.sql', 'packages/sso/composer.lock',
+    'database/shared/migrations/0009_unified_customer_foundation.sql',
+    'docs/architecture/existing-schema-audit.md', 'tests/architecture/SchemaRequirementsMappingTest.php',
     'docs/development/identity-provider-testing.md', 'docs/operations/identity-incident-recovery.md',
     'tests/auth/IdentitySecurityTest.php', 'espocrm/bin/configure-identity-provider.php',
     'tests/dashboard/TenantDashboardTest.php', 'tests/browser/dashboard.spec.js', 'tests/browser/fixtures/dashboard.html',
@@ -42,6 +44,7 @@ $required = @(
     'database/shared/table-ownership-manifest.json', 'espocrm/application/Espo/Resources/tenant-table-ownership.json',
     'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/InstallationBootstrapTest.php',
     'tests/tenant/CrmDatabaseSmokeTest.php', 'tests/architecture/ModuleConventionTest.php',
+    'tests/tenant/CustomerFoundationDatabaseTest.php',
     'tests/architecture/ProductRequirementsAlignmentTest.php',
     'tests/browser/shell.spec.js', 'tests/browser/fixtures/login.html', 'tests/browser/fixtures/shell.html',
     'tests/browser/fixtures/components.html',
@@ -123,6 +126,8 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\install-native-
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CrmDatabaseSmokeTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CustomerFoundationDatabaseTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\PortableSubfolderTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
@@ -152,7 +157,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant dashboard contract suite' } else { Fail 'Tenant dashboard contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
-    if ($LASTEXITCODE -eq 0) { Pass 'Module convention suite' } else { Fail 'Module convention suite failed.' }
+    & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Architecture contract suites' } else { Fail 'Architecture contract suite failed.' }
 }
 
 $tracked = & git -C $root ls-files
