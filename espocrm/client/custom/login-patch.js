@@ -1,4 +1,4 @@
-require(['views/login', 'views/user/password-change-request'], (LoginView, PasswordResetView) => {
+require(['views/login', 'views/user/password-change-request', 'app'], (LoginView, PasswordResetView, App) => {
     // Espo publishes the route-relative asset base in the loader contract.
     // Reuse it so custom API and provider requests also escape /login/.
     const loaderBasePath = (() => {
@@ -11,10 +11,30 @@ require(['views/login', 'views/user/password-change-request'], (LoginView, Passw
     })();
     const applicationBaseUrl = new URL(loaderBasePath || './', location.href);
     const applicationUrl = path => new URL(String(path).replace(/^\/+/, ''), applicationBaseUrl);
+    const replaceUrl = url => history.replaceState(null, '', url.pathname + url.search + url.hash);
+    const showApplicationUrl = () => {
+        const url = new URL(applicationBaseUrl);
+        url.hash = location.hash;
+        replaceUrl(url);
+    };
+    const showLoginUrl = () => {
+        const url = applicationUrl('login/');
+        url.search = location.search;
+        replaceUrl(url);
+    };
+    const defaultOnAuth = App.prototype.onAuth;
     const defaultData = LoginView.prototype.data;
     const defaultSetup = LoginView.prototype.setup;
     const defaultAfterRender = LoginView.prototype.afterRender;
     const defaultResetSetup = PasswordResetView.prototype.setup;
+
+    // Normalize the pathname before Espo initializes Backbone history. Otherwise
+    // every authenticated route inherits /login/ as its permanent router root.
+    App.prototype.onAuth = async function (...args) {
+        showApplicationUrl();
+
+        return defaultOnAuth.apply(this, args);
+    };
 
     LoginView.prototype.data = function () {
         return {
@@ -37,6 +57,7 @@ require(['views/login', 'views/user/password-change-request'], (LoginView, Passw
 
     LoginView.prototype.afterRender = function () {
         defaultAfterRender.call(this);
+        showLoginUrl();
         document.body.classList.add('modern-login-page');
 
         const loginPanel = this.element.querySelector('#login');

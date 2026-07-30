@@ -71,17 +71,30 @@ class Starter
             return;
         }
 
+        $basePath = RouteUtil::detectBasePath();
+
         if ($this->systemConfig->useCache()) {
-            $slim->getRouteCollector()->setCacheFile($this->routeCacheFile);
+            $slim->getRouteCollector()->setCacheFile($this->routeCacheFile($basePath));
         }
 
-        $slim->setBasePath(RouteUtil::detectBasePath());
+        $slim->setBasePath($basePath);
         $this->addGlobalMiddlewares($slim);
         $slim->addRoutingMiddleware();
         $this->addRoutes($slim);
         $slim->addErrorMiddleware(false, true, true, $this->log);
 
         $slim->run();
+    }
+
+    private function routeCacheFile(string $basePath): string
+    {
+        $suffix = substr(hash('sha256', $basePath), 0, 12);
+
+        if (str_ends_with($this->routeCacheFile, '.php')) {
+            return substr($this->routeCacheFile, 0, -4) . '-' . $suffix . '.php';
+        }
+
+        return $this->routeCacheFile . '-' . $suffix;
     }
 
     /**
