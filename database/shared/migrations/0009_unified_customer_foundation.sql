@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS nexa_identity_link (
         CHECK (identity_type IN ('email', 'phone', 'anonymous', 'login', 'external')),
     CONSTRAINT chk_nexa_identity_verification
         CHECK (verification_status IN ('unverified', 'pending', 'verified', 'revoked'))
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nexa_relationship_type (
     id CHAR(36) NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS nexa_relationship_type (
         FOREIGN KEY (tenant_id) REFERENCES nexa_tenant (id) ON DELETE CASCADE,
     CONSTRAINT chk_nexa_relationship_cardinality
         CHECK (cardinality IN ('one_to_one', 'one_to_many', 'many_to_one', 'many_to_many'))
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nexa_relationship_edge (
     id CHAR(36) NOT NULL,
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS nexa_relationship_edge (
         ),
     CONSTRAINT chk_nexa_relationship_validity
         CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nexa_lifecycle_definition (
     id CHAR(36) NOT NULL,
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS nexa_lifecycle_definition (
     KEY idx_nexa_lifecycle_definition_entity (tenant_id, entity_type, is_active),
     CONSTRAINT fk_nexa_lifecycle_definition_tenant
         FOREIGN KEY (tenant_id) REFERENCES nexa_tenant (id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nexa_lifecycle_stage (
     id CHAR(36) NOT NULL,
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS nexa_lifecycle_stage (
         REFERENCES nexa_lifecycle_definition (id, tenant_id) ON DELETE CASCADE,
     CONSTRAINT chk_nexa_lifecycle_stage_category
         CHECK (category IN ('new', 'active', 'qualified', 'customer', 'inactive', 'lost'))
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nexa_lifecycle_assignment (
     id CHAR(36) NOT NULL,
@@ -198,7 +198,7 @@ CREATE TABLE IF NOT EXISTS nexa_lifecycle_assignment (
     CONSTRAINT fk_nexa_lifecycle_assignment_stage
         FOREIGN KEY (lifecycle_stage_id, tenant_id)
         REFERENCES nexa_lifecycle_stage (id, tenant_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nexa_lifecycle_transition (
     id CHAR(36) NOT NULL,
@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS nexa_lifecycle_transition (
     CONSTRAINT fk_nexa_lifecycle_transition_to_stage
         FOREIGN KEY (to_stage_id, tenant_id)
         REFERENCES nexa_lifecycle_stage (id, tenant_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS nexa_timeline_event (
     id CHAR(36) NOT NULL,
@@ -265,4 +265,4 @@ CREATE TABLE IF NOT EXISTS nexa_timeline_event (
         CHECK (contact_id IS NOT NULL OR account_id IS NOT NULL),
     CONSTRAINT chk_nexa_timeline_visibility
         CHECK (visibility IN ('internal', 'team', 'customer', 'restricted'))
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
