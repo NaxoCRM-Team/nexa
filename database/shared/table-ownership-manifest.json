@@ -141,6 +141,54 @@
                        "classification":  "tenantOwned",
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_identity_link",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_relationship_type",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_relationship_edge",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_lifecycle_definition",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_lifecycle_stage",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_lifecycle_assignment",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_lifecycle_transition",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_timeline_event",
+                       "classification":  "tenantOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "none"
                    }
                ],
     "espoCoreConversion":  {

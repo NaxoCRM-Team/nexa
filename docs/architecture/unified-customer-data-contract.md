@@ -2,7 +2,7 @@
 
 ## Status
 
-**Proposed foundation for schema design.** This document aligns product requirements and migration boundaries; it does not claim that the listed physical tables already exist. SQL is added only through reviewed forward migrations after this contract is approved.
+**D0 audited; D1 foundation implemented.** The [existing schema audit and requirement map](existing-schema-audit.md) records the retain, extend and new decisions. Forward migration `0009_unified_customer_foundation.sql` implements customer identity links, typed relationships, lifecycle state/history and the chronological timeline projection. Later migration slices remain proposed until their data contracts are approved.
 
 ## Objective
 
