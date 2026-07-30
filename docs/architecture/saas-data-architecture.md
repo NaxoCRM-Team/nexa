@@ -40,6 +40,46 @@ Every table must be registered in a reviewed ownership manifest.
 
 `tenant_id` is the security and ownership boundary. `service_id` is not added blindly to every record; it identifies a service-specific record or entitlement. Accounts and Contacts remain owned by a tenant even when CRM, marketing and service modules all use them.
 
+## Unified Customer and Interaction Contracts
+
+The detailed product specification requires one governed customer identity across CRM, marketing, sales and service. Modules must reference shared records and events; they must not create disconnected copies of a contact for campaigns, support or analytics.
+
+### Canonical Records
+
+- Espo Contact remains the canonical known person record inside a tenant.
+- Espo Account remains the canonical company/organization record.
+- Leads and Opportunities remain lifecycle and sales records linked to the same person/company identity.
+- Anonymous visitors use a separate pseudonymous identity until a consented identification event links them to a Contact.
+- Products, projects, purchases, cases, campaigns, segments, scores and custom entities associate through typed tenant-scoped relationships rather than copied customer fields.
+
+### Required Shared Primitives
+
+The physical schema for these primitives must be approved through a data-model ADR and forward migrations before Phase 3 feature implementation:
+
+| Primitive | Responsibility |
+|---|---|
+| Customer identity link | Connect anonymous identifiers, login identities, email/phone identities and external IDs to one tenant-owned person without unsafe automatic merging |
+| Typed relationship | Store one-to-one, one-to-many, many-to-many and parent-child associations with labels, validity and audit history |
+| Lifecycle state/history | Store configurable stages, current state, transition reason, actor and timestamp |
+| Timeline event | Provide an append-oriented chronological history for CRM, sales, service, marketing, score, segment and external activity |
+| Behavioral event | Store versioned website, form, asset, email and custom events with identity-resolution and consent metadata |
+| Consent/preference record | Preserve purpose, channel, source, policy version, grant/withdrawal time and evidence |
+| Outbox event | Reliably publish domain changes to automation, integrations, analytics and notifications after database commit |
+
+A timeline event may summarize or reference an immutable source event, but it does not replace the source record. High-volume behavioral payloads may later move to an event store or analytics database; their tenant, subject, schema version and correlation identity remain stable.
+
+### Cross-Module Invariants
+
+- Every relationship endpoint belongs to the same tenant unless a privileged platform workflow explicitly supports a controlled transfer.
+- Lead conversion is transactional and preserves activities, forms, behavior, email/campaign history, score, source and segment membership.
+- Customer identity resolution is deterministic, auditable and resistant to duplicate-email or external-provider account takeover.
+- Lifecycle, score and segment changes emit timeline and outbox events with idempotency keys.
+- Marketing, automation, service and analytics records reference canonical CRM identities; they do not maintain independent customer masters.
+- Permission, consent, retention and erasure rules apply when events are read, exported, replayed or copied to supporting stores.
+
+### Schema Change Gate
+
+Do not mass-create future feature tables from module names alone. A schema package is approved only when its requirement IDs, ownership class, relationships, tenant/service scope, unique indexes, retention, migration/backfill behavior and isolation tests are defined. Cross-module primitives are delivered first; module-specific tables follow their phase.
 ## SaaS Platform Tables
 
 The initial migration in `database/shared/migrations/` creates:
@@ -231,14 +271,15 @@ Local fixtures include two synthetic tenants and verified domains. Runtime and C
 
 ## Delivery Order
 
-1. Approve ADR-0002 and the table-ownership rules.
-2. Create the complete Espo table ownership/index manifest.
-3. Implement `TenantContext`, resolver and automatic ORM scope.
-4. Apply expand and backfill migrations to core tables.
-5. Convert authentication, relationships, reports, jobs and external storage.
-6. Enforce non-null tenant constraints and tenant-qualified uniqueness.
-7. Complete the two-tenant isolation test gate.
-8. Build feature modules only on the tenant-aware repository and entitlement contracts.
+1. Maintain ADR-0002, the table-ownership rules and automated tenant-isolation gate.
+2. Keep the complete Espo/Nexa ownership and index manifest synchronized with every migration.
+3. Trace the unified specification to canonical entities, relationships, events, APIs and retention rules.
+4. Approve the Customer 360, typed-relationship, lifecycle, timeline, behavioral-event, consent and outbox data contracts.
+5. Deliver those shared primitives through forward-only expand/backfill/enforce migrations and synthetic two-tenant fixtures.
+6. Build Phase 3 CRM, sales and service workflows on the shared identity and relationship contracts.
+7. Add consent/content/segment schema in Phase 4 and event/timeline storage in Phase 5 before tracked email and automation in Phase 6.
+8. Add module-specific schemas only with requirement IDs, rollback behavior, data dictionary updates and clean-install/upgrade/isolation tests.
+9. Introduce supporting event, search and analytics stores only behind the same stable tenant and subject contracts.
 
 ## Non-Negotiable Launch Gate
 

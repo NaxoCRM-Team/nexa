@@ -4,7 +4,7 @@ This document is the implementation contract for product modules in the Nexa mod
 
 ## Module Shape
 
-Use the module identifier from the product roadmap, for example `M05`, in documentation and migrations. PHP code uses the `Espo\Custom\Modules\<Name>` namespace and lives below:
+Use the stable module identifier from the product roadmap, for example `M05`, in documentation and migrations. Every change also references its advanced `F-*`, detailed domain and applicable `NFR-*` requirement IDs from the traceability matrix. PHP code uses the `Espo\Custom\Modules\<Name>` namespace and lives below:
 
 ```text
 espocrm/custom/Espo/Custom/Modules/<Name>/
@@ -24,12 +24,19 @@ Modules may call another module only through a public application contract or an
 
 ## Ownership Rules
 
-- Existing CRM entities remain owned by the CRM module that presents them.
+- M05 owns canonical customer, account, contact, lead, opportunity, lifecycle and typed-relationship data. Sales, service, marketing and analytics modules consume those identities through public contracts rather than creating independent customer masters.
 - Every new table, route, event and scheduled job has one module owner.
 - Schema changes are forward-only, numbered SQL migrations. A migration must be idempotently recorded in `nexa_schema_migration` and include recovery notes.
 - Espo metadata is extended from `custom`; core changes require an architecture decision and a regression test proving why an extension point was inadequate.
 - Shared UI primitives belong to M02. Feature modules consume semantic tokens and components rather than defining parallel button, form or dialog systems.
 
+## Shared Customer and Requirement Contracts
+
+- The unified specification and traceability matrix define required outcomes; module boundaries define implementation ownership, not separate products.
+- Customer identity, relationship, lifecycle, timeline, consent and outbox primitives are shared contracts with one owning module and versioned consumers.
+- Lead conversion and identity resolution preserve source history and emit idempotent domain events.
+- Domain APIs and events ship with their owning module under M01 conventions; M20 adds adapters and synchronization rather than becoming a late API bottleneck.
+- A module schema is not approved until ownership class, tenant/service scope, relationships, indexes, retention, migration/backfill, rollback and isolation tests are documented.
 ## Runtime Contracts
 
 ### API and errors
@@ -59,4 +66,4 @@ New modules should preserve this separation and add one end-to-end test for thei
 
 ## Definition of Done
 
-A module change is complete when its tenant and permission behavior, migration, API contract, responsive UI, audit behavior, tests, operational diagnostics and documentation are delivered together. `scripts/dev/verify.ps1 -Ci` enforces the repository-level parts of this contract.
+A module change is complete when its requirement IDs, acceptance criteria, tenant and permission behavior, migration, API/event contract, responsive UI, audit behavior, tests, operational diagnostics and user/administrator/developer documentation are delivered together. `scripts/dev/verify.ps1 -Ci` enforces the repository-level parts of this contract.

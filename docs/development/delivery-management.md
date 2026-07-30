@@ -12,14 +12,16 @@ The Project is private to the organization. The public repository does not make 
 Release
   -> Phase milestone
     -> Module
-      -> Issue or user story
-        -> Sub-issue or technical task
-          -> Pull request
+      -> Requirement range (F, domain and NFR IDs)
+        -> Issue or vertical-slice story
+          -> Sub-issue or technical task
+            -> Pull request
 ```
 
 - Releases group customer-facing outcomes from R0 through R6.
 - Phase milestones are dependency and exit gates from Phase 0 through Phase 12.
 - Modules M01 through M23 define architecture and ownership boundaries.
+- Advanced `F-*`, detailed domain and `NFR-*` IDs provide end-to-end traceability without turning every bullet into a separate issue.
 - Sprint iterations are two-week delivery commitments.
 - Pull requests close scoped issues after review and required CI.
 
@@ -29,6 +31,8 @@ Release
 |---|---|
 | Status | Backlog, Ready, In Progress, In Review, Blocked or Done |
 | Milestone | Phase gate maintained by the repository |
+| Requirement IDs | Related advanced `F-*`, detailed domain and `NFR-*` identifiers |
+| Data impact | Entities, migrations, events, retention and rollback expectations |
 | Sprint | Two-week iteration beginning with Sprint 01 on 20 July 2026 |
 | Module | Owning module from M01 through M23 |
 | Priority | P0 Critical, P1 High, P2 Normal or P3 Low |
@@ -85,6 +89,7 @@ The Project is the live source for item status and assignment. This section reco
 
 | Sprint | Dates | Goal | Committed scope |
 |---|---|---|---|
+| Specification alignment gate | Before Phase 3 backlog refinement | Align the advanced catalogue, detailed product specification, modules, data contracts and acceptance model | Unified specification, traceability matrix, roadmap and Customer 360 schema-design backlog |
 | Foundation closeout | Through 19 July 2026 | Complete the engineering baseline, module conventions, design tokens and initial responsive shell | #11, #13-#16 and #25-#29 |
 | Sprint 04 | 31 August-13 September 2026 | Complete the shared Phase 1 product experience | #43 authentication and signup, #44 navigation and search, #45 tenant home and dashboards, #46 common CRM list and record workflows |
 | Sprint 05 | 14-27 September 2026 | Establish the Phase 2 tenant and entitlement control plane | #35 tenant lifecycle and provisioning, #36 plans/entitlements/quotas, #37 tenant-admin and platform-operator boundary |
@@ -95,14 +100,16 @@ Issues #15, #34 and #41 are delivery umbrellas and are not sprint commitments. E
 
 Phase 1 owns the responsive authentication experience, including login, signup, email-code verification, forgotten-password and password-reset screens. Phase 2 issue #40 owns the secure SSO, MFA and social identity-provider contracts behind those screens. Social sign-in and signup controls are shown only when a provider is configured.
 
+Before Phase 3 work enters Ready, its vertical slices must reference the [Unified Product Specification](../product/unified-product-specification.md), [Requirements Traceability Matrix](../product/requirements-traceability.md) and approved Customer 360 data contracts. Phase 5 event foundations must complete before Phase 6 tracked email and automation acceptance.
+
 ## Issue Readiness
 
 An issue is Ready only when it has:
 
-- a clear objective and testable acceptance criteria;
+- a clear objective, stable advanced/core/NFR requirement IDs and testable acceptance criteria;
 - a phase milestone, module, priority, workstream, size and release;
-- identified dependencies and tenant/security implications;
-- database, responsive UI and documentation expectations where applicable;
+- identified phase dependencies plus tenant, service, permission, consent and security implications;
+- entity, migration, event, API, retention, rollback, responsive UI and documentation expectations where applicable;
 - no assignee while it waits in Ready; the developer who starts it assigns themselves.
 
 Every implementation branch references its issue, and every pull request uses `Closes #<issue>` when the change completes that issue.

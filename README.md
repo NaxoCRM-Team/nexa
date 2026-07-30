@@ -6,12 +6,16 @@ This repository supports development by the designated Nexa project team. The te
 
 ## Product Areas
 
-- Customer and company relationship management
-- Sales pipelines and team productivity
-- Marketing campaigns and automation
-- Email, messaging and customer conversations
-- Reporting, attribution and customer analytics
-- SaaS administration, plans and tenant operations
+- Unified customer and company records with relationship, lifecycle and chronological history
+- Sales pipelines, forecasting, activities, calendars, products and team productivity
+- Customer support, operational email, cases, SLA management, knowledge and portals
+- Consent, forms, landing pages, assets, segments, campaigns and marketing email
+- Behavioral tracking, lead scoring, personalization and visual automation
+- Messaging, conversations, social, advertising and provider integrations
+- Reporting, dashboards, attribution and customer journey analytics
+- SaaS administration, identity, plans, entitlements, usage and tenant operations
+
+Product scope is controlled by the detailed [Unified Product Specification](docs/product/unified-product-specification.md), the [86 advanced capability and 70 SaaS NFR inventory](docs/product/feature-inventory.md), and the [Requirements Traceability Matrix](docs/product/requirements-traceability.md). A capability is implementation-ready only when it has module ownership, phase dependencies, acceptance criteria, data contracts and test evidence.
 
 ## System Architecture
 
@@ -19,16 +23,16 @@ Nexa uses a **modular monolith with supporting platform services**. It is not a 
 
 ### Core Product Modules
 
-- Platform core: shared configuration, feature flags, queues, audit events and API conventions.
-- CRM data platform: accounts, contacts, leads, opportunities, activities, custom objects and associations.
-- Sales workspace: pipelines, tasks, calendars, collaboration and account-centered workflows.
-- Marketing: contacts, segments, campaigns, forms, consent, email and deliverability.
-- Automation: triggers, actions, delays, branching, scoring and omnichannel orchestration.
-- Service and engagement: cases, knowledge, portals, conversations, bots and shared inboxes.
-- Messaging and channels: team email, SMS, WhatsApp, social, advertising and provider integrations.
-- Analytics: reporting, attribution, customer journeys, behavioral events and governed metrics.
-- Identity and access: users, teams, roles, permissions, SSO, sensitive data and audited support access.
-- SaaS administration: tenants, plans, entitlements, usage, subscriptions, provisioning and operator controls.
+- Platform core: configuration, feature flags, queues, schedulers, notifications, files, audit/outbox events, API/webhook conventions and observability.
+- Unified CRM data platform: Customer 360 identity, accounts, contacts, leads, opportunities, lifecycle, relationships, customization, formulas and governed data operations.
+- Sales, activity and calendar workspace: pipelines, forecasting, stage rules, tasks, calls, meetings, products, projects, documents and collaboration.
+- Service and operational email: cases, queues, SLAs, escalation, knowledge, portals, SMTP/IMAP email and team support workflows.
+- Marketing foundation: consent, forms, landing pages, assets, segments, audiences, campaigns and marketing events.
+- Customer timeline and events: anonymous/known identity resolution, behavioral tracking, canonical history and versioned event ingestion.
+- Marketing email and automation: editors, templates, deliverability, visual workflows, branching, retries, scoring and personalization.
+- Engagement channels: conversations, bots, shared inboxes, SMS, WhatsApp, social, advertising and provider adapters.
+- Analytics: governed reports, dashboards, funnels, attribution, customer journeys and domain metrics.
+- Identity and SaaS administration: users, teams, roles, permissions, MFA/SSO, tenants, plans, entitlements, usage, billing and operator controls.
 
 ### Architecture Diagram
 
@@ -52,12 +56,15 @@ These components support the modular monolith and do not change its core archite
 
 Team members should read the documents relevant to their work before modifying shared contracts:
 
-- [Feature inventory](docs/product/feature-inventory.md): functional and SaaS requirements.
+- [Unified product specification](docs/product/unified-product-specification.md): detailed CRM, sales, service, marketing automation, data, API and deliverable requirements.
+- [Requirements traceability matrix](docs/product/requirements-traceability.md): requirement namespaces, module ownership, phase mapping and dependency gates.
+- [Feature inventory](docs/product/feature-inventory.md): 86 advanced capabilities and 70 non-functional SaaS requirements.
 - [Module and build roadmap](docs/product/module-build-roadmap.md): module ownership, dependency order and delivery phases.
 - [SaaS architecture recommendation](docs/architecture/espocrm-saas-architecture-recommendation.md): recommended product and data architecture.
 - [Shared-schema tenancy ADR](docs/architecture/ADR-0002-shared-schema-multitenancy.md): accepted tenant-isolation decision.
 - [Superseded database-per-tenant ADR](docs/architecture/ADR-0001-tenant-database-isolation.md): retained decision history.
 - [SaaS data architecture](docs/architecture/saas-data-architecture.md): tenant scope, services, migration and operational model.
+- [Unified customer data contract](docs/architecture/unified-customer-data-contract.md): Customer 360 primitives, migration slices and database acceptance gates.
 - [Development collaboration](docs/development/phase-0-collaboration.md): shared code and database workflow.
 - [Environment baseline](docs/development/environment-baseline.md): required versions and extensions.
 - [Git workflow](docs/development/git-workflow.md): branches, commits, pull requests and releases.
@@ -262,7 +269,7 @@ nexa/
 |-- docs/
 |   |-- architecture/        Architecture reports and decision records
 |   |-- development/         Environment, Git and collaboration guides
-|   `-- product/             Feature inventory and build roadmap
+|   `-- product/             Unified specification, traceability, feature inventory and roadmap
 |-- downloads/               Ignored recovery release/upgrade packages
 |-- espocrm/                 Complete versioned application codebase
 |   |-- application/Espo/    Existing PHP backend framework and modules
@@ -336,7 +343,7 @@ Prefer established extension points when they keep a change clear, but core file
 - `database/shared/migrations/`: immutable migrations applied to the shared EspoCRM database.
 - `database/shared/seeds/`: synthetic plans, services and test fixtures.
 
-Each local environment uses one `espocrm` database containing Espo core and Nexa SaaS tables. Schema and safe fixtures move through Git; local records and database volumes do not. Every tenant-owned table is converted through reviewed expand/backfill/enforce migrations rather than shared database dumps.
+Each local environment uses one `espocrm` database containing Espo core and Nexa SaaS tables. Schema and safe fixtures move through Git; local records and database volumes do not. Every tenant-owned table is converted through reviewed expand/backfill/enforce migrations rather than shared database dumps. Cross-module Customer 360, relationship, lifecycle, timeline, event and consent primitives require approved data contracts before new migrations are added.
 
 For a fresh or existing Nexa-managed XAMPP/WampServer environment, run the
 idempotent native bootstrap:

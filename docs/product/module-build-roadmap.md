@@ -2,7 +2,7 @@
 
 ## Product Direction
 
-Nexa CRM will use EspoCRM 9.1.9 as its CRM foundation, but the finished product will have its own design system, navigation, terminology, modules, SaaS controls and operating model. It will not embed or merge the Mautic codebase. Marketing and automation capabilities will be implemented as Nexa-owned modules or connected providers.
+Nexa is one unified customer platform spanning relationship management, sales, service, behavioral data, marketing automation, analytics and integrations. The finished product uses one design system, navigation model, customer identity, permission system, event history and operating model. Capabilities are implemented through Nexa-owned modules or governed provider adapters, not disconnected applications.
 
 "Customize everything" means that every relevant workflow and user-facing surface is deliberately reviewed, branded and tested. The complete pinned application is versioned as the shared Nexa codebase. Prefer `custom/`, `client/custom/`, metadata and clear module boundaries where they fit, while allowing reviewed changes to existing backend and frontend files when the product requires them. Core changes need focused tests and must remain distinguishable from the pinned baseline.
 
@@ -19,38 +19,37 @@ Nexa CRM will use EspoCRM 9.1.9 as its CRM foundation, but the finished product 
 
 ## Ordered Module Catalogue
 
-The order below is the dependency order, not the menu order. Modules with lower order numbers establish contracts used by later modules.
+Module IDs are stable architecture and ownership identifiers. Delivery order is controlled by the phase dependency gates below; a foundation from a numerically later module may be required before another module is completed.
 
-| Order | Module | Scope | Functional requirements |
+| Module | Name | Aligned scope | Advanced requirements |
 |---|---|---|---|
-| M01 | Nexa Platform Core | Module conventions, configuration, feature flags, audit events, API conventions, queues, shared errors and extension packaging | F-003 |
-| M02 | Nexa Design System and App Shell | Brand, login, global navigation, search, notifications, responsive layouts, accessibility, interface configuration and reusable UI components | F-002, F-012, F-059 |
-| M03 | SaaS Administration | Tenant lifecycle, plans, entitlements, quotas, metering, billing integration, tenant branding, domains and sandbox accounts | F-001, F-005, F-014, F-035, F-038, F-077 |
-| M04 | Identity, Teams and Access | Users, social login, SSO, MFA hooks, permission sets, teams, hierarchy, field/content restrictions, sensitive-data protection and audited impersonation | F-015, F-024, F-067, F-072, F-073, F-074, F-079, F-083 |
-| M05 | CRM Data Platform | Accounts, contacts, leads, opportunities, custom objects, fields, associations, calculated properties, currencies, import/export and deduplication | F-026, F-029, F-039, F-040, F-047, F-068 |
-| M06 | Sales Workspace | Pipeline, lead and deal workspaces, activities, tasks, calendar, documents, collaboration and account-centered workflows | F-050 |
-| M07 | Service and Knowledge | Cases, customer service workspace, knowledge base, portals, team email and support entitlements | F-020, F-027, F-028 |
-| M08 | Consent, Forms and Content | Consent ledger, cookie tools, forms, form actions, landing/content metadata, URL mappings, localization and video assets | F-010, F-016, F-032, F-034, F-042 |
-| M09 | Marketing Contacts and Campaigns | Marketing-contact status, audiences, target lists, segmentation, campaigns, marketing events, presets and asset governance | F-007, F-044, F-055 |
-| M10 | Marketing Email and Deliverability | Email editor, templates, personalization, programmable/single-send APIs, approvals, sending domains, suppression and health reporting | F-013, F-025, F-031, F-033, F-071, F-075, F-085 |
-| M11 | Tracking and Event Platform | Web tracking, identity resolution, logged-in visitor identification, custom/behavioral events, reply tracking and visual event configuration | F-021, F-022, F-053, F-066, F-070, F-082 |
-| M12 | Automation Engine | Trigger/action workflows, delays, branching, enrollment, retries, versioning, omnichannel orchestration and simple ad automation | F-004, F-009, F-030, F-037 |
-| M13 | Scoring, Personalization and ABM | Contact/deal/company scoring, target accounts, ABM orchestration and dynamic content decisions | F-045, F-049, F-051, F-056, F-061, F-065 |
+| M01 | Nexa Platform Core | Module conventions, configuration, feature flags, audit/events, versioned API and webhook contracts, queues, schedulers, files, notifications, shared errors, observability and extension packaging | F-003 |
+| M02 | Nexa Design System and App Shell | Brand, authentication UX, global navigation, search, notifications, responsive layouts, accessibility, interface configuration, dashboard shell and reusable components | F-002, F-012, F-059 |
+| M03 | SaaS Administration | Tenant lifecycle, plans, entitlements, quotas, metering, billing integration, tenant branding, domains, provisioning and sandbox accounts | F-001, F-005, F-014, F-035, F-038, F-077 |
+| M04 | Identity, Teams and Access | Users, profiles, social login, SSO, MFA, teams, departments, hierarchy, roles, permission sets, record/field/content restrictions, session security, sensitive-data protection and audited impersonation | F-015, F-024, F-067, F-072, F-073, F-074, F-079, F-083 |
+| M05 | Unified CRM Data Platform | Customer 360 identity, accounts, contacts, leads, conversion, opportunities, lifecycle stages, relationship graph, custom objects/fields/layouts, formulas, dynamic logic, calculated properties, currencies, import/export and deduplication | F-026, F-029, F-039, F-040, F-047, F-068 |
+| M06 | Sales, Activity and Calendar Workspace | Pipelines, forecasting, stage rules, activities, tasks, calls, meetings, personal/team calendars, products, projects, documents, collaboration and account-centered workflows | F-050 |
+| M07 | Service and Operational Email | Cases, queues, SLA/escalation, customer service workspace, knowledge base, portals, SMTP/IMAP operational email, threading, team email and support entitlements | F-020, F-027, F-028 |
+| M08 | Consent, Forms, Landing Pages and Assets | Consent ledger, cookie tools, form and landing-page builders, conditional fields, form actions, website content surfaces, URL mappings, localization, file/media assets and download governance | F-010, F-016, F-032, F-034, F-042 |
+| M09 | Marketing Contacts, Segments and Campaigns | Marketing-contact status, static/dynamic segments, audiences, target lists, campaign definitions/enrollment, marketing events, presets and asset governance | F-007, F-044, F-055 |
+| M10 | Marketing Email and Deliverability | Drag-and-drop/HTML editor, templates, personalization, dynamic content, programmable/single-send APIs, approvals, scheduling, sending domains, suppression, bounce/complaint handling and health reporting | F-013, F-025, F-031, F-033, F-071, F-075, F-085 |
+| M11 | Customer Timeline, Tracking and Event Platform | Canonical timeline, anonymous/known identity resolution, web tracking, page/form/asset/video events, logged-in visitors, custom events, reply tracking, ingestion APIs, retention and visual event configuration | F-021, F-022, F-053, F-066, F-070, F-082 |
+| M12 | Automation and Visual Campaign Engine | Versioned trigger/action workflows, campaign canvas, enrollment, delays, branching, business-time rules, retries, cancellation, history, sales/service/marketing actions and omnichannel orchestration | F-004, F-009, F-030, F-037 |
+| M13 | Scoring, Lifecycle Automation, Personalization and ABM | Explainable contact/deal/company scoring, score history/expiration, lifecycle transitions, target accounts, ABM orchestration and deterministic dynamic-content decisions | F-045, F-049, F-051, F-056, F-061, F-065 |
 | M14 | Conversations and Bots | Shared inbox, live chat widget, Messenger, bots, custom inbox views and draggable widget configuration | F-008, F-011, F-018, F-036, F-063 |
 | M15 | Messaging Channels | SMS and WhatsApp consent, templates, sending, replies, provider callbacks and automation actions | F-046, F-048 |
-| M16 | Social Workspace | Social accounts, publishing, scheduling, inbox, approvals, listening and platform policy enforcement | F-006 |
+| M16 | Social Workspace | Social accounts, publishing, scheduling, inbox, approvals, listening and platform-policy enforcement | F-006 |
 | M17 | Advertising | Ad account connections, audiences, campaign visibility, retargeting and conversion events | F-017, F-023, F-064 |
 | M18 | SEO and Content Intelligence | SEO recommendations, page/search performance, Search Console data and YouTube analytics | F-019, F-058, F-062, F-086 |
-| M19 | Analytics, Reporting and Attribution | Custom reports, filtered views, campaign and asset comparison, attribution, journeys and governed analytics models | F-043, F-054, F-060, F-069, F-081 |
-| M20 | Enterprise Integrations | Connector framework, OAuth/credential lifecycle, Salesforce record and custom-object synchronization | F-057, F-078 |
+| M19 | Analytics, Reporting, Dashboards and Attribution | Governed reporting engine, custom reports, personal/team/department dashboards, filtered views, domain analytics, campaign/asset comparison, attribution, funnels and customer journeys | F-043, F-054, F-060, F-069, F-081 |
+| M20 | APIs and Enterprise Integrations | Connector framework, OAuth/credential lifecycle, domain REST APIs, signed webhooks, mapping, transformation, reconciliation, payment/accounting/ecommerce/calendar adapters and Salesforce synchronization | F-057, F-078 |
 | M21 | AI Services | Provider-neutral AI gateway, Anthropic adapter, social agent and social-inbox insights with safety and usage controls | F-052, F-080, F-084 |
-| M22 | Administration and Support Operations | Tenant/operator settings, notifications, support console, audit access, health, usage and operational controls | F-076 |
-| M23 | Experimentation | Audience assignment, A/B variants, statistical results and winner selection for email and content | F-041 |
+| M22 | Administration and Support Operations | Tenant/operator settings, notifications, support console, audit access, health, usage, privacy operations and operational controls | F-076 |
+| M23 | Experimentation | Audience assignment, A/B variants, statistical results and winner selection for email and supported content | F-041 |
 
-All 86 functional IDs are assigned. The Additional features requirement remains a controlled discovery bucket in M01 and must be split into testable requirements before scheduling.
+All 86 advanced functional IDs and all 47 detailed specification sections have module ownership. The [Requirements Traceability Matrix](requirements-traceability.md) controls the detailed domain ranges and cross-module dependencies. M11 event and identity foundations must be delivered before M10 tracked marketing-email completion, and domain APIs ship with their owning modules rather than waiting for Phase 11.
 
-The application sidebar includes disabled, grouped placeholders for planned customer-facing Nexa modules. A placeholder is a roadmap marker only: it has no route, controller, data model or implied implementation status, and is replaced by the real permission-aware module navigation when that module is delivered.
-
+The Additional features requirement remains a controlled discovery bucket in M01 and must be split into testable requirements before scheduling.
 ## Existing EspoCRM Coverage
 
 Every existing area receives a product decision: retain and redesign, extend, replace behind the same user workflow, or retire. Nothing should disappear accidentally.
@@ -85,7 +84,7 @@ The working agreement and exit checklist are maintained in [Phase 0 Collaboratio
 - Create sanitized fixtures; never share live database files or credentials.
 - Establish architecture decisions, coding standards, automated formatting and CI checks.
 - Baseline EspoCRM 9.1.9 behavior and record permitted extension points.
-- Convert requirements into acceptance criteria and Launch/Growth/Scale entitlements.
+- Trace every advanced, detailed and non-functional requirement to acceptance criteria, module ownership and Launch/Growth/Scale entitlements.
 
 **Exit gate:** Both developers can create the same clean environment, run the same smoke tests and load the same seed data.
 
@@ -95,7 +94,7 @@ The working agreement and exit checklist are maintained in [Phase 0 Collaboratio
 
 - Establish Nexa module namespaces and packaging conventions.
 - Build design tokens, typography, controls, tables, forms, modals, empty/error states and responsive patterns.
-- Redesign login, application shell, main navigation, global search, dashboards and common record/list views.
+- Redesign login, application shell, main navigation, global search, the dashboard/widget shell and common record/list views. Governed business metrics are delivered with their source modules and M19.
 - Add feature flags, shared audit-event API, error contracts and background-job conventions.
 - Inventory every Espo screen and give it an explicit retain/redesign/extend/retire status.
 
@@ -117,52 +116,55 @@ Delivery is split across Sprints 05-07: tenant lifecycle, entitlements and role 
 
 **Exit gate:** Automated tests prove that one tenant cannot read, change, search, export or process another tenant's data.
 
-### Phase 3 - CRM, Sales and Service Product
+### Phase 3 - Unified Customer, CRM, Sales and Service Product
 
-**Modules:** M05, M06, M07
+**Modules:** M05, M06, M07, with M01 API contracts
 
-- Redesign and harden Accounts, Contacts, Leads, Opportunities and activities.
-- Add association labels, calculated properties, required fields, custom objects and duplicate management.
-- Complete sales pipeline, tasks, documents, collaboration and multi-currency behavior.
-- Complete Cases, Knowledge Base, Portal, team email and support workflows.
-- Deliver governed import/export and migration tooling.
+- Establish the canonical Customer 360 identity, relationship graph, lifecycle-stage and chronological timeline contracts.
+- Redesign and harden Accounts, Contacts, Leads, lead conversion and Opportunities with the complete field and association requirements.
+- Add typed relationships, association labels, custom objects/fields/layouts, formulas, conditional logic, calculated properties and duplicate management.
+- Complete multiple pipelines, stage rules, forecasting, activities, calendars, products, projects, documents, collaboration and multi-currency behavior.
+- Complete operational email, Cases, queues, SLA timers, escalation, Knowledge Base, Portal and customer-support workflows.
+- Deliver tenant-aware CRM APIs plus governed asynchronous import, export, merge and migration tooling.
 
-**Exit gate:** A tenant can operate the full CRM, sales and service lifecycle without using legacy-looking or cross-tenant administration paths.
+**Exit gate:** A tenant can operate a connected customer, sales and service lifecycle in which conversion, relationships, activities and support history remain attached to the same governed customer identity.
 
-### Phase 4 - Marketing Data, Consent and Campaign Foundation
+### Phase 4 - Consent, Content, Segmentation and Campaign Foundation
 
 **Modules:** M08, M09
 
-- Add marketing-contact classification, consent history, cookie preferences and suppression state.
-- Build forms, field mapping, validation and form-triggered actions.
-- Build segmentation, audiences, campaign membership and marketing event records.
-- Add content localization, URL mappings, asset storage and reusable presets.
+- Add marketing-contact classification, consent evidence/history, communication preferences, cookie controls and suppression state.
+- Build form and landing-page builders, conditional fields, validation, progressive profiling, field mapping and governed form actions.
+- Add tenant-aware asset storage, downloads, localization, URL mappings, website content surfaces and reusable presets.
+- Build static/dynamic segments, audiences, campaign definitions/enrollment and marketing event records on the Phase 3 customer identity.
+- Define event hooks required by tracking, automation and analytics without sending bulk communication yet.
 
-**Exit gate:** Campaign audiences are reproducible, consent-aware and explainable before any bulk send is allowed.
+**Exit gate:** Campaign audiences, content, forms and assets are reproducible, consent-aware, tenant-scoped and explainable before tracking or bulk sending begins.
 
-### Phase 5 - Marketing Email and Deliverability
+### Phase 5 - Customer Timeline, Tracking and Event Foundation
 
-**Modules:** M10, then M23 email experiments
+**Modules:** M11, with M01 event/API contracts
 
-- Build the editor, templates, personalization tokens, smart content and programmable email.
-- Add approvals, test sends, scheduling, plan limits and single-send API.
-- Implement sending-domain verification, SPF/DKIM/DMARC guidance, bounce/complaint callbacks and suppression enforcement.
-- Add deliverability and email-health reporting.
-- Add email A/B testing only after deterministic sending and tracking are proven.
+- Introduce a versioned behavioral-event schema, collection API, idempotency contract and transactional outbox boundary.
+- Build anonymous and known visitor identity resolution with consent and duplicate-prevention controls.
+- Create the permission-aware customer timeline for website, form, asset, email, sales, support, score, segment and external events.
+- Add page, landing-page, click, form, asset, video, webinar, purchase, reply and custom API event contracts.
+- Define retention, replay, ordering, correlation and high-volume storage boundaries before downstream automation.
 
-**Exit gate:** End-to-end test campaigns can be safely composed, approved, sent, tracked, unsubscribed and reconciled without duplicate delivery.
+**Exit gate:** Events resolve to the correct tenant and customer, remain idempotent and replayable, and provide the trusted history required by email, scoring, automation and attribution.
 
-### Phase 6 - Tracking, Events and Automation
+### Phase 6 - Marketing Email and Visual Automation
 
-**Modules:** M11, M12
+**Modules:** M10, M12, then M23 email experiments
 
-- Introduce a versioned behavioral-event schema and collection API.
-- Build anonymous and known visitor identity resolution with consent controls.
-- Add custom events, reply tracking, visual event configuration and event retention.
-- Build versioned workflow definitions, enrollment, branches, delays, actions, retries, cancellation and history.
-- Add email, form and omnichannel automation with tenant fairness and safety limits.
+- Build drag-and-drop and HTML email editing, templates, personalization tokens, dynamic content and programmable email.
+- Add approvals, test sends, scheduling, plan limits, transactional/campaign modes and single-send API.
+- Implement sending-domain verification, SPF/DKIM/DMARC guidance, bounce/complaint callbacks, unsubscribe and suppression enforcement.
+- Build the visual automation/campaign canvas with enrollment, conditions, branches, delays, business time, actions, retries, cancellation and execution history.
+- Add sales, service, form, event, scoring and omnichannel actions with tenant fairness and safety limits.
+- Add email A/B testing only after deterministic sending, event tracking and reconciliation are proven.
 
-**Exit gate:** Events and workflows are idempotent, replayable, observable and cannot cross tenant boundaries.
+**Exit gate:** A consented customer can enter a campaign, receive governed communication, generate canonical events, follow deterministic workflow branches and recover from provider or job failure without duplicate actions.
 
 ### Phase 7 - Scoring, Personalization and ABM
 
@@ -186,16 +188,18 @@ Delivery is split across Sprints 05-07: tenant lifecycle, entitlements and role 
 
 **Exit gate:** One conversation timeline supports channel replies, consent enforcement, assignment and failure recovery.
 
-### Phase 9 - Analytics, Attribution and Customer Journeys
+### Phase 9 - Reporting, Dashboards, Attribution and Customer Journeys
 
 **Modules:** M19
 
-- Establish governed reporting models separated from transactional CRM queries.
-- Build custom reports, filtered views, campaign comparison and funnel reporting.
-- Add contact-create and multi-touch attribution with documented attribution models.
-- Add customer journey analytics and explainable event paths.
+- Establish governed reporting models separated from transactional CRM and high-volume event queries.
+- Build the reporting engine for object/property selection, filters, groups, aggregates, tables, charts, funnels, conversion and KPI reports.
+- Build personal, team, department, company, marketing, sales, service and custom dashboards on permission-aware metrics.
+- Add operational and governed sales, customer, support, campaign and marketing analytics with reconciliation to source records.
+- Add first-touch, last-touch and multi-touch attribution with documented model versions.
+- Add customer journey analytics, campaign/asset comparison and explainable event paths.
 
-**Exit gate:** Report figures reconcile to source records and remain stable under documented attribution definitions.
+**Exit gate:** Report and dashboard figures reconcile to source records, respect sharing scope and remain stable under documented metric and attribution definitions.
 
 ### Phase 10 - Social, Advertising, SEO and Content Intelligence
 
@@ -212,12 +216,14 @@ Delivery is split across Sprints 05-07: tenant lifecycle, entitlements and role 
 
 **Modules:** M20, M21
 
-- Build connector mapping, conflict resolution, reconciliation and failure queues.
+- Complete the connector framework established in M01 with credential lifecycle, mapping, transformation, conflict resolution, reconciliation and failure queues.
+- Add prioritized Google, Microsoft, calendar, payment, accounting, ecommerce, marketing-platform and custom-application adapters.
 - Add Salesforce standard and custom-object synchronization.
+- Complete signed webhook subscription, delivery visibility, replay protection and recovery contracts; core domain APIs have already shipped incrementally.
 - Build a provider-neutral AI gateway with usage metering, redaction, prompt/version audit and human approval controls.
 - Add Anthropic, social agent and social-inbox insight capabilities through the gateway.
 
-**Exit gate:** External sync and AI failures cannot corrupt CRM records, leak tenant data or create unbounded cost.
+**Exit gate:** External sync, webhook and AI failures cannot corrupt CRM records, leak tenant data, duplicate side effects or create unbounded cost.
 
 ### Phase 12 - Production Hardening and SaaS Launch
 
@@ -235,12 +241,12 @@ Delivery is split across Sprints 05-07: tenant lifecycle, entitlements and role 
 
 | Release | Included phases | Product outcome |
 |---|---|---|
-| R0 Engineering baseline | Phase 0 | Two developers can work safely and reproducibly |
+| R0 Engineering baseline | Phase 0 | The project team can work safely and reproducibly |
 | R1 Nexa CRM Alpha | Phases 1-3 | Branded, tenant-aware CRM, sales and service product |
 | R2 Marketing MVP | Phases 4-6 | Consent-aware campaigns, email, tracking and automation |
 | R3 Growth Suite | Phases 7-9 | Scoring, ABM, conversations and trustworthy analytics |
 | R4 Channel Suite | Phase 10 | Social, ads, SEO and content experiments |
-| R5 Enterprise Beta | Phase 11 | Salesforce and governed AI capabilities |
+| R5 Enterprise Beta | Phase 11 | Enterprise connectors, synchronization and governed AI capabilities |
 | R6 SaaS General Availability | Phase 12 | Hardened production SaaS with operational evidence |
 
 Do not build all phases concurrently. Maintain one platform workstream and one product workstream inside the active phase, and finish shared contracts before starting dependent modules.
@@ -261,14 +267,14 @@ For every active module, one developer is the implementation lead and the other 
 
 A module or feature is not complete until it has:
 
-1. Approved acceptance criteria and plan entitlement.
+1. Stable advanced/core/NFR requirement IDs, approved acceptance criteria and plan entitlement.
 2. Tenant isolation and permission tests.
 3. Desktop and mobile UX using the Nexa design system.
 4. Accessibility and localization consideration.
 5. Automated unit, integration and relevant end-to-end tests.
 6. Audit events, metrics, logs and actionable failure states.
 7. Migration, seed data, rollback and upgrade behavior.
-8. API and data-dictionary documentation where applicable.
+8. User, administrator, API, event and data-dictionary documentation where applicable.
 9. Security, privacy, retention and provider-cost review.
 10. Product-owner acceptance and peer code review.
 
@@ -279,7 +285,7 @@ A module or feature is not complete until it has:
 3. Deliver permissions, identity-provider, usage and billing contracts through issues #39, #40, #47 and #48.
 4. Deliver security, audit, impersonation and data-lifecycle controls through issues #49-#51.
 5. Pass the Phase 2 isolation and lifecycle gate in issue #38.
-6. Add acceptance criteria, source strategy and release assignment to `feature-inventory.md` as each later module enters discovery.
+6. Expand traceability ranges into Ready issues with acceptance criteria, source strategy, data contracts and release assignment as each module enters discovery.
 7. Deliver R1 before beginning marketing-email or automation implementation.
 
 The shared-schema tenancy strategy and trusted tenant runtime are accepted and implemented through ADR-0002, issues #19 and #21, and PRs #20 and #24. They are no longer open product decisions.
