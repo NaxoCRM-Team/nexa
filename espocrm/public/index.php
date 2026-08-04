@@ -32,6 +32,14 @@ require_once __DIR__ . '/application-path.php';
 $basePath = NexaApplicationPath::fromScriptName($_SERVER['SCRIPT_NAME'] ?? '/public/index.php');
 $requestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $isFriendlyLoginRequest = NexaApplicationPath::isRoute($requestPath, $basePath, 'login');
+
+// Keep the login route directory-shaped so ../ resolves to the application mount.
+if ($isFriendlyLoginRequest && !str_ends_with($requestPath, '/')) {
+    header('Location: ' . NexaApplicationPath::baseHref($basePath) . 'login/', true, 302);
+
+    exit;
+}
+
 $isLandingRequest = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
     && NexaApplicationPath::isApplicationRoot($requestPath, $basePath)
     && !isset($_GET['login'])
