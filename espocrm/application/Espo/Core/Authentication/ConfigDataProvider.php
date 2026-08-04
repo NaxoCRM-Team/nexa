@@ -109,6 +109,12 @@ class ConfigDataProvider
         return (bool) $this->config->get('authTokenPreventConcurrent');
     }
 
+    /** Maximum inactivity before an interactive token is rejected, in hours. */
+    public function getAuthTokenMaxIdleTime(): float
+    {
+        return (float) $this->config->get('authTokenMaxIdleTime', 0);
+    }
+
     /**
      * A default authentication method.
      */

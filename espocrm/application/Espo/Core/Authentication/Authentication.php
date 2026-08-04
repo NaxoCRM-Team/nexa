@@ -141,11 +141,17 @@ class Authentication
             }
         }
 
-        $authTokenIsFound = $authToken !== null;
-
         if ($authToken && !$authToken->isActive()) {
             $authToken = null;
         }
+
+        if ($authToken && $this->isAuthTokenIdleExpired($authToken)) {
+            $this->authTokenManager->inactivate($authToken);
+            $this->log->info('Auth: Rejected an auth token after the configured idle timeout.');
+            $authToken = null;
+        }
+
+        $authTokenIsFound = $authToken !== null;
 
         if ($authToken) {
             $authTokenCheckResult = $this->processAuthTokenCheck($authToken);
@@ -363,6 +369,26 @@ class Authentication
         }
 
         return true;
+    }
+
+    private function isAuthTokenIdleExpired(AuthToken $authToken): bool
+    {
+        if (!$authToken instanceof AuthTokenEntity) {
+            return false;
+        }
+
+        $maxIdleHours = $this->configDataProvider->getAuthTokenMaxIdleTime();
+        $lastAccess = $authToken->get('lastAccess');
+
+        if ($maxIdleHours <= 0 || !is_string($lastAccess) || $lastAccess === '') {
+            return false;
+        }
+
+        // Auth-token timestamps are stored in UTC regardless of the user timezone.
+        $lastAccessTimestamp = strtotime($lastAccess . ' UTC');
+
+        return $lastAccessTimestamp !== false &&
+            $lastAccessTimestamp <= time() - (int) round($maxIdleHours * 3600);
     }
 
     private function processUserCheck(User $user, ?AuthLogRecord $authLogRecord): bool

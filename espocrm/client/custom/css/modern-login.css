@@ -1,31 +1,19 @@
-.nexa-app-loading {
-    min-height: calc(100vh - 52px);
+.nexa-startup-error {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 10000;
+    width: min(380px, calc(100vw - 40px));
     display: grid;
-    place-content: center;
-    justify-items: center;
-    gap: 14px;
-    color: #687574;
-    background: #f7f8f6;
+    gap: 8px;
+    padding: 16px;
+    border: 1px solid #e3aaa2;
+    border-left: 4px solid #b94732;
+    border-radius: 6px;
+    color: #54251f;
+    background: #fff7f5;
     font-size: 13px;
-    font-weight: 650;
-}
-
-.nexa-app-loading-mark {
-    width: 42px;
-    height: 42px;
-    display: grid;
-    place-items: center;
-    border-radius: 7px;
-    color: #ffffff;
-    background: #0f766e;
-    font-size: 20px;
-    font-weight: 800;
-    animation: nexa-loading-pulse 1.2s ease-in-out infinite alternate;
-}
-
-@keyframes nexa-loading-pulse {
-    from { opacity: 0.58; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
+    box-shadow: 0 12px 32px rgba(31, 42, 42, .16);
 }
 body.modern-login-page {
     min-height: 100vh;
@@ -408,7 +396,6 @@ body.modern-login-page > footer a { color: #53615f; }
 
 @media (prefers-reduced-motion: reduce) {
     .modern-login-input { transition: none; }
-    .nexa-app-loading-mark { animation: none; }
 }
 
 /* Auth v2 gives the shared tenant entry point a distinct Nexa product surface. */
