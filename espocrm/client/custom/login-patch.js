@@ -22,6 +22,25 @@ require(['views/login', 'views/user/password-change-request', 'app'], (LoginView
         url.search = location.search;
         replaceUrl(url);
     };
+
+    // The login-relative document base is required by Espo's lazy loader. Once
+    // authenticated, keep hash routes on the workspace path without reloading.
+    document.addEventListener('click', event => {
+        if (location.pathname !== applicationBaseUrl.pathname ||
+            event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+            return;
+        }
+
+        const anchor = event.target.closest?.('a[href^="#"]');
+        const href = anchor?.getAttribute('href');
+
+        if (!href || href === '#') {
+            return;
+        }
+
+        event.preventDefault();
+        location.hash = href;
+    }, true);
     const defaultInitRouter = App.prototype.initRouter;
     const defaultData = LoginView.prototype.data;
     const defaultSetup = LoginView.prototype.setup;

@@ -126,8 +126,11 @@ $assert(
 $assert(
     str_contains($loginScript, 'App.prototype.initRouter = function') &&
     str_contains($loginScript, 'showApplicationUrl();') &&
-    str_contains($loginScript, 'showLoginUrl();'),
-    'Authentication must establish the correct pathname before Backbone initializes its router root.'
+    str_contains($loginScript, 'showLoginUrl();') &&
+    str_contains($loginScript, "location.pathname !== applicationBaseUrl.pathname") &&
+    str_contains($loginScript, "event.target.closest?.('a[href^=\"#\"]')") &&
+    str_contains($loginScript, 'location.hash = href;'),
+    'Authentication must normalize the pathname and keep workspace hash routes out of the login path.'
 );
 
 fwrite(STDOUT, '[PASS] Portable root and subfolder paths are supported.' . PHP_EOL);
