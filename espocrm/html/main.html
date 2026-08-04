@@ -15,7 +15,7 @@
         <script nonce="{{nonce}}">
             // Espo lazy-loads bundles and theme assets after authentication. Keep
             // their relative URLs anchored to the page that booted the client,
-            // even when the friendly /login/ pathname is later normalized.
+            // even when the visible workspace pathname changes.
             const runtimeBase = document.createElement('base');
             runtimeBase.href = window.location.href.split(/[?#]/)[0];
             document.head.append(runtimeBase);

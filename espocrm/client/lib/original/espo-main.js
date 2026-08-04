@@ -36003,7 +36003,7 @@ define("ajax", ["exports", "jquery", "utils"], function (_exports, _jquery, _uti
         url.includes('?') ? url += '&' : url += '?';
         url += part;
       }
-      const urlObj = new URL(baseUrl + url);
+      const urlObj = new URL(url, baseUrl);
       const xhr = new Xhr();
       xhr.timeout = timeout;
       xhr.open(method, urlObj);
@@ -50375,7 +50375,7 @@ define("app", ["exports", "backbone", "bullbone", "js-base64", "ui", "utils", "a
       const baseUrl = _utils.default.obtainBaseUrl();
       const timestamp = this.loader.getCacheTimestamp();
       const promiseList = files.map(file => {
-        const url = new URL(baseUrl + this.basePath + file);
+        const url = new URL(this.basePath + file, baseUrl);
         url.searchParams.append('t', this.appTimestamp);
         return new Promise(resolve => {
           fetch(url).then(response => {
@@ -50400,8 +50400,7 @@ define("app", ["exports", "backbone", "bullbone", "js-base64", "ui", "utils", "a
 
                 // noinspection RegExpDuplicateCharacterInClass
                 content = content.replace(/[\r|\n|\r\n]$/, '');
-                const url = baseUrl + this.basePath + 'client/' + file;
-                const urlObj = new URL(url);
+                const urlObj = new URL(this.basePath + 'client/' + file, baseUrl);
                 urlObj.searchParams.append('r', timestamp);
                 promiseList.push(this.responseCache.put(urlObj, new Response(content)));
               });

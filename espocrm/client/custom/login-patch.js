@@ -1,6 +1,6 @@
-require(['views/login', 'views/user/password-change-request', 'app'], (LoginView, PasswordResetView, App) => {
+require(['views/login', 'views/user/password-change-request', 'app', 'backbone'], (LoginView, PasswordResetView, App, Backbone) => {
     // Espo publishes the route-relative asset base in the loader contract.
-    // Reuse it so custom API and provider requests also escape /login/.
+    // Reuse it so every route remains portable under /nexa or another mount.
     const loaderBasePath = (() => {
         try {
             const source = document.querySelector('script[data-name="loader-params"]')?.textContent;
@@ -11,22 +11,88 @@ require(['views/login', 'views/user/password-change-request', 'app'], (LoginView
     })();
     const applicationBaseUrl = new URL(loaderBasePath || './', location.href);
     const applicationUrl = path => new URL(String(path).replace(/^\/+/, ''), applicationBaseUrl);
+    const mountPath = applicationBaseUrl.pathname.endsWith('/')
+        ? applicationBaseUrl.pathname
+        : applicationBaseUrl.pathname + '/';
     const replaceUrl = url => history.replaceState(null, '', url.pathname + url.search + url.hash);
-    const showApplicationUrl = () => {
-        const url = new URL(applicationBaseUrl);
-        url.hash = location.hash;
-        replaceUrl(url);
+    const decodeRouteSegment = value => {
+        try {
+            return decodeURIComponent(value);
+        } catch {
+            return value;
+        }
+    };
+    const workspaceLocation = () => {
+        if (!location.pathname.startsWith(mountPath + 'w/')) {
+            return null;
+        }
+
+        const parts = location.pathname.slice((mountPath + 'w/').length).split('/');
+        const slug = decodeRouteSegment(parts.shift() || '').toLowerCase();
+
+        if (!slug) {
+            return null;
+        }
+
+        return {
+            slug,
+            fragment: parts.filter(Boolean).map(decodeRouteSegment).join('/'),
+        };
+    };
+    const requestedWorkspace = workspaceLocation();
+    const encodeFragment = fragment => String(fragment || '')
+        .replace(/^#+|\/+$/g, '')
+        .split('/')
+        .filter(Boolean)
+        .map(encodeURIComponent)
+        .join('/');
+    const workspaceUrl = (slug, fragment = '') => {
+        const url = applicationUrl('w/' + encodeURIComponent(slug));
+        const encodedFragment = encodeFragment(fragment);
+
+        if (encodedFragment) {
+            url.pathname += '/' + encodedFragment;
+        }
+
+        return url;
+    };
+    let activeRouter = null;
+    let activeWorkspaceBaseUrl = null;
+    const showApplicationUrl = app => {
+        const tenant = app.appParams.get('nexaTenant');
+
+        if (!tenant?.slug) {
+            throw new Error('Authenticated workspace identity is unavailable.');
+        }
+
+        const currentWorkspace = workspaceLocation() || requestedWorkspace;
+        const legacyFragment = location.hash.replace(/^#/, '');
+        const fragment = legacyFragment || currentWorkspace?.fragment || '';
+        activeWorkspaceBaseUrl = workspaceUrl(tenant.slug);
+        replaceUrl(workspaceUrl(tenant.slug, fragment));
+
+        return activeWorkspaceBaseUrl;
     };
     const showLoginUrl = () => {
+        if (Backbone.History.started) {
+            Backbone.history.stop();
+        }
+
+        activeRouter = null;
+        activeWorkspaceBaseUrl = null;
         const url = applicationUrl('login/');
-        url.search = location.search;
+        const parameters = new URLSearchParams(location.search);
+        parameters.delete('login');
+        parameters.delete('source');
+        url.search = parameters.toString();
         replaceUrl(url);
     };
 
-    // The login-relative document base is required by Espo's lazy loader. Once
-    // authenticated, keep hash routes on the workspace path without reloading.
+    // Espo still emits hash-shaped href values. Route them through Backbone's
+    // push-state navigator so the address bar stays tenant-qualified and clean.
     document.addEventListener('click', event => {
-        if (location.pathname !== applicationBaseUrl.pathname ||
+        if (!activeRouter || !activeWorkspaceBaseUrl ||
+            !location.pathname.startsWith(activeWorkspaceBaseUrl.pathname) ||
             event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
             return;
         }
@@ -39,7 +105,7 @@ require(['views/login', 'views/user/password-change-request', 'app'], (LoginView
         }
 
         event.preventDefault();
-        location.hash = href;
+        activeRouter.navigate(href.slice(1), {trigger: true});
     }, true);
     const defaultInitRouter = App.prototype.initRouter;
     const defaultData = LoginView.prototype.data;
@@ -47,14 +113,28 @@ require(['views/login', 'views/user/password-change-request', 'app'], (LoginView
     const defaultAfterRender = LoginView.prototype.afterRender;
     const defaultResetSetup = PasswordResetView.prototype.setup;
 
-    // Espo lazy-loads CRM bundles during authentication. Keep /login/ until those
-    // assets finish, then normalize immediately before Backbone selects its root.
     App.prototype.initRouter = function (...args) {
-        showApplicationUrl();
+        const workspaceBaseUrl = showApplicationUrl(this);
+        const defaultHistoryStart = Backbone.history.start;
 
-        return defaultInitRouter.apply(this, args);
+        Backbone.history.start = function (options = {}) {
+            return defaultHistoryStart.call(this, {
+                ...options,
+                root: workspaceBaseUrl.pathname + '/',
+                pushState: true,
+                hashChange: false,
+            });
+        };
+
+        try {
+            const result = defaultInitRouter.apply(this, args);
+            activeRouter = this.router;
+
+            return result;
+        } finally {
+            Backbone.history.start = defaultHistoryStart;
+        }
     };
-
     LoginView.prototype.data = function () {
         return {
             ...defaultData.call(this),

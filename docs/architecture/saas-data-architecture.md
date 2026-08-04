@@ -95,6 +95,17 @@ Nexa-owned tables use a `nexa_` prefix to avoid collisions with existing Espo ta
 
 ## Runtime Tenant Contract
 
+### Tenant Workspace URLs
+
+Authenticated browser routes use `/w/{tenant-slug}/{route}`, for example
+`/nexa/w/isolation-alpha/Contact`. The slug is a stable, human-readable routing
+identifier, not an authorization credential. Login establishes the trusted
+`TenantContext`; every request, query, job and export continues to use its
+verified `tenant_id`. If a supplied slug does not match the authenticated
+tenant, the client replaces it with the verified slug and the server must never
+use the mismatch to change tenant context. Internal database IDs and
+`service_id` values are not exposed as navigation identifiers.
+
 ### Trusted Resolution
 
 Tenant resolution occurs before Espo authentication:
