@@ -32,10 +32,19 @@ require_once __DIR__ . '/application-path.php';
 $basePath = NexaApplicationPath::fromScriptName($_SERVER['SCRIPT_NAME'] ?? '/public/index.php');
 $requestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $isFriendlyLoginRequest = NexaApplicationPath::isRoute($requestPath, $basePath, 'login');
+$workspaceRoute = NexaApplicationPath::workspaceRoute($requestPath, $basePath);
 
-// Keep the login route directory-shaped so ../ resolves to the application mount.
+// Keep one canonical login URL across root and subfolder installations.
 if ($isFriendlyLoginRequest && !str_ends_with($requestPath, '/')) {
     header('Location: ' . NexaApplicationPath::baseHref($basePath) . 'login/', true, 302);
+
+    exit;
+}
+
+// Keep tenant workspace roots canonical so shared links and browser history do not
+// alternate between equivalent trailing-slash forms.
+if ($workspaceRoute !== null && str_ends_with($requestPath, '/')) {
+    header('Location: ' . rtrim($requestPath, '/'), true, 302);
 
     exit;
 }
@@ -64,14 +73,15 @@ if (isset($_GET['login'])) {
     header('Cache-Control: no-store, no-cache, must-revalidate');
 }
 
-include "../bootstrap.php";
+include dirname(__DIR__) . '/bootstrap.php';
 
 use Espo\Core\Application;
 use Espo\Core\ApplicationRunners\Client;
 use Espo\Core\ApplicationRunners\EntryPoint;
 
 $app = new Application();
-$app->setClientBasePath($isFriendlyLoginRequest ? '../' : '');
+$clientBasePath = NexaApplicationPath::baseHref($basePath);
+$app->setClientBasePath($clientBasePath);
 
 if (filter_has_var(INPUT_GET, 'entryPoint')) {
     $app->run(EntryPoint::class);

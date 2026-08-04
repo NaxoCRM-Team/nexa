@@ -89,9 +89,8 @@ Alias /nexa "C:/wamp64/www/nexa/espocrm/public"
     Require local
     DirectoryIndex index.php
 
-    RewriteEngine On
-    RewriteBase /nexa/
-    RewriteRule ^login/?$ index.php?login=1 [END,QSA,NC]
+    # Existing files are served normally; application routes use one front controller.
+    FallbackResource /nexa/index.php
 </Directory>
 ```
 
@@ -171,6 +170,7 @@ Open:
 
 - Landing page: <http://localhost/nexa/>
 - Shared login: <http://localhost/nexa/login/>
+- Tenant workspace: `http://localhost/nexa/w/{tenant-slug}/{route}`
 
 Both demo administrators use the shared login. Their credentials are the
 `DEMO_TENANT_A_ADMIN_*` and `DEMO_TENANT_B_ADMIN_*` values in the ignored `.env`.
@@ -250,6 +250,7 @@ the existing database; do not force the installer over unrelated data.
 WampServer setup is complete only when:
 
 - <http://localhost/nexa/> and <http://localhost/nexa/login/> return HTTP `200`;
+- tenant workspace URLs refresh successfully and keep the authenticated tenant slug;
 - the provider API returns HTTP `200`;
 - `/install/` redirects away from the installer;
 - PHP reports 8.2.x with the required extensions;

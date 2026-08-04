@@ -253,7 +253,10 @@ The command creates the database, loads the base schema and every migration,
 generates machine-specific configuration, provisions both demo tenants and CRM
 data, blocks the browser installer, rebuilds the application, and runs the
 verification suites. Both demo administrators sign in through
-<http://localhost/nexa/login/> using the ignored `.env` values.
+<http://localhost/nexa/login/> using the ignored `.env` values. After sign-in,
+the browser uses `http://localhost/nexa/w/{tenant-slug}/{route}`. The slug keeps
+links understandable; the authenticated `TenantContext` remains the security
+boundary and always overrides untrusted URL input.
 
 See [WampServer Development Setup](docs/development/wampserver-setup.md) for the
 required alias file, PHP settings, MariaDB selection, OAuth callbacks,

@@ -33,6 +33,9 @@ Options -Indexes
     RewriteRule ^login$ %{ENV:BASE}login/ [R=302,L,NE]
     RewriteRule ^login/$ %{ENV:BASE}/public/index.php?login=1 [QSA,L,NC]
 
+    # Tenant-qualified workspace URLs use the main client front controller.
+    RewriteRule ^w/[a-z0-9](?:[a-z0-9-]{0,62})(?:/.*)?$ %{ENV:BASE}/public/index.php [QSA,L,NC]
+
     # Add trailing slash.
     RewriteCond %{DOCUMENT_ROOT}/%{ENV:BASE}/public/$1 -d
     RewriteRule ^(.*?[^/])$ %{REQUEST_URI}/ [L,R=301,NE]
