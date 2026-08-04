@@ -1,51 +1,111 @@
 require(['views/site/navbar'], NavbarView => {
     const defaultData = NavbarView.prototype.data;
     const defaultAfterRender = NavbarView.prototype.afterRender;
-    const plannedModuleGroups = [
+    // Keep navigation organized around daily workspaces. Existing Espo screens are
+    // reused by scope name; missing Nexa screens remain visibly disabled until their
+    // routes and permission contracts are delivered.
+    const workspaceNavigation = [
         {
-            name: 'nexa-marketing-suite',
-            label: 'Marketing Suite',
+            name: 'nexa-crm',
+            label: 'CRM',
+            iconClass: 'fas fa-address-book',
+            items: [
+                'Account',
+                'Contact',
+                'Lead',
+                ['nexa-customer-timeline', 'Customer Timeline'],
+                ['nexa-lists-segments', 'Lists & Segments'],
+                ['nexa-custom-objects', 'Custom Objects'],
+            ],
+        },
+        {
+            name: 'nexa-sales',
+            label: 'Sales',
+            iconClass: 'fas fa-chart-line',
+            items: [
+                'Opportunity',
+                'Meeting',
+                'Call',
+                'Task',
+                'Calendar',
+                ['nexa-sales-pipelines', 'Pipelines'],
+                ['nexa-sales-forecasts', 'Forecasts'],
+                ['nexa-products-quotes', 'Products & Quotes'],
+                'Document',
+                'Template',
+            ],
+        },
+        {
+            name: 'nexa-marketing',
+            label: 'Marketing',
             iconClass: 'fas fa-bullhorn',
-            modules: [
-                ['nexa-forms-content', 'Consent, Forms & Content'],
-                ['nexa-marketing-contacts', 'Marketing Contacts & Events'],
+            items: [
+                'Campaign',
+                'TargetList',
+                'EmailTemplate',
+                ['nexa-marketing-contacts', 'Marketing Contacts'],
                 ['nexa-marketing-email', 'Marketing Email'],
-                ['nexa-tracking-events', 'Tracking & Events'],
-                ['nexa-automation', 'Automation'],
-                ['nexa-scoring-abm', 'Scoring, Personalization & ABM'],
+                ['nexa-forms', 'Forms'],
+                ['nexa-landing-pages', 'Landing Pages'],
+                ['nexa-content-assets', 'Content & Assets'],
+                ['nexa-marketing-events', 'Marketing Events'],
+                ['nexa-social', 'Social'],
+                ['nexa-advertising', 'Advertising'],
+                ['nexa-seo-content', 'SEO'],
                 ['nexa-experiments', 'Experiments'],
             ],
         },
         {
-            name: 'nexa-customer-engagement',
-            label: 'Customer Engagement',
+            name: 'nexa-automation',
+            label: 'Automation',
+            iconClass: 'fas fa-project-diagram',
+            items: [
+                ['nexa-workflows', 'Workflows'],
+                ['nexa-customer-journeys', 'Customer Journeys'],
+                ['nexa-scoring-lifecycle', 'Scoring & Lifecycle'],
+                ['nexa-personalization', 'Personalization'],
+                ['nexa-target-accounts', 'Target Accounts & ABM'],
+            ],
+        },
+        {
+            name: 'nexa-service',
+            label: 'Service',
             iconClass: 'fas fa-comments',
-            modules: [
-                ['nexa-conversations', 'Conversations & Bots'],
+            items: [
+                'Case',
+                'Email',
+                'KnowledgeBaseArticle',
+                ['nexa-shared-inbox', 'Shared Inbox'],
+                ['nexa-live-chat-bots', 'Live Chat & Bots'],
+                ['nexa-service-queues', 'Queues & SLAs'],
+                ['nexa-customer-portal', 'Customer Portal'],
                 ['nexa-messaging', 'SMS & WhatsApp'],
-                ['nexa-social', 'Social Workspace'],
-                ['nexa-advertising', 'Advertising'],
             ],
         },
         {
-            name: 'nexa-intelligence',
-            label: 'Intelligence',
-            iconClass: 'fas fa-chart-line',
-            modules: [
-                ['nexa-seo-content', 'SEO & Content Intelligence'],
-                ['nexa-analytics', 'Analytics & Attribution'],
-                ['nexa-ai-services', 'AI Services'],
+            name: 'nexa-analytics',
+            label: 'Analytics',
+            iconClass: 'fas fa-chart-bar',
+            items: [
+                ['nexa-analytics-dashboards', 'Dashboards'],
+                ['nexa-reports', 'Reports'],
+                ['nexa-campaign-analytics', 'Campaign Analytics'],
+                ['nexa-attribution', 'Attribution'],
+                ['nexa-journey-analytics', 'Journey Analytics'],
+                ['nexa-website-traffic', 'Website Traffic'],
+                ['nexa-email-performance', 'Email Performance'],
             ],
         },
         {
-            name: 'nexa-platform',
-            label: 'Platform',
-            iconClass: 'fas fa-layer-group',
-            modules: [
-                ['nexa-saas-admin', 'SaaS Administration'],
-                ['nexa-access-security', 'Access & Security'],
-                ['nexa-integrations', 'Enterprise Integrations'],
-                ['nexa-support-operations', 'Support Operations'],
+            name: 'nexa-data-tools',
+            label: 'Data & Integrations',
+            iconClass: 'fas fa-database',
+            items: [
+                ['nexa-tracking-events', 'Tracking & Events'],
+                ['nexa-data-quality', 'Data Quality'],
+                ['nexa-import-export', 'Import & Export'],
+                ['nexa-integrations', 'Integrations'],
+                ['nexa-api-webhooks', 'API & Webhooks'],
             ],
         },
     ];
@@ -62,7 +122,7 @@ require(['views/site/navbar'], NavbarView => {
         aClassName: 'nexa-planned-module-link',
     });
 
-    const createPlannedGroup = group => ({
+    const createWorkspaceGroup = (group, existingByName, usedNames) => ({
         name: group.name,
         label: group.label,
         shortLabel: group.label.substring(0, 2),
@@ -72,10 +132,27 @@ require(['views/site/navbar'], NavbarView => {
         isDivider: false,
         isInMore: false,
         isAfterShowMore: false,
-        aClassName: 'nav-link-group nexa-planned-group-link',
-        itemList: group.modules.map(createPlannedModule),
-    });
+        aClassName: 'nav-link-group nexa-workspace-group-link',
+        itemList: group.items.map(item => {
+            if (typeof item !== 'string') {
+                return createPlannedModule(item);
+            }
 
+            const existing = existingByName.get(item);
+
+            if (!existing) {
+                return createPlannedModule([`nexa-${item.toLowerCase()}`, item]);
+            }
+
+            usedNames.add(item);
+
+            return {
+                ...existing,
+                isInMore: false,
+                isAfterShowMore: false,
+            };
+        }),
+    });
     const createTenantIdentity = (tenant, className) => {
         const displayName = tenant.displayName || tenant.slug;
         const initials = displayName
@@ -190,15 +267,18 @@ require(['views/site/navbar'], NavbarView => {
         }
 
         const existingTabs = [...data.tabDefsList1, ...data.tabDefsList2]
-            .filter(item => item.name !== 'show-more')
+            .filter(item => item.name !== 'show-more' && !item.isDivider)
             .map(item => ({
                 ...item,
                 isInMore: false,
                 isAfterShowMore: false,
             }));
-        const nexaDivider = {
-            name: 'nexa-modules-divider',
-            label: 'Nexa Modules',
+        const existingByName = new Map(existingTabs.map(item => [item.name, item]));
+        const usedNames = new Set();
+        const home = existingByName.get('Home');
+        const workspaceDivider = {
+            name: 'nexa-workspaces-divider',
+            label: 'Workspaces',
             isDivider: true,
             isGroup: false,
             isInMore: false,
@@ -206,10 +286,24 @@ require(['views/site/navbar'], NavbarView => {
             aClassName: 'nav-divider-text',
         };
 
+        if (home) usedNames.add('Home');
+
+        const workspaceGroups = workspaceNavigation.map(group =>
+            createWorkspaceGroup(group, existingByName, usedNames));
+        const administrationScopes = new Set([
+            'User',
+            'Team',
+            'WorkingTimeCalendar',
+            'Import',
+        ]);
+        const additionalTabs = existingTabs.filter(item =>
+            !usedNames.has(item.name) && !administrationScopes.has(item.name));
+
         data.tabDefsList1 = [
-            ...existingTabs,
-            nexaDivider,
-            ...plannedModuleGroups.map(createPlannedGroup),
+            ...(home ? [home] : []),
+            workspaceDivider,
+            ...workspaceGroups,
+            ...additionalTabs,
         ];
         data.tabDefsList2 = [];
 

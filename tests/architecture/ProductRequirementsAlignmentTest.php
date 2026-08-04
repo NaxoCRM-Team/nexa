@@ -19,6 +19,9 @@ $specification = $read('docs/product/unified-product-specification.md');
 $traceability = $read('docs/product/requirements-traceability.md');
 $roadmap = $read('docs/product/module-build-roadmap.md');
 $dataContract = $read('docs/architecture/unified-customer-data-contract.md');
+$screenInventory = $read('docs/product/screen-inventory.md');
+$navigation = $read('espocrm/client/custom/tenant-workspace.js');
+$adminPanel = $read('espocrm/custom/Espo/Custom/Resources/metadata/app/adminPanel.json');
 $readme = $read('README.md');
 
 $count = static function (string $pattern, string $content): int {
@@ -63,6 +66,15 @@ $requiredContracts = [
     [$dataContract, 'nexa_identity_link'],
     [$dataContract, 'nexa_relationship_edge'],
     [$dataContract, 'Lead Conversion Contract'],
+    [$screenInventory, 'Canonical Tenant Navigation'],
+    [$navigation, "label: 'CRM'"],
+    [$navigation, "label: 'Sales'"],
+    [$navigation, "label: 'Marketing'"],
+    [$navigation, "label: 'Automation'"],
+    [$navigation, "label: 'Service'"],
+    [$navigation, "label: 'Analytics'"],
+    [$navigation, "label: 'Data & Integrations'"],
+    [$adminPanel, '"nexaWorkspace"'],
     [$readme, 'docs/product/unified-product-specification.md'],
     [$readme, 'docs/product/requirements-traceability.md'],
 ];
@@ -71,6 +83,16 @@ foreach ($requiredContracts as [$content, $required]) {
     if (!str_contains($content, $required)) {
         throw new RuntimeException("Product alignment contract is missing: {$required}");
     }
+}
+
+if (str_contains($navigation, 'SaaS Administration')) {
+    throw new RuntimeException('Tenant navigation must not expose the platform-operator administration console.');
+}
+
+$adminPanelData = json_decode($adminPanel, true, flags: JSON_THROW_ON_ERROR);
+
+if (!isset($adminPanelData['nexaWorkspace']['itemList'])) {
+    throw new RuntimeException('Workspace Management must extend the existing Administration application.');
 }
 
 if (str_contains($inventory, 'Missing Non-Functional SaaS Requirements')) {

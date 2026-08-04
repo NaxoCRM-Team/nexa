@@ -1,0 +1,14 @@
+{
+    "labels": {
+        "Workspace Management": "Workspace Management",
+        "Workspace Settings": "Workspace Settings",
+        "Roles & Permissions": "Roles & Permissions",
+        "Email Delivery": "Email Delivery",
+        "API & Webhooks": "API & Webhooks",
+        "Data Import": "Data Import",
+        "Data Model & Custom Objects": "Data Model & Custom Objects"
+    },
+    "descriptions": {
+        "workspaceSettings": "Configure this tenant workspace and its operational defaults."
+    }
+}
