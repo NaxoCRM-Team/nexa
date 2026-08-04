@@ -1,0 +1,72 @@
+{
+    "nexaWorkspace": {
+        "label": "Workspace Management",
+        "itemList": [
+            {
+                "url": "#Admin/settings",
+                "label": "Workspace Settings",
+                "iconClass": "fas fa-sliders-h",
+                "description": "workspaceSettings"
+            },
+            {
+                "url": "#Admin/users",
+                "label": "Users",
+                "iconClass": "fas fa-user",
+                "description": "users",
+                "tabQuickSearch": true
+            },
+            {
+                "url": "#Admin/teams",
+                "label": "Teams",
+                "iconClass": "fas fa-users",
+                "description": "teams",
+                "tabQuickSearch": true
+            },
+            {
+                "url": "#Admin/roles",
+                "label": "Roles & Permissions",
+                "iconClass": "fas fa-key",
+                "description": "roles",
+                "tabQuickSearch": true
+            },
+            {
+                "url": "#Admin/authenticationProviders",
+                "label": "Authentication Providers",
+                "iconClass": "fas fa-sign-in-alt",
+                "description": "authenticationProviders"
+            },
+            {
+                "url": "#Admin/integrations",
+                "label": "Integrations",
+                "iconClass": "fas fa-network-wired",
+                "description": "integrations"
+            },
+            {
+                "url": "#Admin/outboundEmails",
+                "label": "Email Delivery",
+                "iconClass": "fas fa-paper-plane",
+                "description": "outboundEmails"
+            },
+            {
+                "url": "#Admin/webhooks",
+                "label": "API & Webhooks",
+                "iconClass": "fas fa-share-alt",
+                "description": "webhooks"
+            },
+            {
+                "url": "#Admin/import",
+                "label": "Data Import",
+                "iconClass": "fas fa-file-import",
+                "description": "import"
+            },
+            {
+                "url": "#Admin/entityManager",
+                "label": "Data Model & Custom Objects",
+                "iconClass": "fas fa-tools",
+                "description": "entityManager",
+                "tabQuickSearch": true
+            }
+        ],
+        "order": 1
+    }
+}
