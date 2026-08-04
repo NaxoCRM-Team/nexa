@@ -217,20 +217,47 @@ See [XAMPP Development Setup](docs/development/xampp-setup.md) for PHP settings,
 
 ## WampServer Setup
 
-WampServer supports both the normal `nexa.local` project setup and a portable
-subfolder mode. A prepared `espocrm` folder can be placed directly under
-`C:\wamp64\www\espocrm_boye` and opened at
-`http://localhost/espocrm_boye/`; no virtual host or Windows hosts-file entry is
-required. Apache `mod_rewrite` and `AllowOverride All` must remain enabled.
+WampServer is the standard native Windows development environment. Clone the
+repository into `C:\wamp64\www\nexa` and expose the application at
+<http://localhost/nexa/> through the Apache alias documented in the complete
+guide. This setup does not use a Nexa virtual host or Windows hosts-file entry.
 
-Portable copies still need their imported database and machine-specific values
-in `espocrm/data/config.php`. Set `siteUrl` to the exact folder URL and ensure
-`isInstalled` is `true` in `espocrm/data/config-internal.php`. This bypasses the
-browser installer while keeping landing, login, signup, recovery, API and social
-identity routes inside the copied folder.
+Use Apache on port `80`, PHP 8.2.x, and WampServer MariaDB 10.11 or 11.x on port
+`3306`. The API alias maps only the public application and client assets; the
+repository's backend source, configuration, data, and vendor directories are
+not exposed directly.
 
-See [WampServer Development Setup](docs/development/wampserver-setup.md) for both the one-command full repository workflow and the portable copied-folder workflow.
+After configuring `C:\wamp64\alias\nexa.conf`, run:
 
+```powershell
+Set-Location C:\wamp64\www\nexa
+
+$php = Get-ChildItem C:\wamp64\bin\php -Filter php.exe -File -Recurse |
+    Where-Object { $_.VersionInfo.ProductVersion -like '8.2.*' } |
+    Sort-Object FullName -Descending |
+    Select-Object -ExpandProperty FullName -First 1
+
+$mariadb = Get-ChildItem C:\wamp64\bin\mariadb -Filter mariadb.exe -File -Recurse |
+    Sort-Object FullName -Descending |
+    Select-Object -ExpandProperty FullName -First 1
+
+powershell -ExecutionPolicy Bypass -File scripts/dev/setup-native-windows.ps1 `
+  -PhpPath $php `
+  -ClientPath $mariadb `
+  -DatabaseHost 127.0.0.1 `
+  -DatabasePort 3306 `
+  -SiteUrl http://localhost/nexa
+```
+
+The command creates the database, loads the base schema and every migration,
+generates machine-specific configuration, provisions both demo tenants and CRM
+data, blocks the browser installer, rebuilds the application, and runs the
+verification suites. Both demo administrators sign in through
+<http://localhost/nexa/login/> using the ignored `.env` values.
+
+See [WampServer Development Setup](docs/development/wampserver-setup.md) for the
+required alias file, PHP settings, MariaDB selection, OAuth callbacks,
+scheduled jobs, update workflow, troubleshooting, and acceptance checks.
 ## Signup Email And SMTP
 
 Self-service signup activates a workspace through one secure email verification
