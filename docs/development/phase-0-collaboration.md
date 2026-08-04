@@ -97,7 +97,7 @@ Do not copy Docker volumes into XAMPP or exchange phpMyAdmin exports for daily s
 ## WampServer Developer
 
 1. Clone the same organization repository under `C:\wamp64\www\nexa` and select PHP 8.2.x with MariaDB 10.11 or 11.x.
-2. Enable the required extensions and configure the `nexa.local` virtual host.
+2. Enable the required extensions and configure the `/nexa` Apache alias without a virtual host.
 3. Run `scripts/dev/setup-native-windows.ps1` with the PHP and MariaDB client paths.
 4. The command creates `.env`, database, application configuration, administrators, demo data and installed marker.
 5. Confirm the shared login loads and `/install` redirects away.
