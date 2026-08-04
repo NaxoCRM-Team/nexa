@@ -21,16 +21,21 @@
             document.head.append(runtimeBase);
 
             const showStartupFailure = () => {
-                const loader = document.querySelector('.nexa-app-loading');
+                let loader = document.querySelector('.nexa-startup-error');
 
-                if (!loader || loader.dataset.failed) {
+                if (loader?.dataset.failed) {
                     return;
+                }
+
+                if (!loader) {
+                    loader = document.createElement('div');
+                    loader.className = 'nexa-startup-error';
+                    document.body.append(loader);
                 }
 
                 loader.dataset.failed = 'true';
                 loader.setAttribute('role', 'alert');
                 loader.innerHTML = `
-                    <span class="nexa-app-loading-mark" aria-hidden="true">N</span>
                     <strong>We couldn't open your workspace.</strong>
                     <span>Please check the connection and try again.</span>
                     <button type="button" class="btn btn-primary">Try again</button>
@@ -84,12 +89,7 @@
         </script>
     </head>
     <body data-id="{{applicationId}}">
-        <div class="container content">
-            <div class="nexa-app-loading" role="status" aria-live="polite">
-                <span class="nexa-app-loading-mark" aria-hidden="true">N</span>
-                <span>Opening your workspace</span>
-            </div>
-        </div>
+        <div class="container content"></div>
         <footer>
             <p class="credit small">&copy; 2025
             <a href="https://www.espocrm.com" title="Powered by EspoCRM" rel="noopener" target="_blank">EspoCRM</a></p>

@@ -45,7 +45,37 @@ final class AuthProviderRegistry
                 $clientId !== '' && $secret !== '';
         }
 
-        return self::normalize($configured);
+        $providers = self::normalize($configured);
+
+        foreach ($providers as &$provider) {
+            $callbackUrl = $this->callbackUrl($provider['key']);
+            $startUrl = preg_replace('~/callback/?$~', '/start', $callbackUrl);
+
+            // Local OAuth callbacks often use localhost while the application
+            // is opened through a friendly host. Starting on the callback
+            // origin keeps the browser-bound state cookie on the same host.
+            if (is_string($startUrl) && filter_var($startUrl, FILTER_VALIDATE_URL)) {
+                $provider['startUrl'] = $startUrl;
+            }
+        }
+        unset($provider);
+
+        return $providers;
+    }
+
+    private function callbackUrl(string $provider): string
+    {
+        $key = 'NEXA_AUTH_' . strtoupper($provider) . '_REDIRECT_URI';
+        $configured = trim((string) getenv($key));
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        return trim((string) $this->config->get(
+            $provider === 'google' ? 'nexaGoogleRedirectUri' : 'nexaMicrosoftRedirectUri',
+            ''
+        ));
     }
 
     /**

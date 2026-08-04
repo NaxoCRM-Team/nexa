@@ -47,6 +47,16 @@ if ($recoveryCooldown === false) {
     exit(1);
 }
 
+$sessionIdleMinutes = filter_var(
+    $environment['AUTH_SESSION_IDLE_MINUTES'] ?? '30',
+    FILTER_VALIDATE_INT,
+    ['options' => ['min_range' => 5, 'max_range' => 1440]]
+);
+if ($sessionIdleMinutes === false) {
+    fwrite(STDERR, 'AUTH_SESSION_IDLE_MINUTES must be from 5 to 1440.' . PHP_EOL);
+    exit(1);
+}
+
 $application = new Application();
 $factory = $application->getContainer()->getByClass(InjectableFactory::class);
 $writer = $factory->create(ConfigWriter::class);
@@ -55,6 +65,9 @@ $writer->setMultiple([
     'applicationName' => ($environment['CRM_NAME'] ?? '') ?: 'Nexa CRM',
     'passwordRecoveryNoExposure' => true,
     'passwordRecoveryResendCooldown' => $recoveryCooldown,
+    // Espo stores this value in hours. Nexa exposes minutes because an idle
+    // session limit is easier for operators to reason about in that unit.
+    'authTokenMaxIdleTime' => $sessionIdleMinutes / 60,
     'nexaPublicAuthProviders' => [
         'google' => $enabled('NEXA_AUTH_GOOGLE_ENABLED'),
         'microsoft' => $enabled('NEXA_AUTH_MICROSOFT_ENABLED'),

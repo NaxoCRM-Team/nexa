@@ -11,6 +11,7 @@ use Espo\Core\Authentication\Oidc\TokenValidator;
 use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Utils\Config;
+use Espo\Core\Utils\Log;
 use Espo\Custom\Tools\Signup\SignupService;
 use Espo\ORM\EntityManager;
 use PDO;
@@ -35,6 +36,7 @@ final class SocialAuthService
         private AuthProviderRegistry $providerRegistry,
         private SignupService $signupService,
         private MicrosoftIdTokenValidator $microsoftTokenValidator,
+        private Log $log,
     ) {}
 
     /** @param array<string, string|array<scalar, mixed>> $query */
@@ -123,7 +125,7 @@ final class SocialAuthService
                 // Existing linked identities sign in. New identities resume
                 // workspace onboarding before tenant records are provisioned.
                 if ($identity !== null) {
-                    return $this->sessionUrl($identity);
+                    return $this->sessionUrl($provider, $identity);
                 }
 
                 $signup = $this->signupService->beginSocial(
@@ -144,8 +146,14 @@ final class SocialAuthService
                 return $this->failureUrl('social_account_not_linked');
             }
 
-            return $this->sessionUrl($identity);
-        } catch (Throwable) {
+            return $this->sessionUrl($provider, $identity);
+        } catch (Throwable $e) {
+            // OAuth errors must be diagnosable without exposing provider
+            // tokens, authorization codes or account details to the browser.
+            $this->log->warning(
+                'Nexa social authentication failed for provider {provider}: {message}',
+                ['provider' => $provider, 'message' => $e->getMessage(), 'exception' => $e]
+            );
             return $this->failureUrl('social_auth_failed');
         }
     }
@@ -201,7 +209,9 @@ final class SocialAuthService
         curl_close($curl);
         $data = is_string($response) ? json_decode($response, true) : null;
         if ($error !== '' || $status !== 200 || !is_array($data) || !is_string($data['id_token'] ?? null)) {
-            throw new RuntimeException('Google token exchange failed.');
+            throw new RuntimeException(
+                ucfirst($provider) . ' token exchange failed: ' . ($error ?: 'provider rejected the request')
+            );
         }
         return $data['id_token'];
     }
@@ -222,16 +232,28 @@ final class SocialAuthService
     }
 
     /** @param array<string,string> $identity */
-    private function sessionUrl(array $identity): string
+    private function sessionUrl(string $provider, array $identity): string
     {
-        $context = new TenantContext($identity['tenant_id'], $identity['slug'], 'google-social-auth', $identity['display_name']);
+        $context = new TenantContext(
+            $identity['tenant_id'],
+            $identity['slug'],
+            $provider . '-social-auth',
+            $identity['display_name']
+        );
         $token = $this->tenantContextStore->runWith($context, fn () => $this->authTokenManager->create(
             AuthTokenData::create(['userId' => $identity['user_id']])
         ));
         $this->sql(
             $this->entityManager->getPDO(),
-            'INSERT INTO nexa_audit_event (id, tenant_id, service_id, actor_type, actor_user_id, action, subject_type, subject_id, source, metadata_json) VALUES (?, ?, ?, \'user\', ?, \'auth.social.login\', \'user\', ?, \'google-oidc\', JSON_OBJECT())',
-            [$this->uuid(), $identity['tenant_id'], self::CRM_SERVICE_ID, $identity['user_id'], $identity['user_id']]
+            'INSERT INTO nexa_audit_event (id, tenant_id, service_id, actor_type, actor_user_id, action, subject_type, subject_id, source, metadata_json) VALUES (?, ?, ?, \'user\', ?, \'auth.social.login\', \'user\', ?, ?, JSON_OBJECT())',
+            [
+                $this->uuid(),
+                $identity['tenant_id'],
+                self::CRM_SERVICE_ID,
+                $identity['user_id'],
+                $identity['user_id'],
+                $provider . '-oidc',
+            ]
         );
         $payload = rtrim(strtr(base64_encode(json_encode([
             'userName' => $identity['user_name'], 'token' => $token->getToken(),

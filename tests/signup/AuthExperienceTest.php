@@ -210,11 +210,29 @@ $microsoftValidatorSource = file_get_contents(
 $assert(
     !str_contains($providerRegistrySource, '$configured[\'microsoft\'] = false') &&
     str_contains($providerRegistrySource, "'_CLIENT_SECRET'") &&
+    str_contains($providerRegistrySource, "preg_replace('~/callback/?$~', '/start'") &&
     str_contains($microsoftValidatorSource, "get('tid')") &&
     str_contains($microsoftValidatorSource, 'getAud()') &&
     str_contains($microsoftValidatorSource, 'nonceHash') &&
     str_contains($microsoftValidatorSource, 'new Rsa(\'RS256\', $keys)'),
     'Microsoft provider must require credentials and validate tenant, audience, nonce and signature.'
+);
+$assert(
+    str_contains($authConfigSource, 'AUTH_SESSION_IDLE_MINUTES') &&
+    str_contains($authConfigSource, "'authTokenMaxIdleTime'") &&
+    str_contains(
+        file_get_contents(
+            dirname(__DIR__, 2) . '/espocrm/application/Espo/Core/Authentication/Authentication.php'
+        ),
+        'isAuthTokenIdleExpired'
+    ),
+    'Interactive sessions must enforce the configured idle timeout during authentication requests.'
+);
+$mainTemplateSource = file_get_contents(dirname(__DIR__, 2) . '/espocrm/html/main.html');
+$assert(
+    !str_contains($mainTemplateSource, 'Opening your workspace') &&
+    !str_contains($mainTemplateSource, 'class="nexa-app-loading"'),
+    'Normal application refreshes must not render the blocking workspace loader.'
 );
 $socialSource = file_get_contents(
     dirname(__DIR__, 2) . '/espocrm/custom/Espo/Custom/Tools/Auth/SocialAuthService.php'
@@ -231,7 +249,8 @@ $landingMarkup = file_get_contents(
 $assert(
     str_contains($socialSource, 'hash_equals($attempt[\'nonce_hash\']') &&
     str_contains($socialSource, 'validateSignature') &&
-    str_contains($socialSource, "email_verified') !== true"),
+    str_contains($socialSource, "email_verified') !== true") &&
+    str_contains($socialSource, 'Nexa social authentication failed for provider'),
     'Google sign in must validate nonce, signature and verified email.'
 );
 $assert(
