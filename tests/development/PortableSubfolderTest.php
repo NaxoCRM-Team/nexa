@@ -105,6 +105,12 @@ $assert(
     str_contains($publicEntry, 'setClientBasePath($isFriendlyLoginRequest ? \'../\' : \'\')'),
     'The Espo client loader must step back from /login before resolving application assets.'
 );
+
+$assert(
+    str_contains($publicEntry, "!str_ends_with(\$requestPath, '/')") &&
+    str_contains($publicEntry, "NexaApplicationPath::baseHref(\$basePath) . 'login/'"),
+    'The extensionless login route must redirect to its directory-shaped canonical URL.'
+);
 $assert(
     str_contains($apiStarter, "hash('sha256', \$basePath)") &&
     str_contains($apiStarter, 'setCacheFile($this->routeCacheFile($basePath))'),
