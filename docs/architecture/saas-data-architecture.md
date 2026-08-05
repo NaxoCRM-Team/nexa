@@ -2,7 +2,7 @@
 
 ## Executive Decision
 
-Nexa uses a **shared-schema multi-tenant architecture**. EspoCRM core tables, Nexa product tables and SaaS administration tables live in one logical MariaDB database. Every customer-owned row is isolated by mandatory `tenant_id` scope enforced centrally by the application framework.
+Nexa uses a **shared-schema multi-tenant architecture**. EspoCRM core tables, Nexa product tables and SaaS administration tables live in one logical MariaDB database. Every customer-owned row is isolated by mandatory `tenant_id` scope enforced centrally by the application framework. All converted EspoCRM records also carry the active CRM `service_id`.
 
 The team accepts a deep EspoCRM fork and does not prioritize future upstream upgrades. This makes a comprehensive ORM and schema conversion acceptable, but it does not reduce the security requirements: every data and execution path must fail closed when tenant context is absent.
 
@@ -33,12 +33,12 @@ Every table must be registered in a reviewed ownership manifest.
 | Classification | Required identity | Examples |
 |---|---|---|
 | Platform-global | No tenant column; privileged access only | plan definitions, service definitions, system reference data |
-| Tenant-owned | `tenant_id NOT NULL` | users, accounts, contacts, leads, deals, activities, cases, campaigns |
-| Service-owned | `tenant_id NOT NULL`, `service_id NOT NULL` | marketing sends, automation executions, service usage events |
+| Tenant-owned | `tenant_id NOT NULL` | cross-service Nexa identity, lifecycle, timeline and audit records |
+| Service-owned | `tenant_id NOT NULL`, `service_id NOT NULL` | converted EspoCRM records, marketing sends, automation executions and service usage events |
 | Tenant/service optional | `tenant_id NOT NULL`, nullable `service_id` | audit and outbox events shared across product modules |
 | Derived external data | Tenant identity in partition/filter key | cache, files, search, analytics and queue payloads |
 
-`tenant_id` is the security and ownership boundary. `service_id` is not added blindly to every record; it identifies a service-specific record or entitlement. Accounts and Contacts remain owned by a tenant even when CRM, marketing and service modules all use them.
+`tenant_id` is the security and ownership boundary. The converted EspoCRM tables use mandatory CRM `service_id` consistently, including Account and Contact. New Nexa tables require `service_id` only when their reviewed ownership classification is service-specific.
 
 ## Unified Customer and Interaction Contracts
 
@@ -112,7 +112,7 @@ Tenant resolution occurs before Espo authentication:
 
 1. Decode the submitted username from the standard authorization request without accepting a tenant ID from the browser.
 2. Resolve exactly one active user and tenant from the server-owned identity records; reject unknown or ambiguous identifiers with a generic unauthorized response.
-3. Create an immutable `TenantContext` containing tenant, request and correlation identity.
+3. Create an immutable `TenantContext` containing the verified tenant and active service identity plus request context.
 4. Verify the password and user status inside `TenantContext.tenantId`.
 5. Attach the context to ORM, ACL, cache, file, search, queue and audit services.
 6. Retain tenant identity in the signed session and clear request-scoped identity after the request or job finishes.
@@ -127,6 +127,7 @@ A shared user table is tenant-owned. The common login performs a server-side rou
 SELECT *
 FROM user
 WHERE tenant_id = :resolved_tenant_id
+  AND service_id = :resolved_service_id
   AND user_name = :user_name
   AND deleted = 0
   AND is_active = 1;
@@ -140,6 +141,7 @@ The central `TenantQueryProcessor` modifies every Espo select, insert, update an
 
 ```sql
 WHERE tenant_id = :trusted_tenant_id
+  AND service_id = :trusted_service_id
 ```
 
 The scope cannot be disabled by ordinary entity options. Platform-global access uses a separate interface with explicit permission and audit requirements.
@@ -148,24 +150,22 @@ Required framework components:
 
 | Component | Responsibility |
 |---|---|
-| `TenantResolver` | Resolve and validate tenant from trusted routing data |
-| `TenantContext` | Hold immutable tenant and request identity |
+| `TenantResolver` | Resolve the active tenant and service from trusted server-owned identity data |
+| `TenantContext` | Hold immutable tenant, service and request identity |
 | `EntityOwnershipRegistry` | Classify every table/entity and its service-scope rule |
-| `TenantQueryProcessor` | Add tenant predicates to ORM reads, inserts, updates, deletes, unions and joins |
+| `TenantQueryProcessor` | Add tenant and service ownership to ORM reads, inserts, updates, deletes, unions and joins |
 | `TenantSqlExecutor` | Reject direct SQL during tenant execution so ORM scope cannot be bypassed |
 | `ServiceEntitlementChecker` | Validate service availability from `nexa_tenant_service` |
 | `PlatformExecutionGateway` | Permit explicit cross-tenant operations with a logged reason |
 | `TenantContextStore` | Stack and clear context after each request or job iteration |
 
-The runtime implementation is installed in `espocrm/application/Espo/Core/Tenant/`. HTTP application runners provide the public shell, and API middleware resolves a globally unambiguous login identity before password verification. Verified domains remain optional routing inputs. Espo ORM metadata exposes `tenantId` and `serviceId`, and `DefaultQueryExecutor` passes immutable queries through `TenantQueryProcessor`. Legacy UNION callers now keep query objects instead of converting them to raw SQL. Cron can enumerate through `PlatformExecutionGateway`, while every scheduled job restores the `tenant_id` stored on its record.
+The runtime implementation is installed in `espocrm/application/Espo/Core/Tenant/`. HTTP application runners provide the public shell, and API middleware resolves a globally unambiguous login identity before password verification. Verified domains remain optional routing inputs. Espo ORM metadata exposes `tenantId` and `serviceId`, and `DefaultQueryExecutor` passes immutable queries through `TenantQueryProcessor`. Legacy UNION callers now keep query objects instead of converting them to raw SQL. Cron can enumerate through `PlatformExecutionGateway`, while every scheduled and queued job restores the `tenant_id` and `service_id` stored on its record.
 
-Migration `0003_enforce_tenant_runtime.sql` removes the compatibility default and makes `tenant_id` non-null on all 133 tenant-owned Espo tables. The repository verifier runs `tests/tenant/TenantRuntimeTest.php`, and CI loads two synthetic tenants before executing database isolation checks.
+Migration `0003_enforce_tenant_runtime.sql` makes `tenant_id` non-null on all 133 converted Espo tables. Migration `0010_enforce_core_service_ownership.sql` assigns the CRM service and makes `service_id` non-null on the same tables. The verifier runs query-processor and live ORM persistence suites; CI also validates every converted table and two synthetic tenants.
 
 ### Writes and Database Guards
 
-Application services derive `tenant_id` from `TenantContext`; they never trust a supplied record value. Service-specific writers derive or validate `service_id` through the entity ownership registry and entitlement service.
-
-Database triggers may reject missing or inconsistent tenant identity during the migration, but they are defense-in-depth for writes only. They do not replace ORM filtering for reads. Foreign keys, composite uniqueness and cross-tenant relationship validation provide additional protection.
+Application services derive both ownership keys from `TenantContext`; they never trust supplied `tenant_id` or `service_id` values. MariaDB `NOT NULL` constraints reject incomplete converted records. The implementation does not use triggers to populate ownership because triggers cannot secure reads or reliably carry request identity; the central ORM handles both reads and writes.
 
 ### Relationships
 
@@ -179,7 +179,7 @@ A normal tenant report cannot request another tenant ID. Platform analytics uses
 
 ### Scheduled and Background Jobs
 
-Every job contains a signed or server-generated `tenant_id`, job ID and correlation ID. Service jobs also carry `service_id`. A worker creates a fresh tenant context, revalidates tenant and service status, runs scoped repositories and clears context before accepting another job.
+Every scheduled or queued job contains server-generated `tenant_id`, `service_id`, job ID and correlation ID. A worker creates a fresh tenant context, revalidates tenant and service status, runs scoped repositories and clears context before accepting another job.
 
 Global schedulers may enumerate active tenants using the platform gateway, then emit one tenant-scoped job per tenant. A long-running worker must never retain an authenticated user, ORM identity map or cache namespace across tenants.
 
@@ -223,7 +223,7 @@ Create a machine-readable manifest classifying every Espo and Nexa table. Identi
 
 Migration `0002_expand_espocrm_tenant_scope.sql` inventories all 136 EspoCRM 9.1.9 tables. It adds indexed `tenant_id` and nullable `service_id` columns to 133 tables, backfills current records and tenant-qualifies 56 business unique indexes. `address_country`, `extension` and `system_data` are the explicit platform-global allowlist. Nine MariaDB `AUTO_INCREMENT` sequence indexes remain globally unique because their sequence column must lead the key.
 
-Migration `0002` used a stable legacy-local default only during expansion and backfill. Migration `0003_enforce_tenant_runtime.sql` removes that default after deploying automatic ORM scope, verifies local hostname routing and changes all 133 Espo tenant columns to `NOT NULL`.
+Migration `0002` used a stable legacy-local default only during expansion and backfill. Migration `0003_enforce_tenant_runtime.sql` removes that default and changes all 133 Espo tenant columns to `NOT NULL`. Migration `0010_enforce_core_service_ownership.sql` assigns every tenant the CRM service, backfills every converted row and changes all 133 Espo service columns to `NOT NULL`.
 
 ### Stage 3: Backfill
 
@@ -261,7 +261,7 @@ Database filtering alone is not enough:
 1. Validate and reserve a tenant slug/domain.
 2. Insert `nexa_tenant` with provisioning status.
 3. Create its subscription and enabled `nexa_tenant_service` rows.
-4. Create the first Espo user with the new `tenant_id`.
+4. Create the first Espo user with server-derived `tenant_id` and CRM `service_id`.
 5. Seed default roles, teams and tenant configuration using the same tenant context.
 6. Run tenant-scoped login and CRUD smoke tests.
 7. Activate the tenant only after verification succeeds.

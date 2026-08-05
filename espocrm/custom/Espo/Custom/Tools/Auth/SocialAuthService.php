@@ -84,6 +84,8 @@ final class SocialAuthService
             return $this->failureUrl('provider_cancelled');
         }
 
+        $attempt = null;
+
         try {
             $attempt = $this->consumeAttempt($provider, $state);
             $rawToken = $this->exchangeCode($code, $provider);
@@ -154,7 +156,10 @@ final class SocialAuthService
                 'Nexa social authentication failed for provider {provider}: {message}',
                 ['provider' => $provider, 'message' => $e->getMessage(), 'exception' => $e]
             );
-            return $this->failureUrl('social_auth_failed');
+            $intent = is_array($attempt) ? (string) ($attempt['intent'] ?? 'login') : 'login';
+            $plan = is_array($attempt) ? (string) ($attempt['payload']['plan'] ?? 'growth') : 'growth';
+
+            return $this->failureUrl('social_auth_failed', $intent, $plan);
         }
     }
 
@@ -271,8 +276,16 @@ final class SocialAuthService
         return (string) (parse_url($this->callbackUrl($provider), PHP_URL_PATH) ?: '/');
     }
 
-    private function failureUrl(string $reason): string
+    private function failureUrl(string $reason, string $intent = 'login', string $plan = 'growth'): string
     {
+        // Keep failed self-service signups in onboarding. Sending them to the
+        // login page falsely suggests that a workspace account was created.
+        if ($intent === 'signup') {
+            return rtrim((string) $this->config->get('siteUrl'), '/')
+                . '/?signup=' . rawurlencode($plan)
+                . '&socialError=' . rawurlencode($reason);
+        }
+
         return rtrim((string) $this->config->get('siteUrl'), '/') . '/login?socialError=' . rawurlencode($reason);
     }
 

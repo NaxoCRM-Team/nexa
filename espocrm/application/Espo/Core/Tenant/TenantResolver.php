@@ -18,15 +18,19 @@ final class TenantResolver
         }
 
         $statement = $this->entityManager->getPDO()->prepare(
-            'SELECT t.id, t.slug, t.display_name FROM nexa_tenant_domain d ' .
+            'SELECT t.id, t.slug, t.display_name, ts.service_id FROM nexa_tenant_domain d ' .
             'INNER JOIN nexa_tenant t ON t.id = d.tenant_id ' .
+            $this->crmServiceJoin() .
             'WHERE d.hostname = :hostname AND d.verification_status = :verified ' .
-            'AND t.status = :active LIMIT 1'
+            'AND t.status = :tenantStatus LIMIT 1'
         );
         $statement->execute([
             'hostname' => $host,
             'verified' => 'verified',
-            'active' => 'active',
+            'tenantStatus' => 'active',
+            'tenantServiceStatus' => 'active',
+            'serviceStatus' => 'active',
+            'serviceKey' => 'crm',
         ]);
         $row = $statement->fetch(\PDO::FETCH_ASSOC);
 
@@ -42,21 +46,26 @@ final class TenantResolver
         }
 
         $statement = $this->entityManager->getPDO()->prepare(
-            'SELECT DISTINCT t.id, t.slug, t.display_name FROM user u ' .
+            'SELECT DISTINCT t.id, t.slug, t.display_name, ts.service_id FROM user u ' .
             'INNER JOIN nexa_tenant t ON t.id = u.tenant_id ' .
+            $this->crmServiceJoin() .
             'LEFT JOIN entity_email_address eea ON eea.entity_id = u.id ' .
             'AND eea.entity_type = :userType AND eea.primary = 1 AND eea.deleted = 0 ' .
-            'AND eea.tenant_id = u.tenant_id ' .
+            'AND eea.tenant_id = u.tenant_id AND eea.service_id = ts.service_id ' .
             'LEFT JOIN email_address ea ON ea.id = eea.email_address_id ' .
-            'AND ea.deleted = 0 AND ea.tenant_id = u.tenant_id ' .
+            'AND ea.deleted = 0 AND ea.tenant_id = u.tenant_id AND ea.service_id = ts.service_id ' .
             'WHERE (u.user_name = :identifier OR ea.lower = :email) ' .
-            'AND u.deleted = 0 AND u.is_active = 1 AND t.status = :active LIMIT 2'
+            'AND u.service_id = ts.service_id ' .
+            'AND u.deleted = 0 AND u.is_active = 1 AND t.status = :tenantStatus LIMIT 2'
         );
         $statement->execute([
             'identifier' => $identifier,
             'email' => strtolower($identifier),
             'userType' => 'User',
-            'active' => 'active',
+            'tenantStatus' => 'active',
+            'tenantServiceStatus' => 'active',
+            'serviceStatus' => 'active',
+            'serviceKey' => 'crm',
         ]);
         $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
 
@@ -77,11 +86,19 @@ final class TenantResolver
         // The opaque, single-use request ID is the only tenant signal available
         // on the shared reset domain. Resolve it before tenant-scoped ORM work.
         $statement = $this->entityManager->getPDO()->prepare(
-            'SELECT DISTINCT t.id, t.slug, t.display_name FROM password_change_request pcr ' .
+            'SELECT DISTINCT t.id, t.slug, t.display_name, ts.service_id FROM password_change_request pcr ' .
             'INNER JOIN nexa_tenant t ON t.id = pcr.tenant_id ' .
-            'WHERE pcr.request_id = :requestId AND pcr.deleted = 0 AND t.status = :active LIMIT 2'
+            $this->crmServiceJoin() .
+            'WHERE pcr.request_id = :requestId AND pcr.deleted = 0 ' .
+            'AND pcr.service_id = ts.service_id AND t.status = :tenantStatus LIMIT 2'
         );
-        $statement->execute(['requestId' => $requestId, 'active' => 'active']);
+        $statement->execute([
+            'requestId' => $requestId,
+            'tenantStatus' => 'active',
+            'tenantServiceStatus' => 'active',
+            'serviceStatus' => 'active',
+            'serviceKey' => 'crm',
+        ]);
         $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
 
         if (count($rows) !== 1) {
@@ -91,9 +108,22 @@ final class TenantResolver
         return $this->contextFromRow($rows[0], 'password-reset-request');
     }
 
-    /** @param array{id: string, slug: string, display_name: string} $row */
+    private function crmServiceJoin(): string
+    {
+        return 'INNER JOIN nexa_tenant_service ts ON ts.tenant_id = t.id AND ts.status = :tenantServiceStatus ' .
+            'INNER JOIN nexa_service_definition sd ON sd.id = ts.service_id ' .
+            'AND sd.service_key = :serviceKey AND sd.status = :serviceStatus ';
+    }
+
+    /** @param array{id: string, slug: string, display_name: string, service_id: string} $row */
     private function contextFromRow(array $row, string $source): TenantContext
     {
-        return new TenantContext($row['id'], $row['slug'], $source, $row['display_name']);
+        return new TenantContext(
+            $row['id'],
+            $row['slug'],
+            $source,
+            $row['display_name'],
+            $row['service_id'],
+        );
     }
 }

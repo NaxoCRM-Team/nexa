@@ -115,7 +115,7 @@ The framework must scope:
 
 Raw SQL is prohibited for tenant-owned data unless it uses an approved scoped gateway. Cross-tenant platform operations require explicit authorization, purpose and audit records.
 
-MariaDB triggers may reject missing tenant identity on inserts or updates, but they cannot secure ordinary reads. They are an additional write guard, not the tenancy system.
+Nexa does not use MariaDB triggers to populate ownership. Triggers cannot secure reads or reliably carry authenticated request identity. The central ORM injects trusted ownership for reads and writes, while `NOT NULL` constraints reject incomplete records.
 
 ## 7. Database Integrity Rules
 

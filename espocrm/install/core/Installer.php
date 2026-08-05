@@ -479,6 +479,7 @@ class Installer
         // platform reference tables remain unscoped.
         if ($this->getContainer()->getByClass(EntityOwnershipRegistry::class)->isTenantEntity($entityType)) {
             $data['tenantId'] ??= TenantContext::LEGACY_LOCAL_ID;
+            $data['serviceId'] ??= TenantContext::CRM_SERVICE_ID;
         }
 
         $id = $data['id'] ?? null;
@@ -795,6 +796,7 @@ class Installer
             'name' => 'Dummy',
             'scheduledJobId' => $scheduledJob->getId(),
             'tenantId' => TenantContext::LEGACY_LOCAL_ID,
+            'serviceId' => TenantContext::CRM_SERVICE_ID,
         ]);
     }
 

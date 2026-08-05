@@ -22,6 +22,11 @@ final class TenantContextStore implements TenantIdProvider
         return $this->current()?->tenantId;
     }
 
+    public function getServiceId(): ?string
+    {
+        return $this->current()?->serviceId;
+    }
+
     public function require(): TenantContext
     {
         return $this->current() ?? throw new MissingTenantContext('A trusted tenant context is required.');

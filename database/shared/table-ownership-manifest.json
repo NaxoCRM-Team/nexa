@@ -1,10 +1,10 @@
 {
     "schemaVersion":  1,
-    "status":  "espo-9.1.9-runtime-tenant-enforced",
+    "status":  "espo-9.1.9-tenant-service-runtime-enforced",
     "unclassifiedBehavior":  "deny",
     "description":  "Table ownership contract for the Nexa shared-schema tenant conversion.",
     "rules":  {
-                  "tenantOwned":  "tenant_id is mandatory after expand/backfill/enforce migration",
+                  "tenantOwned":  "tenant_id is mandatory; converted EspoCRM tables also require service_id",
                   "serviceOwned":  "tenant_id and service_id are mandatory",
                   "tenantEvent":  "tenant_id is mandatory and service_id is optional",
                   "platformGlobal":  "ordinary tenant repositories cannot access the table",
@@ -94,7 +94,8 @@
                        "classification":  "platformGlobal",
                        "tenantColumn":  null,
                        "serviceScope":  "none"
-                   },                   {
+                   },
+                   {
                        "name":  "nexa_signup_attempt",
                        "classification":  "platformGlobal",
                        "tenantColumn":  null,
@@ -192,7 +193,7 @@
                    }
                ],
     "espoCoreConversion":  {
-                               "status":  "runtime-enforced",
+                               "status":  "tenant-and-service-runtime-enforced",
                                "nextMigration":  null,
                                "requiredSources":  [
                                                        "espocrm/application/Espo/Resources/metadata/entityDefs",
@@ -202,7 +203,7 @@
                                "requiredReview":  [
                                                       "new entities must be classified before use",
                                                       "AUTO_INCREMENT display sequences remain globally unique",
-                                                      "service ownership remains optional on existing shared CRM tables",
+                                                      "service ownership is mandatory on existing shared CRM tables",
                                                       "production cache, file and search adapters must use TenantResourceKey",
                                                       "security review is required before onboarding a real second tenant"
                                                   ],

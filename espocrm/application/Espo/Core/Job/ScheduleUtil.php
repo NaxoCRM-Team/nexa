@@ -55,6 +55,7 @@ class ScheduleUtil
             ->select([
                 Attribute::ID,
                 'tenantId',
+                'serviceId',
                 'scheduling',
                 'job',
                 'name',

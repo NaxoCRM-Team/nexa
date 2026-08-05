@@ -73,6 +73,8 @@ $tenantB = new TenantContext(
 );
 expect($tenantA->displayName === 'Isolation Alpha', 'Tenant A display name is missing.');
 expect($tenantB->displayName === 'Isolation Beta', 'Tenant B display name is missing.');
+expect($tenantA->serviceId === TenantContext::CRM_SERVICE_ID, 'Tenant A service is missing.');
+expect($tenantB->serviceId === TenantContext::CRM_SERVICE_ID, 'Tenant B service is missing.');
 $store = new TenantContextStore();
 $processor = new TenantQueryProcessor(
     $store,
@@ -106,7 +108,9 @@ $bRaw = $store->runWith($tenantB, fn () => $processor->process(
     Select::fromRaw(['from' => 'Account', 'whereClause' => ['id' => 'same-local-record']])
 )->getRaw());
 expect($aRaw['whereClause'][0]['tenantId'] === $tenantA->tenantId, 'Tenant A read scope is missing.');
+expect($aRaw['whereClause'][0]['serviceId'] === $tenantA->serviceId, 'Tenant A service scope is missing.');
 expect($bRaw['whereClause'][0]['tenantId'] === $tenantB->tenantId, 'Tenant B read scope is missing.');
+expect($bRaw['whereClause'][0]['serviceId'] === $tenantB->serviceId, 'Tenant B service scope is missing.');
 expect($aRaw !== $bRaw, 'Synthetic tenant scopes must differ.');
 
 $insert = $store->runWith($tenantA, fn () => $processor->process(Insert::fromRaw([
@@ -115,7 +119,9 @@ $insert = $store->runWith($tenantA, fn () => $processor->process(Insert::fromRaw
     'values' => ['id' => 'account-a', 'name' => 'Shared Name'],
 ]))->getRaw());
 expect($insert['values']['tenantId'] === $tenantA->tenantId, 'Insert did not inject tenant ownership.');
+expect($insert['values']['serviceId'] === $tenantA->serviceId, 'Insert did not inject service ownership.');
 expect(in_array('tenantId', $insert['columns'], true), 'Insert tenant column is missing.');
+expect(in_array('serviceId', $insert['columns'], true), 'Insert service column is missing.');
 
 expectException(TenantScopeViolation::class, fn () => $store->runWith($tenantA, fn () =>
     $processor->process(Insert::fromRaw([
@@ -125,12 +131,35 @@ expectException(TenantScopeViolation::class, fn () => $store->runWith($tenantA, 
     ]))
 ));
 
+expectException(TenantScopeViolation::class, fn () => $store->runWith($tenantA, fn () =>
+    $processor->process(Insert::fromRaw([
+        'into' => 'Account',
+        'columns' => ['id', 'serviceId'],
+        'values' => ['id' => 'bad-service', 'serviceId' => $tenantB->serviceId],
+    ]))
+));
+
+$insertSelect = $store->runWith($tenantA, fn () => $processor->process(Insert::fromRaw([
+    'into' => 'Account',
+    'columns' => ['id', 'name'],
+    'valuesQuery' => Select::fromRaw([
+        'from' => 'Contact',
+        'select' => ['id', 'lastName'],
+    ]),
+]))->getRaw());
+$insertSelectRaw = $insertSelect['valuesQuery']->getRaw();
+expect($insertSelectRaw['whereClause']['tenantId'] === $tenantA->tenantId, 'INSERT SELECT tenant scope is missing.');
+expect($insertSelectRaw['whereClause']['serviceId'] === $tenantA->serviceId, 'INSERT SELECT service scope is missing.');
+expect(in_array(["VALUE:{$tenantA->tenantId}", 'tenantId'], $insertSelectRaw['select'], true), 'INSERT SELECT tenant projection is missing.');
+expect(in_array(["VALUE:{$tenantA->serviceId}", 'serviceId'], $insertSelectRaw['select'], true), 'INSERT SELECT service projection is missing.');
+
 foreach ([
     Update::fromRaw(['from' => 'Account', 'set' => ['name' => 'Changed']]),
     Delete::fromRaw(['from' => 'Account']),
 ] as $writeQuery) {
     $raw = $store->runWith($tenantA, fn () => $processor->process($writeQuery)->getRaw());
     expect($raw['whereClause']['tenantId'] === $tenantA->tenantId, 'Write scope is missing.');
+    expect($raw['whereClause']['serviceId'] === $tenantA->serviceId, 'Write service scope is missing.');
 }
 
 $joined = $store->runWith($tenantA, fn () => $processor->process(Select::fromRaw([
@@ -139,7 +168,9 @@ $joined = $store->runWith($tenantA, fn () => $processor->process(Select::fromRaw
     'joins' => [['Contact', 'c', ['c.id:' => 'a.contactId']]],
 ]))->getRaw());
 expect($joined['whereClause']['a.tenantId'] === $tenantA->tenantId, 'Root alias is not scoped.');
+expect($joined['whereClause']['a.serviceId'] === $tenantA->serviceId, 'Root alias service is not scoped.');
 expect($joined['joins'][0][2][0]['c.tenantId'] === $tenantA->tenantId, 'Joined entity is not scoped.');
+expect($joined['joins'][0][2][0]['c.serviceId'] === $tenantA->serviceId, 'Joined entity service is not scoped.');
 
 $relationJoin = $store->runWith($tenantA, fn () => $processor->process(Select::fromRaw([
     'from' => 'Account',
@@ -156,6 +187,7 @@ foreach (['DashboardTemplate', 'Export', 'Job'] as $moduleEntity) {
         Select::fromRaw(['from' => $moduleEntity])
     )->getRaw());
     expect($raw['whereClause']['tenantId'] === $tenantA->tenantId, "{$moduleEntity} is not scoped.");
+    expect($raw['whereClause']['serviceId'] === $tenantA->serviceId, "{$moduleEntity} service is not scoped.");
 }
 
 $globalRead = $store->runWith($tenantA, fn () => $processor->process(

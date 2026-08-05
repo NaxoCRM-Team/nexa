@@ -85,16 +85,16 @@ jobs:
       - name: Prove two-tenant database isolation
         run: |
           mariadb --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test <<'SQL'
-          INSERT INTO account (id, name, deleted, tenant_id) VALUES
-            ('iso-account-a-001', 'Shared Business Name', 0, '30000000-0000-4000-8000-000000000001'),
-            ('iso-account-b-001', 'Shared Business Name', 0, '30000000-0000-4000-8000-000000000002');
-          INSERT INTO user (id, user_name, type, password, is_active, delete_id, tenant_id) VALUES
-            ('iso-user-a-000001', 'shared-admin', 'admin', 'test-only', 1, '0', '30000000-0000-4000-8000-000000000001'),
-            ('iso-user-b-000001', 'shared-admin', 'admin', 'test-only', 1, '0', '30000000-0000-4000-8000-000000000002');
+          INSERT INTO account (id, name, deleted, tenant_id, service_id) VALUES
+            ('iso-account-a-001', 'Shared Business Name', 0, '30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001'),
+            ('iso-account-b-001', 'Shared Business Name', 0, '30000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001');
+          INSERT INTO user (id, user_name, type, password, is_active, delete_id, tenant_id, service_id) VALUES
+            ('iso-user-a-000001', 'shared-admin', 'admin', 'test-only', 1, '0', '30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001'),
+            ('iso-user-b-000001', 'shared-admin', 'admin', 'test-only', 1, '0', '30000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001');
           UPDATE account SET name = 'Must Not Change'
-            WHERE id = 'iso-account-b-001' AND tenant_id = '30000000-0000-4000-8000-000000000001';
+            WHERE id = 'iso-account-b-001' AND tenant_id = '30000000-0000-4000-8000-000000000001' AND service_id = '20000000-0000-4000-8000-000000000001';
           DELETE FROM account
-            WHERE id = 'iso-account-a-001' AND tenant_id = '30000000-0000-4000-8000-000000000002';
+            WHERE id = 'iso-account-a-001' AND tenant_id = '30000000-0000-4000-8000-000000000002' AND service_id = '20000000-0000-4000-8000-000000000001';
           SQL
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test --execute='SELECT COUNT(*) FROM account WHERE tenant_id = "30000000-0000-4000-8000-000000000001" AND name = "Shared Business Name"')" = "1"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test --execute='SELECT COUNT(*) FROM account WHERE tenant_id = "30000000-0000-4000-8000-000000000002" AND name = "Shared Business Name"')" = "1"
@@ -106,6 +106,13 @@ jobs:
           NEXA_TEST_DB_USER: root
           NEXA_TEST_DB_PASSWORD: ci_root_password
         run: php tests/tenant/CrmDatabaseSmokeTest.php
+      - name: Prove mandatory tenant and service ownership
+        env:
+          NEXA_TEST_DB_HOST: 127.0.0.1
+          NEXA_TEST_DB_NAME: nexa_shared_test
+          NEXA_TEST_DB_USER: root
+          NEXA_TEST_DB_PASSWORD: ci_root_password
+        run: php tests/tenant/ServiceOwnershipDatabaseTest.php
       - name: Prove Customer 360 foundation isolation
         env:
           NEXA_TEST_DB_HOST: 127.0.0.1

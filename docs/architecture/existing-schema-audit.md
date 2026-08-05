@@ -9,13 +9,13 @@ This is the D0 database audit for the unified Nexa product specification. It ide
 The audit compared:
 
 - the pinned EspoCRM 9.1.9 schema fixture;
-- shared migrations `0001` through `0008`;
+- shared migrations `0001` through `0010`;
 - the runtime ownership manifests;
 - Espo core and CRM entity metadata;
 - the local MariaDB schema; and
 - all 47 sections of the unified product specification.
 
-At the time of audit the local database contained 158 tables, 147 `tenant_id` columns, 138 `service_id` columns, and all eight existing migrations. The original fixture defines 136 Espo tables. The additional 22 tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup and identity-security capabilities.
+The current verified local database contains 166 tables, 155 `tenant_id` columns, 138 `service_id` columns, and all ten migrations through `0010`. The original fixture defines 136 Espo tables. The additional Nexa tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup, identity-security and unified-customer foundations.
 
 ## Decisions
 
@@ -26,7 +26,7 @@ At the time of audit the local database contained 158 tables, 147 `tenant_id` co
 
 Contact remains the person master and Account remains the company master. Lead, Opportunity and Case retain their current responsibilities. No generic customer table will duplicate these records.
 
-`tenant_id` is mandatory on every new tenant-owned table. `service_id` is used only when a row belongs to a particular entitled service. Shared identity, relationship, lifecycle and timeline records are tenant-owned but not service-owned.
+`tenant_id` is mandatory on every tenant-owned table. All 133 converted Espo tables additionally require the CRM `service_id`. New Nexa tables use `service_id` when their ownership classification is service-specific; shared identity, relationship, lifecycle and timeline records remain tenant-owned across services.
 
 ## Core Record Audit
 

@@ -86,6 +86,7 @@ class QueueUtil
             ->select([
                 Attribute::ID,
                 'tenantId',
+                'serviceId',
                 'scheduledJobId',
                 'scheduledJobJob',
                 'executeTime',
@@ -242,6 +243,7 @@ class QueueUtil
             ->select([
                 Attribute::ID,
                 'tenantId',
+                'serviceId',
                 'scheduledJobId',
                 'executeTime',
                 'targetId',
@@ -280,6 +282,7 @@ class QueueUtil
             ->select([
                 Attribute::ID,
                 'tenantId',
+                'serviceId',
                 'scheduledJobId',
                 'executeTime',
                 'targetId',
@@ -313,6 +316,7 @@ class QueueUtil
             ->select([
                 Attribute::ID,
                 'tenantId',
+                'serviceId',
                 'scheduledJobId',
                 'executeTime',
                 'targetId',

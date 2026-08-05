@@ -2021,20 +2021,22 @@ abstract class BaseQueryComposer implements QueryComposer
     private function getTenantJoinCondition(string $alias, ?string $entityType = null): string
     {
         $tenantId = $this->tenantIdProvider?->getTenantId();
+        $serviceId = $this->tenantIdProvider?->getServiceId();
 
-        if ($tenantId === null) {
+        if ($tenantId === null || $serviceId === null) {
             return '';
         }
 
         if ($entityType !== null) {
             $defs = $this->metadata->getDefs()->tryGetEntity($entityType);
 
-            if (!$defs || !$defs->hasAttribute('tenantId')) {
+            if (!$defs || !$defs->hasAttribute('tenantId') || !$defs->hasAttribute('serviceId')) {
                 return '';
             }
         }
 
-        return ' AND ' . $this->quoteColumn($alias . '.tenant_id') . ' = ' . $this->quote($tenantId);
+        return ' AND ' . $this->quoteColumn($alias . '.tenant_id') . ' = ' . $this->quote($tenantId) .
+            ' AND ' . $this->quoteColumn($alias . '.service_id') . ' = ' . $this->quote($serviceId);
     }
 
     /**

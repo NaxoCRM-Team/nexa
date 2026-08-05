@@ -35,6 +35,7 @@ $required = @(
     'database/shared/migrations/0007_progressive_signup.sql', 'espocrm/custom/Espo/Custom/Tools/Signup/Api/PostComplete.php',
     'database/shared/migrations/0008_identity_security.sql', 'packages/sso/composer.lock',
     'database/shared/migrations/0009_unified_customer_foundation.sql',
+    'database/shared/migrations/0010_enforce_core_service_ownership.sql',
     'docs/architecture/existing-schema-audit.md', 'tests/architecture/SchemaRequirementsMappingTest.php',
     'docs/development/identity-provider-testing.md', 'docs/operations/identity-incident-recovery.md',
     'tests/auth/IdentitySecurityTest.php', 'espocrm/bin/configure-identity-provider.php',
@@ -42,8 +43,8 @@ $required = @(
     'espocrm/client/custom/src/views/tenant-dashboard.js',
     'database/shared/seeds/0002_two_tenant_isolation.sql', 'espocrm/bin/provision-demo-tenants.php',
     'database/shared/table-ownership-manifest.json', 'espocrm/application/Espo/Resources/tenant-table-ownership.json',
-    'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/InstallationBootstrapTest.php',
-    'tests/tenant/CrmDatabaseSmokeTest.php', 'tests/architecture/ModuleConventionTest.php',
+    'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/OrmTenantPersistenceTest.php', 'tests/tenant/InstallationBootstrapTest.php',
+    'tests/tenant/CrmDatabaseSmokeTest.php', 'tests/tenant/ServiceOwnershipDatabaseTest.php', 'tests/architecture/ModuleConventionTest.php',
     'tests/tenant/CustomerFoundationDatabaseTest.php',
     'tests/architecture/ProductRequirementsAlignmentTest.php',
     'tests/browser/shell.spec.js', 'tests/browser/fixtures/login.html', 'tests/browser/fixtures/shell.html',
@@ -114,6 +115,13 @@ $phpRoots = @(
     (Join-Path $root 'espocrm\application\Espo\Core\Tenant')
 )
 $phpFiles = Get-ChildItem -LiteralPath $phpRoots -Filter '*.php' -File -Recurse -ErrorAction SilentlyContinue
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\JobRunner.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\QueueUtil.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\ScheduleProcessor.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\ScheduleUtil.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\ORM\QueryComposer\BaseQueryComposer.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\ORM\TenantIdProvider.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\install\core\Installer.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\bin\provision-demo-tenants.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\bin\configure-identity-provider.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\auth\IdentitySecurityTest.php')
@@ -124,6 +132,8 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\configure-smtp.
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\configure-auth-experience.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\install-native-application.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CrmDatabaseSmokeTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\OrmTenantPersistenceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\ServiceOwnershipDatabaseTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
@@ -141,6 +151,10 @@ if ($php) {
 if ($php) {
     & php (Join-Path $root 'tests\tenant\TenantRuntimeTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant runtime isolation suite' } else { Fail 'Tenant runtime isolation suite failed.' }
+    if (-not $Ci) {
+        & php (Join-Path $root 'tests\tenant\OrmTenantPersistenceTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'ORM tenant persistence suite' } else { Fail 'ORM tenant persistence suite failed.' }
+    }
     & php (Join-Path $root 'tests\tenant\InstallationBootstrapTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Installation bootstrap suite' } else { Fail 'Installation bootstrap suite failed.' }
     & php (Join-Path $root 'tests\signup\SignupValidatorTest.php')

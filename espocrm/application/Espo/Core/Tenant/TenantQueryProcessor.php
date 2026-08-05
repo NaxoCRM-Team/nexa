@@ -52,10 +52,8 @@ final class TenantQueryProcessor implements QueryProcessor
 
             if ($this->ownership->isTenantEntity($entityType)) {
                 $alias = $query->getFromAlias();
-                $raw['whereClause'] = $this->addScope(
-                    $raw['whereClause'] ?? [],
-                    ($alias ? $alias . '.' : '') . 'tenantId'
-                );
+                $prefix = $alias ? $alias . '.' : '';
+                $raw['whereClause'] = $this->addOwnershipScope($raw['whereClause'] ?? [], $prefix);
             }
 
             $raw = $this->scopeJoins($raw, $entityType);
@@ -74,14 +72,14 @@ final class TenantQueryProcessor implements QueryProcessor
 
         $raw = $query->getRaw();
         $alias = $raw['fromAlias'] ?? null;
-        $raw['whereClause'] = $this->addScope(
+        $raw['whereClause'] = $this->addOwnershipScope(
             $raw['whereClause'] ?? [],
-            ($alias ? $alias . '.' : '') . 'tenantId'
+            $alias ? $alias . '.' : ''
         );
         $raw = $this->scopeJoins($raw, $entityType);
 
-        if ($query instanceof Update && $this->containsTenantKey($raw['set'] ?? [])) {
-            throw new TenantScopeViolation('The tenant identifier cannot be changed.');
+        if ($query instanceof Update && $this->containsOwnershipKey($raw['set'] ?? [])) {
+            throw new TenantScopeViolation('Tenant and service identifiers cannot be changed.');
         }
 
         return $query instanceof Update ? Update::fromRaw($raw) : Delete::fromRaw($raw);
@@ -97,32 +95,54 @@ final class TenantQueryProcessor implements QueryProcessor
             throw new TenantScopeViolation("Platform table '{$entityType}' cannot be changed in a tenant request.");
         }
 
-        if (isset($raw['valuesQuery'])) {
-            throw new TenantScopeViolation('Tenant-owned INSERT SELECT must use an audited platform gateway.');
+        $columns = $raw['columns'] ?? [];
+
+        if (in_array('tenantId', $columns, true) || in_array('serviceId', $columns, true)) {
+            throw new TenantScopeViolation('Callers cannot provide tenant or service identifiers.');
         }
 
-        if (in_array('tenantId', $raw['columns'] ?? [], true)) {
-            throw new TenantScopeViolation('Callers cannot provide a tenant identifier.');
-        }
-
-        $tenantId = $this->contextStore->require()->tenantId;
+        $context = $this->contextStore->require();
         $raw['columns'][] = 'tenantId';
+        $raw['columns'][] = 'serviceId';
+
+        if (isset($raw['valuesQuery'])) {
+            $raw['valuesQuery'] = $this->addOwnershipProjection($raw['valuesQuery'], $context);
+
+            return Insert::fromRaw($raw);
+        }
         $isMass = isset($raw['values'][0]) && is_array($raw['values'][0]);
 
         if ($isMass) {
             foreach ($raw['values'] as &$values) {
-                $values['tenantId'] = $tenantId;
+                $values['tenantId'] = $context->tenantId;
+                $values['serviceId'] = $context->serviceId;
             }
             unset($values);
         } else {
-            $raw['values']['tenantId'] = $tenantId;
+            $raw['values']['tenantId'] = $context->tenantId;
+            $raw['values']['serviceId'] = $context->serviceId;
         }
 
-        if ($this->containsTenantKey($raw['updateSet'] ?? [])) {
-            throw new TenantScopeViolation('The tenant identifier cannot be changed.');
+        if ($this->containsOwnershipKey($raw['updateSet'] ?? [])) {
+            throw new TenantScopeViolation('Tenant and service identifiers cannot be changed.');
         }
 
         return Insert::fromRaw($raw);
+    }
+
+    private function addOwnershipProjection(SelectingQuery $query, TenantContext $context): Select
+    {
+        if (!$query instanceof Select) {
+            throw new TenantScopeViolation('Tenant-owned INSERT SELECT requires a scoped SELECT query.');
+        }
+
+        $query = $this->processSelect($query);
+        $raw = $query->getRaw();
+        $raw['select'] = $raw['select'] ?? [];
+        $raw['select'][] = ["VALUE:{$context->tenantId}", 'tenantId'];
+        $raw['select'][] = ["VALUE:{$context->serviceId}", 'serviceId'];
+
+        return Select::fromRaw($raw);
     }
 
     private function processUnion(Union $query): Union
@@ -159,7 +179,7 @@ final class TenantQueryProcessor implements QueryProcessor
 
                     if ($foreignType && $this->ownership->isTenantEntity($foreignType) && $isTable) {
                         $alias = $item[1] ?? $target;
-                        $item[2] = $this->addScope($item[2] ?? [], $alias . '.tenantId');
+                        $item[2] = $this->addOwnershipScope($item[2] ?? [], $alias . '.');
                     }
                 }
 
@@ -171,9 +191,13 @@ final class TenantQueryProcessor implements QueryProcessor
     }
 
     /** @param array<string|int, mixed> $where @return array<string|int, mixed> */
-    private function addScope(array $where, string $attribute): array
+    private function addOwnershipScope(array $where, string $prefix = ''): array
     {
-        $scope = [$attribute => $this->contextStore->require()->tenantId];
+        $context = $this->contextStore->require();
+        $scope = [
+            $prefix . 'tenantId' => $context->tenantId,
+            $prefix . 'serviceId' => $context->serviceId,
+        ];
 
         if ($where === []) {
             return $scope;
@@ -185,10 +209,12 @@ final class TenantQueryProcessor implements QueryProcessor
     }
 
     /** @param array<string, mixed> $values */
-    private function containsTenantKey(array $values): bool
+    private function containsOwnershipKey(array $values): bool
     {
         foreach (array_keys($values) as $key) {
-            if (rtrim((string) $key, ':') === 'tenantId') {
+            $key = rtrim((string) $key, ':');
+
+            if ($key === 'tenantId' || $key === 'serviceId') {
                 return true;
             }
         }

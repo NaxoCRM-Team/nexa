@@ -1,6 +1,6 @@
 <main class="modern-login-shell">
     <section class="modern-login-visual" aria-label="A bright collaborative workspace">
-        <a class="modern-login-brand" href="./" aria-label="Nexa CRM home">
+        <a class="modern-login-brand" href="../" data-action="nexaHome" aria-label="Nexa CRM home">
             <span class="modern-login-mark" aria-hidden="true">N</span>
             <span class="modern-login-brand-name">Nexa CRM</span>
         </a>
@@ -17,7 +17,7 @@
     </section>
 
     <section class="modern-login-auth">
-        <a class="modern-login-mobile-brand" href="./" aria-label="Nexa CRM home">
+        <a class="modern-login-mobile-brand" href="../" data-action="nexaHome" aria-label="Nexa CRM home">
             <span class="modern-login-mark" aria-hidden="true">N</span>
             <span class="modern-login-brand-name">Nexa CRM</span>
         </a>

@@ -199,7 +199,7 @@
         form.elements.plan.value = selectedPlan;
         setEmailFields(method === 'email');
         document.querySelector('[data-profile-help]').textContent = method === 'social'
-            ? 'Your identity is verified. Name your company and confirm your plan.'
+            ? 'Your identity is verified. Confirm your name, company and selected plan.'
             : 'Add your name, company, password and selected plan.';
         showState(form, 'profile');
         if (!dialog.open) dialog.showModal();
@@ -263,6 +263,7 @@
             const target = form.querySelector(`[data-error-for="${name}"]`);
             if (target) target.textContent = message;
         });
+        form.querySelector('.invalid:not([type="hidden"])')?.focus();
     };
 
     fetch(applicationUrl('api/v1/Nexa/auth/providers'), {credentials: 'same-origin'})
@@ -423,6 +424,7 @@
 
     const params = new URLSearchParams(location.search);
     const requestedSignup = params.get('signup');
+    const socialError = params.get('socialError');
     if (requestedSignup === 'complete' && location.hash.startsWith('#nexa-onboarding=')) {
         try {
             const encoded = location.hash.slice('#nexa-onboarding='.length).replace(/-/g, '+').replace(/_/g, '/');
@@ -436,5 +438,12 @@
         }
     } else if (plans.some(plan => plan.key === requestedSignup)) {
         openDialog(requestedSignup);
+
+        if (socialError) {
+            methodMessage.textContent = socialError === 'provider_cancelled'
+                ? 'Social signup was cancelled. Please try again.'
+                : 'Social signup could not be completed. Please try again.';
+            methodMessage.hidden = false;
+        }
     }
 })();
