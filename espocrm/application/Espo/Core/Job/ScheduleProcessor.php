@@ -82,13 +82,20 @@ class ScheduleProcessor
                 $isRunning = in_array($scheduledJob->getId(), $runningScheduledJobIdList);
 
                 $tenantId = $scheduledJob->get('tenantId');
+                $serviceId = $scheduledJob->get('serviceId');
 
-                if (!is_string($tenantId) || $tenantId === '') {
-                    throw new \RuntimeException('A scheduled job without tenant ownership cannot run.');
+                if (!is_string($tenantId) || $tenantId === '' ||
+                    !is_string($serviceId) || $serviceId === '') {
+                    throw new \RuntimeException('A scheduled job without tenant and service ownership cannot run.');
                 }
 
                 $this->tenantContextStore->runWith(
-                    new TenantContext($tenantId, 'scheduled-job', 'scheduled-job-record'),
+                    new TenantContext(
+                        $tenantId,
+                        'scheduled-job',
+                        'scheduled-job-record',
+                        serviceId: $serviceId,
+                    ),
                     fn () => $this->createJobsFromScheduledJob($scheduledJob, $isRunning),
                 );
             } catch (Throwable $e) {

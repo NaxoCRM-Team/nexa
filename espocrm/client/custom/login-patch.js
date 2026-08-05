@@ -73,7 +73,7 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
 
         return activeWorkspaceBaseUrl;
     };
-    const showLoginUrl = () => {
+    const showLoginUrl = (preservedHash = '') => {
         if (Backbone.History.started) {
             Backbone.history.stop();
         }
@@ -85,6 +85,7 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         parameters.delete('login');
         parameters.delete('source');
         url.search = parameters.toString();
+        url.hash = preservedHash;
         replaceUrl(url);
     };
 
@@ -156,7 +157,8 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
 
     LoginView.prototype.afterRender = function () {
         defaultAfterRender.call(this);
-        showLoginUrl();
+        const socialHash = location.hash.startsWith('#nexa-social=') ? location.hash : '';
+        showLoginUrl(socialHash);
         document.body.classList.add('modern-login-page');
 
         const loginPanel = this.element.querySelector('#login');
@@ -190,11 +192,16 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
             recoveryPanel.hidden = true;
             loginPanel.hidden = false;
             window.setTimeout(() => this.element.querySelector('#field-userName')?.focus(), 0);
-        };
+        };        this.element.querySelectorAll('[data-action="nexaHome"]').forEach(link => {
+            link.addEventListener('click', event => {
+                event.preventDefault();
+                location.assign(applicationBaseUrl.href);
+            });
+        });
         // OAuth returns the short-lived Espo token in the URL fragment so it is
         // never sent in referrers or server access logs.
-        const socialPayload = location.hash.startsWith('#nexa-social=')
-            ? location.hash.slice('#nexa-social='.length)
+        const socialPayload = socialHash
+            ? socialHash.slice('#nexa-social='.length)
             : null;
         if (socialPayload) {
             history.replaceState(null, '', location.pathname + location.search);

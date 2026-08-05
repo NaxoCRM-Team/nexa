@@ -59,6 +59,26 @@ if ($missingMigrations !== []) {
     exit(1);
 }
 
+$ownershipManifest = json_decode(
+    (string) file_get_contents($root . '/database/shared/table-ownership-manifest.json'),
+    true,
+    flags: JSON_THROW_ON_ERROR,
+);
+$convertedTables = $ownershipManifest['espoCoreConversion']['tenantScopedTables'] ?? [];
+$columnStatement = $pdo->prepare(
+    "SELECT is_nullable FROM information_schema.columns " .
+    "WHERE table_schema = DATABASE() AND table_name = ? AND column_name = 'service_id'"
+);
+
+// A successful setup must enforce complete ownership on every converted Espo table.
+foreach ($convertedTables as $table) {
+    $columnStatement->execute([$table]);
+    if ($columnStatement->fetchColumn() !== 'NO') {
+        fwrite(STDERR, "Incomplete ownership schema: {$table}.service_id must be NOT NULL.\n");
+        exit(1);
+    }
+}
+
 if (!$beforeDemo) {
     $demoTenantIds = [
         '30000000-0000-4000-8000-000000000001',
@@ -68,20 +88,20 @@ if (!$beforeDemo) {
         "SELECT COUNT(*) FROM nexa_tenant WHERE id = ? AND status = 'active'"
     );
     $adminStatement = $pdo->prepare(
-        "SELECT COUNT(*) FROM user WHERE tenant_id = ? AND type = 'admin' AND is_active = 1 AND deleted = 0"
+        "SELECT COUNT(*) FROM user WHERE tenant_id = ? AND service_id = ? AND type = 'admin' AND is_active = 1 AND deleted = 0"
     );
 
     foreach ($demoTenantIds as $tenantId) {
         $tenantStatement->execute([$tenantId]);
-        $adminStatement->execute([$tenantId]);
+        $adminStatement->execute([$tenantId, '20000000-0000-4000-8000-000000000001']);
         if ((int) $tenantStatement->fetchColumn() !== 1 || (int) $adminStatement->fetchColumn() < 1) {
             fwrite(STDERR, "Demo tenant {$tenantId} or its administrator is missing.\n");
             exit(1);
         }
 
         foreach (['account', 'contact', 'lead', 'opportunity', 'task', 'meeting'] as $table) {
-            $statement = $pdo->prepare("SELECT COUNT(*) FROM `{$table}` WHERE tenant_id = ?");
-            $statement->execute([$tenantId]);
+            $statement = $pdo->prepare("SELECT COUNT(*) FROM `{$table}` WHERE tenant_id = ? AND service_id = ?");
+            $statement->execute([$tenantId, '20000000-0000-4000-8000-000000000001']);
             if ((int) $statement->fetchColumn() < 1) {
                 fwrite(STDERR, "Demo table {$table} has no records for tenant {$tenantId}.\n");
                 exit(1);

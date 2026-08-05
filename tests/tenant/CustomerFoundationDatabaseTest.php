@@ -48,6 +48,7 @@ $uuid = static function (string $value): string {
         substr($hash, 20, 12)
     );
 };
+$serviceId = '20000000-0000-4000-8000-000000000001';
 $tenants = [
     'a' => '30000000-0000-4000-8000-000000000001',
     'b' => '30000000-0000-4000-8000-000000000002',
@@ -64,12 +65,12 @@ try {
         $assignmentId = $uuid("lifecycle-assignment-{$suffix}");
 
         $pdo->prepare(
-            'INSERT INTO account (id, name, deleted, tenant_id) VALUES (?, ?, 0, ?)'
-        )->execute([$accountId, "Customer Account {$suffix}", $tenantId]);
+            'INSERT INTO account (id, name, deleted, tenant_id, service_id) VALUES (?, ?, 0, ?, ?)'
+        )->execute([$accountId, "Customer Account {$suffix}", $tenantId, $serviceId]);
         $pdo->prepare(
-            'INSERT INTO contact (id, first_name, last_name, account_id, deleted, tenant_id) ' .
-            'VALUES (?, ?, ?, ?, 0, ?)'
-        )->execute([$contactId, 'Customer', strtoupper($suffix), $accountId, $tenantId]);
+            'INSERT INTO contact (id, first_name, last_name, account_id, deleted, tenant_id, service_id) ' .
+            'VALUES (?, ?, ?, ?, 0, ?, ?)'
+        )->execute([$contactId, 'Customer', strtoupper($suffix), $accountId, $tenantId, $serviceId]);
         $pdo->prepare(
             'INSERT INTO nexa_identity_link ' .
             '(id, tenant_id, contact_id, identity_type, normalized_value_hash, verification_status) ' .

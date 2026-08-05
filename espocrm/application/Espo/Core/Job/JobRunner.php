@@ -80,13 +80,15 @@ class JobRunner
     private function runInTenantContext(JobEntity $jobEntity, callable $callback): mixed
     {
         $tenantId = $jobEntity->get('tenantId');
+        $serviceId = $jobEntity->get('serviceId');
 
-        if (!is_string($tenantId) || $tenantId === '') {
-            throw new RuntimeException('A job without tenant ownership cannot run.');
+        if (!is_string($tenantId) || $tenantId === '' ||
+            !is_string($serviceId) || $serviceId === '') {
+            throw new RuntimeException('A job without tenant and service ownership cannot run.');
         }
 
         return $this->tenantContextStore->runWith(
-            new TenantContext($tenantId, 'background-job', 'job-record'),
+            new TenantContext($tenantId, 'background-job', 'job-record', serviceId: $serviceId),
             $callback,
         );
     }

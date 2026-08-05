@@ -58,7 +58,8 @@ $assert(
     str_contains($loginTemplateSource, 'Good to see you again') &&
     str_contains($loginTemplateSource, 'modern-login-proof') &&
     str_contains($loginTemplateSource, 'type="button" class="modern-login-forgot"') &&
-    str_contains($loginTemplateSource, 'href="./" aria-label="Nexa CRM home"'),
+    substr_count($loginTemplateSource, 'data-action="nexaHome"') === 2 &&
+    str_contains($loginAdapterSource, 'location.assign(applicationBaseUrl.href)'),
     'The primary sign-in view must render the distinct Nexa authentication experience.'
 );
 $assert(
@@ -267,6 +268,17 @@ $assert(
     'New social identities must resume onboarding instead of provisioning in the OAuth callback.'
 );
 $assert(
+    str_contains($socialSource, "failureUrl('social_auth_failed', \$intent, \$plan)") &&
+    str_contains($socialSource, "if (\$intent === 'signup')") &&
+    str_contains($landingSource, "params.get('socialError')"),
+    'Failed social signup must return to onboarding with a visible error instead of opening login.'
+);$assert(
+    str_contains($loginAdapterSource, "const socialHash = location.hash.startsWith('#nexa-social=')") &&
+    str_contains($loginAdapterSource, 'showLoginUrl(socialHash)') &&
+    str_contains($loginAdapterSource, 'const socialPayload = socialHash'),
+    'Social login must preserve its fragment handoff until the browser establishes the session.'
+);
+$assert(
     str_contains($progressiveMigration, 'CREATE TABLE IF NOT EXISTS nexa_signup_attempt') &&
     str_contains($progressiveMigration, 'public_token_hash') &&
     str_contains($signupSource, "!== 'ready'") &&
@@ -276,10 +288,11 @@ $assert(
 $assert(
     str_contains($landingMarkup, 'data-signup-method') &&
     str_contains($landingMarkup, 'data-email-start') &&
+    str_contains($landingMarkup, 'data-name-fields') &&
     str_contains($landingMarkup, 'data-email-fields') &&
     str_contains($landingSource, "api('/complete'") &&
     str_contains($landingSource, "api('/verify'"),
-    'Landing signup must separate identity, workspace profile and verification states.'
+    'Landing signup must expose required identity details and separate password and verification states.'
 );
 
 fwrite(STDOUT, 'Authentication experience contract suite passed.' . PHP_EOL);

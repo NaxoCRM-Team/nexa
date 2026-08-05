@@ -364,21 +364,22 @@ $pdo = $entityManager->getPDO();
 $currency = (string) ($config->get('baseCurrency') ?: 'USD');
 
 $find = $pdo->prepare(
-    'SELECT id FROM user WHERE tenant_id = :tenantId AND user_name = :userName AND deleted = 0 LIMIT 1'
+    'SELECT id FROM user WHERE tenant_id = :tenantId AND service_id = :serviceId ' .
+    'AND user_name = :userName AND deleted = 0 LIMIT 1'
 );
 $insert = $pdo->prepare(
     'INSERT INTO user ' .
-    '(id, deleted, user_name, type, password, first_name, last_name, is_active, created_at, modified_at, delete_id, tenant_id) ' .
-    'VALUES (:id, 0, :userName, :type, :password, :firstName, :lastName, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP(), :deleteId, :tenantId)'
+    '(id, deleted, user_name, type, password, first_name, last_name, is_active, created_at, modified_at, delete_id, tenant_id, service_id) ' .
+    'VALUES (:id, 0, :userName, :type, :password, :firstName, :lastName, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP(), :deleteId, :tenantId, :serviceId)'
 );
 $update = $pdo->prepare(
     'UPDATE user SET type = :type, password = :password, first_name = :firstName, ' .
-    'last_name = :lastName, is_active = 1, modified_at = UTC_TIMESTAMP() ' .
-    'WHERE id = :id AND tenant_id = :tenantId'
+    'last_name = :lastName, is_active = 1, service_id = :serviceId, modified_at = UTC_TIMESTAMP() ' .
+    'WHERE id = :id AND tenant_id = :tenantId AND service_id = :serviceId'
 );
 $deactivateOtherDemoAccount = $pdo->prepare(
     'UPDATE user SET is_active = 0, modified_at = UTC_TIMESTAMP() ' .
-    'WHERE tenant_id = :tenantId AND user_name = :otherUserName AND deleted = 0'
+    'WHERE tenant_id = :tenantId AND service_id = :serviceId AND user_name = :otherUserName AND deleted = 0'
 );
 
 $pdo->beginTransaction();
@@ -395,6 +396,7 @@ try {
 
         $find->execute([
             'tenantId' => $tenant->tenantId,
+            'serviceId' => $tenant->serviceId,
             'userName' => $account['userName'],
         ]);
         $id = $find->fetchColumn();
@@ -411,6 +413,7 @@ try {
                 'lastName' => 'Administrator',
                 'deleteId' => '0',
                 'tenantId' => $tenant->tenantId,
+                'serviceId' => $tenant->serviceId,
             ]);
         } else {
             $update->execute([
@@ -420,12 +423,14 @@ try {
                 'firstName' => $account['firstName'],
                 'lastName' => 'Administrator',
                 'tenantId' => $tenant->tenantId,
+                'serviceId' => $tenant->serviceId,
             ]);
         }
 
         $otherAccount = $accounts[$index === 0 ? 1 : 0];
         $deactivateOtherDemoAccount->execute([
             'tenantId' => $tenant->tenantId,
+            'serviceId' => $tenant->serviceId,
             'otherUserName' => $otherAccount['userName'],
         ]);
 
