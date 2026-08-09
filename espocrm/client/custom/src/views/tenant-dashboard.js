@@ -6,6 +6,10 @@ define('custom:views/tenant-dashboard', ['views/dashboard'], DashboardView => cl
 
         if (!this.dashboardLayout && this.isLegacyDashboardLayout(savedLayout)) {
             this.dashboardLayout = this.buildDefaultDashboardLayout();
+            this.shouldPersistDashboardLayout = true;
+        } else if (!this.dashboardLayout && this.isNexaDashboardLayoutV1(savedLayout)) {
+            this.dashboardLayout = this.migrateNexaDashboardLayout(savedLayout);
+            this.shouldPersistDashboardLayout = true;
         }
 
         super.setupCurrentTabLayout();
@@ -20,40 +24,90 @@ define('custom:views/tenant-dashboard', ['views/dashboard'], DashboardView => cl
         return names.length === 2 && names[0] === 'Activities' && names[1] === 'Stream';
     }
 
+    isNexaDashboardLayoutV1(layout) {
+        if (!Array.isArray(layout)) return false;
+
+        const expected = {
+            'nexa-overview': [
+                ['nexa-activities', 0, 0, 2, 4],
+                ['nexa-sales-pipeline', 2, 0, 1, 2],
+                ['nexa-opportunities-stage', 3, 0, 1, 4],
+                ['nexa-sales-month', 2, 2, 1, 2],
+                ['nexa-stream', 0, 4, 2, 4],
+                ['nexa-tasks', 2, 4, 2, 4],
+            ],
+            'nexa-sales': [
+                ['nexa-sales-leads', 0, 0, 2, 4],
+                ['nexa-sales-opportunities', 2, 0, 2, 4],
+                ['nexa-sales-funnel', 0, 4, 2, 3],
+                ['nexa-sales-stage', 2, 4, 1, 3],
+                ['nexa-sales-trend', 3, 4, 1, 3],
+            ],
+            'nexa-schedule': [
+                ['nexa-calendar', 0, 0, 2, 5],
+                ['nexa-schedule-activities', 2, 0, 2, 4],
+                ['nexa-schedule-tasks', 0, 5, 2, 4],
+                ['nexa-calls', 2, 4, 1, 4],
+                ['nexa-meetings', 3, 4, 1, 4],
+            ],
+        };
+
+        return Object.entries(expected).every(([tabId, geometry]) => {
+            const tab = layout.find(item => item.id === tabId);
+
+            if (!tab || tab.layout?.length !== geometry.length) return false;
+
+            return geometry.every(([id, x, y, width, height]) => {
+                const item = tab.layout.find(candidate => candidate.id === id);
+
+                return item && item.x === x && item.y === y &&
+                    item.width === width && item.height === height;
+            });
+        });
+    }
+
+    migrateNexaDashboardLayout(layout) {
+        const defaults = this.buildDefaultDashboardLayout();
+        const defaultTabIds = new Set(defaults.map(tab => tab.id));
+
+        // Preserve team-created workspaces while replacing only the unchanged Nexa defaults.
+        return defaults.concat(layout.filter(tab => !defaultTabIds.has(tab.id)));
+    }
+
     buildDefaultDashboardLayout() {
         const tabs = [
             {
                 id: 'nexa-overview',
                 name: 'Overview',
                 layout: [
-                    {id: 'nexa-activities', name: 'Activities', x: 0, y: 0, width: 2, height: 4},
-                    {id: 'nexa-sales-pipeline', name: 'SalesPipeline', x: 2, y: 0, width: 1, height: 2},
-                    {id: 'nexa-opportunities-stage', name: 'OpportunitiesByStage', x: 3, y: 0, width: 1, height: 4},
-                    {id: 'nexa-sales-month', name: 'SalesByMonth', x: 2, y: 2, width: 1, height: 2},
-                    {id: 'nexa-stream', name: 'Stream', x: 0, y: 4, width: 2, height: 4},
-                    {id: 'nexa-tasks', name: 'Tasks', x: 2, y: 4, width: 2, height: 4},
+                    {id: 'nexa-activities', name: 'Activities', x: 0, y: 0, width: 2, height: 2},
+                    {id: 'nexa-sales-pipeline', name: 'SalesPipeline', x: 2, y: 0, width: 2, height: 2},
+                    {id: 'nexa-opportunities-stage', name: 'OpportunitiesByStage', x: 0, y: 2, width: 2, height: 2},
+                    {id: 'nexa-sales-month', name: 'SalesByMonth', x: 2, y: 2, width: 2, height: 2},
+                    {id: 'nexa-stream', name: 'Stream', x: 0, y: 4, width: 2, height: 2},
+                    {id: 'nexa-tasks', name: 'Tasks', x: 2, y: 4, width: 2, height: 2},
                 ],
             },
             {
                 id: 'nexa-sales',
                 name: 'Sales',
                 layout: [
-                    {id: 'nexa-sales-leads', name: 'Leads', x: 0, y: 0, width: 2, height: 4},
-                    {id: 'nexa-sales-opportunities', name: 'Opportunities', x: 2, y: 0, width: 2, height: 4},
-                    {id: 'nexa-sales-funnel', name: 'SalesPipeline', x: 0, y: 4, width: 2, height: 3},
-                    {id: 'nexa-sales-stage', name: 'OpportunitiesByStage', x: 2, y: 4, width: 1, height: 3},
-                    {id: 'nexa-sales-trend', name: 'SalesByMonth', x: 3, y: 4, width: 1, height: 3},
+                    {id: 'nexa-sales-leads', name: 'Leads', x: 0, y: 0, width: 2, height: 2},
+                    {id: 'nexa-sales-opportunities', name: 'Opportunities', x: 2, y: 0, width: 2, height: 2},
+                    {id: 'nexa-sales-funnel', name: 'SalesPipeline', x: 0, y: 2, width: 2, height: 2},
+                    {id: 'nexa-sales-stage', name: 'OpportunitiesByStage', x: 2, y: 2, width: 2, height: 2},
+                    {id: 'nexa-sales-trend', name: 'SalesByMonth', x: 0, y: 4, width: 4, height: 2},
                 ],
             },
             {
                 id: 'nexa-schedule',
                 name: 'Schedule',
                 layout: [
-                    {id: 'nexa-calendar', name: 'Calendar', x: 0, y: 0, width: 2, height: 5},
-                    {id: 'nexa-schedule-activities', name: 'Activities', x: 2, y: 0, width: 2, height: 4},
-                    {id: 'nexa-schedule-tasks', name: 'Tasks', x: 0, y: 5, width: 2, height: 4},
-                    {id: 'nexa-calls', name: 'Calls', x: 2, y: 4, width: 1, height: 4},
-                    {id: 'nexa-meetings', name: 'Meetings', x: 3, y: 4, width: 1, height: 4},
+                    {id: 'nexa-calendar', name: 'Calendar', x: 0, y: 0, width: 2, height: 3},
+                    {id: 'nexa-schedule-activities', name: 'Activities', x: 2, y: 0, width: 2, height: 3},
+                    {id: 'nexa-schedule-tasks', name: 'Tasks', x: 0, y: 3, width: 2, height: 2},
+                    {id: 'nexa-calls', name: 'Calls', x: 2, y: 3, width: 2, height: 2},
+                    {id: 'nexa-meetings', name: 'Meetings', x: 0, y: 5, width: 4, height: 2},
                 ],
             },
         ];
@@ -90,6 +144,12 @@ define('custom:views/tenant-dashboard', ['views/dashboard'], DashboardView => cl
         this.element.classList.add('nexa-dashboard');
         this.element.setAttribute('aria-labelledby', 'nexa-dashboard-title');
         super.afterRender();
+
+        if (this.shouldPersistDashboardLayout) {
+            this.shouldPersistDashboardLayout = false;
+            this.saveLayout();
+        }
+
         this.summaryElement = this.element.querySelector('[data-dashboard-summary]');
         this.rangeElement = this.element.querySelector('[data-dashboard-range]');
         const tenant = this.getHelper().getAppParam('nexaTenant') || {};
