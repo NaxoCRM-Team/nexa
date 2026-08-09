@@ -75,6 +75,7 @@ final class TenantContextMiddleware implements MiddlewareInterface
 
         $postRoutes = [
             '/api/v1/Nexa/signup',
+            '/api/v1/Nexa/signup/profile',
             '/api/v1/Nexa/signup/verify',
             '/api/v1/Nexa/signup/resend',
             '/api/v1/Nexa/auth/recovery',

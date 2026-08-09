@@ -157,7 +157,10 @@
     const signupDivider = document.querySelector('[data-signup-divider]');
     const emailFields = document.querySelector('[data-email-fields]');
     const socialIdentity = document.querySelector('[data-social-identity]');
-    const stateViews = [methodView, form, pending, verifying, success, verificationError];
+    const socialIdentityText = document.querySelector('[data-social-identity-text]');
+    const nameFields = document.querySelector('[data-name-fields]');
+    const profileLoading = document.querySelector('[data-signup-profile-loading]');
+    const stateViews = [methodView, form, profileLoading, pending, verifying, success, verificationError];
     let selectedPlan = 'growth';
     let attemptToken = '';
     let signupMethod = 'email';
@@ -182,6 +185,37 @@
         socialIdentity.hidden = enabled;
     };
 
+    const configureNameFields = (method, profile = {}) => {
+        const supplied = ['firstName', 'lastName'].map(name => {
+            const input = form.elements[name];
+            const label = form.querySelector(`[data-name-field="${name}"]`);
+            const value = method === 'social' ? String(profile[name] || '').trim() : '';
+            const provided = value !== '';
+
+            input.value = value;
+            input.required = !provided;
+            label.hidden = provided;
+
+            return provided;
+        });
+        const hasMissingName = supplied.includes(false);
+
+        nameFields.hidden = method === 'social' && !hasMissingName;
+        nameFields.classList.toggle(
+            'has-single-field',
+            method === 'social' && supplied.filter(value => !value).length === 1
+        );
+
+        if (method === 'social') {
+            const provider = profile.provider === 'google' ? 'Google' :
+                profile.provider === 'microsoft' ? 'Microsoft' : 'Your identity provider';
+            const email = profile.email ? ` (${profile.email})` : '';
+            socialIdentityText.textContent = `${provider} verified your identity${email}.`;
+        }
+
+        return hasMissingName;
+    };
+
     const openDialog = (plan = 'growth') => {
         selectedPlan = plans.some(item => item.key === plan) ? plan : 'growth';
         form.elements.plan.value = selectedPlan;
@@ -192,14 +226,17 @@
         window.setTimeout(() => emailStart.elements.email.focus(), 50);
     };
 
-    const showProfile = (method, token, plan = 'growth') => {
+    const showProfile = (method, token, plan = 'growth', profile = {}) => {
         signupMethod = method;
         attemptToken = token;
         selectedPlan = plans.some(item => item.key === plan) ? plan : 'growth';
         form.elements.plan.value = selectedPlan;
         setEmailFields(method === 'email');
+        const hasMissingName = configureNameFields(method, profile);
         document.querySelector('[data-profile-help]').textContent = method === 'social'
-            ? 'Your identity is verified. Confirm your name, company and selected plan.'
+            ? hasMissingName
+                ? 'Your identity is verified. Complete the missing name detail, then confirm your company and plan.'
+                : 'Your identity is verified. Confirm your company and selected plan.'
             : 'Add your name, company, password and selected plan.';
         showState(form, 'profile');
         if (!dialog.open) dialog.showModal();
@@ -429,8 +466,17 @@
         try {
             const encoded = location.hash.slice('#nexa-onboarding='.length).replace(/-/g, '+').replace(/_/g, '/');
             attemptToken = atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '='));
-            showProfile('social', attemptToken, params.get('plan') || 'growth');
+            selectedPlan = plans.some(item => item.key === params.get('plan')) ? params.get('plan') : 'growth';
             history.replaceState(null, '', applicationUrl(`?signup=complete&plan=${encodeURIComponent(selectedPlan)}`));
+            showState(profileLoading, 'profile');
+            if (!dialog.open) dialog.showModal();
+            api('/profile', {attemptToken})
+                .then(profile => showProfile('social', attemptToken, selectedPlan, profile))
+                .catch(error => {
+                    openDialog(selectedPlan);
+                    methodMessage.textContent = error.message;
+                    methodMessage.hidden = false;
+                });
         } catch {
             openDialog(params.get('plan') || 'growth');
             methodMessage.textContent = 'Your social signup session could not be restored. Please try again.';

@@ -89,6 +89,18 @@ $assert(
     !str_contains($landingTemplateSource, 'data-local-code'),
     'The verification screen must never render a local verification code.'
 );
+$routesSource = file_get_contents(
+    dirname(__DIR__, 2) . '/espocrm/custom/Espo/Custom/Resources/routes.json'
+);
+$assert(
+    str_contains($landingSource, "api('/profile', {attemptToken})") &&
+    str_contains($landingSource, 'configureNameFields') &&
+    str_contains($landingTemplateSource, 'data-name-field="firstName"') &&
+    str_contains($landingTemplateSource, 'data-name-field="lastName"') &&
+    str_contains($routesSource, '/Nexa/signup/profile') &&
+    str_contains($signupSource, 'public function socialProfile(string $token)'),
+    'Social signup must reuse verified provider names and request only missing name details.'
+);
 $assert(
     str_contains($landingSource, "localStorage.setItem(") &&
     str_contains($landingSource, "localStorage.removeItem('espo-user-anotherUser')") &&
