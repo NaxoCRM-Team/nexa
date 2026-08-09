@@ -1,7 +1,36 @@
 <!doctype html>
-<html>
+<html class="nexa-client-booting">
     <head>
         <title>{{applicationName}}</title>
+        <style>
+            /* Give the client a deliberate first paint while Espo loads its bundles. */
+            html.nexa-client-booting,
+            html.nexa-client-booting body {
+                min-height: 100%;
+                background: #e3ecee;
+            }
+
+            html.nexa-client-booting body::before {
+                position: fixed;
+                z-index: 10000;
+                top: 0;
+                left: 0;
+                width: 34%;
+                height: 3px;
+                background: #16758a;
+                content: '';
+                animation: nexa-client-progress 1.1s ease-in-out infinite alternate;
+            }
+
+            @keyframes nexa-client-progress {
+                from { transform: translateX(-45%); }
+                to { transform: translateX(240%); }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                html.nexa-client-booting body::before { animation: none; }
+            }
+        </style>
         <script type="application/json" data-name="loader-params">{{loaderParams}}</script>{{scriptsHtml}}
         <link rel="stylesheet" href="{{basePath}}{{stylesheet}}?r={{cacheTimestamp}}" id='main-stylesheet'>{{additionalStyleSheetsHtml}}{{linksHtml}}
         <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
@@ -52,6 +81,32 @@
 
             let loadedApp;
 
+            const finishClientBoot = () => {
+                const hasVisibleClient = () => Boolean(document.querySelector(
+                    '.modern-login-shell, .container.content > *, #main > *'
+                ));
+
+                if (hasVisibleClient()) {
+                    document.documentElement.classList.remove('nexa-client-booting');
+
+                    return;
+                }
+
+                const observer = new MutationObserver(() => {
+                    if (!hasVisibleClient()) {
+                        return;
+                    }
+
+                    observer.disconnect();
+                    document.documentElement.classList.remove('nexa-client-booting');
+                });
+                observer.observe(document.documentElement, {childList: true, subtree: true});
+                window.setTimeout(() => {
+                    observer.disconnect();
+                    document.documentElement.classList.remove('nexa-client-booting');
+                }, 10000);
+            };
+
             const run = app => {
                 {{runScript}}
             };
@@ -72,6 +127,7 @@
                 }, app => {
                         loadedApp = app;
 
+                        finishClientBoot();
                         run(app);
                     });
                 });

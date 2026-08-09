@@ -12,6 +12,12 @@
         "noAuth":  true
     },
     {
+        "route":  "/Nexa/signup/profile",
+        "method":  "post",
+        "actionClassName":  "Espo\\Custom\\Tools\\Signup\\Api\\PostProfile",
+        "noAuth":  true
+    },
+    {
         "route":  "/Nexa/signup/verify",
         "method":  "post",
         "actionClassName":  "Espo\\Custom\\Tools\\Signup\\Api\\PostVerify",

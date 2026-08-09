@@ -163,13 +163,13 @@
             </section>
             <form class="signup-form" data-signup-form novalidate hidden>
                 <header class="signup-form-heading field-wide"><p class="eyebrow dark">Workspace details</p><h3>Tell us about your team</h3><p data-profile-help>Complete your profile to continue.</p></header>
-                <div class="verified-identity field-wide" data-social-identity hidden><span class="fas fa-check-circle" aria-hidden="true"></span><span>Your social identity is verified.</span></div>
+                <div class="verified-identity field-wide" data-social-identity hidden><span class="fas fa-check-circle" aria-hidden="true"></span><span data-social-identity-text>Your social identity is verified.</span></div>
                 <div class="form-message field-wide" data-form-message role="alert" hidden></div>
                 <label>Plan<select name="plan" required><option value="launch">Launch</option><option value="growth">Growth</option><option value="scale">Scale</option></select></label>
                 <label>Company name<input name="company" type="text" minlength="2" maxlength="120" autocomplete="organization" required><small data-error-for="company"></small></label>
                 <div class="profile-name-fields field-wide" data-name-fields>
-                    <label>First name<input name="firstName" type="text" minlength="2" maxlength="100" autocomplete="given-name" required><small data-error-for="firstName"></small></label>
-                    <label>Last name<input name="lastName" type="text" minlength="2" maxlength="100" autocomplete="family-name" required><small data-error-for="lastName"></small></label>
+                    <label data-name-field="firstName">First name<input name="firstName" type="text" minlength="2" maxlength="100" autocomplete="given-name" required><small data-error-for="firstName"></small></label>
+                    <label data-name-field="lastName">Last name<input name="lastName" type="text" minlength="2" maxlength="100" autocomplete="family-name" required><small data-error-for="lastName"></small></label>
                 </div>
                 <div class="email-profile-fields field-wide" data-email-fields>
                     <label>Password<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required><small data-error-for="password"></small></label>
@@ -179,6 +179,7 @@
                 <label class="terms field-wide"><input name="terms" type="checkbox" required><span>I agree to the terms of service and privacy policy.</span><small data-error-for="terms"></small></label>
                 <div class="signup-form-actions field-wide"><button class="text-button" type="button" data-signup-back>Back</button><button class="button button-coral signup-submit" type="submit"><span>Continue</span><span class="fas fa-arrow-right" aria-hidden="true"></span></button></div>
             </form>
+            <section class="signup-state" data-signup-profile-loading hidden><span class="state-icon loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span></span><h3>Confirming your identity</h3><p>We are securely retrieving the profile details verified by your provider.</p></section>
             <section class="signup-state" data-signup-pending hidden aria-labelledby="verification-title">
                 <span class="state-icon"><span class="fas fa-envelope" aria-hidden="true"></span></span><p class="eyebrow dark">Check your inbox</p><h3 id="verification-title">Enter your verification code</h3><p>We sent an eight-digit code to <strong data-pending-email></strong>. It expires in 15 minutes.</p>
                 <form data-verification-form novalidate><label for="signup-verification-code">Verification code</label><input id="signup-verification-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" maxlength="8" aria-describedby="verification-help" required><small id="verification-help">Enter all eight digits from the email.</small><div class="form-message" data-code-message role="alert" hidden></div><button class="button button-coral" type="submit"><span>Verify and create workspace</span><span class="fas fa-arrow-right" aria-hidden="true"></span></button></form>

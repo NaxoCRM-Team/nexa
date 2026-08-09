@@ -50,6 +50,31 @@ final class SignupService
         return ['status' => 'profile_required', 'attemptToken' => $token];
     }
 
+    /** @return array{firstName:string,lastName:string,email:string,provider:string} */
+    public function socialProfile(string $token): array
+    {
+        $attempt = $this->attempt($this->entityManager->getPDO(), $token);
+
+        if ($attempt === null) {
+            throw new SignupProblem(410, 'attempt_expired', 'This signup session expired. Start again.');
+        }
+        if ($attempt['method'] !== 'social' || $attempt['status'] !== 'profile_pending') {
+            throw new SignupProblem(409, 'profile_unavailable', 'This social signup profile is unavailable.');
+        }
+
+        $profile = json_decode((string) ($attempt['profile_json'] ?? '{}'), true) ?: [];
+        $provider = in_array($attempt['provider'], ['google', 'microsoft'], true)
+            ? (string) $attempt['provider']
+            : 'sso';
+
+        return [
+            'firstName' => trim((string) ($profile['firstName'] ?? $attempt['first_name'] ?? '')),
+            'lastName' => trim((string) ($profile['lastName'] ?? $attempt['last_name'] ?? '')),
+            'email' => $this->maskEmail((string) $attempt['email']),
+            'provider' => $provider,
+        ];
+    }
+
     /** @return array<string,mixed> */
     public function complete(stdClass $input, string $fingerprint): array
     {
