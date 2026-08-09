@@ -9,13 +9,13 @@
 .nexa-dashboard-controls > div { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) 42px; }
 .nexa-dashboard-controls .form-control, .nexa-dashboard-controls .btn { height: 42px; }
 .nexa-dashboard-controls small { color: #52646b; display: block; margin-top: 5px; min-height: 16px; text-align: right; }
-.nexa-dashboard-summary { min-height: 170px; }
+.nexa-dashboard-summary { min-height: 208px; }
 .nexa-dashboard [hidden] { display: none !important; }
-.nexa-dashboard-state { align-items: center; background: #fff; border: 1px solid #dce5e8; border-radius: 6px; display: flex; flex-direction: column; justify-content: center; min-height: 170px; padding: 28px; text-align: center; }
+.nexa-dashboard-state { align-items: center; background: #fff; border: 1px solid #dce5e8; border-radius: 6px; display: flex; flex-direction: column; justify-content: center; min-height: 208px; padding: 28px; text-align: center; }
 .nexa-dashboard-state > span { color: #16758a; font-size: 24px; margin-bottom: 8px; }
 .nexa-dashboard-state h2 { font-size: 18px; margin: 2px 0 5px; }
 .nexa-dashboard-state p { color: #66777d; margin: 0 0 14px; }
-.nexa-metric-grid { display: grid; gap: 12px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.nexa-metric-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .nexa-metric { align-items: center; background: #fff; border: 1px solid #dce5e8; border-radius: 6px; display: flex; gap: 12px; min-height: 98px; min-width: 0; padding: 16px; }
 .nexa-metric > span { align-items: center; background: #e8f5f3; border-radius: 5px; color: #087e70; display: inline-flex; flex: 0 0 36px; height: 36px; justify-content: center; }
 .nexa-metric:nth-child(2) > span, .nexa-metric:nth-child(5) > span { background: #edf3ff; color: #365fae; }
@@ -25,12 +25,12 @@
 .nexa-metric.is-restricted { background: #f7f8f8; }
 .nexa-metric.is-restricted strong { color: #7d898d; font-size: 13px; }
 .nexa-dashboard-insights { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.35fr) minmax(300px, .65fr); margin-top: 16px; }
-.nexa-dashboard-insights > section { background: #fff; border: 1px solid #dce5e8; border-radius: 6px; min-width: 0; padding: 20px; }
+.nexa-dashboard-insights > section { background: #fff; border: 1px solid #dce5e8; border-radius: 6px; display: flex; flex-direction: column; min-height: 280px; min-width: 0; padding: 20px; }
 .nexa-section-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 17px; }
 .nexa-section-heading p, .nexa-saved-dashboard-header > div:first-child p { color: #b94732; font-size: 11px; font-weight: 700; margin: 0 0 3px; text-transform: uppercase; }
 .nexa-section-heading h2, .nexa-saved-dashboard-header h2 { color: #20383f; font-size: 17px; margin: 0; }
 .nexa-section-heading a { font-size: 12px; font-weight: 700; }
-.nexa-pipeline-list, .nexa-activity-list { list-style: none; margin: 0; padding: 0; }
+.nexa-pipeline-list, .nexa-activity-list { flex: 1 1 auto; list-style: none; margin: 0; min-height: 0; padding: 0; }
 .nexa-pipeline-row { margin-bottom: 13px; }
 .nexa-pipeline-row > div { display: flex; font-size: 12px; justify-content: space-between; margin-bottom: 5px; }
 .nexa-pipeline-row strong { color: #31484f; }
@@ -43,15 +43,18 @@
 .nexa-saved-dashboard { margin-top: 28px; }
 .nexa-saved-dashboard-header { align-items: center; border-bottom: 1px solid #dce5e8; display: flex; justify-content: space-between; margin: 0 0 12px; padding: 0 0 12px; }
 .nexa-dashboard-actions { align-items: center; display: flex; gap: 8px; min-width: 0; }
-.nexa-dashboard-tabs { display: flex; gap: 2px; }
-.nexa-dashboard-tabs .btn { border-bottom: 2px solid transparent; color: #52646b; font-weight: 700; }
-.nexa-dashboard-tabs .btn.active { border-bottom-color: #16758a; color: #17353d; }
+.nexa-dashboard .dashboard-tabs { display: flex; gap: 2px; }
+.nexa-dashboard .dashboard-tabs .btn { border-bottom: 2px solid transparent; color: #52646b; font-weight: 700; }
+.nexa-dashboard .dashboard-tabs .btn.active { border-bottom-color: #16758a; color: #17353d; }
 .nexa-dashboard > .dashlets { min-height: 260px; }
 .nexa-dashboard .dashlets.fallback > div { margin-bottom: 14px; }
-.nexa-dashboard .dashlet-container > .panel { border-color: #dce5e8; border-radius: 6px; box-shadow: 0 1px 2px rgba(25, 50, 58, .05); }
+.nexa-dashboard .grid-stack-item-content { overflow: hidden; }
+.nexa-dashboard .dashlet-container > .panel { border-color: #dce5e8; border-radius: 6px; box-shadow: 0 1px 2px rgba(25, 50, 58, .05); display: flex; flex-direction: column; height: 100%; margin: 0; min-height: 0; }
 .nexa-dashboard .dashlet-container .panel-heading { background: #fff; border-bottom-color: #e3eaec; }
 .nexa-dashboard .dashlet-container .panel-title { color: #253d45; font-size: 15px; font-weight: 700; }
-@media (max-width: 1199px) { .nexa-metric-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 767px) { .nexa-dashboard { padding: 16px 14px 36px; } .nexa-dashboard-hero { align-items: stretch; flex-direction: column; } .nexa-dashboard-controls { flex-basis: auto; width: 100%; } .nexa-dashboard-controls small { text-align: left; } .nexa-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nexa-dashboard-insights { grid-template-columns: 1fr; } .nexa-saved-dashboard-header { align-items: flex-start; gap: 12px; } .nexa-dashboard-actions { align-items: flex-end; flex-direction: column-reverse; } .nexa-dashboard-tabs { display: flex; max-width: 60vw; overflow-x: auto; } }
+.nexa-dashboard .dashlet-container .dashlet-body { flex: 1 1 auto; min-height: 0; }
+.nexa-dashboard .dashlet-container .chart-container { max-width: 100%; min-height: 0; }
+@media (max-width: 991px) { .nexa-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nexa-dashboard-insights { grid-template-columns: 1fr; } }
+@media (max-width: 767px) { .nexa-dashboard { padding: 16px 14px 36px; } .nexa-dashboard-hero { align-items: stretch; flex-direction: column; } .nexa-dashboard-controls { flex-basis: auto; width: 100%; } .nexa-dashboard-controls small { text-align: left; } .nexa-saved-dashboard-header { align-items: flex-start; gap: 12px; } .nexa-dashboard-actions { align-items: flex-end; flex-direction: column-reverse; } .nexa-dashboard .dashboard-tabs { max-width: 60vw; overflow-x: auto; } .nexa-dashboard .dashlets.fallback .dashlet-container { height: auto !important; min-height: 340px; } .nexa-dashboard .dashlets.fallback .dashlet-container > .panel { min-height: 340px; } }
 @media (max-width: 420px) { .nexa-dashboard-hero h1 { font-size: 25px; } .nexa-metric-grid { grid-template-columns: 1fr; } .nexa-metric { min-height: 82px; } .nexa-section-heading { align-items: flex-start; gap: 8px; } }
 @media (prefers-reduced-motion: reduce) { .nexa-dashboard .fa-spin { animation: none; } }

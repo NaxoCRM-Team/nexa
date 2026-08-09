@@ -38,3 +38,27 @@ test('dashboard workspaces and operational widgets are complete', async ({page})
     await page.getByRole('tab', {name: 'Sales'}).click();
     await expect(page.getByRole('tab', {name: 'Sales'})).toHaveAttribute('aria-selected', 'true');
 });
+
+test('dashboard widgets use aligned rows and stable card dimensions', async ({page}) => {
+    await page.goto(fixture);
+    const layout = await page.locator('.fixture-widgets').evaluate(element => ({
+        columns: getComputedStyle(element).gridTemplateColumns.split(' ').length,
+        boxes: [...element.querySelectorAll('.dashlet-container .panel')].map(panel => {
+            const box = panel.getBoundingClientRect();
+
+            return {width: Math.round(box.width), height: Math.round(box.height)};
+        }),
+    }));
+
+    expect(layout.boxes).toHaveLength(4);
+    expect(new Set(layout.boxes.map(box => box.width)).size).toBe(1);
+    expect(layout.boxes.every(box => box.width > 220 && box.height >= 220)).toBe(true);
+
+    if (layout.columns > 1) {
+        for (let index = 0; index < layout.boxes.length; index += layout.columns) {
+            const row = layout.boxes.slice(index, index + layout.columns);
+
+            expect(new Set(row.map(box => box.height)).size).toBe(1);
+        }
+    }
+});
