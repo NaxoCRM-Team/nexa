@@ -4,6 +4,7 @@
         "client/custom/css/modern-login.css",
         "client/custom/css/nexa-design-system.css",
         "client/custom/css/tenant-workspace.css",
+        "client/custom/css/tenant-search.css",
         "client/custom/css/tenant-dashboard.css"
     ],
     "scriptList": [

@@ -1,0 +1,193 @@
+.global-search-container {
+    position: relative;
+}
+
+.nexa-global-search .global-search-button {
+    cursor: pointer;
+}
+
+.nexa-search-suggestion-panel {
+    background: #ffffff;
+    border: 1px solid #d7e0e3;
+    border-radius: 6px;
+    box-shadow: 0 14px 34px rgba(23, 32, 42, 0.16);
+    color: #20383f;
+    left: 0;
+    max-height: min(480px, calc(100dvh - 92px));
+    overflow-y: auto;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 7px);
+    z-index: 1100;
+}
+
+.nexa-search-suggestion-panel[hidden],
+.nexa-search-suggestion[hidden] {
+    display: none !important;
+}
+
+.nexa-search-suggestion-panel > header {
+    align-items: center;
+    border-bottom: 1px solid #e7ecee;
+    display: flex;
+    justify-content: space-between;
+    min-height: 42px;
+    padding: 8px 12px;
+}
+
+.nexa-search-suggestions-heading {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.nexa-search-suggestions {
+    padding: 6px;
+}
+
+.nexa-search-suggestion {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: #263f47;
+    display: flex;
+    gap: 11px;
+    min-height: 50px;
+    padding: 7px 9px;
+    text-align: left;
+    width: 100%;
+}
+
+.nexa-search-suggestion:hover,
+.nexa-search-suggestion:focus,
+.nexa-search-suggestion.is-active {
+    background: #eaf3f3;
+    color: #0f6669;
+    outline: none;
+}
+
+.nexa-search-suggestion:focus-visible {
+    box-shadow: inset 0 0 0 2px #16758a;
+}
+
+.nexa-search-suggestion-icon {
+    align-items: center;
+    background: #eff4f5;
+    border-radius: 5px;
+    color: #52666e;
+    display: inline-flex;
+    flex: 0 0 30px;
+    height: 30px;
+    justify-content: center;
+}
+
+.nexa-search-suggestion-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.nexa-search-suggestion-copy strong,
+.nexa-search-suggestion-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-search-suggestion-copy strong {
+    font-size: 13px;
+}
+
+.nexa-search-suggestion-copy small {
+    color: #667a82;
+    font-size: 11px;
+}
+
+.nexa-search-shortcut {
+    border-top: 1px solid #e7ecee;
+    color: #667a82;
+    font-size: 10px;
+    margin: 0;
+    padding: 8px 12px;
+}
+
+.nexa-search-shortcut kbd {
+    background: #f1f5f6;
+    border: 1px solid #d7e0e3;
+    border-radius: 3px;
+    box-shadow: none;
+    color: #40545c;
+    font: inherit;
+    padding: 1px 4px;
+}
+
+.nexa-search-results .panel-heading {
+    align-items: baseline;
+    display: flex;
+    gap: 5px;
+    min-height: 48px;
+    padding: 13px 16px;
+}
+
+.nexa-search-results .panel-heading .link-group {
+    margin-left: auto;
+    order: 3;
+}
+
+.nexa-search-results .close-link {
+    min-height: 34px;
+    min-width: 34px;
+    padding: 6px;
+}
+
+.nexa-search-result-status {
+    color: #52666e;
+    min-height: 38px;
+    padding: 9px 2px;
+}
+
+.nexa-search-results[data-state="loading"] .nexa-search-result-status::before {
+    animation: nexa-search-spin 800ms linear infinite;
+    border: 2px solid #c7d5d9;
+    border-radius: 50%;
+    border-top-color: #16758a;
+    content: '';
+    display: inline-block;
+    height: 16px;
+    margin-right: 8px;
+    vertical-align: -3px;
+    width: 16px;
+}
+
+.nexa-search-results[data-state="denied"] .nexa-search-result-status {
+    color: #a23b2a;
+}
+
+@keyframes nexa-search-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 767px) {
+    body.nexa-side-navigation #navbar .navbar-body.in .global-search-container {
+        position: relative;
+    }
+
+    .nexa-search-suggestion-panel {
+        max-height: min(55dvh, 420px);
+        top: calc(100% + 5px);
+    }
+
+    #global-search-panel {
+        left: 0;
+        position: fixed;
+        right: 0;
+        top: var(--nexa-header-height, 58px);
+        z-index: 1200;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nexa-search-results[data-state="loading"] .nexa-search-result-status::before {
+        animation-duration: 1600ms;
+    }
+}
