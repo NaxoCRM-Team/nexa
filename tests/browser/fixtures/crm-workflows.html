@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nexa common CRM workflows</title>
+    <link rel="stylesheet" href="../../../espocrm/client/custom/css/nexa-design-system.css">
+    <link rel="stylesheet" href="../../../espocrm/client/custom/css/crm-workflows.css">
+    <style>
+        * { box-sizing: border-box; }
+        body { background: #f6f8fa; color: #20383f; font: 14px Arial, sans-serif; margin: 0; }
+        .shell { margin: auto; max-width: 1320px; padding: 24px; }
+        .page-heading { align-items: end; display: flex; gap: 12px; justify-content: space-between; margin-bottom: 16px; }
+        h1 { font-size: 24px; margin: 0; } h2 { font-size: 15px; margin: 0; }
+        .filter-bar { align-items: center; display: flex; gap: 8px; margin-bottom: 12px; }
+        .filter-bar input, .filter-bar select { border: 1px solid #cbd7dc; border-radius: 5px; height: 40px; padding: 0 10px; }
+        button, .btn { background: #fff; border: 1px solid #cbd7dc; border-radius: 5px; color: #263f47; min-height: 38px; padding: 8px 12px; }
+        .primary { background: #16758a; border-color: #16758a; color: #fff; }
+        .record-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); }
+        .record-grid > .left { min-width: 0; } .record-grid > .side { min-width: 0; }
+        .panel-body dl { display: grid; grid-template-columns: 140px 1fr; margin: 0; } dt, dd { border-bottom: 1px solid #e7ecee; margin: 0; padding: 10px; }
+        .timeline { list-style: none; margin: 0; padding: 0; } .timeline li { border-left: 2px solid #bad7d8; margin-left: 7px; padding: 4px 0 16px 18px; }
+        .form-grid { display: grid; gap: 14px 18px; grid-template-columns: 1fr 1fr; }
+        .form-group { display: flex; flex-direction: column; } .form-group.full { grid-column: 1 / -1; }
+        .error { color: #8d2f22; font-size: 12px; margin-top: 5px; }
+        .pagination { display: inline-flex; gap: 3px; }
+        .hide { display: none !important; }
+        @media (max-width: 767px) { .shell { padding: 14px 12px; } .page-heading { align-items: start; flex-direction: column; } .filter-bar { align-items: stretch; flex-direction: column; } .filter-bar input, .filter-bar select, .filter-bar button { width: 100%; } .record-grid { display: block; } .form-grid { display: block; } .form-group { margin-bottom: 14px; } }
+    </style>
+</head>
+<body>
+<main class="shell">
+    <section data-view="list" class="nexa-crm-list-workflow">
+        <header class="page-heading"><div><p>Customer workspace</p><h1>Contacts</h1></div><button class="primary" type="button">Create contact</button></header>
+        <form class="filter-bar" role="search" aria-label="Filter contacts"><label for="filter">Search contacts</label><input id="filter" type="search"><label for="stage">Lifecycle</label><select id="stage"><option>All stages</option><option>Customer</option></select><button type="submit">Apply filters</button></form>
+        <div class="list-buttons-container nexa-list-toolbar" role="toolbar" aria-label="Contacts list actions"><button class="bulk" type="button" aria-label="Bulk actions" disabled>Bulk actions</button><p class="nexa-list-selection-status sr-only" role="status" aria-live="polite"></p><nav class="pagination" aria-label="Record pages"><button type="button" data-page="previous" aria-disabled="true" disabled>Previous</button><button type="button" aria-current="page">1</button><button type="button" data-page="next" aria-disabled="false">Next</button></nav></div>
+        <div class="list nexa-record-list" role="region" aria-label="Contact records" tabindex="0">
+            <table class="table nexa-crm-table"><caption class="sr-only">Contacts</caption><thead><tr><th class="checkbox-cell"><input class="select-all" type="checkbox" aria-label="Select all visible contacts"></th><th class="field-header-cell" aria-sort="none"><button class="sort" type="button">Name</button></th><th>Company</th><th>Email</th><th>Owner</th></tr></thead><tbody>
+                <tr><td><input type="checkbox" aria-label="Select Ava Morgan"></td><td><a href="#ava">Ava Morgan</a></td><td>Northstar Analytics</td><td>ava@northstar.test</td><td>Demo Admin</td></tr>
+                <tr><td><input type="checkbox" aria-label="Select Daniel Okafor"></td><td><a href="#daniel">Daniel Okafor</a></td><td>Northstar Analytics</td><td>daniel@northstar.test</td><td>Demo Admin</td></tr>
+            </tbody></table>
+        </div>
+    </section>
+
+    <section data-view="record" class="nexa-crm-record-workflow hide" aria-label="Contact record">
+        <header class="page-heading"><div><p>Contacts / Customer</p><h1>Ava Morgan</h1></div></header>
+        <div class="record-buttons"><div class="sub-container" role="toolbar" aria-label="Contact record actions"><div><button type="button">Edit</button> <button type="button">Email</button></div><button type="button">More actions</button></div></div>
+        <div class="record-grid"><div class="left">
+            <section class="panel nexa-record-panel" role="region" aria-labelledby="overview-title"><div class="panel-heading"><h2 class="panel-title" id="overview-title">Contact overview</h2></div><div class="panel-body"><dl><dt>Email</dt><dd>ava@northstar.test</dd><dt>Lifecycle</dt><dd>Customer</dd><dt>Owner</dt><dd>Demo Admin</dd></dl></div></section>
+            <section class="panel nexa-record-panel nexa-relationship-panel" role="region" aria-labelledby="relationships-title"><div class="panel-heading"><h2 class="panel-title" id="relationships-title">Relationships</h2></div><div class="panel-body"><div class="nexa-record-list" role="region" aria-label="Related opportunities" tabindex="0"><table class="table nexa-crm-table"><caption class="sr-only">Related opportunities</caption><thead><tr><th>Opportunity</th><th>Stage</th><th>Amount</th></tr></thead><tbody><tr><td>Analytics expansion</td><td>Negotiation</td><td>GBP 48,000</td></tr></tbody></table></div></div></section>
+        </div><aside class="side"><section class="panel nexa-record-panel nexa-activity-panel" role="region" aria-labelledby="activity-title"><div class="panel-heading"><h2 class="panel-title" id="activity-title">Activity</h2></div><div class="panel-body"><ol class="timeline"><li><strong>Meeting scheduled</strong><br>Today, 10:30</li><li><strong>Email opened</strong><br>Yesterday</li></ol></div></section></aside></div>
+    </section>
+
+    <section data-view="edit" class="nexa-crm-record-workflow nexa-record-form hide" aria-label="Edit contact record" data-save-state="idle">
+        <header class="page-heading"><div><p>Contacts</p><h1>Edit Ava Morgan</h1></div></header>
+        <div class="record-buttons"><div class="sub-container" role="toolbar" aria-label="Contact edit actions"><div><button class="primary" type="button" data-action="save">Save</button> <button type="button">Cancel</button></div></div></div>
+        <p class="nexa-form-status sr-only" role="status" aria-live="polite"></p>
+        <section class="panel nexa-record-panel"><div class="panel-heading"><h2 class="panel-title">Contact details</h2></div><div class="panel-body"><form class="form-grid" novalidate>
+            <div class="form-group required"><label for="first">First name <span class="required-sign">Required</span></label><input class="form-control" id="first" required aria-required="true" value="Ava"><span class="error hide" id="first-error">First name is required.</span></div>
+            <div class="form-group required"><label for="last">Last name <span class="required-sign">Required</span></label><input class="form-control" id="last" required aria-required="true" value="Morgan"><span class="error hide" id="last-error">Last name is required.</span></div>
+            <div class="form-group full"><label for="email">Email</label><input class="form-control" id="email" type="email" value="ava@northstar.test"></div>
+            <div class="form-group full"><label for="notes">Notes</label><textarea class="form-control" id="notes">Revenue operations lead.</textarea></div>
+        </form></div></section>
+        <button type="button" data-action="simulate-conflict">Simulate edit conflict</button>
+    </section>
+</main>
+<script>
+    const state = new URLSearchParams(location.search).get('view') || 'list';
+    document.querySelectorAll('[data-view]').forEach(view => view.classList.toggle('hide', view.dataset.view !== state));
+    const list = document.querySelector('[data-view=list]'); const checkboxes = [...list.querySelectorAll('tbody input[type=checkbox]')]; const selectAll = list.querySelector('.select-all'); const bulk = list.querySelector('.bulk'); const selection = list.querySelector('.nexa-list-selection-status');
+    const updateSelection = () => { const count = checkboxes.filter(item => item.checked).length; selection.textContent = count ? `${count} record${count === 1 ? '' : 's'} selected.` : ''; bulk.disabled = count === 0; bulk.setAttribute('aria-label', count ? `Bulk actions for ${count} selected records` : 'Bulk actions'); };
+    selectAll.addEventListener('change', () => { checkboxes.forEach(item => item.checked = selectAll.checked); updateSelection(); }); checkboxes.forEach(item => item.addEventListener('change', updateSelection));
+    list.querySelector('.sort').addEventListener('click', event => { const th = event.target.closest('th'); th.setAttribute('aria-sort', th.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending'); });
+    list.querySelector('form').addEventListener('submit', event => event.preventDefault());
+    const edit = document.querySelector('[data-view=edit]'); const save = edit.querySelector('[data-action=save]'); const status = edit.querySelector('.nexa-form-status'); const first = edit.querySelector('#first'); const error = edit.querySelector('#first-error');
+    const setStatus = (value, message) => { edit.dataset.saveState = value; status.classList.toggle('sr-only', !message); status.textContent = message; };
+    save.addEventListener('click', () => { if (!first.value.trim()) { first.closest('.form-group').classList.add('has-error'); first.setAttribute('aria-invalid', 'true'); first.setAttribute('aria-describedby', 'first-error'); error.classList.remove('hide'); setStatus('invalid', 'Review the highlighted required or invalid fields.'); first.focus(); return; } setStatus('saving', 'Saving changes…'); save.setAttribute('aria-busy', 'true'); setTimeout(() => { save.setAttribute('aria-busy', 'false'); setStatus('success', 'Changes saved successfully.'); }, 120); });
+    edit.querySelector('[data-action=simulate-conflict]').addEventListener('click', () => setStatus('conflict', 'This record changed elsewhere. Refresh it before saving again.'));
+</script>
+</body>
+</html>

@@ -42,6 +42,8 @@ $required = @(
     'tests/dashboard/TenantDashboardTest.php', 'tests/browser/dashboard.spec.js', 'tests/browser/fixtures/dashboard.html',
     'tests/search/GlobalSearchTenantTest.php', 'tests/browser/search-navigation.spec.js',
     'tests/browser/fixtures/search-navigation.html',
+    'tests/workflows/CommonCrmWorkflowTest.php', 'tests/browser/crm-workflows.spec.js',
+    'tests/browser/fixtures/crm-workflows.html',
     'espocrm/client/custom/src/views/tenant-dashboard.js',
     'espocrm/client/custom/src/views/global-search/global-search.js',
     'espocrm/client/custom/src/views/global-search/panel.js',
@@ -61,6 +63,7 @@ $required = @(
     'tests/signup/SignupValidatorTest.php', 'tests/signup/SmtpEnvironmentTest.php',
     'tests/signup/AuthExperienceTest.php', 'tests/browser/auth.spec.js', 'tests/browser/fixtures/auth.html',
     'espocrm/client/custom/tenant-workspace.js', 'espocrm/client/custom/css/tenant-workspace.css',
+    'espocrm/client/custom/crm-workflows.js', 'espocrm/client/custom/css/crm-workflows.css',
     'espocrm/client/custom/css/nexa-design-system.css',
     'espocrm/client/custom/css/tenant-search.css',
     'espocrm/custom/Espo/Custom/Tools/App/AppParams/TenantIdentity.php',
@@ -148,6 +151,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CustomerFounda
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\PortableSubfolderTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\search\GlobalSearchTenantTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Tools\GlobalSearch\Service.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -180,6 +184,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant dashboard contract suite' } else { Fail 'Tenant dashboard contract suite failed.' }
     & php (Join-Path $root 'tests\search\GlobalSearchTenantTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Global search tenant contract suite' } else { Fail 'Global search tenant contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Common CRM workflow contract suite' } else { Fail 'Common CRM workflow contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')

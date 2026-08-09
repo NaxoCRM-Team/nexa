@@ -5,11 +5,13 @@
         "client/custom/css/nexa-design-system.css",
         "client/custom/css/tenant-workspace.css",
         "client/custom/css/tenant-search.css",
+        "client/custom/css/crm-workflows.css",
         "client/custom/css/tenant-dashboard.css"
     ],
     "scriptList": [
         "__APPEND__",
         "client/custom/login-patch.js",
-        "client/custom/tenant-workspace.js"
+        "client/custom/tenant-workspace.js",
+        "client/custom/crm-workflows.js"
     ]
 }
