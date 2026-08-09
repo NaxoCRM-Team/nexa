@@ -35,6 +35,9 @@ use Espo\Core\ORM\Type\FieldType;
 use Espo\Core\Record\Collection;
 use Espo\Core\Utils\Config;
 use Espo\Core\Utils\Metadata;
+use Espo\Core\Exceptions\Forbidden;
+use Espo\Core\Tenant\ServiceEntitlementChecker;
+use Espo\Core\Tenant\TenantContextStore;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityCollection;
 use Espo\ORM\EntityManager;
@@ -55,7 +58,9 @@ class Service
         private EntityManager $entityManager,
         private Metadata $metadata,
         private Acl $acl,
-        private Config $config
+        private Config $config,
+        private TenantContextStore $tenantContextStore,
+        private ServiceEntitlementChecker $serviceEntitlementChecker,
     ) {}
 
     /**
@@ -66,6 +71,14 @@ class Service
      */
     public function find(string $filter, int $offset = 0, ?int $maxSize = null): Collection
     {
+        // Fail closed before building the UNION. The ORM adds the resolved tenant and
+        // service predicates to every child query; strict access control adds role ACL.
+        $this->tenantContextStore->require();
+
+        if (!$this->serviceEntitlementChecker->isEnabled('crm')) {
+            throw new Forbidden('Search is not enabled for this workspace.');
+        }
+
         $entityTypeList = $this->config->get('globalSearchEntityList') ?? [];
         $maxSize ??= (int) $this->config->get('recordsPerPage');
 

@@ -40,7 +40,13 @@ $required = @(
     'docs/development/identity-provider-testing.md', 'docs/operations/identity-incident-recovery.md',
     'tests/auth/IdentitySecurityTest.php', 'espocrm/bin/configure-identity-provider.php',
     'tests/dashboard/TenantDashboardTest.php', 'tests/browser/dashboard.spec.js', 'tests/browser/fixtures/dashboard.html',
+    'tests/search/GlobalSearchTenantTest.php', 'tests/browser/search-navigation.spec.js',
+    'tests/browser/fixtures/search-navigation.html',
     'espocrm/client/custom/src/views/tenant-dashboard.js',
+    'espocrm/client/custom/src/views/global-search/global-search.js',
+    'espocrm/client/custom/src/views/global-search/panel.js',
+    'espocrm/client/custom/res/templates/global-search/global-search.tpl',
+    'espocrm/client/custom/res/templates/global-search/panel.tpl',
     'database/shared/seeds/0002_two_tenant_isolation.sql', 'espocrm/bin/provision-demo-tenants.php',
     'database/shared/table-ownership-manifest.json', 'espocrm/application/Espo/Resources/tenant-table-ownership.json',
     'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/OrmTenantPersistenceTest.php', 'tests/tenant/InstallationBootstrapTest.php',
@@ -56,6 +62,7 @@ $required = @(
     'tests/signup/AuthExperienceTest.php', 'tests/browser/auth.spec.js', 'tests/browser/fixtures/auth.html',
     'espocrm/client/custom/tenant-workspace.js', 'espocrm/client/custom/css/tenant-workspace.css',
     'espocrm/client/custom/css/nexa-design-system.css',
+    'espocrm/client/custom/css/tenant-search.css',
     'espocrm/custom/Espo/Custom/Tools/App/AppParams/TenantIdentity.php',
     'espocrm/install/entry.php', 'espocrm/html/main.html', 'espocrm/public/index.php',
     'espocrm/public/landing/index.html', 'espocrm/public/landing/styles.css', 'espocrm/vendor/autoload.php'
@@ -139,6 +146,8 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ProductR
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CustomerFoundationDatabaseTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\PortableSubfolderTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\search\GlobalSearchTenantTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Tools\GlobalSearch\Service.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -169,6 +178,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Identity security contract suite' } else { Fail 'Identity security contract suite failed.' }
     & php (Join-Path $root 'tests\dashboard\TenantDashboardTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant dashboard contract suite' } else { Fail 'Tenant dashboard contract suite failed.' }
+    & php (Join-Path $root 'tests\search\GlobalSearchTenantTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Global search tenant contract suite' } else { Fail 'Global search tenant contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')

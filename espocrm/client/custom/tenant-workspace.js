@@ -259,6 +259,44 @@ require(['views/site/navbar'], NavbarView => {
         }
     };
 
+    const enhanceWorkspaceNavigation = navigation => {
+        navigation.setAttribute('role', 'navigation');
+
+        navigation.querySelectorAll('.nexa-workspace-group-link').forEach((link, index) => {
+            const item = link.closest('li');
+            const menu = item?.querySelector('.dropdown-menu');
+
+            if (!menu) return;
+            menu.id ||= `nexa-workspace-group-${index}`;
+            link.setAttribute('aria-controls', menu.id);
+            link.setAttribute('aria-haspopup', 'true');
+            link.setAttribute('aria-expanded', String(item.classList.contains('open')));
+            link.addEventListener('click', () => window.setTimeout(() => {
+                link.setAttribute('aria-expanded', String(item.classList.contains('open')));
+            }, 0));
+        });
+
+        if (navigation.dataset.nexaKeyboardReady === 'true') return;
+        navigation.dataset.nexaKeyboardReady = 'true';
+        navigation.addEventListener('keydown', event => {
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+
+            const links = [...navigation.querySelectorAll('a, button')]
+                .filter(item => item.getAttribute('aria-disabled') !== 'true' &&
+                    !item.hasAttribute('disabled') && item.offsetParent !== null);
+            const currentIndex = links.indexOf(document.activeElement);
+
+            if (currentIndex < 0 || links.length === 0) return;
+            event.preventDefault();
+            let nextIndex = currentIndex;
+            if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % links.length;
+            if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + links.length) % links.length;
+            if (event.key === 'Home') nextIndex = 0;
+            if (event.key === 'End') nextIndex = links.length - 1;
+            links[nextIndex].focus();
+        });
+    };
+
     NavbarView.prototype.data = function () {
         const data = defaultData.call(this);
 
@@ -324,6 +362,8 @@ require(['views/site/navbar'], NavbarView => {
             this.element?.setAttribute('aria-label', 'Primary application navigation');
             navigation?.setAttribute('aria-label', 'Workspace modules');
             main?.setAttribute('role', 'main');
+
+            if (navigation) enhanceWorkspaceNavigation(navigation);
 
             if (toggle && navigation) {
                 toggle.setAttribute('aria-label', 'Open workspace navigation');
