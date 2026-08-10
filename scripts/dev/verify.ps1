@@ -36,7 +36,12 @@ $required = @(
     'database/shared/migrations/0008_identity_security.sql', 'packages/sso/composer.lock',
     'database/shared/migrations/0009_unified_customer_foundation.sql',
     'database/shared/migrations/0010_enforce_core_service_ownership.sql',
+    'database/shared/migrations/0011_extend_customer_company_profiles.sql',
+    'database/shared/migrations/0012_extend_contact_profile_experience.sql',
+    'database/shared/migrations/0013_add_contact_profile_image.sql',
     'docs/architecture/existing-schema-audit.md', 'tests/architecture/SchemaRequirementsMappingTest.php',
+    'tests/architecture/CustomerProfileSkeletonTest.php',
+    'espocrm/bin/populate-address-countries.php',
     'docs/development/identity-provider-testing.md', 'docs/operations/identity-incident-recovery.md',
     'tests/auth/IdentitySecurityTest.php', 'espocrm/bin/configure-identity-provider.php',
     'tests/dashboard/TenantDashboardTest.php', 'tests/browser/dashboard.spec.js', 'tests/browser/fixtures/dashboard.html',
@@ -147,6 +152,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\ServiceOwnersh
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\CustomerProfileSkeletonTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CustomerFoundationDatabaseTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\PortableSubfolderTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\search\GlobalSearchTenantTest.php')
@@ -189,6 +195,7 @@ if ($php) {
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
+    & php (Join-Path $root 'tests\architecture\CustomerProfileSkeletonTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Architecture contract suites' } else { Fail 'Architecture contract suite failed.' }
 }
 

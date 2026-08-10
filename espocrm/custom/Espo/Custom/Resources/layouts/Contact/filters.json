@@ -1,0 +1,5 @@
+[
+    "assignedUser", "teams", "createdAt", "createdBy", "modifiedAt", "streamUpdatedAt",
+    "accounts", "address", "emailAddress", "phoneNumber", "title", "department", "website",
+    "source", "leadStatus", "marketingStatus", "targetLists", "campaign"
+]

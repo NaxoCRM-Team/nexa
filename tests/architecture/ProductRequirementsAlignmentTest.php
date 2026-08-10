@@ -20,7 +20,7 @@ $traceability = $read('docs/product/requirements-traceability.md');
 $roadmap = $read('docs/product/module-build-roadmap.md');
 $dataContract = $read('docs/architecture/unified-customer-data-contract.md');
 $screenInventory = $read('docs/product/screen-inventory.md');
-$navigation = $read('espocrm/client/custom/tenant-workspace.js');
+$navigation = $read('espocrm/client/custom/src/product-surface-registry.js');
 $adminPanel = $read('espocrm/custom/Espo/Custom/Resources/metadata/app/adminPanel.json');
 $readme = $read('README.md');
 
@@ -72,6 +72,7 @@ $requiredContracts = [
     [$navigation, "label: 'Marketing'"],
     [$navigation, "label: 'Automation'"],
     [$navigation, "label: 'Service'"],
+    [$navigation, "label: 'Channels'"],
     [$navigation, "label: 'Analytics'"],
     [$navigation, "label: 'Data & Integrations'"],
     [$adminPanel, '"nexaWorkspace"'],

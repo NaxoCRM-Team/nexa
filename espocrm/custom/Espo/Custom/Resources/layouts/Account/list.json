@@ -1,0 +1,5 @@
+[
+    {"name": "name", "link": true}, {"name": "type", "width": 14}, {"name": "industry", "width": 18},
+    {"name": "annualRevenue", "width": 18}, {"name": "numberOfEmployees", "width": 14},
+    {"name": "billingAddressCountry", "width": 16}
+]

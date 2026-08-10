@@ -1,0 +1,8 @@
+{
+    "views": {
+        "edit": "custom:views/contact/edit"
+    },
+    "recordViews": {
+        "edit": "custom:views/contact/record/edit-v2"
+    }
+}

@@ -35,16 +35,34 @@ The tenant sidebar is organized around stable user workspaces rather than indivi
 | Workspace | Standard submenu |
 |---|---|
 | Home | Dashboard, my tasks and recent activity |
-| CRM | Companies, contacts, leads, customer timeline, lists and segments, custom objects |
+| CRM | Companies, contacts, leads, Customer 360, customer timeline, lists and segments, lifecycle, custom objects |
 | Sales | Deals, activities, calendar, pipelines, forecasts, products, quotes and documents |
-| Marketing | Campaigns, marketing contacts, marketing email, forms, landing pages, content and assets, events, social, advertising, SEO and experiments |
+| Marketing | Campaigns, marketing contacts, marketing email, forms, landing pages, content and assets, events and experiments |
 | Automation | Workflows, customer journeys, scoring and lifecycle, personalization, target accounts and ABM |
-| Service | Cases, operational email, knowledge base, shared inbox, live chat and bots, queues and SLAs, customer portal, SMS and WhatsApp |
-| Analytics | Dashboards, reports, campaign analytics, attribution, journey analytics, website traffic and email performance |
-| Data & Integrations | Tracking and events, data quality, import and export, integrations, API and webhooks |
+| Service | Cases, operational email, knowledge base, shared inbox, queues and SLAs, customer portal |
+| Channels | Live chat, bots, SMS, WhatsApp, social media and advertising |
+| Analytics | Dashboards, reports, campaign analytics, attribution, journey analytics, website traffic, email performance, sales analytics, service analytics, customer analytics and SEO analytics |
+| Data & Integrations | Tracking and events, data quality, consent and privacy, import and export, integrations, API and webhooks |
 | Administration | The existing `#Admin` application is expanded for tenant users, teams, roles, permissions, security, channels, domains, consent, integrations, data management, plan, usage and billing settings |
 
 Administration is not duplicated in the tenant sidebar. Tenant administrators continue to open the existing Administration application from the account menu. Cross-tenant SaaS operations belong to a separate operator application and are never exposed in the tenant workspace.
+
+## Canonical Dashboard Catalogue
+
+M02 owns the dashboard shell, responsive grid, filters, widget states and catalogue integration. Each source module activates its widgets only after tenant, service, permission and metric contracts are implemented. M19 supplies governed cross-domain metrics, custom dashboards, sharing and attribution.
+
+| Workspace | Planned widgets | Owning modules | Delivery phase |
+|---|---|---|---|
+| Overview | Activities, tasks, customer growth, open pipeline, revenue summary, service workload and recent engagement | M02, M05-M07, M19 | 1, 3, 9 |
+| Sales | Leads, deals by stage, pipeline value, forecast, conversion, sales activity and team performance | M05, M06, M19 | 3, 9 |
+| Marketing | Marketing contacts, campaign performance, email delivery and health, conversions, forms, events and asset comparison | M08-M11, M19 | 4-6, 9 |
+| Automation | Active workflows, journey enrollment, completion, failures, scoring movement and automation outcomes | M12, M13, M19 | 6, 7, 9 |
+| Service | Open cases, SLA status, response and resolution time, satisfaction, queue workload and knowledge usage | M07, M14, M19 | 3, 8, 9 |
+| Channels | Inbox volume, chat and bot outcomes, SMS and WhatsApp delivery, social engagement and advertising conversion | M14-M17, M19 | 8-10 |
+| Customer | Lifecycle distribution, engagement, retention, account health, customer value and timeline activity | M05, M11, M13, M19 | 3, 5, 7, 9 |
+| Analytics | Custom reports, funnels, journey analytics, attribution, website traffic, SEO and governed comparisons | M18, M19 | 9, 10 |
+
+Planned widgets are catalogue entries, not fabricated dashboard data. An inactive widget becomes available only when its source route, authorization, entitlement, empty/error states and reconciliation tests pass.
 
 ## Redesign Sequence
 

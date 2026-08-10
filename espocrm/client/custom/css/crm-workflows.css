@@ -181,7 +181,132 @@
     border-radius: 6px;
     box-shadow: none;
     margin-bottom: 16px;
-    overflow: hidden;
+    overflow: visible;
+}
+
+/* Native select and autocomplete menus must escape their current panel. */
+.nexa-crm-record-workflow .nexa-record-panel:focus-within {
+    position: relative;
+    z-index: 3;
+}
+
+.nexa-crm-record-workflow .autocomplete-suggestions,
+.nexa-crm-record-workflow .selectize-dropdown {
+    z-index: 1100;
+}
+
+.nexa-crm-record-workflow .record-buttons .actions-btn-group {
+    display: inline-flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.nexa-crm-record-workflow .record-buttons .detail-action-item {
+    align-items: center;
+    border-radius: 4px;
+    display: inline-flex;
+    gap: 18px;
+    justify-content: space-between;
+    min-height: 40px;
+    padding: 8px 16px;
+}
+
+.nexa-crm-record-workflow .record-buttons .detail-action-item[data-action="save"],
+.nexa-crm-record-workflow .record-buttons .detail-action-item[data-name="save"],
+.nexa-crm-record-workflow .record-buttons .detail-action-item[data-action="saveAndContinueEditing"],
+.nexa-crm-record-workflow .record-buttons .detail-action-item[data-name="saveAndContinueEditing"] {
+    background: #218653;
+    border-color: #1c7548;
+    color: #ffffff;
+}
+
+.nexa-crm-record-workflow .record-buttons .detail-action-item[data-action="cancel"],
+.nexa-crm-record-workflow .record-buttons .detail-action-item[data-name="cancel"] {
+    background: #344147;
+    border-color: #344147;
+    color: #ffffff;
+}
+
+.nexa-profile-image-field .attachment-upload {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.nexa-profile-image-field .attachment-button,
+.nexa-profile-image-field .attachment-button .pull-left {
+    float: none !important;
+}
+
+.nexa-profile-image-field .attachment {
+    order: -1;
+}
+
+.nexa-profile-image-placeholder,
+.nexa-profile-image-preview,
+.nexa-profile-image-field .attachment .preview img {
+    border: 1px solid #cbd8dc;
+    border-radius: 50%;
+    height: 112px;
+    object-fit: cover;
+    width: 112px;
+}
+
+.nexa-profile-image-placeholder {
+    align-items: center;
+    background: #edf3f4;
+    color: #60777f;
+    display: flex;
+    font-size: 42px;
+    justify-content: center;
+}
+
+.nexa-profile-image-loading {
+    position: relative;
+}
+
+.nexa-profile-image-loading::after {
+    animation: nexa-profile-image-spin 0.8s linear infinite;
+    border: 2px solid transparent;
+    border-top-color: #218653;
+    border-radius: 50%;
+    content: '';
+    inset: 5px;
+    position: absolute;
+}
+
+@keyframes nexa-profile-image-spin {
+    to { transform: rotate(360deg); }
+}
+
+.nexa-profile-image-field .gray-box {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    position: relative;
+}
+
+.nexa-profile-image-field .remove-attachment {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #cbd8dc;
+    border-radius: 50%;
+    display: flex;
+    height: 28px;
+    justify-content: center;
+    position: absolute;
+    right: -4px;
+    top: -4px;
+    width: 28px;
+    z-index: 1;
+}
+
+.cell[data-name="preferredTimeZone"] .selectize-input.nexa-time-zone-search-open > input {
+    display: inline-block !important;
+    min-width: 180px !important;
+    opacity: 1 !important;
+    width: 100% !important;
 }
 
 .nexa-crm-record-workflow .nexa-record-panel > .panel-heading {
@@ -301,6 +426,14 @@
 }
 
 @media (max-width: 767px) {
+    .nexa-contact-name > [class*="col-"] {
+        margin-bottom: 8px;
+    }
+
+    .nexa-contact-name > [class*="col-"]:last-child {
+        margin-bottom: 0;
+    }
+
     .nexa-crm-list-workflow .nexa-list-toolbar {
         align-items: stretch;
         padding: 8px;

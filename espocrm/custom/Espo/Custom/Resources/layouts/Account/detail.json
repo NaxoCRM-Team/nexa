@@ -1,0 +1,10 @@
+[
+    {"label": "Overview", "rows": [
+        [{"name": "name"}, {"name": "website"}], [{"name": "emailAddress"}, {"name": "phoneNumber"}],
+        [{"name": "type"}, {"name": "industry"}], [{"name": "parentAccount"}, {"name": "numberOfEmployees"}],
+        [{"name": "annualRevenue"}, {"name": "leadScore"}]
+    ]},
+    {"label": "Address", "rows": [[{"name": "billingAddress"}, {"name": "shippingAddress"}]]},
+    {"label": "Ownership", "rows": [[{"name": "assignedUser"}, {"name": "teams"}]]},
+    {"label": "Additional Information", "rows": [[{"name": "description", "fullWidth": true}]]}
+]

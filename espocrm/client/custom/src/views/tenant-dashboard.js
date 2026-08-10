@@ -1,4 +1,7 @@
-define('custom:views/tenant-dashboard', ['views/dashboard'], DashboardView => class extends DashboardView {
+define('custom:views/tenant-dashboard', [
+    'views/dashboard',
+    'custom:product-surface-registry',
+], (DashboardView, productSurfaceRegistry) => class extends DashboardView {
     template = 'custom:tenant-dashboard';
 
     setupCurrentTabLayout() {
@@ -137,7 +140,11 @@ define('custom:views/tenant-dashboard', ['views/dashboard'], DashboardView => cl
         const tenant = this.getHelper().getAppParam('nexaTenant') || {};
         const firstName = this.getUser().get('firstName') || this.getUser().get('userName') || 'there';
 
-        return {...data, tenant, firstName};
+        const activeNames = new Set((this.dashboardLayout || []).map(item => item.name));
+        const plannedDashboardWorkspaces = productSurfaceRegistry.dashboards
+            .filter(item => !item.active && !activeNames.has(item.name));
+
+        return {...data, tenant, firstName, plannedDashboardWorkspaces};
     }
 
     afterRender() {
