@@ -6,7 +6,8 @@
         "client/custom/css/tenant-workspace.css",
         "client/custom/css/tenant-search.css",
         "client/custom/css/crm-workflows.css",
-        "client/custom/css/tenant-dashboard.css"
+        "client/custom/css/tenant-dashboard.css",
+        "client/custom/css/contact-import.css"
     ],
     "scriptList": [
         "__APPEND__",
