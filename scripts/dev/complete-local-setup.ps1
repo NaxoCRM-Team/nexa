@@ -26,6 +26,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Authentication experience configuration failed
 & $PhpPath (Join-Path $PSScriptRoot 'install-development-seeds.php')
 if ($LASTEXITCODE -ne 0) { throw 'Development seed installation failed.' }
 
+# Espo stores searchable countries as records; the base SQL fixture contains
+# the table but not its locale-backed catalogue.
+& $PhpPath (Join-Path $root 'espocrm\bin\populate-address-countries.php')
+if ($LASTEXITCODE -ne 0) { throw 'Address country catalogue installation failed.' }
+
 & (Join-Path $PSScriptRoot 'provision-demo-tenants.ps1') `
     -Mode Local `
     -PhpPath $PhpPath `

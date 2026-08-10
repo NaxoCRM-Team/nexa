@@ -1,5 +1,8 @@
 {
     "nexaTenant": {
         "className": "Espo\\Custom\\Tools\\App\\AppParams\\TenantIdentity"
+    },
+    "addressSubdivisionData": {
+        "className": "Espo\\Custom\\Classes\\AppParams\\AddressSubdivisionData"
     }
 }

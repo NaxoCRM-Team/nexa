@@ -46,6 +46,13 @@
 .nexa-dashboard .dashboard-tabs { display: flex; gap: 2px; }
 .nexa-dashboard .dashboard-tabs .btn { border-bottom: 2px solid transparent; color: #52646b; font-weight: 700; }
 .nexa-dashboard .dashboard-tabs .btn.active { border-bottom-color: #16758a; color: #17353d; }
+.nexa-dashboard .dashboard-tabs .nexa-planned-dashboard-tab,
+.nexa-dashboard .dashboard-tabs .nexa-planned-dashboard-tab:disabled {
+    border-bottom-color: transparent;
+    color: #819198;
+    cursor: not-allowed;
+    opacity: .62;
+}
 .nexa-dashboard > .dashlets { min-height: 260px; }
 .nexa-dashboard .dashlets.fallback > div { margin-bottom: 14px; }
 .nexa-dashboard .grid-stack-item-content { overflow: hidden; }

@@ -1,0 +1,31 @@
+{
+    "fields": {
+        "profileImage": "Profile Image", "department": "Department", "website": "Website",
+        "facebookUrl": "Facebook", "instagramUrl": "Instagram", "skypeName": "Skype",
+        "xUrl": "X / Twitter", "linkedinUrl": "LinkedIn", "tiktokUrl": "TikTok",
+        "tags": "Tags", "preferredTimeZone": "Preferred Time Zone",
+        "lastWebsiteVisitAt": "Last Website Visit",
+        "source": "Contact Source", "leadStatus": "Lead Status",
+        "marketingStatus": "Marketing Status", "leadScore": "Lead Score",
+        "title": "Account Title", "targetLists": "Segments"
+    },
+    "options": {
+        "source": {"Direct": "Direct", "Organic Search": "Organic Search", "Paid Search": "Paid Search", "Email Marketing": "Email Marketing", "Social Media": "Social Media", "Referral": "Referral", "Partner": "Partner", "Event": "Event", "Import": "Import", "Other": "Other"},
+        "leadStatus": {"New": "New", "Open": "Open", "Qualified": "Qualified", "Unqualified": "Unqualified"},
+        "marketingStatus": {"Marketing": "Marketing", "Non-Marketing": "Non-Marketing", "Unsubscribed": "Unsubscribed"}
+    },
+    "tooltips": {
+        "marketingStatus": "Controls whether this contact may be included in marketing audiences. Unsubscribed contacts must not receive marketing messages.",
+        "leadScore": "An automation-calculated engagement and qualification score. It increases or decreases when configured scoring rules process customer activity.",
+        "lastWebsiteVisitAt": "The latest identified website visit received by Nexa tracking. Anonymous visits are not attached until the visitor can be matched to this contact.",
+        "title": "The contact's role or position at the selected primary account.",
+        "targetLists": "Static marketing and customer groups assigned to this contact. Dynamic segments will be managed by segmentation rules."
+    },
+    "labels": {
+        "Create Contact": "New Contact",
+        "New Contact": "New Contact",
+        "Upload profile image": "Upload profile image",
+        "Contact profile image": "Contact profile image",
+        "Contact profile preview": "Contact profile preview"
+    }
+}

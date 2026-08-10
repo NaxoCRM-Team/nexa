@@ -1,0 +1,7 @@
+{
+    "fields": {
+        "annualRevenue": "Annual Revenue", "numberOfEmployees": "Number of Employees",
+        "parentAccount": "Parent Company", "subsidiaries": "Subsidiaries", "leadScore": "Lead Score"
+    },
+    "links": {"parentAccount": "Parent Company", "subsidiaries": "Subsidiaries"}
+}

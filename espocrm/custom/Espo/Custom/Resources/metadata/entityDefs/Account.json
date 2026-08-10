@@ -1,0 +1,13 @@
+{
+    "fields": {
+        "annualRevenue": {"type": "currency", "min": 0},
+        "numberOfEmployees": {"type": "int", "min": 0},
+        "parentAccount": {"type": "link"},
+        "subsidiaries": {"type": "linkMultiple", "readOnly": true},
+        "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true}
+    },
+    "links": {
+        "parentAccount": {"type": "belongsTo", "entity": "Account", "foreign": "subsidiaries"},
+        "subsidiaries": {"type": "hasMany", "entity": "Account", "foreign": "parentAccount"}
+    }
+}

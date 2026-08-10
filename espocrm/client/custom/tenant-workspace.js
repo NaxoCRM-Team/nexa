@@ -1,10 +1,10 @@
-require(['views/site/navbar'], NavbarView => {
+require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, productSurfaceRegistry) => {
     const defaultData = NavbarView.prototype.data;
     const defaultAfterRender = NavbarView.prototype.afterRender;
     // Keep navigation organized around daily workspaces. Existing Espo screens are
     // reused by scope name; missing Nexa screens remain visibly disabled until their
     // routes and permission contracts are delivered.
-    const workspaceNavigation = [
+    const legacyWorkspaceNavigation = [
         {
             name: 'nexa-crm',
             label: 'CRM',
@@ -13,8 +13,10 @@ require(['views/site/navbar'], NavbarView => {
                 'Account',
                 'Contact',
                 'Lead',
+                ['nexa-customer-360', 'Customer 360'],
                 ['nexa-customer-timeline', 'Customer Timeline'],
                 ['nexa-lists-segments', 'Lists & Segments'],
+                ['nexa-lifecycle', 'Lifecycle'],
                 ['nexa-custom-objects', 'Custom Objects'],
             ],
         },
@@ -49,9 +51,6 @@ require(['views/site/navbar'], NavbarView => {
                 ['nexa-landing-pages', 'Landing Pages'],
                 ['nexa-content-assets', 'Content & Assets'],
                 ['nexa-marketing-events', 'Marketing Events'],
-                ['nexa-social', 'Social'],
-                ['nexa-advertising', 'Advertising'],
-                ['nexa-seo-content', 'SEO'],
                 ['nexa-experiments', 'Experiments'],
             ],
         },
@@ -76,10 +75,21 @@ require(['views/site/navbar'], NavbarView => {
                 'Email',
                 'KnowledgeBaseArticle',
                 ['nexa-shared-inbox', 'Shared Inbox'],
-                ['nexa-live-chat-bots', 'Live Chat & Bots'],
                 ['nexa-service-queues', 'Queues & SLAs'],
                 ['nexa-customer-portal', 'Customer Portal'],
-                ['nexa-messaging', 'SMS & WhatsApp'],
+            ],
+        },
+        {
+            name: 'nexa-channels',
+            label: 'Channels',
+            iconClass: 'fas fa-broadcast-tower',
+            items: [
+                ['nexa-live-chat', 'Live Chat'],
+                ['nexa-conversational-bots', 'Bots'],
+                ['nexa-sms', 'SMS'],
+                ['nexa-whatsapp', 'WhatsApp'],
+                ['nexa-social', 'Social Media'],
+                ['nexa-advertising', 'Advertising'],
             ],
         },
         {
@@ -94,6 +104,10 @@ require(['views/site/navbar'], NavbarView => {
                 ['nexa-journey-analytics', 'Journey Analytics'],
                 ['nexa-website-traffic', 'Website Traffic'],
                 ['nexa-email-performance', 'Email Performance'],
+                ['nexa-sales-analytics', 'Sales Analytics'],
+                ['nexa-service-analytics', 'Service Analytics'],
+                ['nexa-customer-analytics', 'Customer Analytics'],
+                ['nexa-seo-analytics', 'SEO Analytics'],
             ],
         },
         {
@@ -103,12 +117,14 @@ require(['views/site/navbar'], NavbarView => {
             items: [
                 ['nexa-tracking-events', 'Tracking & Events'],
                 ['nexa-data-quality', 'Data Quality'],
+                ['nexa-consent-privacy', 'Consent & Privacy'],
                 ['nexa-import-export', 'Import & Export'],
                 ['nexa-integrations', 'Integrations'],
                 ['nexa-api-webhooks', 'API & Webhooks'],
             ],
         },
     ];
+    const workspaceNavigation = productSurfaceRegistry.navigation || legacyWorkspaceNavigation;
 
     const createPlannedModule = ([name, label]) => ({
         name,

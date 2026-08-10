@@ -1,0 +1,30 @@
+{
+    "fields": {
+        "name": {"view": "custom:views/contact/fields/name"},
+        "address": {"view": "custom:views/contact/fields/address"},
+        "profileImage": {
+            "type": "image",
+            "view": "custom:views/contact/fields/profile-image",
+            "previewSize": "medium",
+            "showPreview": true,
+            "accept": ["image/jpeg", "image/png", "image/webp", "image/gif"],
+            "maxFileSize": 5
+        },
+        "targetLists": {"layoutDetailDisabled": false, "noLoad": false, "tooltip": true},
+        "department": {"type": "varchar", "maxLength": 120},
+        "website": {"type": "url"},
+        "facebookUrl": {"type": "url"},
+        "instagramUrl": {"type": "url"},
+        "skypeName": {"type": "varchar", "maxLength": 100},
+        "xUrl": {"type": "url"},
+        "linkedinUrl": {"type": "url"},
+        "tiktokUrl": {"type": "url"},
+        "tags": {"type": "array", "allowCustomOptions": true, "displayAsList": true, "maxCount": 30, "maxItemLength": 80},
+        "preferredTimeZone": {"type": "enum", "view": "custom:views/contact/fields/preferred-time-zone"},
+        "lastWebsiteVisitAt": {"type": "datetime", "readOnly": true, "tooltip": true},
+        "source": {"type": "enum", "options": ["", "Direct", "Organic Search", "Paid Search", "Email Marketing", "Social Media", "Referral", "Partner", "Event", "Import", "Other"]},
+        "leadStatus": {"type": "enum", "options": ["", "New", "Open", "Qualified", "Unqualified"]},
+        "marketingStatus": {"type": "enum", "options": ["Marketing", "Non-Marketing", "Unsubscribed"], "default": "Non-Marketing", "tooltip": true},
+        "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true, "tooltip": true}
+    }
+}

@@ -1,0 +1,24 @@
+[
+    {"label": "Overview", "rows": [
+        [{"name": "name", "fullWidth": true}],
+        [{"name": "accounts", "fullWidth": true}],
+        [{"name": "department"}, {"name": "website"}],
+        [{"name": "emailAddress"}, {"name": "phoneNumber"}],
+        [{"name": "tags", "fullWidth": true}]
+    ]},
+    {"label": "Social Profiles", "rows": [
+        [{"name": "linkedinUrl"}, {"name": "facebookUrl"}],
+        [{"name": "instagramUrl"}, {"name": "xUrl"}],
+        [{"name": "tiktokUrl"}, {"name": "skypeName"}]
+    ]},
+    {"label": "Lifecycle & Marketing", "rows": [
+        [{"name": "source"}, {"name": "leadStatus"}],
+        [{"name": "marketingStatus"}, {"name": "leadScore"}],
+        [{"name": "targetLists", "fullWidth": true}]
+    ]},
+    {"label": "Location & Preferences", "rows": [
+        [{"name": "address", "fullWidth": true}],
+        [{"name": "preferredTimeZone"}, {"name": "lastWebsiteVisitAt"}]
+    ]},
+    {"label": "Additional Information", "rows": [[{"name": "description", "fullWidth": true}]]}
+]
