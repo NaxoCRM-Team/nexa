@@ -87,6 +87,26 @@
         "actionClassName":  "Espo\\Custom\\Tools\\Contact\\Api\\GetProfileImage"
     },
     {
+        "route": "/Nexa/contact-import/template",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactImport\\Api\\GetTemplate"
+    },
+    {
+        "route": "/Nexa/contact-import/preview",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactImport\\Api\\PostPreview"
+    },
+    {
+        "route": "/Nexa/contact-import/preview-page",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactImport\\Api\\PostPreviewPage"
+    },
+    {
+        "route": "/Nexa/contact-import/confirm",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactImport\\Api\\PostConfirm"
+    },
+    {
         "route":  "/Nexa/auth/recovery",
         "method":  "post",
         "actionClassName":  "Espo\\Custom\\Tools\\Auth\\Api\\PostRecovery",

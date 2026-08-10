@@ -1,4 +1,5 @@
 {
+    "controller": "custom:controllers/contact",
     "views": {
         "edit": "custom:views/contact/edit"
     },

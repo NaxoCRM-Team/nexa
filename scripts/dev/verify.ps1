@@ -49,6 +49,7 @@ $required = @(
     'tests/browser/fixtures/search-navigation.html',
     'tests/workflows/CommonCrmWorkflowTest.php', 'tests/browser/crm-workflows.spec.js',
     'tests/browser/fixtures/crm-workflows.html',
+    'tests/workflows/ContactImportContractTest.php',
     'espocrm/client/custom/src/views/tenant-dashboard.js',
     'espocrm/client/custom/src/views/global-search/global-search.js',
     'espocrm/client/custom/src/views/global-search/panel.js',
@@ -158,6 +159,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\PortableS
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\search\GlobalSearchTenantTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Tools\GlobalSearch\Service.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -192,6 +194,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Global search tenant contract suite' } else { Fail 'Global search tenant contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Common CRM workflow contract suite' } else { Fail 'Common CRM workflow contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Contact import contract suite' } else { Fail 'Contact import contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')

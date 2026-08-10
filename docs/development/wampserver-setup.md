@@ -20,7 +20,17 @@ tenant-scoped CRM demo data.
 
 From the WampServer tray menu, select PHP 8.2 and enable `curl`, `gd`, `intl`,
 `mbstring`, `mysqli`, `openssl`, `pdo_mysql`, and `zip`. Set
-`max_execution_time` and `max_input_time` to at least `180`.
+`max_execution_time` and `max_input_time` to at least `180`. Contact CSV
+imports accept files up to 65 MB, so also set the active Apache `php.ini` to:
+
+```ini
+memory_limit = 256M
+post_max_size = 70M
+upload_max_filesize = 65M
+```
+
+Restart Apache after changing these values. The application still rejects any
+Contact CSV larger than 65 MB even when PHP permits the request body.
 
 Use MariaDB on port `3306`. Stop MySQL or assign it another port so the two
 database servers do not compete. Apache must listen on port `80` for the exact
@@ -232,6 +242,13 @@ must return `200`.
 The Wamp tray-selected PHP version and `$php -v` must both report PHP 8.2.x.
 Restart Apache after changing PHP. Check the active Apache `php.ini` and confirm
 its `extension_dir` points to the same PHP 8.2 folder.
+
+### Contact CSV Stops Before Validation
+
+Confirm the Wamp tray-selected Apache `php.ini` has `post_max_size = 70M`,
+`upload_max_filesize = 65M`, and `memory_limit = 256M`, then restart Apache.
+PHP discards an oversized request body before Nexa can return its normal CSV
+validation message.
 
 ### MariaDB Will Not Start
 
