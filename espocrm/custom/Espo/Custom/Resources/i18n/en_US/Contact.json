@@ -5,13 +5,17 @@
         "xUrl": "X / Twitter", "linkedinUrl": "LinkedIn", "tiktokUrl": "TikTok",
         "tags": "Tags", "preferredTimeZone": "Preferred Time Zone",
         "lastWebsiteVisitAt": "Last Website Visit",
-        "source": "Contact Source", "leadStatus": "Lead Status",
+        "source": "Contact Source", "lifecycleStage": "Lifecycle Stage", "leadStatus": "Lead Status",
         "marketingStatus": "Marketing Status", "leadScore": "Lead Score",
-        "title": "Account Title", "targetLists": "Segments"
+        "legalBasis": "Legal Basis for Processing Contact's Data",
+        "title": "Account Title", "targetLists": "Segments",
+        "address": "Location", "createdAt": "Created Date and Time"
     },
     "options": {
         "source": {"Direct": "Direct", "Organic Search": "Organic Search", "Paid Search": "Paid Search", "Email Marketing": "Email Marketing", "Social Media": "Social Media", "Referral": "Referral", "Partner": "Partner", "Event": "Event", "Import": "Import", "Other": "Other"},
-        "leadStatus": {"New": "New", "Open": "Open", "Qualified": "Qualified", "Unqualified": "Unqualified"},
+        "lifecycleStage": {"Subscriber": "Subscriber", "Lead": "Lead", "MarketingQualifiedLead": "Marketing Qualified Lead", "SalesQualifiedLead": "Sales Qualified Lead", "Opportunity": "Opportunity", "Customer": "Customer", "Evangelist": "Evangelist", "Other": "Other"},
+        "leadStatus": {"New": "New", "Open": "Open", "InProgress": "In Progress", "OpenDeal": "Open Deal", "Unqualified": "Unqualified", "AttemptedToContact": "Attempted to Contact", "Connected": "Connected", "BadTiming": "Bad Timing"},
+        "legalBasis": {"LegitimateInterestLead": "Legitimate Interest - Lead", "LegitimateInterestCustomer": "Legitimate Interest - Customer", "LegitimateInterestOther": "Legitimate Interest - Other", "PerformanceOfContract": "Performance of a Contract", "FreelyGivenConsent": "Freely Given Consent from Contact", "NotApplicable": "Not Applicable"},
         "marketingStatus": {"Marketing": "Marketing", "Non-Marketing": "Non-Marketing", "Unsubscribed": "Unsubscribed"}
     },
     "tooltips": {

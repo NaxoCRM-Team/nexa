@@ -1,6 +1,6 @@
 {
     "fields": {
-        "name": {"view": "custom:views/contact/fields/name"},
+        "name": {"view": "custom:views/contact/fields/name-v2"},
         "address": {"view": "custom:views/contact/fields/address"},
         "profileImage": {
             "type": "image",
@@ -23,8 +23,10 @@
         "preferredTimeZone": {"type": "enum", "view": "custom:views/contact/fields/preferred-time-zone"},
         "lastWebsiteVisitAt": {"type": "datetime", "readOnly": true, "tooltip": true},
         "source": {"type": "enum", "options": ["", "Direct", "Organic Search", "Paid Search", "Email Marketing", "Social Media", "Referral", "Partner", "Event", "Import", "Other"]},
-        "leadStatus": {"type": "enum", "options": ["", "New", "Open", "Qualified", "Unqualified"]},
+        "lifecycleStage": {"type": "enum", "options": ["", "Subscriber", "Lead", "MarketingQualifiedLead", "SalesQualifiedLead", "Opportunity", "Customer", "Evangelist", "Other"]},
+        "leadStatus": {"type": "enum", "options": ["", "New", "Open", "InProgress", "OpenDeal", "Unqualified", "AttemptedToContact", "Connected", "BadTiming"]},
         "marketingStatus": {"type": "enum", "options": ["Marketing", "Non-Marketing", "Unsubscribed"], "default": "Non-Marketing", "tooltip": true},
-        "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true, "tooltip": true}
+        "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true, "tooltip": true},
+        "legalBasis": {"type": "enum", "options": ["", "LegitimateInterestLead", "LegitimateInterestCustomer", "LegitimateInterestOther", "PerformanceOfContract", "FreelyGivenConsent", "NotApplicable"]}
     }
 }

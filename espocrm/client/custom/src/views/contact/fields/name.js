@@ -5,5 +5,12 @@ define('custom:views/contact/fields/name', ['views/fields/person-name'], Dep => 
      */
     return class extends Dep {
         editTemplate = 'custom:contact/fields/name/edit';
+
+        data() {
+            return {
+                ...super.data(),
+                hideSalutation: this.model.isNew(),
+            };
+        }
     };
 });

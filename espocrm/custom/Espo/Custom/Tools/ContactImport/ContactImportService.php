@@ -9,16 +9,22 @@ use Espo\Entities\Attachment;
 use Espo\ORM\EntityManager;
 use Espo\Tools\Import\Params;
 use Espo\Tools\Import\Service as ImportService;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 /**
- * Validates the narrow Contact CSV contract before handing a tenant-scoped
- * attachment to Espo's standard, audited import engine.
+ * Converts supported tabular files into one narrow Contact CSV contract before
+ * handing a tenant-scoped attachment to Espo's audited import engine.
  */
 class ContactImportService
 {
     public const MAX_FILE_BYTES = 65 * 1024 * 1024;
     public const DEFAULT_ROW_LIMIT = 5000;
     public const MAX_ROW_LIMIT = 100000;
+
+    /** @var string[] */
+    public const SUPPORTED_EXTENSIONS = ['csv', 'xlsx', 'xls'];
 
     /** @var string[] */
     public const HEADER = [
@@ -44,6 +50,49 @@ class ContactImportService
         'tiktok_url',
     ];
 
+    /** @var array<string, string> */
+    private const SOURCE_MAP = [
+        'direct' => 'Direct',
+        'website' => 'Direct',
+        'organic search' => 'Organic Search',
+        'paid search' => 'Paid Search',
+        'email marketing' => 'Email Marketing',
+        'email campaign' => 'Email Marketing',
+        'social media' => 'Social Media',
+        'linkedin' => 'Social Media',
+        'facebook' => 'Social Media',
+        'instagram' => 'Social Media',
+        'x' => 'Social Media',
+        'twitter' => 'Social Media',
+        'referral' => 'Referral',
+        'partner' => 'Partner',
+        'event' => 'Event',
+        'trade show' => 'Event',
+        'import' => 'Import',
+        'cold call' => 'Other',
+        'other' => 'Other',
+    ];
+
+    /** @var array<string, string> */
+    private const LEAD_STATUS_MAP = [
+        'new' => 'New',
+        'open' => 'Open',
+        'in progress' => 'InProgress',
+        'inprogress' => 'InProgress',
+        'open deal' => 'OpenDeal',
+        'opendeal' => 'OpenDeal',
+        'unqualified' => 'Unqualified',
+        'attempted to contact' => 'AttemptedToContact',
+        'attemptedtocontact' => 'AttemptedToContact',
+        'connected' => 'Connected',
+        'bad timing' => 'BadTiming',
+        'badtiming' => 'BadTiming',
+        'contacted' => 'Connected',
+        'qualified' => 'Open',
+        'proposal sent' => 'OpenDeal',
+        'won' => 'OpenDeal',
+    ];
+
     public function __construct(
         private ImportService $importService,
         private EntityManager $entityManager,
@@ -57,8 +106,11 @@ class ContactImportService
         $result = $this->validate($contents, $fileName, $rowLimit);
 
         if ($result['valid']) {
-            $result['attachmentId'] = $this->importService->uploadFile($contents);
+            $normalizedContents = (string) ($result['_normalizedContents'] ?? $contents);
+            $result['attachmentId'] = $this->importService->uploadFile($normalizedContents);
         }
+
+        unset($result['_normalizedContents']);
 
         return $result;
     }
@@ -71,7 +123,7 @@ class ContactImportService
         $validation = $this->validate($contents, 'contacts.csv', $rowLimit);
 
         if (!$validation['valid']) {
-            throw new BadRequest('The Contact CSV is no longer valid. Validate it again.');
+            throw new BadRequest('The Contact import file is no longer valid. Validate it again.');
         }
 
         $params = Params::create()
@@ -91,6 +143,7 @@ class ContactImportService
             'updated' => $result->getCountUpdated(),
             'duplicates' => $result->getCountDuplicate(),
             'errors' => $result->getCountError(),
+            'errorDetails' => $this->getImportErrorDetails($result->getId()),
         ];
     }
 
@@ -187,21 +240,38 @@ class ContactImportService
         $rowCount = 0;
         $seenEmails = [];
         $accountNames = [];
+        $normalizedRows = [];
 
-        if (!str_ends_with(strtolower(trim($fileName)), '.csv')) {
-            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'Choose a file with a .csv extension.'];
+        $extension = strtolower(pathinfo(trim($fileName), PATHINFO_EXTENSION));
+
+        if (!in_array($extension, self::SUPPORTED_EXTENSIONS, true)) {
+            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'Choose a .csv, .xlsx or .xls file.'];
         }
 
         $size = strlen($contents);
 
         if ($size === 0) {
-            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'The CSV file is empty.'];
+            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'The import file is empty.'];
         } elseif ($size > self::MAX_FILE_BYTES) {
-            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'The CSV file exceeds the 65 MB limit.'];
+            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'The import file exceeds the 65 MB limit.'];
         }
 
         if ($errors) {
             return $this->validationResult(false, $rowCount, $rowLimit, $preview, $errors);
+        }
+
+        if ($extension !== 'csv') {
+            try {
+                $contents = $this->convertSpreadsheetToCsv($contents, $extension, $rowLimit);
+            } catch (\Throwable) {
+                $errors[] = [
+                    'row' => 0,
+                    'field' => 'file',
+                    'message' => 'The spreadsheet could not be read. Check that it is a valid, unencrypted Excel file.',
+                ];
+
+                return $this->validationResult(false, $rowCount, $rowLimit, $preview, $errors);
+            }
         }
 
         if (str_starts_with($contents, "\xEF\xBB\xBF")) {
@@ -209,7 +279,7 @@ class ContactImportService
         }
 
         if (!mb_check_encoding($contents, 'UTF-8')) {
-            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'Save the CSV using UTF-8 encoding.'];
+            $errors[] = ['row' => 0, 'field' => 'file', 'message' => 'Save text content using UTF-8 encoding.'];
 
             return $this->validationResult(false, $rowCount, $rowLimit, $preview, $errors);
         }
@@ -271,6 +341,8 @@ class ContactImportService
             }
 
             $this->validateRecord($record, $lineNumber, $seenEmails, $errors);
+            $this->normalizeRecord($record, $lineNumber, $errors);
+            $normalizedRows[] = $record;
 
             if ($record['account_name'] !== '') {
                 $accountNames[$record['account_name']] = true;
@@ -299,6 +371,7 @@ class ContactImportService
         $accountMatch = $this->matchAccounts(array_keys($accountNames));
         $result = $this->validationResult(!$errors, $rowCount, $rowLimit, $preview, $errors);
         $result['accountMatch'] = $accountMatch;
+        $result['_normalizedContents'] = $this->encodeCsv($normalizedRows);
 
         return $result;
     }
@@ -337,6 +410,221 @@ class ContactImportService
                 $errors[] = ['row' => $lineNumber, 'field' => $field, 'message' => 'Enter a complete URL including https://.'];
             }
         }
+    }
+
+    /**
+     * Converts familiar CRM labels into the canonical enum values persisted by
+     * Nexa. Unknown labels fail during preview instead of becoming opaque
+     * native-import errors after confirmation.
+     *
+     * @param array<string, string> $record
+     * @param array<int, array<string, int|string>> $errors
+     */
+    private function normalizeRecord(array &$record, int $lineNumber, array &$errors): void
+    {
+        $record['contact_source'] = $this->normalizeEnumValue(
+            $record['contact_source'],
+            self::SOURCE_MAP,
+            $lineNumber,
+            'contact_source',
+            $errors
+        );
+        $record['lead_status'] = $this->normalizeEnumValue(
+            $record['lead_status'],
+            self::LEAD_STATUS_MAP,
+            $lineNumber,
+            'lead_status',
+            $errors
+        );
+    }
+
+    /**
+     * @param array<string, string> $map
+     * @param array<int, array<string, int|string>> $errors
+     */
+    private function normalizeEnumValue(
+        string $value,
+        array $map,
+        int $lineNumber,
+        string $field,
+        array &$errors
+    ): string {
+        if ($value === '') {
+            return '';
+        }
+
+        $key = strtolower(trim($value));
+
+        if (isset($map[$key])) {
+            return $map[$key];
+        }
+
+        $errors[] = [
+            'row' => $lineNumber,
+            'field' => $field,
+            'message' => "The value '{$value}' is not supported. Use a value from the Contact form.",
+        ];
+
+        return $value;
+    }
+
+    /** @param array<int, array<string, string>> $rows */
+    private function encodeCsv(array $rows): string
+    {
+        $stream = fopen('php://temp', 'w+b');
+
+        if ($stream === false) {
+            throw new BadRequest('Could not prepare the normalized Contact CSV.');
+        }
+
+        fputcsv($stream, self::HEADER, ',', '"', '\\');
+
+        foreach ($rows as $row) {
+            fputcsv(
+                $stream,
+                array_map(static fn (string $header): string => $row[$header] ?? '', self::HEADER),
+                ',',
+                '"',
+                '\\'
+            );
+        }
+
+        rewind($stream);
+        $contents = stream_get_contents($stream);
+        fclose($stream);
+
+        if (!is_string($contents)) {
+            throw new BadRequest('Could not prepare the normalized Contact CSV.');
+        }
+
+        return $contents;
+    }
+
+    /**
+     * Reads only the first worksheet and only enough rows to enforce the
+     * selected limit. The result then follows the same validation and import
+     * path as a CSV upload.
+     */
+    private function convertSpreadsheetToCsv(
+        string $contents,
+        string $extension,
+        int $rowLimit
+    ): string {
+        $basePath = tempnam(sys_get_temp_dir(), 'nexa-contact-import-');
+
+        if ($basePath === false) {
+            throw new BadRequest('Could not prepare the spreadsheet for validation.');
+        }
+
+        $filePath = $basePath . '.' . $extension;
+
+        if (!rename($basePath, $filePath) || file_put_contents($filePath, $contents) === false) {
+            @unlink($basePath);
+            @unlink($filePath);
+            throw new BadRequest('Could not prepare the spreadsheet for validation.');
+        }
+
+        $spreadsheet = null;
+
+        try {
+            $reader = IOFactory::createReaderForFile($filePath);
+            $worksheetNames = $reader->listWorksheetNames($filePath);
+
+            if (!$worksheetNames) {
+                throw new BadRequest('The spreadsheet does not contain a worksheet.');
+            }
+
+            $reader->setReadDataOnly(true);
+            $reader->setLoadSheetsOnly($worksheetNames[0]);
+            $reader->setReadFilter(new class($rowLimit + 2) implements IReadFilter {
+                public function __construct(private int $maximumRow) {}
+
+                public function readCell($columnAddress, $row, $worksheetName = ''): bool
+                {
+                    return $row <= $this->maximumRow;
+                }
+            });
+            $spreadsheet = $reader->load($filePath);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $highestRow = min($worksheet->getHighestDataRow(), $rowLimit + 2);
+            $highestColumn = min(
+                Coordinate::columnIndexFromString($worksheet->getHighestDataColumn()),
+                count(self::HEADER) + 1
+            );
+            $rows = [];
+
+            for ($rowIndex = 1; $rowIndex <= $highestRow; $rowIndex++) {
+                $row = [];
+
+                for ($columnIndex = 1; $columnIndex <= $highestColumn; $columnIndex++) {
+                    $row[] = trim((string) $worksheet
+                        ->getCellByColumnAndRow($columnIndex, $rowIndex)
+                        ->getFormattedValue());
+                }
+
+                $rows[] = $row;
+            }
+
+            return $this->encodeRawCsvRows($rows);
+        } finally {
+            if ($spreadsheet !== null) {
+                $spreadsheet->disconnectWorksheets();
+            }
+
+            @unlink($filePath);
+        }
+    }
+
+    /** @param array<int, array<int, string>> $rows */
+    private function encodeRawCsvRows(array $rows): string
+    {
+        $stream = fopen('php://temp', 'w+b');
+
+        if ($stream === false) {
+            throw new BadRequest('Could not convert the spreadsheet.');
+        }
+
+        foreach ($rows as $row) {
+            fputcsv($stream, $row, ',', '"', '\\');
+        }
+
+        rewind($stream);
+        $contents = stream_get_contents($stream);
+        fclose($stream);
+
+        if (!is_string($contents)) {
+            throw new BadRequest('Could not convert the spreadsheet.');
+        }
+
+        return $contents;
+    }
+
+    /** @return array<int, array<string, int|string>> */
+    private function getImportErrorDetails(string $importId): array
+    {
+        $details = [];
+        $collection = $this->entityManager
+            ->getRDBRepository('ImportError')
+            ->where(['importId' => $importId])
+            ->order('rowIndex')
+            ->limit(0, 50)
+            ->find();
+
+        foreach ($collection as $error) {
+            $failures = $error->get('validationFailures');
+            $failure = is_array($failures) ? ($failures[0] ?? []) : [];
+            $field = is_array($failure) ? (string) ($failure['field'] ?? 'row') : 'row';
+
+            $details[] = [
+                'row' => ((int) $error->get('rowIndex')) + 1,
+                'field' => $field,
+                'message' => $error->get('type') === 'Validation'
+                    ? 'This value is not accepted by the Contact field.'
+                    : 'The row could not be imported.',
+            ];
+        }
+
+        return $details;
     }
 
     /** @param string[] $row */

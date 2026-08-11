@@ -39,6 +39,7 @@ $required = @(
     'database/shared/migrations/0011_extend_customer_company_profiles.sql',
     'database/shared/migrations/0012_extend_contact_profile_experience.sql',
     'database/shared/migrations/0013_add_contact_profile_image.sql',
+    'database/shared/migrations/0014_extend_contact_lifecycle_compliance.sql',
     'docs/architecture/existing-schema-audit.md', 'tests/architecture/SchemaRequirementsMappingTest.php',
     'tests/architecture/CustomerProfileSkeletonTest.php',
     'espocrm/bin/populate-address-countries.php',
@@ -50,6 +51,16 @@ $required = @(
     'tests/workflows/CommonCrmWorkflowTest.php', 'tests/browser/crm-workflows.spec.js',
     'tests/browser/fixtures/crm-workflows.html',
     'tests/workflows/ContactImportContractTest.php',
+    'tests/workflows/ContactListExperienceTest.php',
+    'espocrm/client/custom/src/views/contact/fields/location-list.js',
+    'espocrm/client/custom/res/templates/contact/fields/location-list.tpl',
+    'espocrm/client/custom/src/views/contact/fields/lead-status-list.js',
+    'espocrm/client/custom/res/templates/contact/fields/lead-status-list.tpl',
+    'espocrm/client/custom/src/views/contact/fields/created-at-list.js',
+    'espocrm/client/custom/img/flags/LICENSE.flag-icons',
+    'espocrm/client/custom/img/flags/4x3/gb.svg',
+    'espocrm/client/custom/img/flags/4x3/ng.svg',
+    'espocrm/client/custom/img/flags/4x3/us.svg',
     'espocrm/client/custom/src/views/tenant-dashboard.js',
     'espocrm/client/custom/src/views/global-search/global-search.js',
     'espocrm/client/custom/src/views/global-search/panel.js',
@@ -160,6 +171,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\search\GlobalSearchTe
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Tools\GlobalSearch\Service.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactListExperienceTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -196,6 +208,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Common CRM workflow contract suite' } else { Fail 'Common CRM workflow contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Contact import contract suite' } else { Fail 'Contact import contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ContactListExperienceTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Contact list experience contract suite' } else { Fail 'Contact list experience contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
