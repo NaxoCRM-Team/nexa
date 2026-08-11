@@ -7,6 +7,15 @@ define('custom:views/contact/record/edit-v2', ['custom:views/contact/record/edit
         setup() {
             super.setup();
             this.hideField('title', true);
+
+            if (!this.model.isNew()) {
+                return;
+            }
+
+            // These fields are populated later by enrichment or automation.
+            ['department', 'leadScore', 'lastWebsiteVisitAt'].forEach(field => {
+                this.hideField(field, true);
+            });
         }
     };
 });

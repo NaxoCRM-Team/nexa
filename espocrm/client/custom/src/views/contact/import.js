@@ -95,8 +95,10 @@ define('custom:views/contact/import', ['view'], Dep => {
             const $name = this.$el.find('[data-name="fileName"]');
             const $validate = this.$el.find('[data-action="validate"]');
 
-            if (!file.name.toLowerCase().endsWith('.csv')) {
-                $name.text('Choose a CSV file.').addClass('text-danger');
+            const extension = file.name.toLowerCase().split('.').pop();
+
+            if (!['csv', 'xlsx', 'xls'].includes(extension)) {
+                $name.text('Choose a .csv, .xlsx or .xls file.').addClass('text-danger');
                 $validate.prop('disabled', true);
                 return;
             }
@@ -138,7 +140,7 @@ define('custom:views/contact/import', ['view'], Dep => {
 
         async actionValidate() {
             if (!this.file) {
-                this.showInlineError('Choose a CSV file first.');
+                this.showInlineError('Choose a .csv, .xlsx or .xls file first.');
                 return;
             }
 
@@ -152,13 +154,14 @@ define('custom:views/contact/import', ['view'], Dep => {
             this.clearResults();
 
             try {
-                const contents = await this.file.text();
+                const contents = await this.file.arrayBuffer();
                 const result = await Espo.Ajax.request(
                     `Nexa/contact-import/preview?rowLimit=${rowLimit}`,
                     'POST',
                     contents,
                     {
-                        contentType: 'text/csv; charset=UTF-8',
+                        contentType: this.file.type || 'application/octet-stream',
+                        processData: false,
                         headers: {'X-Nexa-File-Name': encodeURIComponent(this.file.name)},
                         timeout: 180000,
                     }
@@ -170,7 +173,7 @@ define('custom:views/contact/import', ['view'], Dep => {
                 this.previewTotalPages = result.previewTotalPages || 1;
                 this.renderValidation(result);
             } catch (xhr) {
-                this.showInlineError(this.getRequestError(xhr, 'The CSV could not be validated.'));
+                this.showInlineError(this.getRequestError(xhr, 'The import file could not be validated.'));
             } finally {
                 this.setBusy(false);
             }
@@ -221,13 +224,19 @@ define('custom:views/contact/import', ['view'], Dep => {
                     rowLimit,
                 }, {timeout: 300000});
 
+                const hasErrors = result.errors > 0;
                 this.$el.find('[data-name="result"]')
-                    .removeClass('hidden alert-danger')
-                    .addClass('alert-success')
+                    .removeClass('hidden alert-danger alert-success')
+                    .addClass(hasErrors ? 'alert-danger' : 'alert-success')
                     .text(`${result.created} contacts created, ${result.duplicates} duplicates skipped, ${result.errors} errors.`);
+                this.renderErrors(result.errorDetails || []);
                 this.$el.find('[data-action="import"]').prop('disabled', true);
                 this.$el.find('[data-name="stepImport"]').addClass('is-complete');
-                Espo.Ui.success('Contact import completed.');
+                if (hasErrors) {
+                    Espo.Ui.warning('Contact import completed with errors.');
+                } else {
+                    Espo.Ui.success('Contact import completed.');
+                }
             } catch (xhr) {
                 this.showInlineError(this.getRequestError(xhr, 'The Contact import could not be completed.'));
             } finally {

@@ -1,9 +1,11 @@
 {
     "controller": "custom:controllers/contact",
     "views": {
+        "list": "custom:views/contact/list-v2",
         "edit": "custom:views/contact/edit"
     },
     "recordViews": {
-        "edit": "custom:views/contact/record/edit-v2"
+        "list": "custom:views/contact/record/list-infinite-v2",
+        "edit": "custom:views/contact/record/edit-v3"
     }
 }

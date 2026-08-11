@@ -132,6 +132,36 @@
     margin-top: 20px;
 }
 
+.nexa-import-value-notice {
+    align-items: flex-start;
+    background: #fff8e6;
+    border-left: 4px solid #b7791f;
+    color: #5f4312;
+    display: flex;
+    gap: 12px;
+    margin-top: 18px;
+    padding: 14px 16px;
+}
+
+.nexa-import-value-notice > .fas {
+    color: #a86412;
+    margin-top: 2px;
+}
+
+.nexa-import-value-notice strong {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.nexa-import-value-notice p {
+    margin: 3px 0;
+}
+
+.nexa-import-value-notice .nexa-import-value-help {
+    color: #705522;
+    margin-top: 7px;
+}
+
 .nexa-row-limit span,
 .nexa-row-limit small {
     display: block;

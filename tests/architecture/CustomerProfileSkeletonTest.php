@@ -28,10 +28,14 @@ $accountLayout = $decode('espocrm/custom/Espo/Custom/Resources/layouts/Account/d
 $migration = $read('database/shared/migrations/0011_extend_customer_company_profiles.sql');
 $contactExperienceMigration = $read('database/shared/migrations/0012_extend_contact_profile_experience.sql');
 $contactImageMigration = $read('database/shared/migrations/0013_add_contact_profile_image.sql');
+$contactLifecycleMigration = $read('database/shared/migrations/0014_extend_contact_lifecycle_compliance.sql');
 $contactProfileImageApi = $read('espocrm/custom/Espo/Custom/Tools/Contact/Api/GetProfileImage.php');
 $contactProfileImageView = $read('espocrm/client/custom/src/views/contact/fields/profile-image.js');
 $contactRecordEditView = $read('espocrm/client/custom/src/views/contact/record/edit.js');
 $contactRecordEditV2View = $read('espocrm/client/custom/src/views/contact/record/edit-v2.js');
+$contactRecordEditV3View = $read('espocrm/client/custom/src/views/contact/record/edit-v3.js');
+$contactNameView = $read('espocrm/client/custom/src/views/contact/fields/name-v2.js');
+$contactNameTemplate = $read('espocrm/client/custom/res/templates/contact/fields/name/edit-v2.tpl');
 $surfaceRegistry = $read('espocrm/client/custom/src/product-surface-registry.js');
 $addressView = $read('espocrm/client/custom/src/views/contact/fields/address.js');
 $addressData = $decode('espocrm/custom/Espo/Custom/Resources/data/address-subdivisions.json');
@@ -39,7 +43,7 @@ $appParams = $decode('espocrm/custom/Espo/Custom/Resources/metadata/app/appParam
 $countryBootstrap = $read('espocrm/bin/populate-address-countries.php');
 $localSetup = $read('scripts/dev/complete-local-setup.ps1');
 
-foreach (['profileImage', 'department', 'website', 'facebookUrl', 'instagramUrl', 'skypeName', 'xUrl', 'linkedinUrl', 'tiktokUrl', 'tags', 'preferredTimeZone', 'lastWebsiteVisitAt', 'source', 'leadStatus', 'marketingStatus', 'leadScore'] as $field) {
+foreach (['profileImage', 'department', 'website', 'facebookUrl', 'instagramUrl', 'skypeName', 'xUrl', 'linkedinUrl', 'tiktokUrl', 'tags', 'preferredTimeZone', 'lastWebsiteVisitAt', 'source', 'lifecycleStage', 'leadStatus', 'marketingStatus', 'leadScore', 'legalBasis'] as $field) {
     $assert(isset($contact['fields'][$field]), "Contact profile is missing {$field}.");
 }
 foreach (['annualRevenue', 'numberOfEmployees', 'parentAccount', 'subsidiaries', 'leadScore'] as $field) {
@@ -48,6 +52,9 @@ foreach (['annualRevenue', 'numberOfEmployees', 'parentAccount', 'subsidiaries',
 
 $assert(($contact['fields']['leadScore']['readOnly'] ?? false) === true, 'Contact lead score must be automation-owned.');
 $assert(($contact['fields']['lastWebsiteVisitAt']['readOnly'] ?? false) === true, 'Last website visit must be tracking-owned.');
+$assert(($contact['fields']['lifecycleStage']['options'] ?? []) === ['', 'Subscriber', 'Lead', 'MarketingQualifiedLead', 'SalesQualifiedLead', 'Opportunity', 'Customer', 'Evangelist', 'Other'], 'Contact lifecycle options must match the product lifecycle.');
+$assert(($contact['fields']['leadStatus']['options'] ?? []) === ['', 'New', 'Open', 'InProgress', 'OpenDeal', 'Unqualified', 'AttemptedToContact', 'Connected', 'BadTiming'], 'Contact lead-status options must match the operating workflow.');
+$assert(($contact['fields']['legalBasis']['options'] ?? []) === ['', 'LegitimateInterestLead', 'LegitimateInterestCustomer', 'LegitimateInterestOther', 'PerformanceOfContract', 'FreelyGivenConsent', 'NotApplicable'], 'Contact legal-basis options must match the consent classification contract.');
 $assert(($contact['fields']['address']['view'] ?? '') === 'custom:views/contact/fields/address', 'Contact address must use the searchable region selector.');
 $assert(count($addressData['byCountry'] ?? []) >= 200, 'Address subdivision catalogue must cover worldwide countries and territories.');
 $assert(str_contains($addressView, 'lookupFunction'), 'Address state/province selector must support search.');
@@ -63,7 +70,8 @@ $assert(str_contains($contactProfileImageApi, 'checkEntityRead'), 'Profile-image
 $assert(str_contains($contactProfileImageView, 'Nexa/contact-profile-image/'), 'Contact portraits must use the authenticated API path.');
 $assert(($contact['fields']['targetLists']['layoutDetailDisabled'] ?? true) === false, 'Contact segments must be available in the record form.');
 $assert(($contactClientDefs['views']['edit'] ?? '') === 'custom:views/contact/edit', 'Contact creation must use the New Contact page view.');
-$assert(($contactClientDefs['recordViews']['edit'] ?? '') === 'custom:views/contact/record/edit-v2', 'Contact forms must use the cache-busted edit view.');
+$assert(($contactClientDefs['recordViews']['edit'] ?? '') === 'custom:views/contact/record/edit-v3', 'Contact forms must use the current cache-busted edit view.');
+$assert(($contact['fields']['name']['view'] ?? '') === 'custom:views/contact/fields/name-v2', 'Contact forms must use the first-and-last-name field view.');
 $assert(str_contains($countryBootstrap, 'CountryDefaultsPopulator'), 'Country bootstrap must use Espo native defaults.');
 $assert(str_contains($countryBootstrap, 'PlatformExecutionGateway'), 'Country bootstrap must use the audited platform-write boundary.');
 $assert(str_contains($localSetup, 'populate-address-countries.php'), 'Local setup must populate searchable countries.');
@@ -81,13 +89,14 @@ $layoutFields = static function (array $layout): array {
     return $names;
 };
 
-foreach (['accounts', 'department', 'website', 'facebookUrl', 'instagramUrl', 'skypeName', 'xUrl', 'linkedinUrl', 'tiktokUrl', 'tags', 'preferredTimeZone', 'lastWebsiteVisitAt', 'source', 'marketingStatus', 'leadScore', 'targetLists'] as $field) {
+foreach (['accounts', 'website', 'facebookUrl', 'instagramUrl', 'skypeName', 'xUrl', 'linkedinUrl', 'tiktokUrl', 'tags', 'preferredTimeZone', 'source', 'lifecycleStage', 'leadStatus', 'marketingStatus', 'legalBasis', 'targetLists'] as $field) {
     $assert(in_array($field, $layoutFields($contactLayout), true), "Contact detail layout is missing {$field}.");
 }
 $assert(!in_array('title', $layoutFields($contactLayout), true), 'Account Title must be edited only through the Account relationship control.');
 $assert(!in_array('title', $layoutFields($contactSmallLayout), true), 'Responsive Contact forms must not duplicate the Account relationship title control.');
 $assert(str_contains($contactRecordEditView, "hideField('title', true)"), 'Contact editing must prevent dynamic logic from restoring a duplicate Account Title field.');
 $assert(str_contains($contactRecordEditV2View, "hideField('title', true)"), 'The cache-busted Contact edit view must also lock the duplicate title field.');
+$assert(str_contains($contactRecordEditV3View, "['department', 'leadScore', 'lastWebsiteVisitAt']"), 'The current Contact create view must hide enrichment and automation fields.');
 foreach (['annualRevenue', 'numberOfEmployees', 'parentAccount', 'leadScore'] as $field) {
     $assert(in_array($field, $layoutFields($accountLayout), true), "Account detail layout is missing {$field}.");
 }
@@ -98,7 +107,14 @@ foreach (['department', 'website', 'source', 'lead_status', 'marketing_status', 
 foreach (['facebook_url', 'instagram_url', 'skype_name', 'x_url', 'linkedin_url', 'tiktok_url', 'tags', 'preferred_time_zone', 'last_website_visit_at'] as $column) {
     $assert(str_contains($contactExperienceMigration, $column), "Contact experience migration is missing {$column}.");
 }
+foreach (['lifecycle_stage', 'legal_basis'] as $column) {
+    $assert(str_contains($contactLifecycleMigration, $column), "Contact lifecycle migration is missing {$column}.");
+}
+$assert(str_contains($contactNameView, "editTemplate = 'custom:contact/fields/name/edit-v2'"), 'Contact editing must use the first-and-last-name template.');
+$assert(!str_contains($contactNameTemplate, 'salutation'), 'The Contact name template must not render a salutation selector.');
 $assert(!in_array('middleName', $layoutFields($contactLayout), true), 'Contact detail layout must not display middle name.');
+$assert(array_intersect(['department', 'leadScore', 'lastWebsiteVisitAt'], $layoutFields($contactLayout)) === [], 'Contact forms must not render enrichment or automation-owned fields.');
+$assert(!in_array('department', $layoutFields($contactSmallLayout), true), 'Responsive Contact forms must not render Department.');
 $assert(!in_array('assignedUser', $layoutFields($contactLayout), true), 'Contact detail layout must not duplicate Assigned User from the side panel.');
 $assert(!in_array('teams', $layoutFields($contactLayout), true), 'Contact detail layout must not duplicate Teams from the side panel.');
 foreach (['CRM', 'Sales', 'Marketing', 'Automation', 'Service', 'Channels', 'Analytics', 'Data & Integrations'] as $workspace) {

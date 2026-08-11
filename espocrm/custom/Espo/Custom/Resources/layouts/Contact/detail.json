@@ -2,7 +2,7 @@
     {"label": "Overview", "rows": [
         [{"name": "name", "fullWidth": true}],
         [{"name": "accounts", "fullWidth": true}],
-        [{"name": "department"}, {"name": "website"}],
+        [{"name": "website", "fullWidth": true}],
         [{"name": "emailAddress"}, {"name": "phoneNumber"}],
         [{"name": "tags", "fullWidth": true}]
     ]},
@@ -12,13 +12,14 @@
         [{"name": "tiktokUrl"}, {"name": "skypeName"}]
     ]},
     {"label": "Lifecycle & Marketing", "rows": [
-        [{"name": "source"}, {"name": "leadStatus"}],
-        [{"name": "marketingStatus"}, {"name": "leadScore"}],
+        [{"name": "lifecycleStage"}, {"name": "leadStatus"}],
+        [{"name": "source"}, {"name": "marketingStatus"}],
+        [{"name": "legalBasis", "fullWidth": true}],
         [{"name": "targetLists", "fullWidth": true}]
     ]},
     {"label": "Location & Preferences", "rows": [
         [{"name": "address", "fullWidth": true}],
-        [{"name": "preferredTimeZone"}, {"name": "lastWebsiteVisitAt"}]
+        [{"name": "preferredTimeZone"}]
     ]},
     {"label": "Additional Information", "rows": [[{"name": "description", "fullWidth": true}]]}
 ]

@@ -2,7 +2,7 @@
     <div class="page-header nexa-import-header">
         <div>
             <h3><a href="{{contactUrl}}">Contacts</a><span class="breadcrumb-separator"><span></span></span>Import Contacts</h3>
-            <p class="text-muted">Validate a CSV file before creating tenant-scoped contact records.</p>
+            <p class="text-muted">Validate a CSV or Excel file before creating tenant-scoped contact records.</p>
         </div>
         <button class="btn btn-default" data-action="cancel"><span class="fas fa-arrow-left" aria-hidden="true"></span> Back to Contacts</button>
     </div>
@@ -16,12 +16,22 @@
     <section class="nexa-import-band" aria-labelledby="contact-import-upload-title">
         <div class="nexa-import-band-heading">
             <div>
-                <h4 id="contact-import-upload-title">Upload contact CSV</h4>
-                <p>Use the Nexa template. CSV files can be up to 65 MB.</p>
+                <h4 id="contact-import-upload-title">Upload contact file</h4>
+                <p>All .csv, .xlsx and .xls files are supported up to 65 MB.</p>
             </div>
             <button class="btn btn-default" data-action="downloadTemplate">
                 <span class="fas fa-download" aria-hidden="true"></span> Download template
             </button>
+        </div>
+
+        <div class="nexa-import-value-notice" role="note" aria-labelledby="contact-import-values-title">
+            <span class="fas fa-exclamation-triangle" aria-hidden="true"></span>
+            <div>
+                <strong id="contact-import-values-title">Check controlled values before uploading</strong>
+                <p><b>Contact Source:</b> Direct, Organic Search, Paid Search, Email Marketing, Social Media, Referral, Partner, Event, Import or Other.</p>
+                <p><b>Lead Status:</b> New, Open, In Progress, Open Deal, Unqualified, Attempted to Contact, Connected or Bad Timing.</p>
+                <p class="nexa-import-value-help">Common labels such as Website, LinkedIn, Trade Show, Email Campaign, Cold Call, Contacted, Qualified, Proposal Sent and Won are converted automatically. Any other value will be highlighted during validation.</p>
+            </div>
         </div>
 
         <div class="nexa-import-controls">
@@ -32,9 +42,9 @@
             </label>
 
             <div class="nexa-file-drop" data-name="dropZone">
-                <input class="sr-only" type="file" accept=".csv,text/csv" data-name="file" aria-label="Choose Contact CSV file">
+                <input class="sr-only" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" data-name="file" aria-label="Choose Contact import file">
                 <span class="fas fa-file-csv" aria-hidden="true"></span>
-                <strong>Drop a CSV file here</strong>
+                <strong>Drop a CSV or Excel file here</strong>
                 <span>or</span>
                 <button class="btn btn-default" data-action="chooseFile">Choose file</button>
                 <small data-name="fileName">No file selected</small>
@@ -55,7 +65,7 @@
     <div class="alert hidden" data-name="result" role="status" aria-live="polite"></div>
     <p class="nexa-import-summary hidden" data-name="summary"></p>
     <div class="alert hidden" data-name="accountMatch" role="status"></div>
-    <ul class="nexa-import-errors hidden" data-name="errors" aria-label="CSV validation errors"></ul>
+    <ul class="nexa-import-errors hidden" data-name="errors" aria-label="Import file validation errors"></ul>
 
     <section class="nexa-import-preview hidden" data-name="preview" aria-labelledby="contact-import-preview-title">
         <div class="nexa-import-band-heading">

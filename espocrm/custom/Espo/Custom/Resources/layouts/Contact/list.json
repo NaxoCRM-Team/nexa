@@ -1,5 +1,10 @@
 [
-    {"name": "name", "link": true}, {"name": "account", "width": 20},
-    {"name": "title", "width": 16}, {"name": "emailAddress", "notSortable": true, "width": 20},
-    {"name": "phoneNumber", "notSortable": true, "width": 16}, {"name": "marketingStatus", "width": 14}
+    {"name": "name", "link": true, "width": 16},
+    {"name": "emailAddress", "notSortable": true, "width": 18},
+    {"name": "title", "label": "Job Title", "width": 15},
+    {"name": "account", "width": 14},
+    {"name": "phoneNumber", "notSortable": true, "width": 13},
+    {"name": "leadStatus", "view": "custom:views/contact/fields/lead-status-list", "width": 13},
+    {"name": "address", "label": "Location", "view": "custom:views/contact/fields/location-list", "notSortable": true, "width": 19},
+    {"name": "createdAt", "label": "Create Date", "view": "custom:views/contact/fields/created-at-list", "width": 17}
 ]

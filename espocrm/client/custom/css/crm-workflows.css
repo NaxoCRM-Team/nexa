@@ -37,6 +37,221 @@
     scrollbar-gutter: stable;
 }
 
+/* Contact is a high-volume workspace: keep controls stable while rows load in
+   bounded pages through the tenant-scoped collection. */
+.nexa-contact-list-page .nexa-contact-scroll-list,
+.nexa-contact-list-page .nexa-record-list {
+    height: clamp(420px, calc(100vh - 270px), 740px);
+    max-height: calc(100vh - 220px);
+    min-height: 420px;
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.nexa-contact-list-page .nexa-contact-scroll-list .show-more,
+.nexa-contact-list-page .pagination {
+    display: none !important;
+}
+
+.nexa-contact-list-page .nexa-crm-table {
+    min-width: 1260px;
+}
+
+.nexa-contact-live-search {
+    margin-bottom: 12px;
+}
+
+.nexa-contact-live-search .search-row {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.nexa-contact-live-search .search-row > .form-group:first-child {
+    max-width: 780px;
+    padding-left: 0;
+    padding-right: 0;
+    width: 100%;
+}
+
+.nexa-contact-live-search .input-group {
+    border: 1px solid #cbd7db;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(25, 48, 56, 0.05);
+    display: flex;
+    overflow: visible;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.nexa-contact-live-search .input-group > .form-control {
+    flex: 1 1 auto;
+    width: 1%;
+}
+
+.nexa-contact-live-search .input-group > .input-group-btn {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+.nexa-contact-live-search .input-group:focus-within {
+    border-color: #168579;
+    box-shadow: 0 0 0 3px rgba(22, 133, 121, 0.13);
+}
+
+.nexa-contact-live-search .input-group .btn,
+.nexa-contact-live-search .input-group .form-control {
+    border: 0;
+    box-shadow: none;
+    height: 42px;
+}
+
+.nexa-contact-live-search .input-group .filters-button {
+    background: #f4f7f8;
+    border-radius: 5px 0 0 5px;
+    color: #314b54;
+    min-width: 78px;
+}
+
+.nexa-contact-live-search input[data-name="textFilter"] {
+    background: #ffffff;
+    color: #20383f;
+    font-size: 14px;
+    min-width: 0;
+    padding: 9px 14px;
+}
+
+.nexa-contact-live-search input[data-name="textFilter"]::placeholder {
+    color: #7b8d94;
+    opacity: 1;
+}
+
+.nexa-contact-live-search .add-filter-button {
+    background: #ffffff;
+    border-left: 1px solid #e0e7e9 !important;
+    border-radius: 0 5px 5px 0;
+    color: #52666e;
+}
+
+.nexa-contact-list-page .nexa-list-toolbar {
+    border: 1px solid #dce4e8;
+    border-radius: 6px 6px 0 0;
+    border-bottom-color: #d7e0e3;
+    min-height: 58px;
+    padding: 9px 12px;
+}
+
+.nexa-contact-list-page .nexa-list-toolbar .settings-container {
+    margin-left: auto;
+}
+
+.nexa-contact-list-page .nexa-list-toolbar .total-count {
+    align-items: center;
+    background: #f2f6f7;
+    border: 1px solid #dce5e7;
+    border-radius: 5px;
+    color: #52666e;
+    display: inline-flex;
+    font-size: 12px;
+    gap: 5px;
+    margin-left: 8px;
+    min-height: 34px;
+    padding: 6px 10px;
+}
+
+.nexa-contact-list-page .nexa-list-toolbar .total-count-span {
+    color: #193038;
+    font-weight: 700;
+}
+
+.nexa-contact-list-page .nexa-column-selector {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #cbd7db;
+    border-radius: 5px;
+    color: #314b54;
+    display: inline-flex;
+    font-size: 13px;
+    gap: 7px;
+    min-height: 34px;
+    padding: 6px 10px;
+    text-decoration: none;
+}
+
+.nexa-contact-list-page .nexa-column-selector:hover,
+.nexa-contact-list-page .nexa-column-selector:focus {
+    background: #f4f8f8;
+    border-color: #9fb6bc;
+    color: #173f47;
+    text-decoration: none;
+}
+
+/* All Contact headers use one typographic treatment, including sortable links. */
+.nexa-contact-list-page .nexa-crm-table > thead > tr > th,
+.nexa-contact-list-page .nexa-crm-table > thead > tr > th > span,
+.nexa-contact-list-page .nexa-crm-table > thead > tr > th > a,
+.nexa-contact-list-page .nexa-crm-table > thead > tr > th .sort {
+    font-family: inherit;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.nexa-lead-status {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 5px 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-lead-status--new { background: #e8f1ff; border-color: #bfd4f5; color: #245a9b; }
+.nexa-lead-status--open { background: #e4f7f7; border-color: #b4dddd; color: #176a70; }
+.nexa-lead-status--in-progress { background: #fff4d6; border-color: #efd38b; color: #76520c; }
+.nexa-lead-status--open-deal { background: #f0ebff; border-color: #d4c5fa; color: #5d4095; }
+.nexa-lead-status--unqualified { background: #fdeaea; border-color: #efbcbc; color: #9b3030; }
+.nexa-lead-status--attempted { background: #fff0e2; border-color: #efc59f; color: #8a4b17; }
+.nexa-lead-status--connected { background: #e4f5ea; border-color: #b7ddc5; color: #276b40; }
+.nexa-lead-status--bad-timing { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
+.nexa-lead-status--other { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
+
+.nexa-contact-location {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    max-width: 100%;
+}
+
+.nexa-contact-location-flag {
+    border: 1px solid #d7e0e3;
+    border-radius: 2px;
+    flex: 0 0 auto;
+    height: 16px;
+    object-fit: cover;
+    width: 22px;
+}
+
+.nexa-contact-location-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-contact-live-search button[data-action="search"] {
+    display: none;
+}
+
+.nexa-contact-row-filtered {
+    display: none !important;
+}
+
 .nexa-crm-list-workflow .nexa-record-list:focus-visible {
     border-color: #16758a;
     box-shadow: 0 0 0 3px rgba(22, 117, 138, 0.13);
@@ -455,6 +670,13 @@
         margin-left: -12px;
         margin-right: -12px;
         width: calc(100% + 24px);
+    }
+
+    .nexa-contact-list-page .nexa-contact-scroll-list,
+    .nexa-contact-list-page .nexa-record-list {
+        height: calc(100dvh - 245px);
+        max-height: none;
+        min-height: 360px;
     }
 
     .nexa-crm-list-workflow .nexa-crm-table {
