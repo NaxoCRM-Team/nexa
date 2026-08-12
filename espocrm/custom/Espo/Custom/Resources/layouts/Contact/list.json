@@ -1,7 +1,7 @@
 [
     {"name": "name", "link": true, "width": 16},
     {"name": "emailAddress", "notSortable": true, "width": 18},
-    {"name": "title", "label": "Job Title", "width": 15},
+    {"name": "title", "label": "Title", "width": 15},
     {"name": "account", "width": 14},
     {"name": "phoneNumber", "notSortable": true, "width": 13},
     {"name": "leadStatus", "view": "custom:views/contact/fields/lead-status-list", "width": 13},

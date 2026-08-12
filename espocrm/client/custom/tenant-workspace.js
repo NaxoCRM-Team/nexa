@@ -1,6 +1,18 @@
 require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, productSurfaceRegistry) => {
     const defaultData = NavbarView.prototype.data;
     const defaultAfterRender = NavbarView.prototype.afterRender;
+    const updateCurrentYear = () => {
+        const year = String(new Date().getFullYear());
+        document.querySelectorAll('[data-nexa-current-year]').forEach(element => {
+            if (element.textContent !== year) element.textContent = year;
+        });
+        document.querySelectorAll('body > footer .credit').forEach(footer => {
+            const label = `© Nexa CRM ${year}`;
+            if (footer.textContent.trim() !== label) footer.textContent = label;
+        });
+    };
+    const footerObserver = new MutationObserver(updateCurrentYear);
+    footerObserver.observe(document.body, {childList: true, subtree: true});
     // Keep navigation organized around daily workspaces. Existing Espo screens are
     // reused by scope name; missing Nexa screens remain visibly disabled until their
     // routes and permission contracts are delivered.
@@ -368,6 +380,7 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
         const result = defaultAfterRender.call(this);
 
         try {
+            updateCurrentYear();
             document.body.classList.toggle('nexa-side-navigation', this.isSide());
             enhanceHeaderControls(this);
 

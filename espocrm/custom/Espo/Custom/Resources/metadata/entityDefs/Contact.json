@@ -1,6 +1,14 @@
 {
     "fields": {
         "name": {"view": "custom:views/contact/fields/name-v2"},
+        "title": {
+            "type": "varchar",
+            "maxLength": 100,
+            "view": "crm:views/contact/fields/title",
+            "notStorable": false,
+            "directUpdateDisabled": false,
+            "select": null
+        },
         "address": {"view": "custom:views/contact/fields/address"},
         "profileImage": {
             "type": "image",

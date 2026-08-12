@@ -15,7 +15,15 @@ body.nexa-side-navigation #navbar .navbar-brand {
 }
 
 body.nexa-side-navigation #main {
-    min-height: calc(100dvh - var(--nexa-header-height, 56px));
+    min-height: calc(
+        100dvh - var(--nexa-header-height, 56px) - var(--footer-height, 26px) - var(--vertical-gap, 16px)
+    );
+}
+
+/* Use all workspace space that remains beside the responsive navigation. */
+body.has-navbar.nexa-side-navigation > #content.container {
+    max-width: none;
+    width: 100%;
 }
 
 body.nexa-side-navigation #navbar > .nexa-premium-header,
@@ -382,6 +390,13 @@ body.nexa-side-navigation #navbar .notifications-badge-container .number-badge:n
 }
 
 @media (max-width: 767px) {
+    body.nexa-side-navigation #main {
+        min-height: calc(
+            100dvh - var(--nexa-header-height, 58px) - var(--footer-height, 26px) -
+            var(--vertical-gap, 16px) - var(--line-height-computed, 22px)
+        );
+    }
+
     body.nexa-side-navigation #navbar .navbar-body {
         background: #f7f9fa;
         box-shadow: 10px 12px 28px rgba(16, 24, 40, 0.24);
