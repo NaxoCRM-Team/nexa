@@ -52,6 +52,10 @@
         </div>
 
         <div class="nexa-import-actions">
+            <label class="nexa-create-accounts-option">
+                <input type="checkbox" data-name="createMissingAccounts" checked>
+                <span><strong>Create missing accounts</strong><small>Create each new company once and link its imported contacts within this workspace.</small></span>
+            </label>
             <button class="btn btn-primary" data-action="validate" disabled>
                 <span class="fas fa-check-circle" aria-hidden="true"></span> Validate and preview
             </button>
@@ -71,7 +75,7 @@
         <div class="nexa-import-band-heading">
             <div>
                 <h4 id="contact-import-preview-title">Contact preview</h4>
-                <p>The first 20 rows are shown. Existing contacts are checked by the standard duplicate rules.</p>
+                <p>The first 20 rows are shown. Existing contacts and accounts are checked within this tenant only.</p>
             </div>
             <button class="btn btn-primary" data-action="import" disabled>
                 <span class="fas fa-file-import" aria-hidden="true"></span> Import contacts

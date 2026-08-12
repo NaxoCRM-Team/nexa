@@ -222,13 +222,21 @@ define('custom:views/contact/import', ['view'], Dep => {
                 const result = await Espo.Ajax.postRequest('Nexa/contact-import/confirm', {
                     attachmentId: this.attachmentId,
                     rowLimit,
+                    createMissingAccounts: this.$el.find('[data-name="createMissingAccounts"]').prop('checked'),
                 }, {timeout: 300000});
 
                 const hasErrors = result.errors > 0;
                 this.$el.find('[data-name="result"]')
                     .removeClass('hidden alert-danger alert-success')
                     .addClass(hasErrors ? 'alert-danger' : 'alert-success')
-                    .text(`${result.created} contacts created, ${result.duplicates} duplicates skipped, ${result.errors} errors.`);
+                    .text([
+                        `${result.created} contacts created`,
+                        `${result.accountsMatched} existing accounts matched`,
+                        `${result.accountsCreated} accounts created`,
+                        `${result.accountsUnlinked} company names left unlinked`,
+                        `${result.duplicates} duplicates skipped`,
+                        `${result.errors} errors`,
+                    ].join(', ') + '.');
                 this.renderErrors(result.errorDetails || []);
                 this.$el.find('[data-action="import"]').prop('disabled', true);
                 this.$el.find('[data-name="stepImport"]').addClass('is-complete');
@@ -303,7 +311,7 @@ define('custom:views/contact/import', ['view'], Dep => {
 
             const examples = (match.unmatched || []).join(', ');
             $element.removeClass('hidden alert-success').addClass('alert-warning')
-                .text(`${match.matched} account names matched. ${match.unmatchedCount} unmatched names will leave the contact unlinked: ${examples}`);
+                .text(`${match.matched} account names matched. ${match.unmatchedCount} missing accounts will be created if the option below remains selected: ${examples}`);
         }
 
         renderErrors(errors) {

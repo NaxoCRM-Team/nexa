@@ -92,6 +92,21 @@
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostTitle"
     },
     {
+        "route": "/Nexa/contact/delete",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostDelete"
+    },
+    {
+        "route": "/Nexa/contact/trash",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\GetTrash"
+    },
+    {
+        "route": "/Nexa/contact/trash/restore",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostRestore"
+    },
+    {
         "route": "/Nexa/contact-import/template",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\ContactImport\\Api\\GetTemplate"

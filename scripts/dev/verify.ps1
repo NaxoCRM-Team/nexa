@@ -52,6 +52,7 @@ $required = @(
     'tests/browser/fixtures/crm-workflows.html',
     'tests/workflows/ContactImportContractTest.php',
     'tests/workflows/ContactListExperienceTest.php',
+    'tests/workflows/ContactDeletionWorkflowTest.php',
     'espocrm/client/custom/src/views/contact/fields/location-list.js',
     'espocrm/client/custom/res/templates/contact/fields/location-list.tpl',
     'espocrm/client/custom/src/views/contact/fields/lead-status-list.js',
@@ -172,6 +173,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\To
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactListExperienceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactDeletionWorkflowTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -210,6 +212,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Contact import contract suite' } else { Fail 'Contact import contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\ContactListExperienceTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Contact list experience contract suite' } else { Fail 'Contact list experience contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ContactDeletionWorkflowTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Contact deletion and recovery contract suite' } else { Fail 'Contact deletion and recovery contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')

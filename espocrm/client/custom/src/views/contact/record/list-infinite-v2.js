@@ -26,6 +26,16 @@ define('custom:views/contact/record/list-infinite-v2', ['views/record/list', 'cu
         });
     }
 
+    getSelectAttributeList(callback) {
+        super.getSelectAttributeList(attributeList => {
+            if (attributeList && !attributeList.includes('profileImageId')) {
+                attributeList.push('profileImageId');
+            }
+
+            callback(attributeList);
+        });
+    }
+
     afterRender() {
         const result = super.afterRender();
 
@@ -106,6 +116,56 @@ define('custom:views/contact/record/list-infinite-v2', ['views/record/list', 'cu
 
         if (status) {
             status.textContent = `${this.collection.length} contacts loaded.`;
+        }
+    }
+
+    massActionRemove() {
+        if (!this.getAcl().check(this.entityType, 'delete')) {
+            Espo.Ui.error(this.translate('Access denied'));
+            return false;
+        }
+        if (this.allResultIsChecked) {
+            Espo.Ui.warning('Select up to 500 individual contacts before deleting.');
+            return false;
+        }
+
+        return this.confirmContactDeletion([...this.checkedList]);
+    }
+
+    async actionQuickRemove(data = {}) {
+        const model = data.id ? this.collection.get(data.id) : null;
+        if (!model || !this.getAcl().checkModel(model, 'delete')) {
+            Espo.Ui.error(this.translate('Access denied'));
+            return;
+        }
+
+        return this.confirmContactDeletion([model.id]);
+    }
+
+    confirmContactDeletion(ids) {
+        if (!ids.length) return false;
+
+        this.createView('contactDeleteConfirmation', 'custom:views/contact/modals/delete-confirmation', {
+            count: ids.length,
+        }, view => {
+            view.render();
+            this.listenToOnce(view, 'confirm', () => this.deleteContacts(ids));
+        });
+    }
+
+    async deleteContacts(ids) {
+        Espo.Ui.notifyWait();
+        try {
+            const result = await Espo.Ajax.postRequest('Nexa/contact/delete', {ids});
+            (result.ids || []).forEach(id => {
+                this.collection.trigger('model-removing', id);
+                this.removeRecordFromList(id);
+                this.uncheckRecord(id, null, true);
+            });
+            this.collection.trigger('after:mass-remove');
+            Espo.Ui.success(`${result.count} ${result.count === 1 ? 'contact' : 'contacts'} deleted.`);
+        } finally {
+            Espo.Ui.notify(false);
         }
     }
 });

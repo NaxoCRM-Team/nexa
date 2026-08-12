@@ -41,6 +41,26 @@ foreach (['SOURCE_MAP', 'LEAD_STATUS_MAP', 'normalizeRecord', 'encodeCsv', 'getI
     }
 }
 
+foreach ([
+    'private function prepareAccounts',
+    "getRDBRepository('Account')",
+    "getNewEntity('Account')",
+    'checkEntityCreate($account)',
+    'saveEntity($account)',
+    "unset(\$result['_normalizedContents'], \$result['_normalizedRows'])",
+    "'website' => trim(\$row['website'] ?? '')",
+    "'billingAddressStreet' => trim(\$row['address_street'] ?? '')",
+    "'billingAddressCountry' => trim(\$row['address_country'] ?? '')",
+] as $contract) {
+    if (!str_contains((string) $service, $contract)) {
+        throw new RuntimeException("Missing tenant-scoped Account import contract: {$contract}");
+    }
+}
+
+if (str_contains((string) $service, 'INSERT INTO account')) {
+    throw new RuntimeException('Contact import must create Accounts through the tenant-aware ORM, not raw SQL.');
+}
+
 $serviceReflection = new ReflectionClass(Espo\Custom\Tools\ContactImport\ContactImportService::class);
 $serviceInstance = $serviceReflection->newInstanceWithoutConstructor();
 $normalizeRecord = $serviceReflection->getMethod('normalizeRecord');
@@ -142,13 +162,13 @@ if (($clientDefs['controller'] ?? null) !== 'custom:controllers/contact') {
     throw new RuntimeException('Contact does not use the Nexa controller.');
 }
 
-foreach (['All .csv, .xlsx and .xls files are supported up to 65 MB.', 'Drop a CSV or Excel file here', 'Download template', 'Maximum rows for this import', 'Check controlled values before uploading', 'Contact Source:', 'Lead Status:', 'Any other value will be highlighted during validation', 'Validate and preview', 'Import contacts', 'Back to Contacts', 'Previous', 'Next'] as $label) {
+foreach (['All .csv, .xlsx and .xls files are supported up to 65 MB.', 'Drop a CSV or Excel file here', 'Download template', 'Maximum rows for this import', 'Check controlled values before uploading', 'Contact Source:', 'Lead Status:', 'Any other value will be highlighted during validation', 'Create missing accounts', 'within this workspace', 'Validate and preview', 'Import contacts', 'Back to Contacts', 'Previous', 'Next'] as $label) {
     if (!str_contains((string) $template, $label)) {
         throw new RuntimeException("Missing accessible Contact import control: {$label}");
     }
 }
 
-foreach (["['csv', 'xlsx', 'xls']", 'this.file.arrayBuffer()', 'processData: false', "timeout: 300000", 'renderAccountMatch', 'loadPreviewPage', 'result.errorDetails'] as $behavior) {
+foreach (["['csv', 'xlsx', 'xls']", 'this.file.arrayBuffer()', 'processData: false', "timeout: 300000", 'createMissingAccounts:', 'result.accountsCreated', 'renderAccountMatch', 'loadPreviewPage', 'result.errorDetails'] as $behavior) {
     if (!str_contains((string) $view, $behavior)) {
         throw new RuntimeException("Missing Contact import client behavior: {$behavior}");
     }

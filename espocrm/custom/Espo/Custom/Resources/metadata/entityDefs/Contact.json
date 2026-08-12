@@ -35,6 +35,8 @@
         "leadStatus": {"type": "enum", "options": ["", "New", "Open", "InProgress", "OpenDeal", "Unqualified", "AttemptedToContact", "Connected", "BadTiming"]},
         "marketingStatus": {"type": "enum", "options": ["Marketing", "Non-Marketing", "Unsubscribed"], "default": "Non-Marketing", "tooltip": true},
         "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true, "tooltip": true},
-        "legalBasis": {"type": "enum", "options": ["", "LegitimateInterestLead", "LegitimateInterestCustomer", "LegitimateInterestOther", "PerformanceOfContract", "FreelyGivenConsent", "NotApplicable"]}
+        "legalBasis": {"type": "enum", "options": ["", "LegitimateInterestLead", "LegitimateInterestCustomer", "LegitimateInterestOther", "PerformanceOfContract", "FreelyGivenConsent", "NotApplicable"]},
+        "deletedAt": {"type": "datetime", "readOnly": true, "disabled": true},
+        "deletedById": {"type": "varchar", "maxLength": 17, "readOnly": true, "disabled": true}
     }
 }
