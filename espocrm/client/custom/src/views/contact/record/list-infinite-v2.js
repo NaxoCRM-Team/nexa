@@ -1,6 +1,20 @@
-define('custom:views/contact/record/list-infinite-v2', ['views/record/list'], Dep => class extends Dep {
+define('custom:views/contact/record/list-infinite-v2', ['views/record/list', 'custom:table-inline-editor'], (Dep, TableInlineEditor) => class extends Dep {
     setup() {
         super.setup();
+        this.inlineEditor = new TableInlineEditor(this, 'Contact', {
+            emailAddress: {type: 'text', inputType: 'email', maxLength: 255},
+            title: {
+                type: 'text',
+                maxLength: 100,
+                save: (model, value) => Espo.Ajax.postRequest(
+                    `Nexa/contact/${encodeURIComponent(model.id)}/title`,
+                    {value}
+                ),
+            },
+            phoneNumber: {type: 'text', inputType: 'tel', maxLength: 50},
+            leadStatus: {type: 'dropdown'},
+        });
+        this.inlineEditor.setup();
 
         this.listenTo(this.collection, 'sync reset', () => this.scheduleScrollCheck());
         this.listenTo(this.collection, 'error', () => {
@@ -16,6 +30,7 @@ define('custom:views/contact/record/list-infinite-v2', ['views/record/list'], De
         const result = super.afterRender();
 
         this.bindScrollContainer();
+        this.inlineEditor.decorate();
         this.observeScrollContainer();
         this.scheduleScrollCheck();
 
@@ -41,6 +56,7 @@ define('custom:views/contact/record/list-infinite-v2', ['views/record/list'], De
         // the view renders. Observe that transition and attach to the final list.
         this.scrollObserver = new MutationObserver(() => {
             this.bindScrollContainer();
+            this.inlineEditor.decorate();
             this.scheduleScrollCheck();
         });
         this.scrollObserver.observe(this.element, {childList: true, subtree: true});

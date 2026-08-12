@@ -5,6 +5,10 @@
     const nav = document.querySelector('[data-nav]');
     const navToggle = document.querySelector('[data-nav-toggle]');
 
+    document.querySelectorAll('[data-nexa-current-year]').forEach(element => {
+        element.textContent = String(new Date().getFullYear());
+    });
+
     const updateHeader = () => {
         header?.classList.toggle('scrolled', window.scrollY > 40);
     };

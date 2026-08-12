@@ -13,6 +13,11 @@ $mustContain = static function (string $needle, string $content, string $message
 };
 
 $workflow = $read('espocrm/client/custom/crm-workflows.js');
+$workspaceCss = $read('espocrm/client/custom/css/tenant-workspace.css');
+$workspace = $read('espocrm/client/custom/tenant-workspace.js');
+$footerTemplate = $read('espocrm/client/res/templates/site/footer.tpl');
+$compiledTemplates = $read('espocrm/client/lib/templates.tpl');
+$mainHtml = $read('espocrm/html/main.html');
 $processor = $read('espocrm/application/Espo/Core/Tenant/TenantQueryProcessor.php');
 $resolver = $read('espocrm/application/Espo/Core/Tenant/TenantResolver.php');
 $acl = $read('espocrm/application/Espo/Core/AclManager.php');
@@ -34,6 +39,22 @@ $mustContain('checkField($this->user, $this->entityType, $orderBy)', $order, 'So
 $mustContain('checkField($params->getEntityType(), $item)', $export, 'Export must remove forbidden fields.');
 $mustContain('aria-required', $workflow, 'Required form fields must expose accessible state.');
 $mustContain('response?.status === 409', $workflow, 'Edit conflicts must expose a distinct recovery state.');
+$mustContain('body.has-navbar.nexa-side-navigation > #content.container', $workspaceCss, 'Authenticated workspace pages must own a responsive full-width container rule.');
+if (!preg_match('/body\.has-navbar\.nexa-side-navigation\s*>\s*#content\.container\s*\{[^}]*max-width:\s*none;/s', $workspaceCss)) {
+    throw new RuntimeException('Authenticated workspace pages must not inherit the fixed desktop container cap.');
+}
+$mustContain('var(--footer-height, 26px)', $workspaceCss, 'Workspace minimum height must reserve space for the application footer.');
+$mustContain('new Date().getFullYear()', $workspace, 'The workspace footer year must come from the browser clock.');
+$mustContain('`© Nexa CRM ${year}`', $workspace, 'SPA footer rerenders must restore Nexa branding and current-year order.');
+foreach ([$footerTemplate, $compiledTemplates, $mainHtml] as $footerSource) {
+    $mustContain('data-nexa-current-year', $footerSource, 'Every authenticated footer runtime source must expose the dynamic-year target.');
+    $mustContain('Nexa CRM', $footerSource, 'Every authenticated footer runtime source must display Nexa branding.');
+    if (str_contains($footerSource, 'Powered by EspoCRM')) {
+        throw new RuntimeException('The application footer must not display Powered by EspoCRM.');
+    }
+}
+$aboutTemplate = $read('espocrm/client/res/templates/about.tpl');
+$mustContain('EspoCRM open-source software', $aboutTemplate, 'The About surface must retain the required EspoCRM legal notice.');
 
 foreach (['tenant-a', 'tenant-b', 'demo-admin'] as $literal) {
     if (str_contains($workflow, $literal)) throw new RuntimeException("Workflow code must not hardcode {$literal}.");

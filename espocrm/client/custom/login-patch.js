@@ -101,11 +101,15 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         const anchor = event.target.closest?.('a[href^="#"]');
         const href = anchor?.getAttribute('href');
 
-        if (!href || href === '#') {
+        if (!href) {
             return;
         }
 
         event.preventDefault();
+        if (href === '#') {
+            activeRouter.navigate('', {trigger: true});
+            return;
+        }
         activeRouter.navigate(href.slice(1), {trigger: true});
     }, true);
     const defaultInitRouter = App.prototype.initRouter;
@@ -160,6 +164,9 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         const socialHash = location.hash.startsWith('#nexa-social=') ? location.hash : '';
         showLoginUrl(socialHash);
         document.body.classList.add('modern-login-page');
+        this.element.querySelectorAll('[data-nexa-current-year]').forEach(element => {
+            element.textContent = String(new Date().getFullYear());
+        });
 
         const loginPanel = this.element.querySelector('#login');
         const recoveryPanel = this.element.querySelector('[data-recovery-panel]');

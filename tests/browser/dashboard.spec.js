@@ -62,3 +62,17 @@ test('dashboard widgets use aligned rows and stable card dimensions', async ({pa
         }
     }
 });
+
+test('dashboard fills the available authenticated workspace width', async ({page}) => {
+    await page.goto(fixture);
+
+    const widths = await page.locator('.nexa-dashboard').evaluate(element => ({
+        dashboard: element.getBoundingClientRect().width,
+        parent: element.parentElement.getBoundingClientRect().width,
+        left: element.getBoundingClientRect().left,
+        parentLeft: element.parentElement.getBoundingClientRect().left,
+    }));
+
+    expect(Math.abs(widths.parent - widths.dashboard)).toBeLessThanOrEqual(1);
+    expect(Math.abs(widths.parentLeft - widths.left)).toBeLessThanOrEqual(1);
+});

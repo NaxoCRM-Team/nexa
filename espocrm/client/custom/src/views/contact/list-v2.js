@@ -44,6 +44,17 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
         searchInput?.setAttribute('placeholder', 'Search contacts');
 
         const columnButton = root.querySelector('.settings-container .dropdown-toggle');
+        const settingsContainer = root.querySelector('.settings-container');
+        if (settingsContainer && !root.querySelector('.nexa-contact-import-button')) {
+            const importButton = document.createElement('a');
+            importButton.className = 'btn btn-default nexa-contact-import-button';
+            importButton.href = '#Contact/import';
+            importButton.innerHTML = '<span class="fas fa-file-import" aria-hidden="true"></span><span>Import</span>';
+            importButton.setAttribute('aria-label', 'Import contacts');
+            importButton.title = 'Import contacts';
+            settingsContainer.after(importButton);
+        }
+
         if (columnButton && !columnButton.classList.contains('nexa-column-selector')) {
             columnButton.classList.add('nexa-column-selector');
             columnButton.setAttribute('aria-label', 'Choose visible contact columns');

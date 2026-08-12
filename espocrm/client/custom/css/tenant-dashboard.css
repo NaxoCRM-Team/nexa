@@ -1,4 +1,12 @@
-.nexa-dashboard { color: #25343a; margin: 0 auto; max-width: 1600px; min-width: 0; padding: 24px 28px 48px; }
+.nexa-dashboard {
+    box-sizing: border-box;
+    color: #25343a;
+    margin: 0;
+    max-width: none;
+    min-width: 0;
+    padding: 24px 0 48px;
+    width: 100%;
+}
 .nexa-dashboard-hero { align-items: flex-end; display: flex; gap: 24px; justify-content: space-between; padding: 10px 0 24px; }
 .nexa-workspace-context { align-items: center; color: #52646b; display: flex; font-size: 12px; font-weight: 700; gap: 7px; text-transform: uppercase; }
 .nexa-workspace-dot { background: #12a594; border-radius: 50%; height: 8px; width: 8px; }
@@ -53,7 +61,7 @@
     cursor: not-allowed;
     opacity: .62;
 }
-.nexa-dashboard > .dashlets { min-height: 260px; }
+.nexa-dashboard > .dashlets { min-height: 260px; width: 100%; }
 .nexa-dashboard .dashlets.fallback > div { margin-bottom: 14px; }
 .nexa-dashboard .grid-stack-item-content { overflow: hidden; }
 .nexa-dashboard .dashlet-container > .panel { border-color: #dce5e8; border-radius: 6px; box-shadow: 0 1px 2px rgba(25, 50, 58, .05); display: flex; flex-direction: column; height: 100%; margin: 0; min-height: 0; }
@@ -62,6 +70,6 @@
 .nexa-dashboard .dashlet-container .dashlet-body { flex: 1 1 auto; min-height: 0; }
 .nexa-dashboard .dashlet-container .chart-container { max-width: 100%; min-height: 0; }
 @media (max-width: 991px) { .nexa-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nexa-dashboard-insights { grid-template-columns: 1fr; } }
-@media (max-width: 767px) { .nexa-dashboard { padding: 16px 14px 36px; } .nexa-dashboard-hero { align-items: stretch; flex-direction: column; } .nexa-dashboard-controls { flex-basis: auto; width: 100%; } .nexa-dashboard-controls small { text-align: left; } .nexa-saved-dashboard-header { align-items: flex-start; gap: 12px; } .nexa-dashboard-actions { align-items: flex-end; flex-direction: column-reverse; } .nexa-dashboard .dashboard-tabs { max-width: 60vw; overflow-x: auto; } .nexa-dashboard .dashlets.fallback .dashlet-container { height: auto !important; min-height: 340px; } .nexa-dashboard .dashlets.fallback .dashlet-container > .panel { min-height: 340px; } }
+@media (max-width: 767px) { .nexa-dashboard { padding: 16px 0 36px; } .nexa-dashboard-hero { align-items: stretch; flex-direction: column; } .nexa-dashboard-controls { flex-basis: auto; width: 100%; } .nexa-dashboard-controls small { text-align: left; } .nexa-saved-dashboard-header { align-items: flex-start; gap: 12px; } .nexa-dashboard-actions { align-items: flex-end; flex-direction: column-reverse; } .nexa-dashboard .dashboard-tabs { max-width: 60vw; overflow-x: auto; } .nexa-dashboard .dashlets.fallback .dashlet-container { height: auto !important; min-height: 340px; } .nexa-dashboard .dashlets.fallback .dashlet-container > .panel { min-height: 340px; } }
 @media (max-width: 420px) { .nexa-dashboard-hero h1 { font-size: 25px; } .nexa-metric-grid { grid-template-columns: 1fr; } .nexa-metric { min-height: 82px; } .nexa-section-heading { align-items: flex-start; gap: 8px; } }
 @media (prefers-reduced-motion: reduce) { .nexa-dashboard .fa-spin { animation: none; } }

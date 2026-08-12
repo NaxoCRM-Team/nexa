@@ -17,6 +17,8 @@
                 <div class="complex-text">
                     {{text}}
                 </div>
+                <hr>
+                <p class="small text-soft">Nexa CRM incorporates modified EspoCRM open-source software under the GNU AGPLv3.</p>
             </div>
         </div>
 

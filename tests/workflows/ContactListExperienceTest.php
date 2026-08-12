@@ -16,6 +16,14 @@ $clientDefs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/c
 $list = $read('espocrm/client/custom/src/views/contact/list-v2.js');
 $search = $read('espocrm/client/custom/src/views/contact/record/search-live-v2.js');
 $infinite = $read('espocrm/client/custom/src/views/contact/record/list-infinite-v2.js');
+$inlineEditor = $read('espocrm/client/custom/src/table-inline-editor.js');
+$accountInline = $read('espocrm/client/custom/src/views/account/record/list-inline.js');
+$accountClientDefs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/clientDefs/Account.json'), true, flags: JSON_THROW_ON_ERROR);
+$titleAction = $read('espocrm/custom/Espo/Custom/Tools/Contact/Api/PostTitle.php');
+$routes = json_decode($read('espocrm/custom/Espo/Custom/Resources/routes.json'), true, flags: JSON_THROW_ON_ERROR);
+$routerPatch = $read('espocrm/client/custom/login-patch.js');
+$titleMigration = $read('database/shared/migrations/0015_add_contact_title.sql');
+$contactDefs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/entityDefs/Contact.json'), true, flags: JSON_THROW_ON_ERROR);
 $styles = $read('espocrm/client/custom/css/crm-workflows.css');
 $layout = json_decode($read('espocrm/custom/Espo/Custom/Resources/layouts/Contact/list.json'), true, flags: JSON_THROW_ON_ERROR);
 $location = $read('espocrm/client/custom/src/views/contact/fields/location-list.js');
@@ -44,16 +52,72 @@ $mustContain('this.collection.where = this.searchManager.getWhere()', $search, '
 $mustContain('this.collection.hasMore()', $infinite, 'Incremental loading must stop at the final scoped page.');
 $mustContain('this.showMoreRecords({skipNotify: true}', $infinite, 'Incremental loading must use the native bounded-page loader.');
 $mustContain('new MutationObserver(', $infinite, 'Incremental loading must bind after asynchronous list rendering.');
-$mustContain('height: clamp(', $styles, 'The Contact table must have a stable scrollable height.');
+$mustContain("'custom:table-inline-editor'", $infinite, 'Contact must use the shared lightweight table editor.');
+$mustContain("emailAddress: {type: 'text'", $infinite, 'Contact email must use a compact text editor.');
+$mustContain('Nexa/contact/${encodeURIComponent(model.id)}/title', $infinite, 'Contact Title must use its relationship-aware update action.');
+$mustContain("phoneNumber: {type: 'text'", $infinite, 'Contact phone must use a compact text editor.');
+$mustContain("leadStatus: {type: 'dropdown'", $infinite, 'Contact Lead Status must use a compact dropdown editor.');
+$mustContain("this.view.addHandler('dblclick'", $inlineEditor, 'Editable cells must activate by double-click.');
+$mustContain("cell.dataset.field = field", $inlineEditor, 'Editable cells must expose their API field name.');
+$mustContain("cell.dataset.type = config.type", $inlineEditor, 'Editable cells must expose their editor type.');
+$mustContain("cell.dataset.options", $inlineEditor, 'Dropdown cells must expose their allowed options.');
+$mustContain("this.view.getAcl().checkModel(model, 'edit')", $inlineEditor, 'Shared table editing must enforce record edit permission.');
+$mustContain("this.view.getAcl().checkField(this.entityType, field, 'edit')", $inlineEditor, 'Shared table editing must enforce field edit permission.');
+$mustContain("await model.save({[field]", $inlineEditor, 'Shared table editing must save only the configured field through the authenticated model API.');
+$mustContain("{patch: true}", $inlineEditor, 'Shared table editing must use partial record updates.');
+$mustContain("editor.addEventListener('blur'", $inlineEditor, 'Shared table editing must save when focus leaves the cell.');
+$mustContain("keyEvent.key === 'Escape'", $inlineEditor, 'Shared table editing must support keyboard cancellation.');
+$mustContain("cell.innerHTML = this.originalHtml", $inlineEditor, 'Failed updates must restore the original formatted cell.');
+$mustContain("'custom:table-inline-editor'", $accountInline, 'Account must use the shared lightweight table editor.');
+$mustContain("industry: {type: 'dropdown'", $accountInline, 'Account Industry must support compact dropdown editing.');
+$mustContain('if (config.save)', $inlineEditor, 'The shared editor must support secure field-specific persistence adapters.');
+$mustContain("settingsContainer.after(importButton)", $list, 'Contact Import must appear beside Columns and Total controls.');
+$mustContain("importButton.href = '#Contact/import'", $list, 'Contact Import must open the Nexa Contact import workspace.');
+$mustContain("if (href === '#')", $routerPatch, 'The workspace router must handle the Home tab empty fragment.');
+$mustContain("activeRouter.navigate('', {trigger: true})", $routerPatch, 'Home must dispatch the authenticated workspace home route.');
+$mustContain("getRDBRepository('Contact')->getById(\$id)", $titleAction, 'Title updates must load Contact through the tenant-scoped ORM.');
+$mustContain("check(\$contact, Table::ACTION_EDIT)", $titleAction, 'Title updates must enforce record edit access.');
+$mustContain("checkField('Contact', 'title', Table::ACTION_EDIT)", $titleAction, 'Title updates must enforce field edit access.');
+$mustContain("\$contact->set('title'", $titleAction, 'Title updates must invoke the existing relationship persistence hook.');
+$mustContain('ADD COLUMN IF NOT EXISTS title VARCHAR(100)', $titleMigration, 'Contact Title must be available to contacts without Accounts.');
+$mustContain('INNER JOIN account_contact', $titleMigration, 'Existing primary relationship titles must be retained during migration.');
+if (($contactDefs['fields']['title']['notStorable'] ?? true) !== false ||
+    ($contactDefs['fields']['title']['directUpdateDisabled'] ?? true) !== false ||
+    !array_key_exists('select', $contactDefs['fields']['title']) ||
+    $contactDefs['fields']['title']['select'] !== null) {
+    throw new RuntimeException('Contact Title metadata must use the dedicated Contact column.');
+}
+if (!array_filter($routes, static fn (array $route): bool =>
+    ($route['route'] ?? '') === '/Nexa/contact/:id/title' &&
+    ($route['method'] ?? '') === 'post' &&
+    empty($route['noAuth']))) {
+    throw new RuntimeException('The authenticated Contact Title route must be registered.');
+}
+if (($accountClientDefs['recordViews']['list'] ?? '') !== 'custom:views/account/record/list-inline') {
+    throw new RuntimeException('Account must register the shared inline-edit record list.');
+}
+$mustContain('100dvh - var(--nexa-header-height', $styles, 'The Contact workspace must fit between the application header and footer.');
+$mustContain('flex: 1 1 auto;', $styles, 'The Contact table must consume the remaining workspace height.');
+$mustContain('overflow: hidden;', $styles, 'The Contact page must keep scrolling inside the record list.');
 $mustContain('.nexa-contact-list-page .pagination', $styles, 'Contact pagination controls must be hidden.');
+$mustContain('.nexa-inline-cell-editing', $styles, 'Contact inline editing must expose a clear visual state.');
+$mustContain('.nexa-cell-editor', $styles, 'The shared editor must use a dedicated cell-sized input style.');
+$mustContain('position: absolute;', $styles, 'The inline input must stay inside the existing table cell geometry.');
+
+if (str_contains($infinite, 'inlineEditSave') || str_contains($infinite, '.inlineEdit()')) {
+    throw new RuntimeException('Contact table editing must not invoke EspoCRM inline-edit widgets.');
+}
+if (str_contains($infinite, 'name: {') || str_contains($infinite, 'createdAt: {')) {
+    throw new RuntimeException('Contact Name and Create Date must remain read-only in list inline editing.');
+}
 
 $expectedColumns = ['name', 'emailAddress', 'title', 'account', 'phoneNumber', 'leadStatus', 'address', 'createdAt'];
 $actualColumns = array_map(static fn (array $item): string => $item['name'], $layout);
 if ($actualColumns !== $expectedColumns) {
     throw new RuntimeException('Contact list columns or their order do not match the approved workspace layout.');
 }
-if (($layout[2]['label'] ?? '') !== 'Job Title') {
-    throw new RuntimeException('Contact title must be presented as Job Title in the list.');
+if (($layout[2]['label'] ?? '') !== 'Title') {
+    throw new RuntimeException('Contact title must be presented as Title in the list.');
 }
 if (($layout[5]['view'] ?? '') !== 'custom:views/contact/fields/lead-status-list') {
     throw new RuntimeException('Contact Lead Status must use its semantic badge renderer.');
