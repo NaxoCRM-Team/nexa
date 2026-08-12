@@ -23,7 +23,11 @@ class PostConfirm implements Action
         }
 
         $rowLimit = (int) ($data->rowLimit ?? ContactImportService::DEFAULT_ROW_LIMIT);
+        $createMissingAccounts = !property_exists($data, 'createMissingAccounts') ||
+            filter_var($data->createMissingAccounts, FILTER_VALIDATE_BOOL);
 
-        return ResponseComposer::json($this->service->confirm($attachmentId, $rowLimit));
+        return ResponseComposer::json(
+            $this->service->confirm($attachmentId, $rowLimit, $createMissingAccounts)
+        );
     }
 }

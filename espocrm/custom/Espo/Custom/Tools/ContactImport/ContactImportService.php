@@ -2,7 +2,10 @@
 
 namespace Espo\Custom\Tools\ContactImport;
 
+use Espo\Core\Acl;
+use Espo\Core\Acl\Table;
 use Espo\Core\Exceptions\BadRequest;
+use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\FileStorage\Manager as FileStorageManager;
 use Espo\Entities\Attachment;
@@ -96,7 +99,8 @@ class ContactImportService
     public function __construct(
         private ImportService $importService,
         private EntityManager $entityManager,
-        private FileStorageManager $fileStorageManager
+        private FileStorageManager $fileStorageManager,
+        private Acl $acl,
     ) {}
 
     /** @return array<string, mixed> */
@@ -110,13 +114,17 @@ class ContactImportService
             $result['attachmentId'] = $this->importService->uploadFile($normalizedContents);
         }
 
-        unset($result['_normalizedContents']);
+        unset($result['_normalizedContents'], $result['_normalizedRows']);
 
         return $result;
     }
 
     /** @return array<string, mixed> */
-    public function confirm(string $attachmentId, int $requestedRowLimit): array
+    public function confirm(
+        string $attachmentId,
+        int $requestedRowLimit,
+        bool $createMissingAccounts = true,
+    ): array
     {
         $rowLimit = $this->normalizeRowLimit($requestedRowLimit);
         $contents = $this->getAttachmentContents($attachmentId);
@@ -126,6 +134,10 @@ class ContactImportService
             throw new BadRequest('The Contact import file is no longer valid. Validate it again.');
         }
 
+        $accountResult = $this->prepareAccounts(
+            $validation['_normalizedRows'] ?? [],
+            $createMissingAccounts,
+        );
         $params = Params::create()
             ->withAction(Params::ACTION_CREATE)
             ->withDelimiter(',')
@@ -144,6 +156,9 @@ class ContactImportService
             'duplicates' => $result->getCountDuplicate(),
             'errors' => $result->getCountError(),
             'errorDetails' => $this->getImportErrorDetails($result->getId()),
+            'accountsMatched' => $accountResult['matched'],
+            'accountsCreated' => $accountResult['created'],
+            'accountsUnlinked' => $accountResult['unlinked'],
         ];
     }
 
@@ -372,6 +387,7 @@ class ContactImportService
         $result = $this->validationResult(!$errors, $rowCount, $rowLimit, $preview, $errors);
         $result['accountMatch'] = $accountMatch;
         $result['_normalizedContents'] = $this->encodeCsv($normalizedRows);
+        $result['_normalizedRows'] = $normalizedRows;
 
         return $result;
     }
@@ -655,9 +671,100 @@ class ContactImportService
     }
 
     /**
+     * Resolves companies only through the tenant-aware ORM. The central query
+     * processor scopes both lookup and creation to the active tenant/service.
+     * Existing Accounts are linked but never changed by a Contact import.
+     *
+     * @param array<int, array<string, string>> $rows
+     * @return array{matched: int, created: int, unlinked: int}
+     */
+    private function prepareAccounts(array $rows, bool $createMissing): array
+    {
+        $companyRows = [];
+
+        foreach ($rows as $row) {
+            $name = trim($row['account_name'] ?? '');
+
+            if ($name === '') {
+                continue;
+            }
+
+            $key = mb_strtolower($name);
+            $companyRows[$key] ??= $row;
+        }
+
+        if (!$companyRows) {
+            return ['matched' => 0, 'created' => 0, 'unlinked' => 0];
+        }
+
+        $existing = [];
+        $names = array_map(
+            static fn (array $row): string => trim($row['account_name']),
+            array_values($companyRows),
+        );
+
+        foreach (array_chunk($names, 500) as $nameBatch) {
+            $accounts = $this->entityManager
+                ->getRDBRepository('Account')
+                ->where(['name' => $nameBatch])
+                ->find();
+
+            foreach ($accounts as $account) {
+                $name = trim((string) $account->get('name'));
+
+                if ($name !== '') {
+                    $existing[mb_strtolower($name)] = true;
+                }
+            }
+        }
+
+        $missing = array_diff_key($companyRows, $existing);
+
+        if (!$missing || !$createMissing) {
+            return [
+                'matched' => count($existing),
+                'created' => 0,
+                'unlinked' => $createMissing ? 0 : count($missing),
+            ];
+        }
+
+        if (!$this->acl->checkScope('Account', Table::ACTION_CREATE)) {
+            throw new Forbidden('You do not have permission to create missing Accounts.');
+        }
+
+        $created = 0;
+
+        foreach ($missing as $row) {
+            $account = $this->entityManager->getNewEntity('Account');
+            $account->setMultiple(array_filter([
+                'name' => trim($row['account_name']),
+                'website' => trim($row['website'] ?? ''),
+                'billingAddressStreet' => trim($row['address_street'] ?? ''),
+                'billingAddressCity' => trim($row['address_city'] ?? ''),
+                'billingAddressState' => trim($row['address_state'] ?? ''),
+                'billingAddressPostalCode' => trim($row['address_postal_code'] ?? ''),
+                'billingAddressCountry' => trim($row['address_country'] ?? ''),
+            ], static fn (string $value): bool => $value !== ''));
+
+            if (!$this->acl->checkEntityCreate($account)) {
+                throw new Forbidden('You do not have permission to create one or more imported Accounts.');
+            }
+
+            $this->entityManager->saveEntity($account);
+            $created++;
+        }
+
+        return [
+            'matched' => count($existing),
+            'created' => $created,
+            'unlinked' => 0,
+        ];
+    }
+
+    /**
      * Existing accounts are matched inside the active TenantContext. Unmatched
-     * names are reported before import and remain unlinked rather than creating
-     * company records implicitly from potentially misspelled CSV values.
+     * names are reported during preview so the importer can review which
+     * companies will be created during confirmation.
      *
      * @param string[] $names
      * @return array<string, mixed>

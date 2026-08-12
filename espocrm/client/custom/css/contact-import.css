@@ -206,9 +206,33 @@
 
 .nexa-import-actions {
     border-top: 1px solid #e7ebf0;
-    justify-content: flex-end;
+    gap: 18px;
     margin-top: 20px;
     padding-top: 16px;
+}
+
+.nexa-create-accounts-option {
+    align-items: flex-start;
+    cursor: pointer;
+    display: inline-flex;
+    gap: 9px;
+    margin: 0 auto 0 0;
+    max-width: 560px;
+}
+
+.nexa-create-accounts-option input {
+    flex: 0 0 auto;
+    margin-top: 3px;
+}
+
+.nexa-create-accounts-option strong,
+.nexa-create-accounts-option small {
+    display: block;
+}
+
+.nexa-create-accounts-option small {
+    color: #687386;
+    margin-top: 3px;
 }
 
 .nexa-import-busy,
@@ -289,6 +313,15 @@
     .nexa-file-drop {
         flex-direction: column;
         text-align: center;
+    }
+
+    .nexa-import-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .nexa-import-actions .btn {
+        align-self: flex-end;
     }
 
     .nexa-preview-pagination {

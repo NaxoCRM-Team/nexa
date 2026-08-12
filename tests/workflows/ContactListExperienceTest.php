@@ -31,6 +31,8 @@ $locationTemplate = $read('espocrm/client/custom/res/templates/contact/fields/lo
 $leadStatus = $read('espocrm/client/custom/src/views/contact/fields/lead-status-list.js');
 $leadStatusTemplate = $read('espocrm/client/custom/res/templates/contact/fields/lead-status-list.tpl');
 $createdAt = $read('espocrm/client/custom/src/views/contact/fields/created-at-list.js');
+$nameView = $read('espocrm/client/custom/src/views/contact/fields/name-v2.js');
+$nameListTemplate = $read('espocrm/client/custom/res/templates/contact/fields/name/list-link-v2.tpl');
 $addressData = $read('espocrm/custom/Espo/Custom/Classes/AppParams/AddressSubdivisionData.php');
 
 if (($clientDefs['views']['list'] ?? '') !== 'custom:views/contact/list-v2') {
@@ -43,6 +45,7 @@ if (($clientDefs['recordViews']['list'] ?? '') !== 'custom:views/contact/record/
 $mustContain("searchView = 'custom:views/contact/record/search-live-v2'", $list, 'Contact list must register live search.');
 $mustContain("recordView = 'custom:views/contact/record/list-infinite-v2'", $list, 'Contact list must directly register incremental loading.');
 $mustContain('options.pagination = false', $list, 'Contact list must remove page-based navigation.');
+$mustContain("this.contactListElement?.classList.remove('nexa-contact-list-page')", $list, 'Contact list scrolling must be released from the exact list node before rendering Contact record pages.');
 $mustContain("this.addHandler('input'", $search, 'Contact search must respond to typing.');
 $mustContain('this.filterVisibleRows(event.target.value)', $search, 'Contact search must filter loaded rows immediately.');
 $mustContain('window.setTimeout(() => this.runLiveSearch(), 320)', $search, 'Contact search must debounce API requests.');
@@ -139,7 +142,20 @@ $mustContain("OpenDeal: 'open-deal'", $leadStatus, 'Open Deal must have a stable
 $mustContain("Unqualified: 'unqualified'", $leadStatus, 'Unqualified must have a stable badge style.');
 $mustContain('nexa-lead-status--{{statusClass}}', $leadStatusTemplate, 'Lead Status must render as a semantic badge.');
 $mustContain('.nexa-lead-status--connected', $styles, 'Connected lead badges must have an explicit color.');
+$mustContain('td[data-name="emailAddress"]', $styles, 'Contact primary fields must use stable field selectors for emphasis.');
+$mustContain('color: #174f46;', $styles, 'Contact primary fields must use the approved dark-green emphasis.');
+$mustContain('font-weight: 700;', $styles, 'Contact primary fields must use bold emphasis.');
 $mustContain('font-family: inherit', $styles, 'Contact headers must use consistent typography.');
+$mustContain("listLinkTemplate = 'custom:contact/fields/name/list-link-v2'", $nameView, 'Contact Name lists must use the avatar renderer.');
+$mustContain("Nexa/contact-profile-image/", $nameView, 'Contact list portraits must use the protected tenant-scoped image endpoint.');
+$mustContain("URL.revokeObjectURL", $nameView, 'Contact list portrait object URLs must be released.');
+$mustContain("this.model.get('firstName') || this.model.get('lastName')", $nameView, 'Contacts without portraits must derive a stable initial.');
+$mustContain('nexa-contact-list-avatar', $nameListTemplate, 'Contact list names must render a circular avatar beside the link.');
+$mustContain("getSelectAttributeList(callback)", $infinite, 'Contact list queries must explicitly append hidden required fields.');
+$mustContain("attributeList.push('profileImageId')", $infinite, 'Every Contact list query must include its hidden portrait identifier.');
+$mustContain('.nexa-contact-name-link', $styles, 'Contact name and avatar must use stable inline alignment.');
+$mustContain('border-radius: 50%;', $styles, 'Contact list avatars must be circular.');
+$mustContain('object-fit: cover;', $styles, 'Contact portraits must crop cleanly inside their circle.');
 $mustContain("configuredFormat.includes('Y')", $createdAt, 'Contact Create Date must always include a year.');
 $mustContain("label.textContent = 'Total contacts:'", $list, 'Contact totals must have a visible label.');
 $mustContain("'<span>Columns</span>'", $list, 'The visible-column selector must have a clear label.');

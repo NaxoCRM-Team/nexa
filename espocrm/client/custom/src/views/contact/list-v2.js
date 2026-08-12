@@ -4,7 +4,14 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
 
     setup() {
         super.setup();
-        this.once('remove', () => this.contactControlsObserver?.disconnect());
+        this.once('remove', () => {
+            this.contactControlsObserver?.disconnect();
+
+            // Espo can reuse the main content node between list and record routes.
+            // Remove the list-only scroll lock before a Contact record is rendered.
+            this.contactListElement?.classList.remove('nexa-contact-list-page');
+            this.contactListElement = null;
+        });
     }
 
     /**
@@ -19,7 +26,8 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
 
     afterRender() {
         const result = super.afterRender();
-        this.element?.classList.add('nexa-contact-list-page');
+        this.contactListElement = this.element;
+        this.contactListElement?.classList.add('nexa-contact-list-page');
         this.decorateContactControls();
         this.observeContactControls();
 
@@ -55,6 +63,17 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
             settingsContainer.after(importButton);
         }
 
+        if (settingsContainer && this.getUser().isAdmin() && !root.querySelector('.nexa-contact-trash-button')) {
+            const trashButton = document.createElement('button');
+            trashButton.type = 'button';
+            trashButton.className = 'btn btn-default nexa-contact-trash-button';
+            trashButton.innerHTML = '<span class="far fa-trash-alt" aria-hidden="true"></span><span>Deleted</span>';
+            trashButton.setAttribute('aria-label', 'Open deleted contacts');
+            trashButton.title = 'Deleted contacts';
+            trashButton.addEventListener('click', () => this.openContactTrash());
+            root.querySelector('.nexa-contact-import-button')?.after(trashButton);
+        }
+
         if (columnButton && !columnButton.classList.contains('nexa-column-selector')) {
             columnButton.classList.add('nexa-column-selector');
             columnButton.setAttribute('aria-label', 'Choose visible contact columns');
@@ -76,6 +95,21 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
             }
 
             total.setAttribute('aria-label', `Total contacts: ${total.querySelector('.total-count-span')?.textContent || 0}`);
+        }
+    }
+
+    async openContactTrash() {
+        Espo.Ui.notifyWait();
+        try {
+            const result = await Espo.Ajax.getRequest('Nexa/contact/trash');
+            this.createView('contactTrash', 'custom:views/contact/modals/trash', {
+                records: result.list || [],
+            }, view => {
+                view.render();
+                this.listenToOnce(view, 'restored', () => this.collection.fetch());
+            });
+        } finally {
+            Espo.Ui.notify(false);
         }
     }
 });

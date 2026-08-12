@@ -606,6 +606,7 @@ class Cleanup implements JobDataLess
         $scopeList = array_keys($this->metadata->get(['scopes']));
 
         foreach ($scopeList as $scope) {
+
             if (!$this->metadata->get(['scopes', $scope, 'entity'])) {
                 continue;
             }
