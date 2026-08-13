@@ -30,7 +30,7 @@ Options -Indexes
 
     # Treat login as a directory so Espo's initial and lazy-loaded relative
     # assets share one stable base in both root and subfolder installations.
-    RewriteRule ^login$ %{ENV:BASE}login/ [R=302,L,NE]
+    RewriteRule ^login$ %{ENV:BASE}login/ [R=302,L,NE,QSA]
     RewriteRule ^login/$ %{ENV:BASE}/public/index.php?login=1 [QSA,L,NC]
 
     # Tenant-qualified workspace URLs use the main client front controller.

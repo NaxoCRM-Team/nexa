@@ -41,12 +41,7 @@ class UserFinder
 
     public function find(string $username): ?User
     {
-        $identity = filter_var($username, FILTER_VALIDATE_EMAIL)
-            ? ['OR' => [
-                ['userName' => $username],
-                ['emailAddress' => strtolower($username)],
-            ]]
-            : ['userName' => $username];
+        $identity = $this->identityWhere($username);
 
         return $this->entityManager
             ->getRDBRepositoryByClass(User::class)
@@ -57,12 +52,7 @@ class UserFinder
 
     public function findByIdAndHash(string $username, string $id, ?string $hash): ?User
     {
-        $identity = filter_var($username, FILTER_VALIDATE_EMAIL)
-            ? ['OR' => [
-                ['userName' => $username],
-                ['emailAddress' => strtolower($username)],
-            ]]
-            : ['userName' => $username];
+        $identity = $this->identityWhere($username);
 
         $where = [
             'id' => $id,
@@ -78,6 +68,23 @@ class UserFinder
             ->where($identity)
             ->where($where)
             ->findOne();
+    }
+
+    /** @return array<string, mixed> */
+    private function identityWhere(string $identifier): array
+    {
+        $identifier = trim($identifier);
+
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+            return ['loginEmail' => strtolower($identifier)];
+        }
+
+        // Temporary compatibility for pre-migration administrators that do
+        // not yet have a primary email. Email-backed users cannot use this.
+        return [
+            'userName' => $identifier,
+            'loginEmail' => null,
+        ];
     }
 
     public function findApiHmac(string $apiKey): ?User

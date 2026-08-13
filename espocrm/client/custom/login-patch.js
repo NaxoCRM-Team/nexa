@@ -118,6 +118,60 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
     const defaultAfterRender = LoginView.prototype.afterRender;
     const defaultResetSetup = PasswordResetView.prototype.setup;
 
+    LoginView.prototype.showNexaLoginError = function (text) {
+        const message = this.element.querySelector('[data-login-message]');
+
+        if (!message) return;
+
+        message.textContent = text;
+        message.classList.remove('is-success');
+        message.classList.add('is-error');
+        message.hidden = false;
+        message.setAttribute('tabindex', '-1');
+        message.focus({preventScroll: true});
+        message.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+
+        window.clearTimeout(this.nexaLoginErrorTimer);
+        this.nexaLoginErrorTimer = window.setTimeout(() => {
+            this.clearNexaLoginError();
+        }, 8000);
+    };
+
+    LoginView.prototype.clearNexaLoginError = function () {
+        const message = this.element.querySelector('[data-login-message]');
+
+        window.clearTimeout(this.nexaLoginErrorTimer);
+        this.nexaLoginErrorTimer = null;
+
+        if (!message) return;
+
+        message.hidden = true;
+        message.textContent = '';
+        message.classList.remove('is-error', 'is-success');
+        message.removeAttribute('tabindex');
+        this.element.querySelectorAll('#login-form .has-error').forEach(cell => {
+            cell.classList.remove('has-error');
+        });
+        this.element.querySelectorAll('#login-form [aria-invalid="true"]').forEach(input => {
+            input.removeAttribute('aria-invalid');
+        });
+    };
+
+    LoginView.prototype.onFail = function (messageKey) {
+        Espo.Ui.notify(false);
+        const message = messageKey === 'wrongUsernamePassword'
+            ? 'The email address or password is incorrect. Check your details and try again.'
+            : 'We could not sign you in right now. Please try again.';
+
+        this.element.querySelectorAll('#login-form .form-group').forEach(cell => {
+            cell.classList.add('has-error');
+        });
+        this.element.querySelectorAll('#field-userName, #field-password').forEach(input => {
+            input.setAttribute('aria-invalid', 'true');
+        });
+        this.showNexaLoginError(message);
+    };
+
     App.prototype.initRouter = function (...args) {
         const workspaceBaseUrl = showApplicationUrl(this);
         const defaultHistoryStart = Backbone.history.start;
@@ -144,6 +198,7 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         return {
             ...defaultData.call(this),
             applicationName: 'Nexa CRM',
+            socialConnecting: location.hash.startsWith('#nexa-social='),
             // Nexa owns recovery through its tenant-aware endpoint, so the entry
             // point must not depend on EspoCRM's legacy SMTP-derived UI flag.
             showForgotPassword: true,
@@ -169,6 +224,8 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         });
 
         const loginPanel = this.element.querySelector('#login');
+        const socialConnectingPanel = this.element.querySelector('[data-social-connecting]');
+        const socialConnectingMessage = this.element.querySelector('[data-social-connecting-message]');
         const recoveryPanel = this.element.querySelector('[data-recovery-panel]');
         const recoveryForm = this.element.querySelector('[data-recovery-form]');
         const recoveryMessage = this.element.querySelector('[data-recovery-message]');
@@ -188,11 +245,9 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
             recoveryMessageTimer = window.setTimeout(dismissRecoveryMessage, isError ? 10000 : 7000);
         };
         const showLoginError = text => {
-            const message = this.element.querySelector('[data-login-message]');
-            message.textContent = text;
-            message.classList.remove('is-success');
-            message.classList.add('is-error');
-            message.hidden = false;
+            socialConnectingPanel.hidden = true;
+            loginPanel.hidden = false;
+            this.showNexaLoginError(text);
         };
         const showLogin = () => {
             dismissRecoveryMessage();
@@ -217,6 +272,10 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
                     .padEnd(Math.ceil(socialPayload.length / 4) * 4, '=');
                 const social = JSON.parse(decodeURIComponent(escape(atob(padded))));
                 const authorization = btoa(social.userName + ':' + social.token);
+                const providerLabel = social.provider === 'microsoft' ? 'Microsoft' : 'Google';
+                socialConnectingPanel.hidden = false;
+                loginPanel.hidden = true;
+                socialConnectingMessage.textContent = `We are securely connecting your ${providerLabel} identity to the correct Nexa workspace.`;
                 this.disableForm();
                 Espo.Ajax.getRequest('App/user', null, {
                     login: true,
@@ -228,18 +287,33 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
                 }).then(data => this.triggerLogin(social.userName, data))
                     .catch(() => {
                         this.undisableForm();
-                        showLoginError('Google sign in could not be completed. Please try again.');
+                        showLoginError(`${providerLabel} sign in could not be completed. Please try again.`);
                     });
             } catch (error) {
-                showLoginError('Google sign in could not be completed. Please try again.');
+                showLoginError('Social sign in could not be completed. Please try again.');
             }
         }
-        const socialError = new URLSearchParams(location.search).get('socialError');
+        const socialParameters = new URLSearchParams(location.search);
+        const socialError = socialParameters.get('socialError');
         if (socialError) {
+            const providerLabel = socialParameters.get('socialProvider') === 'microsoft' ? 'Microsoft' : 'Google';
             showLoginError(socialError === 'social_account_not_linked'
-                ? 'No Nexa account is connected to that identity. Sign in with your password or contact your workspace administrator.'
-                : 'Identity-provider sign in was cancelled or could not be completed.');
+                ? `No Nexa account is connected to that ${providerLabel} account. Use another account, sign in with your password, or create a workspace.`
+                : `${providerLabel} sign in was cancelled or could not be completed.`);
+
+            const cleanUrl = new URL(location.href);
+            cleanUrl.searchParams.delete('socialError');
+            cleanUrl.searchParams.delete('socialProvider');
+            history.replaceState(null, '', cleanUrl.pathname + cleanUrl.search);
         }
+
+        this.element.querySelectorAll('#field-userName, #field-password').forEach(input => {
+            input.addEventListener('input', () => {
+                if (!this.element.querySelector('[data-login-message]')?.hidden) {
+                    this.clearNexaLoginError();
+                }
+            });
+        });
 
         this.element.querySelector('[data-action="nexaRecovery"]')?.addEventListener('click', event => {
             event.preventDefault();

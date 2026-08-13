@@ -81,7 +81,7 @@ final class SocialAuthService
     {
         $this->assertProvider($provider);
         if ($state === '' || $code === '') {
-            return $this->failureUrl('provider_cancelled');
+            return $this->failureUrl('provider_cancelled', provider: $provider);
         }
 
         $attempt = null;
@@ -145,7 +145,7 @@ final class SocialAuthService
             $identity = $this->findIdentity($provider, $profile['subject']);
 
             if ($identity === null) {
-                return $this->failureUrl('social_account_not_linked');
+                return $this->failureUrl('social_account_not_linked', provider: $provider);
             }
 
             return $this->sessionUrl($provider, $identity);
@@ -159,7 +159,7 @@ final class SocialAuthService
             $intent = is_array($attempt) ? (string) ($attempt['intent'] ?? 'login') : 'login';
             $plan = is_array($attempt) ? (string) ($attempt['payload']['plan'] ?? 'growth') : 'growth';
 
-            return $this->failureUrl('social_auth_failed', $intent, $plan);
+            return $this->failureUrl('social_auth_failed', $intent, $plan, $provider);
         }
     }
 
@@ -261,14 +261,16 @@ final class SocialAuthService
             ]
         );
         $payload = rtrim(strtr(base64_encode(json_encode([
-            'userName' => $identity['user_name'], 'token' => $token->getToken(),
+            'userName' => $identity['user_name'],
+            'token' => $token->getToken(),
+            'provider' => $provider,
         ], JSON_THROW_ON_ERROR)), '+/', '-_'), '=');
         return rtrim((string) $this->config->get('siteUrl'), '/') . '/login#nexa-social=' . $payload;
     }
 
-    public function failureRedirectUrl(string $reason): string
+    public function failureRedirectUrl(string $reason, string $provider = ''): string
     {
-        return $this->failureUrl($reason);
+        return $this->failureUrl($reason, provider: $provider);
     }
 
     public function callbackCookiePath(string $provider): string
@@ -276,17 +278,29 @@ final class SocialAuthService
         return (string) (parse_url($this->callbackUrl($provider), PHP_URL_PATH) ?: '/');
     }
 
-    private function failureUrl(string $reason, string $intent = 'login', string $plan = 'growth'): string
+    private function failureUrl(
+        string $reason,
+        string $intent = 'login',
+        string $plan = 'growth',
+        string $provider = '',
+    ): string
     {
+        $providerParameter = $provider !== ''
+            ? '&socialProvider=' . rawurlencode($provider)
+            : '';
+
         // Keep failed self-service signups in onboarding. Sending them to the
         // login page falsely suggests that a workspace account was created.
         if ($intent === 'signup') {
             return rtrim((string) $this->config->get('siteUrl'), '/')
                 . '/?signup=' . rawurlencode($plan)
-                . '&socialError=' . rawurlencode($reason);
+                . '&socialError=' . rawurlencode($reason)
+                . $providerParameter;
         }
 
-        return rtrim((string) $this->config->get('siteUrl'), '/') . '/login?socialError=' . rawurlencode($reason);
+        return rtrim((string) $this->config->get('siteUrl'), '/')
+            . '/login?socialError=' . rawurlencode($reason)
+            . $providerParameter;
     }
 
     private function completionUrl(string $attemptToken, string $plan): string

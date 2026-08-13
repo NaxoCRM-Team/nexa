@@ -22,7 +22,7 @@
             <span class="modern-login-brand-name">Nexa CRM</span>
         </a>
 
-        <div id="login" class="modern-login-panel">
+        <div id="login" class="modern-login-panel"{{#if socialConnecting}} hidden{{/if}}>
             <header class="modern-login-header">
                 <p class="modern-login-eyebrow">Your Nexa workspace</p>
                 <h1>Good to see you again</h1>
@@ -43,10 +43,10 @@
                 {{/if}}
 
                 <div class="form-group cell" data-name="username">
-                    <label for="field-userName">{{translate 'Username'}}</label>
+                    <label for="field-userName">Email address</label>
                     <div class="modern-login-input">
-                        <span class="far fa-user" aria-hidden="true"></span>
-                        <input type="text" name="username" id="field-userName" class="form-control" autocapitalize="off" spellcheck="false" tabindex="1" autocomplete="username" maxlength="255">
+                        <span class="far fa-envelope" aria-hidden="true"></span>
+                        <input type="text" name="username" id="field-userName" class="form-control" autocapitalize="off" spellcheck="false" inputmode="email" placeholder="name@company.com" tabindex="1" autocomplete="username" maxlength="255">
                     </div>
                 </div>
 
@@ -74,6 +74,13 @@
 
             <p class="modern-create-account">New to Nexa? <a href="?signup=growth">Create an account</a></p>
             <p class="modern-login-security"><span class="fas fa-shield-alt" aria-hidden="true"></span>Tenant-aware sign in protected by Nexa</p>
+        </div>
+
+        <div class="modern-login-panel modern-social-connecting" data-social-connecting role="status" aria-live="polite"{{#unless socialConnecting}} hidden{{/unless}}>
+            <span class="modern-social-spinner" aria-hidden="true"></span>
+            <p class="modern-login-eyebrow">Secure social sign in</p>
+            <h1>Signing you in</h1>
+            <p data-social-connecting-message>We are securely connecting your identity to the correct Nexa workspace.</p>
         </div>
 
         <div class="modern-login-panel modern-recovery-panel" data-recovery-panel hidden>

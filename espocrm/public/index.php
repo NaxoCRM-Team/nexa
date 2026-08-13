@@ -36,7 +36,14 @@ $workspaceRoute = NexaApplicationPath::workspaceRoute($requestPath, $basePath);
 
 // Keep one canonical login URL across root and subfolder installations.
 if ($isFriendlyLoginRequest && !str_ends_with($requestPath, '/')) {
-    header('Location: ' . NexaApplicationPath::baseHref($basePath) . 'login/', true, 302);
+    $queryString = trim((string) ($_SERVER['QUERY_STRING'] ?? ''));
+    $location = NexaApplicationPath::baseHref($basePath) . 'login/';
+
+    if ($queryString !== '') {
+        $location .= '?' . $queryString;
+    }
+
+    header('Location: ' . $location, true, 302);
 
     exit;
 }

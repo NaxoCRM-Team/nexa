@@ -107,12 +107,13 @@ $assert(
 );
 $assert(
     str_contains($rewriteRules, 'RewriteRule ^login$ %{ENV:BASE}login/') &&
+    str_contains($rewriteRules, '[R=302,L,NE,QSA]') &&
     str_contains($rewriteRules, 'RewriteRule ^login/$') &&
     str_contains($rewriteRules, 'RewriteRule ^w/[a-z0-9]') &&
     !str_contains($landing, 'login=1') &&
     !str_contains($landingCss, "url('/client/") &&
     !str_contains($landingCss, "url('/landing/"),
-    'Friendly login navigation and landing assets must remain inside the application mount point.'
+    'Friendly login navigation must preserve status parameters and landing assets must remain inside the application mount point.'
 );
 $assert(
     str_contains($publicEntry, '$clientBasePath = NexaApplicationPath::baseHref($basePath);'),
@@ -121,8 +122,10 @@ $assert(
 
 $assert(
     str_contains($publicEntry, "!str_ends_with(\$requestPath, '/')") &&
-    str_contains($publicEntry, "NexaApplicationPath::baseHref(\$basePath) . 'login/'"),
-    'The extensionless login route must redirect to its directory-shaped canonical URL.'
+    str_contains($publicEntry, "NexaApplicationPath::baseHref(\$basePath) . 'login/'") &&
+    str_contains($publicEntry, "\$_SERVER['QUERY_STRING']") &&
+    str_contains($publicEntry, "\$location .= '?' . \$queryString"),
+    'The extensionless login route must preserve its query string when redirecting to the directory-shaped canonical URL.'
 );
 $assert(
     str_contains($apiStarter, "hash('sha256', \$basePath)") &&
