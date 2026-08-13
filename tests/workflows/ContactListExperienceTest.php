@@ -103,6 +103,12 @@ $mustContain('100dvh - var(--nexa-header-height', $styles, 'The Contact workspac
 $mustContain('flex: 1 1 auto;', $styles, 'The Contact table must consume the remaining workspace height.');
 $mustContain('overflow: hidden;', $styles, 'The Contact page must keep scrolling inside the record list.');
 $mustContain('.nexa-contact-list-page .pagination', $styles, 'Contact pagination controls must be hidden.');
+$mustContain('.select-all.form-checkbox-small', $styles, 'The CRM list header checkbox must have a dedicated visible style.');
+$mustContain('.record-checkbox.form-checkbox-small', $styles, 'Every CRM list row checkbox must have a dedicated visible style.');
+$mustContain('.record-checkbox-container', $styles, 'Row checkbox containers must keep their selection controls centered.');
+$mustContain('height: 18px;', $styles, 'CRM list selection checkboxes must provide a clear target size.');
+$mustContain('.form-checkbox-small:focus-visible', $styles, 'CRM list selection checkboxes must expose keyboard focus.');
+$mustContain('.form-checkbox-small:checked', $styles, 'CRM list selection checkboxes must expose a distinct selected state.');
 $mustContain('.nexa-inline-cell-editing', $styles, 'Contact inline editing must expose a clear visual state.');
 $mustContain('.nexa-cell-editor', $styles, 'The shared editor must use a dedicated cell-sized input style.');
 $mustContain('position: absolute;', $styles, 'The inline input must stay inside the existing table cell geometry.');

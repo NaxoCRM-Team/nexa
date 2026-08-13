@@ -491,6 +491,62 @@ td.nexa-inline-cell-error {
     width: 46px !important;
 }
 
+/* Selection controls need stronger contrast than the native compact checkbox. */
+.nexa-crm-list-workflow .nexa-crm-table .record-checkbox-container {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    min-height: 20px;
+}
+
+.nexa-crm-list-workflow .nexa-crm-table .select-all.form-checkbox-small,
+.nexa-crm-list-workflow .nexa-crm-table .record-checkbox.form-checkbox-small {
+    background-color: #ffffff;
+    border: 2px solid #71858c;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(31, 49, 55, 0.08);
+    float: none;
+    height: 18px;
+    margin: 0;
+    top: 0;
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    width: 18px;
+}
+
+.nexa-crm-list-workflow .nexa-crm-table .select-all.form-checkbox-small:hover:not(:disabled),
+.nexa-crm-list-workflow .nexa-crm-table .record-checkbox.form-checkbox-small:hover:not(:disabled) {
+    border-color: #176c5b;
+    box-shadow: 0 0 0 3px rgba(23, 108, 91, 0.1);
+}
+
+.nexa-crm-list-workflow .nexa-crm-table .select-all.form-checkbox-small:focus-visible,
+.nexa-crm-list-workflow .nexa-crm-table .record-checkbox.form-checkbox-small:focus-visible {
+    border-color: #176c5b;
+    box-shadow: 0 0 0 3px rgba(23, 108, 91, 0.2);
+    outline: 0;
+}
+
+.nexa-crm-list-workflow .nexa-crm-table .select-all.form-checkbox-small:checked,
+.nexa-crm-list-workflow .nexa-crm-table .record-checkbox.form-checkbox-small:checked {
+    background-color: #176c5b;
+    border-color: #176c5b;
+    box-shadow: none;
+}
+
+.nexa-crm-list-workflow .nexa-crm-table .select-all.form-checkbox-small:checked::before,
+.nexa-crm-list-workflow .nexa-crm-table .record-checkbox.form-checkbox-small:checked::before {
+    color: #ffffff;
+    font-size: 12px;
+}
+
+.nexa-crm-list-workflow .nexa-crm-table .select-all.form-checkbox-small:disabled,
+.nexa-crm-list-workflow .nexa-crm-table .record-checkbox.form-checkbox-small:disabled {
+    background-color: #edf1f2;
+    border-color: #b8c4c8;
+    box-shadow: none;
+    opacity: 0.72;
+}
+
 .nexa-crm-list-workflow .field-header-cell .sort {
     color: inherit;
     display: inline-flex;
@@ -948,6 +1004,8 @@ td.nexa-inline-cell-error {
     border: 0;
     border-radius: 8px;
     box-shadow: 0 24px 70px rgba(25, 35, 42, 0.28);
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
 }
 
@@ -1020,6 +1078,40 @@ td.nexa-inline-cell-error {
 .nexa-trash-dialog .modal-footer {
     border-top: 0;
     padding: 0 24px 24px;
+}
+
+.nexa-delete-dialog .modal-footer {
+    align-items: center;
+    clear: both;
+    display: flex;
+    float: none;
+    gap: 12px;
+    justify-content: flex-start;
+    order: 3;
+    position: static;
+    text-align: left;
+    width: 100%;
+}
+
+.nexa-delete-dialog .modal-footer::before,
+.nexa-delete-dialog .modal-footer::after {
+    display: none;
+}
+
+.nexa-delete-dialog .modal-footer .btn + .btn {
+    margin-left: 0;
+}
+
+.nexa-delete-dialog .modal-footer > .main-btn-group {
+    display: flex;
+    float: none;
+    gap: 12px;
+}
+
+.nexa-delete-dialog .modal-footer > .main-btn-group > .btn {
+    border-radius: 4px;
+    float: none;
+    margin: 0;
 }
 
 .nexa-delete-dialog .modal-footer .btn,

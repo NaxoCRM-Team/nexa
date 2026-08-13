@@ -45,23 +45,23 @@ final class TenantResolver
             return null;
         }
 
+        $isEmail = filter_var($identifier, FILTER_VALIDATE_EMAIL) !== false;
+        $normalizedEmail = $isEmail ? strtolower($identifier) : null;
+
         $statement = $this->entityManager->getPDO()->prepare(
             'SELECT DISTINCT t.id, t.slug, t.display_name, ts.service_id FROM user u ' .
             'INNER JOIN nexa_tenant t ON t.id = u.tenant_id ' .
             $this->crmServiceJoin() .
-            'LEFT JOIN entity_email_address eea ON eea.entity_id = u.id ' .
-            'AND eea.entity_type = :userType AND eea.primary = 1 AND eea.deleted = 0 ' .
-            'AND eea.tenant_id = u.tenant_id AND eea.service_id = ts.service_id ' .
-            'LEFT JOIN email_address ea ON ea.id = eea.email_address_id ' .
-            'AND ea.deleted = 0 AND ea.tenant_id = u.tenant_id AND ea.service_id = ts.service_id ' .
-            'WHERE (u.user_name = :identifier OR ea.lower = :email) ' .
+            'WHERE ((:emailMode = 1 AND u.login_email = :email) ' .
+            'OR (:legacyMode = 1 AND u.login_email IS NULL AND u.user_name = :identifier)) ' .
             'AND u.service_id = ts.service_id ' .
             'AND u.deleted = 0 AND u.is_active = 1 AND t.status = :tenantStatus LIMIT 2'
         );
         $statement->execute([
             'identifier' => $identifier,
-            'email' => strtolower($identifier),
-            'userType' => 'User',
+            'email' => $normalizedEmail,
+            'emailMode' => $isEmail ? 1 : 0,
+            'legacyMode' => $isEmail ? 0 : 1,
             'tenantStatus' => 'active',
             'tenantServiceStatus' => 'active',
             'serviceStatus' => 'active',

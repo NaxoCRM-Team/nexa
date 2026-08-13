@@ -62,6 +62,9 @@ $mustContain('.modal.nexa-delete-dialog.in', $styles, 'The visible deletion over
 $mustContain('.nexa-delete-dialog > .modal-dialog', $styles, 'Width constraints must apply to the inner dialog, not the overlay.');
 $mustContain('justify-content: center;', $styles, 'The deletion dialog must be horizontally centered.');
 $mustContain('align-items: center;', $styles, 'The deletion dialog must be vertically centered on desktop.');
+$mustContain('.nexa-delete-dialog .modal-footer > .main-btn-group', $styles, 'Deletion actions must use a dedicated horizontal footer group.');
+$mustContain('order: 3;', $styles, 'Deletion actions must remain below the modal body.');
+$mustContain('gap: 12px;', $styles, 'Deletion actions must have clear separation.');
 
 foreach (['tenant-a', 'tenant-b', 'isolation-alpha'] as $literal) {
     if (str_contains($service . $recordList . $trashModal, $literal)) {

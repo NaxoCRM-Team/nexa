@@ -208,11 +208,12 @@ $userFinderSource = file_get_contents(
     dirname(__DIR__, 2) . '/espocrm/application/Espo/Core/Authentication/Helper/UserFinder.php'
 );
 $assert(
-    str_contains($tenantResolverSource, 'entity_email_address') &&
-    str_contains($tenantResolverSource, 'ea.lower = :email') &&
+    str_contains($tenantResolverSource, 'u.login_email = :email') &&
+    str_contains($tenantResolverSource, 'u.login_email IS NULL AND u.user_name = :identifier') &&
     str_contains($userFinderSource, 'FILTER_VALIDATE_EMAIL') &&
-    str_contains($userFinderSource, '[\'emailAddress\' => strtolower($username)]'),
-    'Login identity must resolve the same tenant user by unique email or username.'
+    str_contains($userFinderSource, "['loginEmail' => strtolower(\$identifier)]") &&
+    str_contains($userFinderSource, "'loginEmail' => null"),
+    'Login identity must use global email and limit username fallback to legacy no-email users.'
 );
 $providerRegistrySource = file_get_contents(
     dirname(__DIR__, 2) . '/espocrm/custom/Espo/Custom/Tools/Auth/AuthProviderRegistry.php'
@@ -280,15 +281,34 @@ $assert(
     'New social identities must resume onboarding instead of provisioning in the OAuth callback.'
 );
 $assert(
-    str_contains($socialSource, "failureUrl('social_auth_failed', \$intent, \$plan)") &&
+    str_contains($socialSource, "failureUrl('social_auth_failed', \$intent, \$plan, \$provider)") &&
     str_contains($socialSource, "if (\$intent === 'signup')") &&
     str_contains($landingSource, "params.get('socialError')"),
     'Failed social signup must return to onboarding with a visible error instead of opening login.'
-);$assert(
+);
+$assert(
     str_contains($loginAdapterSource, "const socialHash = location.hash.startsWith('#nexa-social=')") &&
     str_contains($loginAdapterSource, 'showLoginUrl(socialHash)') &&
-    str_contains($loginAdapterSource, 'const socialPayload = socialHash'),
-    'Social login must preserve its fragment handoff until the browser establishes the session.'
+    str_contains($loginAdapterSource, 'const socialPayload = socialHash') &&
+    str_contains($loginAdapterSource, 'socialConnectingPanel.hidden = false') &&
+    str_contains($loginAdapterSource, 'loginPanel.hidden = true'),
+    'Social login must preserve its fragment handoff and show a dedicated connection state until the browser establishes the session.'
+);
+$assert(
+    str_contains($socialSource, "'provider' => \$provider") &&
+    str_contains($socialSource, 'socialProvider=') &&
+    str_contains($loginAdapterSource, 'No Nexa account is connected to that ${providerLabel} account') &&
+    str_contains($loginAdapterSource, "message.classList.add('is-error')"),
+    'Unlinked social identities must return a provider-specific visible error without unsafe email matching.'
+);
+$assert(
+    str_contains($loginAdapterSource, 'LoginView.prototype.onFail') &&
+    str_contains($loginAdapterSource, 'The email address or password is incorrect.') &&
+    str_contains($loginAdapterSource, "input.setAttribute('aria-invalid', 'true')") &&
+    str_contains($loginAdapterSource, 'this.showNexaLoginError(message)') &&
+    str_contains($loginAdapterSource, 'this.clearNexaLoginError()') &&
+    str_contains($loginAdapterSource, '}, 8000);'),
+    'Email and password failures must use an accessible inline message that clears automatically or when credentials change.'
 );
 $assert(
     str_contains($progressiveMigration, 'CREATE TABLE IF NOT EXISTS nexa_signup_attempt') &&

@@ -136,6 +136,52 @@ body.modern-login-page #main { min-height: 100vh; }
     box-shadow: none;
 }
 
+.modern-social-connecting {
+    min-height: 330px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.modern-social-connecting:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+}
+
+.modern-social-connecting h1 {
+    margin: 4px 0 12px;
+    color: #172222;
+    font-size: 34px;
+    line-height: 1.15;
+}
+
+.modern-social-connecting > p:last-child {
+    max-width: 350px;
+    margin: 0;
+    color: #687574;
+    line-height: 1.6;
+}
+
+.modern-social-spinner {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 24px;
+    border: 4px solid #d8e5e7;
+    border-top-color: #16758a;
+    border-radius: 50%;
+    animation: nexa-social-spin 750ms linear infinite;
+}
+
+@keyframes nexa-social-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .modern-social-spinner {
+        animation-duration: 1500ms;
+    }
+}
+
 .modern-social-providers { display: grid; gap: 10px; margin-bottom: 20px; }
 .modern-social-button { min-height: 50px; border: 1px solid #b8c4c1; border-radius: 8px; color: #172222; background: #fff; font-size: 14px; font-weight: 700; }
 .modern-social-button:hover, .modern-social-button:focus { border-color: #0f766e; color: #0f766e; box-shadow: 0 0 0 3px rgba(15, 118, 110, .14); }
@@ -303,6 +349,41 @@ body.modern-login-page #main { min-height: 100vh; }
 .modern-recovery-message.is-success { border-left-color: #237a57; color: #19583f; background: #edf8f2; }
 .modern-recovery-message.is-error,
 .modern-recovery-message.error { border-left-color: #b83c35; color: #7e2925; background: #fff1ef; }
+.modern-login-panel [data-login-message].is-error {
+    position: relative;
+    margin: 0 0 22px;
+    padding: 14px 16px 14px 44px;
+    border: 1px solid #e3aaa5;
+    border-left: 4px solid #b42318;
+    border-radius: 6px;
+    box-shadow: 0 8px 20px rgba(126, 41, 37, 0.08);
+    color: #7e2925;
+    background: #fff4f2;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.modern-login-panel [data-login-message].is-error::before {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    color: #b42318;
+    content: "\f06a";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+}
+.modern-login-panel [data-login-message].is-error:focus {
+    outline: 3px solid rgba(180, 35, 24, 0.18);
+    outline-offset: 2px;
+}
+.modern-login-form .form-group.has-error .modern-login-input {
+    border-color: #b42318;
+    background: #fffafa;
+}
+.modern-login-form .form-group.has-error .modern-login-input:focus-within {
+    border-color: #b42318;
+    box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.14);
+}
 .modern-submit { width: 100%; min-height: 50px; margin-top: 4px; border-color: #0f766e; border-radius: 8px; background: #0f766e; color: #fff; font-weight: 700; }
 .modern-submit:hover, .modern-submit:focus { border-color: #0b5f59; background: #0b5f59; color: #fff; }
 

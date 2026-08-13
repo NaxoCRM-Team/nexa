@@ -19,7 +19,7 @@ final class GetProviderCallback implements Action
         $cookieState = (string) $request->getCookieParam('nexa_oauth_state');
         $url = $cookieState !== '' && hash_equals($cookieState, $state)
             ? $this->service->callback($provider, $state, (string) $request->getQueryParam('code'))
-            : $this->service->failureRedirectUrl('invalid_oauth_state');
+            : $this->service->failureRedirectUrl('invalid_oauth_state', $provider);
         $cookiePath = $this->service->callbackCookiePath($provider);
 
         return ResponseComposer::empty()

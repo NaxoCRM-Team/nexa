@@ -169,7 +169,7 @@ final class SignupService
             $this->execute($pdo, 'INSERT INTO nexa_tenant (id,slug,display_name,status,timezone) VALUES (?,?,?,\'active\',?)', [$tenantId,$slug,$attempt['company_name'],$attempt['timezone']]);
             $this->execute($pdo, 'INSERT INTO nexa_tenant_subscription (id,tenant_id,plan_id,status,period_starts_at,trial_ends_at) VALUES (?,?,?,\'trialing\',?,?)', [$this->uuid(),$tenantId,$plan['id'],$now,$trialEnd]);
             $this->execute($pdo, 'INSERT INTO nexa_tenant_service (tenant_id,service_id,status,soft_limit_override,hard_limit_override,configuration_json,starts_at) SELECT ?,service_id,IF(is_enabled=1,\'active\',\'disabled\'),soft_limit,hard_limit,configuration_json,? FROM nexa_plan_service WHERE plan_id=?', [$tenantId,$now,$plan['id']]);
-            $this->execute($pdo, 'INSERT INTO `user` (id,deleted,user_name,type,password,first_name,last_name,is_active,created_at,modified_at,delete_id,tenant_id,service_id) VALUES (?,0,?,\'admin\',?,?,?,1,?,?,\'0\',?,?)', [$userId,$attempt['normalized_email'],$passwordHash,$attempt['first_name'],$attempt['last_name'],$now,$now,$tenantId,self::CRM_SERVICE_ID]);
+            $this->execute($pdo, 'INSERT INTO `user` (id,deleted,user_name,login_email,type,password,first_name,last_name,is_active,created_at,modified_at,delete_id,tenant_id,service_id) VALUES (?,0,?,?,\'admin\',?,?,?,1,?,?,\'0\',?,?)', [$userId,$attempt['normalized_email'],$attempt['normalized_email'],$passwordHash,$attempt['first_name'],$attempt['last_name'],$now,$now,$tenantId,self::CRM_SERVICE_ID]);
             $this->execute($pdo, 'INSERT INTO email_address (id,name,deleted,`lower`,invalid,opt_out,tenant_id,service_id) VALUES (?,?,0,?,0,0,?,?)', [$emailId,$attempt['email'],$attempt['normalized_email'],$tenantId,self::CRM_SERVICE_ID]);
             $this->execute($pdo, 'INSERT INTO entity_email_address (entity_id,email_address_id,entity_type,`primary`,deleted,tenant_id,service_id) VALUES (?,?,\'User\',1,0,?,?)', [$userId,$emailId,$tenantId,self::CRM_SERVICE_ID]);
             $this->execute($pdo, 'INSERT INTO nexa_tenant_owner_identity (id,tenant_id,owner_user_id,email,normalized_email,status,verified_at) VALUES (?,?,?,?,?,\'active\',CURRENT_TIMESTAMP(6))', [$ownerId,$tenantId,$userId,$attempt['email'],$attempt['normalized_email']]);
@@ -213,10 +213,30 @@ final class SignupService
     /** @return array{id:string,plan_key:string} */
     private function findPlan(PDO $pdo,string $key): array { $s=$pdo->prepare('SELECT id,plan_key FROM nexa_plan_definition WHERE plan_key=? AND status=\'active\''); $s->execute([$key]); $p=$s->fetch(PDO::FETCH_ASSOC); if(!$p) throw new SignupProblem(422,'plan_unavailable','The selected plan is unavailable.'); return $p; }
 
-    private function assertEmailAvailable(PDO $pdo,string $email): void
+    private function assertEmailAvailable(PDO $pdo, string $email): void
     {
-        $s=$pdo->prepare('SELECT 1 FROM nexa_tenant_owner_identity WHERE normalized_email=? UNION SELECT 1 FROM `user` WHERE LOWER(user_name)=? AND deleted=0 UNION SELECT 1 FROM email_address WHERE `lower`=? AND deleted=0 UNION SELECT 1 FROM nexa_external_identity WHERE normalized_email=? LIMIT 1'); $s->execute([$email,$email,$email,$email]);
-        if($s->fetchColumn()) throw new SignupProblem(409,'email_in_use','An account already uses this email address.');
+        $email = strtolower(trim($email));
+
+        // login_email is the authoritative global identity. The user-name
+        // fallback covers an older account whose email has not been backfilled;
+        // CRM Contact/Lead email addresses must not block workspace signup.
+        $statement = $pdo->prepare(
+            'SELECT 1 FROM `user` ' .
+            'WHERE deleted = 0 AND type NOT IN (\'api\', \'system\') ' .
+            'AND (login_email = :loginEmail OR (login_email IS NULL AND LOWER(user_name) = :legacyEmail)) ' .
+            'UNION SELECT 1 FROM nexa_tenant_owner_identity WHERE normalized_email = :ownerEmail ' .
+            'UNION SELECT 1 FROM nexa_external_identity WHERE normalized_email = :externalEmail LIMIT 1'
+        );
+        $statement->execute([
+            'loginEmail' => $email,
+            'legacyEmail' => $email,
+            'ownerEmail' => $email,
+            'externalEmail' => $email,
+        ]);
+
+        if ($statement->fetchColumn() !== false) {
+            throw new SignupProblem(409, 'email_in_use', 'An account already uses this email address.');
+        }
     }
 
     /** @return array<string,string> */

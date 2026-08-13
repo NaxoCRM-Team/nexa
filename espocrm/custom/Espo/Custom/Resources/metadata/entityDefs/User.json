@@ -1,0 +1,10 @@
+{
+    "fields": {
+        "loginEmail": {
+            "type": "varchar",
+            "maxLength": 190,
+            "internal": true,
+            "readOnly": true
+        }
+    }
+}
