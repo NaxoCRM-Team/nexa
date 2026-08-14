@@ -1,0 +1,8 @@
+{
+    "fields": {
+        "nexaExportSource": {"type": "varchar", "maxLength": 80, "readOnly": true, "disabled": true},
+        "nexaExportRecordCount": {"type": "int", "min": 0, "readOnly": true, "disabled": true},
+        "nexaExportFormat": {"type": "varchar", "maxLength": 24, "readOnly": true, "disabled": true},
+        "nexaExportExpiresAt": {"type": "datetime", "readOnly": true, "disabled": true}
+    }
+}

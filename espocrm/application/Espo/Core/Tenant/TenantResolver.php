@@ -76,6 +76,43 @@ final class TenantResolver
         return $this->contextFromRow($rows[0], 'login-identity');
     }
 
+    public function resolveAuthToken(string $token): ?TenantContext
+    {
+        $token = trim($token);
+
+        if ($token === '' || strlen($token) > 64) {
+            return null;
+        }
+
+        // Browser entry points do not carry API authorization headers. Resolve
+        // their tenant from the opaque native auth-token cookie before the
+        // entry-point authentication service validates that token.
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT DISTINCT t.id, t.slug, t.display_name, ts.service_id FROM auth_token a ' .
+            'INNER JOIN user u ON u.id = a.user_id AND u.tenant_id = a.tenant_id ' .
+            'AND u.service_id = a.service_id ' .
+            'INNER JOIN nexa_tenant t ON t.id = a.tenant_id ' .
+            $this->crmServiceJoin() .
+            'WHERE a.token = :token AND a.deleted = 0 AND a.is_active = 1 ' .
+            'AND a.portal_id IS NULL AND a.service_id = ts.service_id ' .
+            'AND u.deleted = 0 AND u.is_active = 1 AND t.status = :tenantStatus LIMIT 2'
+        );
+        $statement->execute([
+            'token' => $token,
+            'tenantStatus' => 'active',
+            'tenantServiceStatus' => 'active',
+            'serviceStatus' => 'active',
+            'serviceKey' => 'crm',
+        ]);
+        $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (count($rows) !== 1) {
+            return null;
+        }
+
+        return $this->contextFromRow($rows[0], 'auth-token-cookie');
+    }
+
     public function resolvePasswordChangeRequest(string $requestId): ?TenantContext
     {
         $requestId = trim($requestId);

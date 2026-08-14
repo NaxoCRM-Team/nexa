@@ -71,6 +71,14 @@ $mustContain("await note.save(null)", $view, 'Manual interactions must use authe
 $mustContain('handleCustomerCommandKeys', $view, 'The customer-action palette must support keyboard navigation.');
 $mustContain('handleInteractionDialogKeys', $view, 'The interaction dialog must trap focus and support keyboard dismissal.');
 $mustContain("this.tabButton('notes', 'Notes')", $view, 'Notes must have a dedicated tab beside Contact activities.');
+$mustContain('data-nexa-activity-search', $view, 'Activities must provide live search across native records and Nexa notes.');
+$mustContain('data-nexa-activity-type', $view, 'Activities must provide a type filter for notes, timeline, upcoming work, history and tasks.');
+$mustContain('data-nexa-activity-period', $view, 'Activities must provide the same date-range choices as Notes.');
+$mustContain('observeContactActivity', $view, 'Native activity rows loaded asynchronously must be included in the active filters.');
+$mustContain('contactActivityRows', $view, 'Activity filtering must target individual native records rather than only whole panels.');
+$mustContain("this.contactNoteCard(note, this.contactNoteComments?.get(note.id) || [], false, 'activity')", $view, 'Nexa notes in Activities must use the same interactive card as the Notes tab.');
+$mustContain('const editorId = `${context}-${noteId}`', $view, 'Note comment editors must remain isolated between Notes and Activities surfaces.');
+$mustContain('data-nexa-activity-count', $view, 'Activities must announce the filtered result count.');
 $mustContain('data-nexa-tab-panel="notes"', $view, 'The Contact workspace must expose a separate Notes panel.');
 $mustContain('openNoteDialog()', $view, 'The direct Contact Note action must open the standalone note editor.');
 $mustContain('overlay.dataset.nexaNoteDialog', $view, 'The note editor must expose a stable standalone popup.');
@@ -186,6 +194,9 @@ $mustContain('.nexa-note-dialog', $styles, 'The Contact Note action must use a r
 $mustContain('.nexa-native-rich-editor', $styles, 'The Contact note editor must use a full-width native WYSIWYG surface.');
 $mustContain('.nexa-native-rich-editor .note-toolbar', $styles, 'The complete native formatting toolbar must remain visible and responsive.');
 $mustContain('.nexa-contact-notes', $styles, 'Saved Contact notes must have a dedicated Notes surface.');
+$mustContain('.nexa-activity-toolbar', $styles, 'The Activity workspace must provide a structured search and filter toolbar.');
+$mustContain('.nexa-native-activity .stream-date-container', $styles, 'Native activity date and time values must remain visibly styled.');
+$mustContain('.nexa-activity-empty', $styles, 'The Activity workspace must provide a clear empty result state.');
 $mustContain('.nexa-notes-toolbar', $styles, 'The Notes workspace must provide a responsive search and action toolbar.');
 $mustContain('.nexa-note-filter-menu', $styles, 'Notes filters must use stable accessible dropdown surfaces.');
 $mustContain('.nexa-note-details[hidden]', $styles, 'Collapsed notes must remove their details from the visual layout.');

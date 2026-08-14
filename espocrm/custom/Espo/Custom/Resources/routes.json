@@ -107,6 +107,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostRestore"
     },
     {
+        "route": "/Nexa/contact/trash/purge",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostPurge"
+    },
+    {
         "route": "/Nexa/contact-import/template",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\ContactImport\\Api\\GetTemplate"
@@ -125,6 +130,26 @@
         "route": "/Nexa/contact-import/confirm",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\ContactImport\\Api\\PostConfirm"
+    },
+    {
+        "route": "/Nexa/contact-export/audit",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactExport\\Api\\PostAudit"
+    },
+    {
+        "route": "/Nexa/contact-export/audit",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactExport\\Api\\GetAudit"
+    },
+    {
+        "route": "/Nexa/contact-export/:id/download",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactExport\\Api\\GetDownload"
+    },
+    {
+        "route": "/Nexa/contact-export/:id",
+        "method": "delete",
+        "actionClassName": "Espo\\Custom\\Tools\\ContactExport\\Api\\DeleteAudit"
     },
     {
         "route":  "/Nexa/auth/recovery",

@@ -4,8 +4,12 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
 
     setup() {
         super.setup();
+        this.handleContactTrashChanged = () => this.refreshRestoreRecordsButton();
+        document.addEventListener('nexa:contact-trash-changed', this.handleContactTrashChanged);
+
         this.once('remove', () => {
             this.contactControlsObserver?.disconnect();
+            document.removeEventListener('nexa:contact-trash-changed', this.handleContactTrashChanged);
 
             // Espo can reuse the main content node between list and record routes.
             // Remove the list-only scroll lock before a Contact record is rendered.
@@ -30,6 +34,7 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
         this.contactListElement?.classList.add('nexa-contact-list-page');
         this.decorateContactControls();
         this.observeContactControls();
+        this.refreshRestoreRecordsButton();
 
         return result;
     }
@@ -63,16 +68,7 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
             settingsContainer.after(importButton);
         }
 
-        if (settingsContainer && this.getUser().isAdmin() && !root.querySelector('.nexa-contact-trash-button')) {
-            const trashButton = document.createElement('button');
-            trashButton.type = 'button';
-            trashButton.className = 'btn btn-default nexa-contact-trash-button';
-            trashButton.innerHTML = '<span class="far fa-trash-alt" aria-hidden="true"></span><span>Deleted</span>';
-            trashButton.setAttribute('aria-label', 'Open deleted contacts');
-            trashButton.title = 'Deleted contacts';
-            trashButton.addEventListener('click', () => this.openContactTrash());
-            root.querySelector('.nexa-contact-import-button')?.after(trashButton);
-        }
+        this.renderRestoreRecordsButton();
 
         if (columnButton && !columnButton.classList.contains('nexa-column-selector')) {
             columnButton.classList.add('nexa-column-selector');
@@ -98,18 +94,54 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
         }
     }
 
-    async openContactTrash() {
-        Espo.Ui.notifyWait();
+    async refreshRestoreRecordsButton() {
+        if (!this.getUser().isAdmin() || this.restoreRecordsLoading) {
+            this.deletedContactTotal = 0;
+            this.renderRestoreRecordsButton();
+            return;
+        }
+
+        this.restoreRecordsLoading = true;
+
         try {
             const result = await Espo.Ajax.getRequest('Nexa/contact/trash');
-            this.createView('contactTrash', 'custom:views/contact/modals/trash', {
-                records: result.list || [],
-            }, view => {
-                view.render();
-                this.listenToOnce(view, 'restored', () => this.collection.fetch());
-            });
+            this.deletedContactTotal = Number(result.total) || 0;
+        } catch (error) {
+            // A failed count check must never expose an administration control.
+            this.deletedContactTotal = 0;
         } finally {
-            Espo.Ui.notify(false);
+            this.restoreRecordsLoading = false;
+            this.renderRestoreRecordsButton();
         }
     }
+
+    renderRestoreRecordsButton() {
+        const root = this.element;
+        if (!root) return;
+
+        const headerButtons = root.querySelector('.page-header .header-buttons') ||
+            root.parentElement?.querySelector('.page-header .header-buttons');
+        const existing = root.querySelector('.nexa-contact-trash-button') ||
+            root.parentElement?.querySelector('.nexa-contact-trash-button');
+        const createButton = headerButtons?.querySelector('[data-action="create"], [data-name="create"]');
+
+        createButton?.classList.add('nexa-contact-header-action');
+
+        if (!headerButtons || !this.getUser().isAdmin() || !this.deletedContactTotal) {
+            existing?.remove();
+            return;
+        }
+
+        if (existing) return;
+
+        const trashButton = document.createElement('a');
+        trashButton.className = 'btn btn-default nexa-contact-header-action nexa-contact-trash-button';
+        trashButton.href = '#Contact/trash';
+        trashButton.innerHTML = '<span class="fas fa-undo-alt" aria-hidden="true"></span><span>Restore records</span>';
+        trashButton.setAttribute('aria-label', `Restore deleted contact records (${this.deletedContactTotal})`);
+        trashButton.title = `${this.deletedContactTotal} deleted ${this.deletedContactTotal === 1 ? 'record' : 'records'}`;
+
+        createButton ? createButton.after(trashButton) : headerButtons.appendChild(trashButton);
+    }
+
 });

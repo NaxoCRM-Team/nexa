@@ -20,6 +20,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 if (this.noteActionsDocumentHandler) {
                     document.removeEventListener('click', this.noteActionsDocumentHandler);
                 }
+                this.contactActivityObserver?.disconnect();
                 this.closeNoteDeleteDialog();
             });
         }
@@ -160,10 +161,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     </nav>
                     <div class="nexa-customer-tab-content">
                         ${this.overviewPanel()}
-                        <section class="nexa-customer-tab-panel" data-nexa-tab-panel="activity" role="tabpanel" hidden>
-                            <div class="nexa-tab-heading"><div><p class="nexa-contact-eyebrow">Timeline</p><h3>Customer activity</h3></div><p>Upcoming activities and chronological CRM interactions.</p></div>
-                            <div class="nexa-native-activity" data-nexa-activity-panels></div>
-                        </section>
+                        ${this.activityPanel()}
                         ${this.notesPanel()}
                         ${this.salesPanel()}
                         ${this.marketingPanel()}
@@ -205,7 +203,10 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             ['stream', 'activities', 'history', 'tasks'].forEach(name => {
                 const panel = nativeRecord.querySelector(`[data-name="${name}"]`);
-                if (panel) activity.append(panel);
+                if (panel) {
+                    panel.dataset.nexaActivitySource = name;
+                    activity.append(panel);
+                }
             });
             ['accounts', 'opportunities', 'cases', 'documents', 'targetLists'].forEach(name => {
                 const panel = bottom?.querySelector(`[data-name="${name}"]`);
@@ -213,6 +214,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             });
 
             nativeRecord.classList.add('nexa-native-record-host');
+            this.observeContactActivity(activity);
         }
 
         configureActionMenu(recordButtons, actions) {
@@ -291,6 +293,27 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         ['Consent', this.optionLabel('legalBasis', this.model.get('legalBasis'))],
                     ])}
                 </div>
+            </section>`;
+        }
+
+        activityPanel() {
+            return `<section class="nexa-customer-tab-panel nexa-activity-workspace" data-nexa-tab-panel="activity" role="tabpanel" hidden>
+                <div class="nexa-activity-toolbar">
+                    <div class="nexa-activity-toolbar-primary">
+                        <label class="nexa-activity-search"><span class="sr-only">Search activities</span><input type="search" data-nexa-activity-search placeholder="Search activities"><span class="fas fa-search" aria-hidden="true"></span></label>
+                        <span class="nexa-activity-count" data-nexa-activity-count aria-live="polite">Loading activities</span>
+                    </div>
+                    <button type="button" class="btn btn-default nexa-activity-filter-toggle" data-nexa-activity-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
+                    <div class="nexa-activity-filters" data-nexa-activity-filters>
+                        <label><span>Activity type</span><select class="form-control" data-nexa-activity-type>
+                            <option value="all">All activities</option><option value="notes">Notes</option><option value="stream">CRM timeline</option><option value="activities">Upcoming activities</option><option value="history">History</option><option value="tasks">Tasks</option>
+                        </select></label>
+                        <label><span>Date range</span><select class="form-control" data-nexa-activity-period>${this.notePeriodOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>
+                    </div>
+                </div>
+                <div class="nexa-activity-note-feed" data-nexa-activity-notes></div>
+                <div class="nexa-native-activity" data-nexa-activity-panels></div>
+                <div class="nexa-activity-empty" data-nexa-activity-empty hidden><span class="far fa-calendar-times" aria-hidden="true"></span><div><strong>No matching activities</strong><p>Try another search, activity type or date range.</p></div></div>
             </section>`;
         }
 
@@ -409,6 +432,42 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 });
             });
             this.bindContactNotesWorkspace(shell);
+            this.bindContactActivityWorkspace(shell);
+        }
+
+        bindContactActivityWorkspace(shell) {
+            this.contactActivityFilter = this.contactActivityFilter || {query: '', type: 'all', period: 'all'};
+            shell.querySelector('[data-nexa-activity-search]')?.addEventListener('input', event => {
+                this.contactActivityFilter.query = event.currentTarget.value.trim().toLowerCase();
+                this.renderContactActivityNotes(shell);
+                this.applyContactActivityFilters(shell);
+            });
+            shell.querySelector('[data-nexa-activity-type]')?.addEventListener('change', event => {
+                this.contactActivityFilter.type = event.currentTarget.value;
+                this.renderContactActivityNotes(shell);
+                this.applyContactActivityFilters(shell);
+            });
+            shell.querySelector('[data-nexa-activity-period]')?.addEventListener('change', event => {
+                this.contactActivityFilter.period = event.currentTarget.value;
+                this.renderContactActivityNotes(shell);
+                this.applyContactActivityFilters(shell);
+            });
+            shell.querySelector('[data-nexa-activity-filter-toggle]')?.addEventListener('click', event => {
+                const filters = shell.querySelector('[data-nexa-activity-filters]');
+                filters.hidden = !filters.hidden;
+                event.currentTarget.setAttribute('aria-expanded', String(!filters.hidden));
+            });
+            this.applyContactActivityFilters(shell);
+        }
+
+        observeContactActivity(container) {
+            if (!container) return;
+            this.contactActivityObserver?.disconnect();
+            this.contactActivityObserver = new MutationObserver(() => {
+                window.clearTimeout(this.contactActivityFilterTimer);
+                this.contactActivityFilterTimer = window.setTimeout(() => this.applyContactActivityFilters(), 25);
+            });
+            this.contactActivityObserver.observe(container, {childList: true, subtree: true});
         }
 
         bindContactNotesWorkspace(shell) {
@@ -1403,17 +1462,102 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const collapse = workspace.querySelector('[data-nexa-collapse-notes]');
             const allCollapsed = notes.length > 0 && notes.every(note => this.collapsedContactNoteIds?.has(note.id));
             if (collapse) collapse.firstChild.textContent = allCollapsed ? 'Expand all ' : 'Collapse all ';
-            this.bindContactNoteList(list);
+            this.bindContactNoteList(list, 'notes');
+            this.renderContactActivityNotes(workspace);
         }
 
-        contactNoteCard(note, comments, isNewest = false) {
+        filteredContactActivityNotes() {
+            const filter = this.contactActivityFilter || {query: '', type: 'all', period: 'all'};
+            if (!['all', 'notes'].includes(filter.type)) return [];
+
+            return (this.contactNoteRecords || []).filter(note => {
+                const content = this.contactNotePreview(note.content).toLowerCase();
+                const matchesQuery = !filter.query || `${content} ${note.createdByName || ''}`.toLowerCase().includes(filter.query);
+                return matchesQuery && this.contactNoteMatchesPeriod(note.createdAt, filter.period);
+            });
+        }
+
+        renderContactActivityNotes(workspace = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            const container = workspace?.querySelector('[data-nexa-activity-notes]');
+            if (!container) return;
+            this.clearContactCommentEditors('activity');
+            const notes = this.filteredContactActivityNotes();
+            const groups = new Map();
+            const pinned = notes.filter(note => note.isPinned);
+            if (pinned.length) groups.set('pinned', {label: 'Pinned', notes: pinned, pinned: true});
+            notes.filter(note => !note.isPinned).forEach(note => {
+                const date = this.contactNoteDate(note.createdAt);
+                const key = date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : 'unknown';
+                const label = date ? new Intl.DateTimeFormat(undefined, {month: 'long', year: 'numeric'}).format(date) : 'Undated';
+                if (!groups.has(key)) groups.set(key, {label, notes: []});
+                groups.get(key).notes.push(note);
+            });
+            container.innerHTML = notes.length
+                ? [...groups.values()].map(group => `<section class="nexa-note-month${group.pinned ? ' is-pinned-group' : ''}"><h4>${group.pinned ? '<span class="fas fa-thumbtack" aria-hidden="true"></span>' : ''}${this.escape(group.label)}</h4>${group.notes.map(note => this.contactNoteCard(note, this.contactNoteComments?.get(note.id) || [], false, 'activity')).join('')}</section>`).join('')
+                : '';
+            container.hidden = notes.length === 0;
+            this.bindContactNoteList(container, 'activity');
+            this.applyContactActivityFilters(workspace);
+        }
+
+        applyContactActivityFilters(workspace = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            const panels = workspace?.querySelector('[data-nexa-activity-panels]');
+            if (!panels) return;
+            const filter = this.contactActivityFilter || {query: '', type: 'all', period: 'all'};
+            const noteIds = new Set((this.contactNoteRecords || []).map(note => note.id));
+            let visibleNativeCount = 0;
+
+            panels.querySelectorAll('[data-nexa-activity-source]').forEach(panel => {
+                const source = panel.dataset.nexaActivitySource;
+                const sourceMatches = filter.type === 'all' || filter.type === source;
+                let panelVisibleCount = 0;
+                this.contactActivityRows(panel).forEach(row => {
+                    const isNexaNote = source === 'stream' && noteIds.has(row.dataset.id);
+                    const matchesQuery = !filter.query || row.textContent.toLowerCase().includes(filter.query);
+                    const date = this.contactActivityRowDate(row);
+                    const matchesPeriod = filter.period === 'all' || !date || this.contactNoteMatchesPeriod(date.toISOString(), filter.period);
+                    const visible = sourceMatches && !isNexaNote && matchesQuery && matchesPeriod;
+                    row.hidden = !visible;
+                    row.classList.toggle('nexa-activity-row', visible);
+                    if (visible) panelVisibleCount++;
+                });
+                panel.hidden = !sourceMatches || panelVisibleCount === 0;
+                visibleNativeCount += panelVisibleCount;
+            });
+
+            const visibleNoteCount = this.filteredContactActivityNotes().length;
+            const total = visibleNativeCount + visibleNoteCount;
+            const count = workspace.querySelector('[data-nexa-activity-count]');
+            const empty = workspace.querySelector('[data-nexa-activity-empty]');
+            if (count) count.textContent = `${total} ${total === 1 ? 'activity' : 'activities'}`;
+            if (empty) empty.hidden = total !== 0;
+        }
+
+        contactActivityRows(panel) {
+            return [...panel.querySelectorAll('.list-row[data-id]')].filter(row => {
+                return !row.parentElement?.closest('.list-row[data-id]');
+            });
+        }
+
+        contactActivityRowDate(row) {
+            const node = row.querySelector('time[datetime], [data-name="dateStart"] time, [data-name="createdAt"] time, .stream-date-container a, [data-name="dateStart"], [data-name="createdAt"]');
+            const value = node?.getAttribute('datetime') || node?.dataset?.value || node?.getAttribute('title') || node?.textContent?.trim();
+            if (!value) return null;
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+
+        contactNoteCard(note, comments, isNewest = false, context = 'notes') {
             const author = note.createdByName || 'Team member';
             const createdAt = note.createdAt ? this.getDateTime().toDisplay(note.createdAt) : '';
             const collapsed = this.collapsedContactNoteIds?.has(note.id);
             const canDelete = note.canDelete === true;
             const canPin = this.getAcl().checkModel(this.model, 'edit') === true;
             const deleteHelp = "You don't have permission to delete this note. Ask your admin to grant permission.";
-            return `<article class="nexa-note-card${isNewest ? ' is-new' : ''}${collapsed ? ' is-collapsed' : ''}${note.isPinned ? ' is-pinned' : ''}" data-nexa-note-id="${this.escape(note.id)}">
+            const editorHost = `${context}-${note.id}`;
+            return `<article class="nexa-note-card${isNewest ? ' is-new' : ''}${collapsed ? ' is-collapsed' : ''}${note.isPinned ? ' is-pinned' : ''}" data-nexa-note-id="${this.escape(note.id)}" data-nexa-note-context="${this.escape(context)}">
                 <header>
                     <button class="nexa-note-toggle" type="button" data-nexa-note-toggle aria-expanded="${!collapsed}"><span class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></span>${note.isPinned ? '<span class="fas fa-thumbtack nexa-note-pinned-icon" aria-label="Pinned note"></span>' : ''}<span class="nexa-note-kind">Note</span><span>by <strong>${this.escape(author)}</strong></span>${comments.length ? `<span class="nexa-note-comment-count"><span class="far fa-comment" aria-hidden="true"></span>${comments.length}</span>` : ''}</button>
                     <div class="nexa-note-header-meta"><div class="nexa-note-actions" data-nexa-note-actions${collapsed ? ' hidden' : ''}><button type="button" class="nexa-note-actions-toggle" data-nexa-note-actions-toggle aria-expanded="false">Actions <span class="fas fa-caret-down" aria-hidden="true"></span></button><div class="nexa-note-actions-menu" data-nexa-note-actions-menu hidden><button type="button" data-nexa-note-pin${canPin ? '' : ' disabled aria-disabled="true"'}><span class="fas fa-thumbtack" aria-hidden="true"></span>${note.isPinned ? 'Unpin' : 'Pin'}</button>${canDelete ? '<button type="button" class="is-danger" data-nexa-note-delete><span class="far fa-trash-alt" aria-hidden="true"></span>Delete</button>' : `<span class="nexa-note-action-disabled" data-tooltip="${this.escape(deleteHelp)}" tabindex="0"><button type="button" class="is-danger" disabled aria-disabled="true"><span class="far fa-trash-alt" aria-hidden="true"></span>Delete</button></span>`}</div></div><time>${this.escape(createdAt)}</time></div>
@@ -1424,7 +1568,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     <footer><button type="button" data-nexa-comment-toggle><span class="far fa-comment" aria-hidden="true"></span><span>Add comment</span></button><span>${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}</span></footer>
                     <div class="nexa-note-comments">${comments.map(comment => this.contactNoteComment(comment)).join('')}</div>
                     <form class="nexa-note-comment-form" data-nexa-comment-form hidden>
-                        <div class="nexa-native-rich-editor nexa-comment-editor" data-nexa-comment-editor-host="${this.escape(note.id)}" aria-label="Comment"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading editor</span></div></div>
+                        <div class="nexa-native-rich-editor nexa-comment-editor" data-nexa-comment-editor-host="${this.escape(editorHost)}" aria-label="Comment"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading editor</span></div></div>
                         <div><button type="button" class="btn btn-default btn-xs" data-nexa-comment-cancel>Cancel</button><button type="submit" class="btn btn-primary btn-xs">Comment</button></div>
                         <p role="alert" data-nexa-comment-error hidden></p>
                     </form>
@@ -1466,7 +1610,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return value.replace(/\r?\n/g, '<br>');
         }
 
-        bindContactNoteList(list) {
+        bindContactNoteList(list, context = 'notes') {
             list.querySelectorAll('[data-nexa-note-toggle]').forEach(button => {
                 button.addEventListener('click', () => {
                     const card = button.closest('[data-nexa-note-id]');
@@ -1481,13 +1625,13 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     const card = button.closest('[data-nexa-note-id]');
                     const form = card.querySelector('[data-nexa-comment-form]');
                     form.hidden = false;
-                    this.mountContactCommentEditor(card.dataset.nexaNoteId, form);
+                    this.mountContactCommentEditor(card.dataset.nexaNoteId, form, context);
                 });
             });
             list.querySelectorAll('[data-nexa-comment-cancel]').forEach(button => {
                 button.addEventListener('click', () => {
                     const form = button.closest('[data-nexa-comment-form]');
-                    this.clearContactCommentEditor(form.closest('[data-nexa-note-id]').dataset.nexaNoteId);
+                    this.clearContactCommentEditor(form.closest('[data-nexa-note-id]').dataset.nexaNoteId, context);
                     form.hidden = true;
                 });
             });
@@ -1521,8 +1665,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             if (this.noteActionsDocumentHandler) document.removeEventListener('click', this.noteActionsDocumentHandler);
             this.noteActionsDocumentHandler = event => {
                 if (event.target.closest('[data-nexa-note-actions]')) return;
-                list.querySelectorAll('[data-nexa-note-actions-menu]').forEach(menu => menu.hidden = true);
-                list.querySelectorAll('[data-nexa-note-actions-toggle]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+                this.element.querySelectorAll('[data-nexa-note-actions-menu]').forEach(menu => menu.hidden = true);
+                this.element.querySelectorAll('[data-nexa-note-actions-toggle]').forEach(button => button.setAttribute('aria-expanded', 'false'));
             };
             document.addEventListener('click', this.noteActionsDocumentHandler);
         }
@@ -1595,9 +1739,10 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             }
         }
 
-        async mountContactCommentEditor(noteId, form) {
+        async mountContactCommentEditor(noteId, form, context = 'notes') {
             this.contactCommentEditors = this.contactCommentEditors || new Map();
-            const existing = this.contactCommentEditors.get(noteId);
+            const editorId = `${context}-${noteId}`;
+            const existing = this.contactCommentEditors.get(editorId);
             if (existing) {
                 form.querySelector('.note-editable')?.focus();
                 return;
@@ -1605,19 +1750,19 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             const submit = form.querySelector('button[type="submit"]');
             submit.disabled = true;
-            const key = `nexaCommentEditor-${noteId}`;
+            const key = `nexaCommentEditor-${editorId}`;
             try {
                 const model = await this.getModelFactory().create('Note');
                 if (!form.isConnected || form.hidden) return;
                 const view = await this.createView(key, 'views/fields/wysiwyg', {
-                    fullSelector: `[data-nexa-comment-editor-host="${noteId}"]`,
+                    fullSelector: `[data-nexa-comment-editor-host="${editorId}"]`,
                     model,
                     name: 'post',
                     mode: 'edit',
                     params: {height: 150, minHeight: 120},
                 });
                 await view.render();
-                this.contactCommentEditors.set(noteId, {key, model, view});
+                this.contactCommentEditors.set(editorId, {key, model, view});
                 submit.disabled = false;
                 window.setTimeout(() => form.querySelector('.note-editable')?.focus(), 0);
             } catch (error) {
@@ -1627,21 +1772,27 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             }
         }
 
-        clearContactCommentEditor(noteId) {
-            const entry = this.contactCommentEditors?.get(noteId);
+        clearContactCommentEditor(noteId, context = 'notes') {
+            const editorId = `${context}-${noteId}`;
+            const entry = this.contactCommentEditors?.get(editorId);
             if (!entry) return;
             if (this.getView(entry.key)) this.clearView(entry.key);
-            this.contactCommentEditors.delete(noteId);
+            this.contactCommentEditors.delete(editorId);
         }
 
-        clearContactCommentEditors() {
+        clearContactCommentEditors(context = null) {
             if (!this.contactCommentEditors) return;
-            [...this.contactCommentEditors.keys()].forEach(noteId => this.clearContactCommentEditor(noteId));
+            [...this.contactCommentEditors.entries()].forEach(([editorId, entry]) => {
+                if (context && !editorId.startsWith(`${context}-`)) return;
+                if (this.getView(entry.key)) this.clearView(entry.key);
+                this.contactCommentEditors.delete(editorId);
+            });
         }
 
         async saveNoteComment(noteId, form) {
             if (form.dataset.saving === 'true') return;
-            const editor = this.contactCommentEditors?.get(noteId);
+            const context = form.closest('[data-nexa-note-context]')?.dataset.nexaNoteContext || 'notes';
+            const editor = this.contactCommentEditors?.get(`${context}-${noteId}`);
             if (!editor) return;
             editor.view.fetchToModel();
             const content = String(editor.model.get('post') || '').trim();

@@ -155,7 +155,7 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
                 ['nexa-tracking-events', 'Tracking & Events'],
                 ['nexa-data-quality', 'Data Quality'],
                 ['nexa-consent-privacy', 'Consent & Privacy'],
-                ['nexa-import-export', 'Import & Export'],
+                ['nexa-import-export', 'Import & Export', '#Contact/exportAudit'],
                 ['nexa-integrations', 'Integrations'],
                 ['nexa-api-webhooks', 'API & Webhooks'],
             ],
@@ -163,16 +163,16 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
     ];
     const workspaceNavigation = productSurfaceRegistry.navigation || legacyWorkspaceNavigation;
 
-    const createPlannedModule = ([name, label]) => ({
+    const createPlannedModule = ([name, label, link = null]) => ({
         name,
         label,
         shortLabel: label.substring(0, 2),
-        link: null,
+        link,
         isGroup: false,
         isDivider: false,
         isInMore: false,
         isAfterShowMore: false,
-        aClassName: 'nexa-planned-module-link',
+        aClassName: link ? 'nexa-active-module-link' : 'nexa-planned-module-link',
     });
 
     const createWorkspaceGroup = (group, existingByName, usedNames) => ({
