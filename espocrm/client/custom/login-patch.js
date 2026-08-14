@@ -112,11 +112,23 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         }
         activeRouter.navigate(href.slice(1), {trigger: true});
     }, true);
+    const defaultOnAuth = App.prototype.onAuth;
     const defaultInitRouter = App.prototype.initRouter;
     const defaultData = LoginView.prototype.data;
     const defaultSetup = LoginView.prototype.setup;
     const defaultAfterRender = LoginView.prototype.afterRender;
     const defaultResetSetup = PasswordResetView.prototype.setup;
+
+    App.prototype.onAuth = async function (afterLogin = false) {
+        if (afterLogin) {
+            // Public/login metadata can contain the native view registry. Always
+            // reload authenticated metadata before the first tenant route so a
+            // same-user login cannot retain pre-deployment or public UI mappings.
+            this.metadata.clearCache();
+        }
+
+        return defaultOnAuth.call(this, afterLogin);
+    };
 
     LoginView.prototype.showNexaLoginError = function (text) {
         const message = this.element.querySelector('[data-login-message]');

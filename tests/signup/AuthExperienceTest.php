@@ -55,6 +55,13 @@ $assert(
     'Tenant-aware password recovery must remain reachable when legacy SMTP UI flags are absent.'
 );
 $assert(
+    str_contains($loginAdapterSource, 'App.prototype.onAuth = async function (afterLogin = false)') &&
+    str_contains($loginAdapterSource, 'this.metadata.clearCache()') &&
+    strpos($loginAdapterSource, 'this.metadata.clearCache()') <
+        strpos($loginAdapterSource, 'return defaultOnAuth.call(this, afterLogin)'),
+    'Completed login must reload authenticated metadata before the first tenant route is dispatched.'
+);
+$assert(
     str_contains($loginTemplateSource, 'Good to see you again') &&
     str_contains($loginTemplateSource, 'modern-login-proof') &&
     str_contains($loginTemplateSource, 'type="button" class="modern-login-forgot"') &&

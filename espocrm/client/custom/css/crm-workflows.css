@@ -5,6 +5,2199 @@
     min-width: 0;
 }
 
+/* Customer record workspace: identity, operational timeline and associations. */
+.nexa-contact-detail-workspace {
+    background: #f4f7f6;
+    margin: -15px;
+    min-height: calc(100vh - 112px);
+}
+
+.nexa-contact-detail-workspace.nexa-customer-workspace-loading {
+    min-height: calc(100vh - 112px);
+    overflow: hidden;
+    position: relative;
+}
+
+.nexa-contact-detail-workspace.nexa-customer-workspace-loading > .detail {
+    visibility: hidden;
+}
+
+.nexa-contact-detail-workspace.nexa-customer-workspace-loading::before {
+    animation: nexa-customer-skeleton-pulse 1.1s ease-in-out infinite alternate;
+    background:
+        linear-gradient(#ffffff, #ffffff) 0 0 / 100% 58px no-repeat,
+        linear-gradient(#e5ece9, #e5ece9) 18px 82px / 24% 220px no-repeat,
+        linear-gradient(#e5ece9, #e5ece9) 26% 82px / 48% 220px no-repeat,
+        linear-gradient(#e5ece9, #e5ece9) 76% 82px / 22% 220px no-repeat;
+    content: '';
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: 11;
+}
+
+@keyframes nexa-customer-skeleton-pulse {
+    from { opacity: 0.52; }
+    to { opacity: 0.9; }
+}
+
+.nexa-contact-detail-workspace > .nexa-native-record-host {
+    display: none;
+}
+
+.nexa-customer-record {
+    --nexa-record-border: #d7e0dd;
+    --nexa-record-muted: #64736e;
+    --nexa-record-ink: #18231f;
+    display: grid;
+    grid-template-columns: minmax(220px, .82fr) minmax(390px, 1.7fr) minmax(230px, .95fr);
+    margin: 0;
+    min-height: calc(100vh - 112px);
+    width: 100%;
+}
+
+.nexa-customer-toolbar {
+    align-items: center;
+    background: #ffffff;
+    border-bottom: 1px solid var(--nexa-record-border);
+    display: flex;
+    gap: 18px;
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    min-height: 58px;
+    padding: 9px 18px;
+    position: sticky;
+    top: var(--nexa-header-height, 58px);
+    z-index: 12;
+}
+
+.nexa-customer-toolbar::after {
+    bottom: -7px;
+    box-shadow: 0 7px 12px rgba(25, 48, 42, 0.1);
+    content: '';
+    height: 7px;
+    left: 0;
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    transition: opacity 120ms ease;
+}
+
+.nexa-customer-toolbar:hover::after,
+.nexa-customer-toolbar:focus-within::after {
+    opacity: 1;
+}
+
+.nexa-customer-toolbar strong {
+    color: var(--nexa-record-ink);
+    font-size: 14px;
+}
+
+.nexa-native-actions {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    height: 36px;
+    min-width: 0;
+    position: relative;
+}
+
+.nexa-native-actions .nexa-native-record-host {
+    background: transparent;
+    display: block;
+    flex: 0 0 0;
+    height: 0;
+    margin: 0;
+    min-height: 0;
+    overflow: visible;
+    padding: 0;
+    position: static;
+    width: 0;
+}
+
+.nexa-native-actions .nexa-native-record-host > .record-grid,
+.nexa-native-actions .nexa-native-record-host > .edit-buttons {
+    display: none !important;
+}
+
+.nexa-native-actions .record-buttons {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    display: flex;
+    height: 36px;
+    margin: 0;
+    min-height: 0;
+    padding: 0;
+    position: static;
+    width: auto;
+}
+
+.nexa-native-actions .record-buttons .sub-container {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    height: 36px;
+    justify-content: flex-end;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.nexa-native-actions .record-buttons .btn {
+    height: 36px;
+    margin: 0;
+    min-height: 36px;
+}
+
+.nexa-native-actions .record-buttons .actions-btn-group > .detail-action-item,
+.nexa-native-actions .record-buttons .pull-right {
+    display: none !important;
+}
+
+.nexa-native-actions .dropdown-item-list-button {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.nexa-native-actions .actions-btn-group {
+    align-items: center;
+    display: flex;
+    height: 36px;
+    margin: 0;
+    position: relative;
+}
+
+.nexa-native-actions .actions-btn-group > .dropdown-menu {
+    left: auto;
+    margin-top: 6px;
+    min-width: 220px;
+    right: 0;
+    top: 100%;
+    z-index: 1060;
+}
+
+.nexa-native-actions .dropdown-item-list-button .caret {
+    margin-left: 2px;
+}
+
+.nexa-native-actions .dropdown-menu .detail-action-item {
+    display: block;
+}
+
+.nexa-toolbar-edit {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    height: 36px;
+    margin: 0;
+    min-height: 36px;
+    padding-bottom: 7px;
+    padding-top: 7px;
+    position: relative;
+    top: 0;
+    vertical-align: top;
+}
+
+.nexa-toolbar-actions {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    height: 36px;
+    margin: 0;
+    min-height: 36px;
+    padding-bottom: 7px;
+    padding-top: 7px;
+    position: relative;
+    top: 0;
+    vertical-align: top;
+}
+
+.nexa-native-actions .nexa-native-action-source,
+.nexa-native-actions .nexa-native-action-source > .sub-container {
+    height: 0;
+    margin: 0 !important;
+    overflow: visible;
+    padding: 0 !important;
+    position: static;
+    width: 0;
+}
+
+.nexa-native-actions .nexa-native-action-source .actions-btn-group {
+    height: 0;
+    position: static;
+    width: 0;
+}
+
+.nexa-native-actions .nexa-native-action-source .dropdown-item-list-button,
+.nexa-native-actions .nexa-native-action-source .actions-btn-group > .detail-action-item,
+.nexa-native-actions .nexa-native-action-source .pull-right {
+    display: none !important;
+}
+
+.nexa-native-actions .nexa-native-action-source .dropdown-menu {
+    left: auto;
+    margin-top: 6px;
+    min-width: 220px;
+    right: 0;
+    top: 100%;
+    z-index: 1060;
+}
+
+.nexa-native-actions .dropdown-item-list-button {
+    position: relative;
+    top: 0;
+    vertical-align: top;
+}
+
+.nexa-customer-left,
+.nexa-customer-centre,
+.nexa-customer-right {
+    min-width: 0;
+}
+
+.nexa-customer-left,
+.nexa-customer-right {
+    background: #fff;
+}
+
+.nexa-customer-left {
+    border-right: 1px solid var(--nexa-record-border);
+}
+
+.nexa-customer-right {
+    border-left: 1px solid var(--nexa-record-border);
+    padding: 20px 16px 32px;
+}
+
+.nexa-customer-centre {
+    background: #f4f7f6;
+}
+
+.nexa-customer-identity {
+    align-items: flex-start;
+    display: grid;
+    column-gap: 12px;
+    grid-template-columns: 56px minmax(0, 1fr);
+    row-gap: 10px;
+    padding: 22px 18px 14px;
+}
+
+.nexa-customer-identity .nexa-contact-avatar {
+    align-items: center;
+    background: #d8eeea;
+    border: 1px solid #b9dbd4;
+    border-radius: 50%;
+    color: #0f6358;
+    display: flex;
+    flex: 0 0 56px;
+    font-size: 19px;
+    font-weight: 700;
+    height: 56px;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.nexa-customer-identity .nexa-contact-avatar img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+
+.nexa-contact-eyebrow {
+    color: #63736d;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin: 0 0 3px;
+    text-transform: uppercase;
+}
+
+.nexa-customer-identity h2 {
+    color: var(--nexa-record-ink);
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.nexa-customer-identity .nexa-contact-meta {
+    border-top: 1px solid #e8eeec;
+    grid-column: 1 / -1;
+    min-width: 0;
+    padding-top: 10px;
+}
+
+.nexa-customer-identity .nexa-contact-subtitle {
+    color: var(--nexa-record-muted);
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 5px 0 0;
+}
+
+.nexa-contact-primary-email {
+    color: #174f47;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+    margin: 7px 0 0;
+    overflow-wrap: anywhere;
+}
+
+.nexa-contact-actions-menu {
+    align-items: center;
+    color: #45615a;
+    display: flex;
+    height: 28px;
+    justify-content: center;
+    padding: 0;
+    width: 28px;
+}
+
+.nexa-customer-left .nexa-contact-quick-actions {
+    border-bottom: 1px solid var(--nexa-record-border);
+    display: grid;
+    gap: 3px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    padding: 0 12px 16px;
+}
+
+.nexa-customer-left .nexa-contact-quick-actions .btn {
+    align-items: center;
+    color: #176f63;
+    display: flex;
+    flex-direction: column;
+    font-size: 10px;
+    gap: 5px;
+    height: 48px;
+    justify-content: center;
+    margin: 0;
+    min-width: 0;
+    padding: 4px 1px;
+    text-decoration: none;
+}
+
+.nexa-customer-left .nexa-contact-quick-actions .btn:hover,
+.nexa-customer-left .nexa-contact-quick-actions .btn:focus-visible {
+    background: #eaf5f2;
+    color: #0c594f;
+    outline: 2px solid #91c7bd;
+    outline-offset: -2px;
+}
+
+.nexa-customer-left .nexa-contact-quick-actions .btn > :first-child {
+    font-size: 14px;
+}
+
+.nexa-customer-command-menu {
+    background: #ffffff;
+    border: 1px solid #cbd9d5;
+    border-radius: 6px;
+    box-shadow: 0 16px 38px rgba(20, 51, 45, 0.2);
+    max-height: min(440px, calc(100vh - 24px));
+    overflow: hidden;
+    position: fixed;
+    z-index: 1085;
+}
+
+.nexa-command-search {
+    align-items: center;
+    background: #ffffff;
+    border-bottom: 1px solid #dfe8e5;
+    display: flex;
+    padding: 11px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.nexa-command-search > span {
+    color: #58716b;
+    font-size: 13px;
+    left: 24px;
+    pointer-events: none;
+    position: absolute;
+}
+
+.nexa-command-search .form-control {
+    border-color: #b9cac5;
+    border-radius: 4px;
+    height: 38px;
+    padding-left: 34px;
+}
+
+.nexa-command-search .form-control:focus {
+    border-color: #168779;
+    box-shadow: 0 0 0 3px rgba(22, 135, 121, 0.14);
+}
+
+.nexa-command-groups {
+    max-height: 354px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px 0 9px;
+}
+
+.nexa-command-group h3 {
+    color: #6c7f7a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin: 0;
+    padding: 10px 16px 6px;
+    text-transform: uppercase;
+}
+
+.nexa-command-group button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #233c36;
+    display: grid;
+    font-size: 14px;
+    gap: 11px;
+    grid-template-columns: 20px minmax(0, 1fr);
+    min-height: 44px;
+    padding: 8px 16px;
+    text-align: left;
+    width: 100%;
+}
+
+.nexa-command-group button[hidden],
+.nexa-command-group[hidden] {
+    display: none;
+}
+
+.nexa-command-group button > :first-child {
+    color: #19796d;
+    font-size: 18px;
+    justify-self: center;
+}
+
+.nexa-command-brand-icon {
+    display: block;
+    height: 18px;
+    justify-self: center;
+    object-fit: contain;
+    width: 18px;
+}
+
+.nexa-command-group button:hover,
+.nexa-command-group button:focus-visible {
+    background: #eaf5f2;
+    color: #0d574e;
+    outline: 0;
+}
+
+.nexa-command-empty {
+    color: #64746f;
+    margin: 0;
+    padding: 22px 16px;
+    text-align: center;
+}
+
+.nexa-interaction-overlay {
+    align-items: center;
+    background: rgba(18, 31, 28, 0.58);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 18px;
+    position: fixed;
+    z-index: 1100;
+}
+
+.nexa-interaction-dialog {
+    background: #ffffff;
+    border-radius: 7px;
+    box-shadow: 0 22px 65px rgba(8, 28, 24, 0.34);
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    width: min(560px, 100%);
+}
+
+.nexa-interaction-dialog > header {
+    align-items: flex-start;
+    border-bottom: 1px solid #dfe7e4;
+    display: flex;
+    justify-content: space-between;
+    padding: 22px 24px 18px;
+}
+
+.nexa-interaction-dialog > header p {
+    color: #657a74;
+    font-size: 11px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+}
+
+.nexa-interaction-dialog > header h2 {
+    color: #172e29;
+    font-size: 20px;
+    line-height: 1.25;
+    margin: 0;
+}
+
+.nexa-dialog-close {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: #50645f;
+    display: flex;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+}
+
+.nexa-dialog-close:hover,
+.nexa-dialog-close:focus-visible {
+    background: #edf4f2;
+    color: #163f36;
+    outline: 2px solid #7ab8ac;
+}
+
+.nexa-interaction-dialog form {
+    padding: 19px 24px 22px;
+}
+
+.nexa-interaction-help {
+    color: #596c67;
+    line-height: 1.5;
+    margin: 0 0 17px;
+}
+
+.nexa-interaction-dialog label {
+    color: #2b403b;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+.nexa-interaction-dialog label > span {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.nexa-interaction-dialog .form-control {
+    border-color: #b9c9c5;
+    border-radius: 4px;
+    color: #1e332e;
+    font-weight: 400;
+}
+
+.nexa-interaction-dialog .form-control:focus {
+    border-color: #168779;
+    box-shadow: 0 0 0 3px rgba(22, 135, 121, 0.14);
+}
+
+.nexa-interaction-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nexa-interaction-error {
+    background: #fff0f0;
+    border: 1px solid #e6aaaa;
+    border-radius: 4px;
+    color: #922d2d;
+    margin: 0 0 15px;
+    padding: 10px 12px;
+}
+
+.nexa-interaction-dialog form > footer {
+    align-items: center;
+    border-top: 1px solid #e2e9e7;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+    padding-top: 17px;
+}
+
+.nexa-interaction-dialog [data-nexa-log-interaction] {
+    align-items: center;
+    display: inline-flex;
+    gap: 8px;
+}
+
+.nexa-interaction-dialog [data-nexa-log-interaction].is-loading > :first-child {
+    animation: fa-spin 1s infinite linear;
+}
+
+.nexa-notes-workspace {
+    background: #f5f6f5;
+    min-height: 100%;
+}
+
+.nexa-notes-toolbar {
+    padding: 0 2px 18px;
+}
+
+.nexa-notes-toolbar-primary {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.nexa-notes-search {
+    display: block;
+    position: relative;
+    width: min(280px, 100%);
+}
+
+.nexa-notes-search input {
+    background: #ffffff;
+    border: 1px solid #83948f;
+    border-radius: 20px;
+    height: 38px;
+    padding: 7px 38px 7px 15px;
+    width: 100%;
+}
+
+.nexa-notes-search input:focus {
+    border-color: #167b6e;
+    box-shadow: 0 0 0 3px rgba(22, 123, 110, 0.14);
+    outline: 0;
+}
+
+.nexa-notes-search > .fas {
+    color: #4d615b;
+    pointer-events: none;
+    position: absolute;
+    right: 14px;
+    top: 12px;
+}
+
+.nexa-notes-toolbar-actions {
+    align-items: center;
+    display: flex;
+    gap: 18px;
+}
+
+.nexa-collapse-notes {
+    background: transparent;
+    border: 0;
+    color: #20342f;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 0;
+}
+
+.nexa-notes-toolbar-actions [data-nexa-create-note] {
+    align-items: center;
+    display: inline-flex;
+    gap: 8px;
+    min-height: 38px;
+}
+
+.nexa-notes-filter-toggle {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    margin-top: 12px;
+}
+
+.nexa-notes-filters {
+    align-items: center;
+    display: flex;
+    gap: 26px;
+    margin-top: 11px;
+}
+
+.nexa-notes-filters[hidden] {
+    display: none;
+}
+
+.nexa-note-filter {
+    position: relative;
+}
+
+.nexa-note-filter > button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #1e332e;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 6px;
+    min-height: 32px;
+    padding: 4px 0;
+}
+
+.nexa-note-filter-menu {
+    background: #ffffff;
+    border: 1px solid #bdccc8;
+    border-radius: 5px;
+    box-shadow: 0 12px 30px rgba(25, 48, 42, 0.19);
+    left: 0;
+    max-height: 330px;
+    min-width: 220px;
+    overflow-y: auto;
+    padding: 6px;
+    position: absolute;
+    top: calc(100% + 4px);
+    z-index: 20;
+}
+
+.nexa-note-filter-menu[hidden],
+.nexa-note-filter-menu button[hidden] {
+    display: none;
+}
+
+.nexa-note-filter-menu button {
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    color: #29403a;
+    display: block;
+    font-size: 12px;
+    min-height: 35px;
+    padding: 7px 10px;
+    text-align: left;
+    width: 100%;
+}
+
+.nexa-note-filter-menu button:hover,
+.nexa-note-filter-menu button:focus-visible {
+    background: #e7f2ef;
+    color: #0d6559;
+    outline: 0;
+}
+
+.nexa-note-owner-menu {
+    min-width: 275px;
+}
+
+.nexa-note-owner-menu > label {
+    display: block;
+    padding: 5px;
+    position: relative;
+}
+
+.nexa-note-owner-menu > label span {
+    color: #657771;
+    left: 16px;
+    position: absolute;
+    top: 15px;
+}
+
+.nexa-note-owner-menu input {
+    border: 1px solid #b4c5c0;
+    border-radius: 4px;
+    height: 36px;
+    padding: 7px 9px 7px 31px;
+    width: 100%;
+}
+
+.nexa-note-owner-menu [data-nexa-owner-options] > p {
+    color: #71817c;
+    font-size: 10px;
+    font-weight: 700;
+    margin: 7px 10px 3px;
+    text-transform: uppercase;
+}
+
+.nexa-contact-notes {
+    background: transparent;
+}
+
+.nexa-contact-note-list {
+    padding: 0 2px 8px;
+}
+
+.nexa-note-loading,
+.nexa-note-empty {
+    align-items: center;
+    color: #62756f;
+    display: flex;
+    gap: 12px;
+    min-height: 92px;
+    padding: 24px 12px;
+}
+
+.nexa-note-empty > span {
+    color: #418d80;
+    font-size: 22px;
+}
+
+.nexa-note-empty strong,
+.nexa-note-empty p {
+    display: block;
+    margin: 0;
+}
+
+.nexa-note-empty p {
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.nexa-note-empty.is-error > span,
+.nexa-note-empty.is-error strong {
+    color: #9d3b3b;
+}
+
+.nexa-note-month > h4 {
+    color: #263c36;
+    font-size: 15px;
+    font-weight: 500;
+    margin: 20px 0 10px;
+}
+
+.nexa-note-card {
+    background: #ffffff;
+    border: 1px solid #c6d1ce;
+    border-radius: 7px;
+    box-shadow: 0 2px 6px rgba(25, 45, 40, 0.07);
+    margin-bottom: 10px;
+    overflow: visible;
+}
+
+.nexa-note-card.is-new {
+    animation: nexa-note-highlight 1.8s ease-out;
+}
+
+@keyframes nexa-note-highlight {
+    from { background: #e5f5f1; }
+    to { background: transparent; }
+}
+
+.nexa-note-card > header {
+    align-items: center;
+    display: flex;
+    min-height: 47px;
+    position: relative;
+}
+
+.nexa-note-card > header .nexa-note-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #203832;
+    display: flex;
+    font-size: 12px;
+    gap: 7px;
+    min-height: 47px;
+    padding: 11px 17px;
+    text-align: left;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+}
+
+.nexa-note-card > header .nexa-note-toggle:hover,
+.nexa-note-card > header .nexa-note-toggle:focus-visible {
+    background: #f1f6f4;
+    outline: 0;
+}
+
+.nexa-note-card > header .fa-chevron-right,
+.nexa-note-card > header .fa-chevron-down {
+    color: #51655f;
+    font-size: 10px;
+    width: 12px;
+}
+
+.nexa-note-kind,
+.nexa-note-card > header strong {
+    color: #102f28;
+    font-weight: 700;
+}
+
+.nexa-note-card > header time,
+.nexa-note-comment time {
+    color: #74847f;
+    font-size: 10px;
+}
+
+.nexa-note-card > header time {
+    white-space: nowrap;
+}
+
+.nexa-note-header-meta {
+    align-items: center;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 10px;
+    padding-right: 12px;
+}
+
+.nexa-note-actions {
+    position: relative;
+}
+
+.nexa-note-actions[hidden] {
+    display: none;
+}
+
+.nexa-note-actions-toggle {
+    background: transparent;
+    border: 0;
+    color: #203832;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 4px;
+}
+
+.nexa-note-actions-toggle:hover,
+.nexa-note-actions-toggle:focus-visible {
+    color: #0f6a5e;
+    outline: 2px solid #8cc5bb;
+    outline-offset: 1px;
+}
+
+.nexa-note-actions-menu {
+    background: #ffffff;
+    border: 1px solid #c7d5d1;
+    border-radius: 5px;
+    box-shadow: 0 12px 28px rgba(22, 46, 40, 0.19);
+    min-width: 190px;
+    padding: 5px;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 3px);
+    z-index: 35;
+}
+
+.nexa-note-actions-menu[hidden] {
+    display: none;
+}
+
+.nexa-note-actions-menu button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    color: #29413b;
+    display: flex;
+    font-size: 12px;
+    font-weight: 600;
+    gap: 9px;
+    min-height: 36px;
+    padding: 7px 9px;
+    text-align: left;
+    width: 100%;
+}
+
+.nexa-note-actions-menu button:hover,
+.nexa-note-actions-menu button:focus-visible {
+    background: #e9f4f1;
+    color: #0e6559;
+    outline: 0;
+}
+
+.nexa-note-actions-menu button.is-danger {
+    color: #a13636;
+}
+
+.nexa-note-actions-menu button:disabled {
+    color: #8c9693;
+    cursor: not-allowed;
+    opacity: .62;
+}
+
+.nexa-note-action-disabled {
+    display: block;
+    position: relative;
+}
+
+.nexa-note-action-disabled::after {
+    background: #173d37;
+    border-radius: 4px;
+    bottom: calc(100% + 5px);
+    color: #ffffff;
+    content: attr(data-tooltip);
+    font-size: 11px;
+    left: 50%;
+    line-height: 1.4;
+    max-width: 250px;
+    opacity: 0;
+    padding: 7px 9px;
+    pointer-events: none;
+    position: absolute;
+    transform: translate(-50%, 4px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    visibility: hidden;
+    width: max-content;
+    z-index: 40;
+}
+
+.nexa-note-action-disabled:hover::after,
+.nexa-note-action-disabled:focus-visible::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    visibility: visible;
+}
+
+.nexa-note-card.is-pinned {
+    background: #fff7d6;
+    border-color: #d8b958;
+    box-shadow: 0 3px 10px rgba(130, 92, 8, .13);
+}
+
+.nexa-note-card.is-pinned .nexa-note-details {
+    border-top-color: #eadb9d;
+}
+
+.nexa-note-pinned-icon,
+.nexa-note-month.is-pinned-group > h4 .fa-thumbtack {
+    color: #8a6500;
+}
+
+.nexa-note-month.is-pinned-group > h4 {
+    align-items: center;
+    display: flex;
+    font-weight: 700;
+    gap: 7px;
+}
+
+.nexa-note-comment-count {
+    align-items: center;
+    color: #667a74;
+    display: inline-flex;
+    gap: 4px;
+}
+
+.nexa-note-preview {
+    color: #334842;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0;
+    overflow: hidden;
+    padding: 0 17px 15px 36px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-note-preview[hidden] {
+    display: none;
+}
+
+.nexa-note-details {
+    border-top: 1px solid #e5ebe9;
+    padding: 0 17px 15px;
+}
+
+.nexa-note-details[hidden] {
+    display: none;
+}
+
+.nexa-note-body {
+    color: #2f413c;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 13px 0 5px;
+    overflow-wrap: anywhere;
+}
+
+.nexa-note-list-item {
+    display: inline-block;
+    padding-left: 14px;
+    position: relative;
+}
+
+.nexa-note-list-item::before {
+    content: "•";
+    left: 2px;
+    position: absolute;
+}
+
+.nexa-note-details > footer {
+    align-items: center;
+    display: flex;
+    gap: 13px;
+    margin: 10px 0 0;
+}
+
+.nexa-note-details > footer button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #176f63;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    gap: 5px;
+    padding: 0;
+}
+
+.nexa-note-details > footer > span {
+    color: #74847f;
+    font-size: 10px;
+}
+
+.nexa-note-comments,
+.nexa-note-comment-form {
+    margin-left: 0;
+}
+
+.nexa-note-comment {
+    background: #f4f8f7;
+    border-left: 2px solid #9dc9c0;
+    margin-top: 10px;
+    padding: 9px 11px;
+}
+
+.nexa-note-comment > div {
+    align-items: baseline;
+    display: flex;
+    gap: 7px;
+}
+
+.nexa-note-comment strong {
+    color: #29403a;
+    font-size: 11px;
+}
+
+.nexa-note-comment p {
+    color: #3d504b;
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 5px 0 0;
+}
+
+.nexa-note-comment-form {
+    background: #f6f9f8;
+    border: 1px solid #d8e4e1;
+    border-radius: 4px;
+    margin-top: 10px;
+    padding: 10px;
+    width: 100%;
+}
+
+.nexa-note-comment-form label {
+    display: block;
+    width: 100%;
+}
+
+.nexa-comment-editor {
+    min-height: 150px;
+    width: 100%;
+}
+
+.nexa-comment-editor .note-editable {
+    min-height: 120px;
+}
+
+.nexa-note-comment-form > div {
+    display: flex;
+    gap: 7px;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.nexa-note-comment-form [role="alert"] {
+    color: #992f2f;
+    font-size: 11px;
+    margin: 7px 0 0;
+}
+
+.nexa-note-overlay {
+    align-items: center;
+    background: rgba(18, 31, 28, 0.58);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 18px;
+    position: fixed;
+    z-index: 1100;
+}
+
+.nexa-note-dialog {
+    background: #ffffff;
+    border-radius: 7px;
+    box-shadow: 0 22px 65px rgba(8, 28, 24, 0.34);
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    width: min(720px, 100%);
+}
+
+.nexa-note-dialog > header {
+    align-items: flex-start;
+    border-bottom: 1px solid #dfe7e4;
+    display: flex;
+    justify-content: space-between;
+    padding: 22px 24px 18px;
+}
+
+.nexa-note-dialog > header p {
+    color: #657a74;
+    font-size: 11px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+}
+
+.nexa-note-dialog > header h2 {
+    color: #172e29;
+    font-size: 20px;
+    margin: 0;
+}
+
+.nexa-note-dialog form {
+    padding: 19px 24px 22px;
+}
+
+.nexa-note-help {
+    color: #5f706b;
+    font-size: 12px;
+    margin: 13px 0;
+}
+
+.nexa-note-recipient {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+}
+
+.nexa-note-recipient > span {
+    color: #64756f;
+    font-size: 12px;
+}
+
+.nexa-note-recipient > strong {
+    background: #e4f2ef;
+    border: 1px solid #bad9d2;
+    border-radius: 13px;
+    color: #155f55;
+    font-size: 11px;
+    padding: 4px 10px;
+}
+
+.nexa-native-rich-editor {
+    min-height: 300px;
+    width: 100%;
+}
+
+.nexa-native-rich-editor .note-editor {
+    border: 1px solid #adc2bc;
+    border-radius: 5px;
+    margin: 0;
+    overflow: visible;
+    width: 100%;
+}
+
+.nexa-native-rich-editor .note-editor:focus-within {
+    border-color: #168779;
+    box-shadow: 0 0 0 3px rgba(22, 135, 121, 0.14);
+}
+
+.nexa-native-rich-editor .note-toolbar {
+    background: #f4f7f6;
+    border-bottom: 1px solid #d7e2df;
+    overflow-x: auto;
+    padding: 7px;
+    white-space: normal;
+}
+
+.nexa-native-rich-editor .note-editable {
+    background: #ffffff;
+    line-height: 1.55;
+    min-height: 240px;
+}
+
+.nexa-comment-editor.nexa-native-rich-editor {
+    min-height: 150px;
+}
+
+.nexa-note-editor-loading {
+    align-items: center;
+    color: #63766f;
+    display: flex;
+    justify-content: center;
+    min-height: inherit;
+    padding: 20px;
+}
+
+.nexa-note-error {
+    background: #fff0f0;
+    border: 1px solid #e6aaaa;
+    border-radius: 4px;
+    color: #922d2d;
+    margin: 12px 0 0;
+    padding: 10px 12px;
+}
+
+.nexa-note-delete-overlay {
+    align-items: center;
+    background: rgba(17, 29, 26, .62);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 18px;
+    position: fixed;
+    z-index: 1120;
+}
+
+.nexa-note-delete-dialog {
+    background: #ffffff;
+    border-radius: 7px;
+    box-shadow: 0 24px 66px rgba(7, 26, 22, .36);
+    overflow: hidden;
+    width: min(470px, 100%);
+}
+
+.nexa-note-delete-dialog > header {
+    align-items: flex-start;
+    border-bottom: 1px solid #dfe7e4;
+    display: flex;
+    justify-content: space-between;
+    padding: 21px 23px 17px;
+}
+
+.nexa-note-delete-dialog > header p {
+    color: #667872;
+    font-size: 11px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+}
+
+.nexa-note-delete-dialog > header h2 {
+    color: #192a25;
+    font-size: 20px;
+    margin: 0;
+}
+
+.nexa-note-delete-content {
+    color: #455750;
+    line-height: 1.55;
+    padding: 20px 23px 7px;
+}
+
+.nexa-note-delete-error {
+    background: #fff0f0;
+    border: 1px solid #e6aaaa;
+    border-radius: 4px;
+    color: #922d2d;
+    padding: 9px 10px;
+}
+
+.nexa-note-delete-dialog > footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 13px 23px 22px;
+}
+
+.nexa-note-delete-dialog > footer .btn {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    margin: 0;
+}
+
+.nexa-note-dialog form > footer {
+    border-top: 1px solid #e2e9e7;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 14px;
+    padding-top: 14px;
+}
+
+.nexa-note-dialog [data-nexa-save-note] {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+}
+
+.nexa-note-dialog [data-nexa-save-note].is-loading > :first-child {
+    animation: fa-spin 1s infinite linear;
+}
+
+.nexa-sidebar-stack {
+    border-top: 10px solid #f4f7f6;
+    padding-bottom: 28px;
+}
+
+.nexa-sidebar-card,
+.nexa-native-properties {
+    border-bottom: 1px solid var(--nexa-record-border);
+    margin: 0;
+    padding: 17px 18px;
+}
+
+.nexa-sidebar-card + .nexa-sidebar-card,
+.nexa-sidebar-card + .nexa-native-properties {
+    border-top: 10px solid #f4f7f6;
+}
+
+.nexa-sidebar-card h3,
+.nexa-context-card h4,
+.nexa-sidebar-title h3 {
+    color: var(--nexa-record-ink);
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0 0 13px;
+}
+
+.nexa-sidebar-card-heading {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    margin-bottom: 13px;
+}
+
+.nexa-sidebar-card-heading h3 {
+    margin: 0;
+}
+
+.nexa-card-edit {
+    align-items: center;
+    color: #176f63;
+    display: inline-flex;
+    font-size: 11px;
+    gap: 5px;
+    margin: -5px -7px -5px 0;
+    min-height: 30px;
+    padding: 5px 7px;
+    text-decoration: none;
+}
+
+.nexa-card-edit:hover,
+.nexa-card-edit:focus-visible {
+    background: #eaf5f2;
+    color: #0c594f;
+    outline: 2px solid #91c7bd;
+    outline-offset: -2px;
+}
+
+.nexa-record-fact {
+    display: grid;
+    gap: 3px;
+    margin: 0 0 12px;
+}
+
+.nexa-record-fact:last-child {
+    margin-bottom: 0;
+}
+
+.nexa-record-fact dt {
+    color: var(--nexa-record-muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.nexa-record-fact dd {
+    color: var(--nexa-record-ink);
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.nexa-inline-detail {
+    border-radius: 4px;
+    margin-left: -7px;
+    margin-right: -7px;
+    padding: 5px 34px 5px 7px;
+    position: relative;
+    transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.nexa-inline-detail:hover,
+.nexa-inline-detail:focus-visible,
+.nexa-inline-detail.is-editing {
+    background: #f2f8f6;
+    box-shadow: inset 0 0 0 1px #a8cbc5;
+    outline: 0;
+}
+
+.nexa-inline-detail dd {
+    min-height: 22px;
+}
+
+.nexa-inline-detail-trigger {
+    align-items: center;
+    background: #e4f1ee;
+    border: 0;
+    border-radius: 3px;
+    color: #176f63;
+    display: inline-flex;
+    font-size: 10px;
+    height: 24px;
+    justify-content: center;
+    opacity: 0;
+    padding: 0;
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: opacity 120ms ease, background-color 120ms ease;
+    width: 24px;
+}
+
+.nexa-inline-detail:hover .nexa-inline-detail-trigger,
+.nexa-inline-detail:focus-visible .nexa-inline-detail-trigger,
+.nexa-inline-detail-trigger:focus-visible {
+    opacity: 1;
+}
+
+.nexa-inline-detail-trigger:hover,
+.nexa-inline-detail-trigger:focus-visible {
+    background: #cfe6e1;
+    color: #0c594f;
+    outline: 2px solid #69a99e;
+    outline-offset: 1px;
+}
+
+.nexa-inline-detail-input {
+    font-size: 12px;
+    height: 32px;
+    padding: 5px 8px;
+    width: 100%;
+}
+
+.nexa-inline-address-editor {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-top: 3px;
+}
+
+.nexa-inline-address-editor [data-address-field="addressStreet"],
+.nexa-inline-address-editor [data-address-field="addressCountry"] {
+    grid-column: 1 / -1;
+}
+
+.nexa-inline-detail.is-editing {
+    padding-right: 7px;
+}
+
+.nexa-inline-detail.is-saving {
+    cursor: progress;
+    opacity: 0.7;
+}
+
+.nexa-inline-detail.is-saved {
+    animation: nexa-inline-detail-saved 1.6s ease-out;
+}
+
+.nexa-inline-detail.is-error {
+    box-shadow: inset 0 0 0 2px #b83b2b;
+}
+
+@keyframes nexa-inline-detail-saved {
+    0% { background: #dff4e7; }
+    100% { background: transparent; }
+}
+
+.nexa-record-empty {
+    color: var(--nexa-record-muted);
+    font-weight: 400;
+}
+
+.nexa-contact-owner-link,
+.nexa-contact-creator-link,
+.nexa-external-profile-link {
+    color: #145f55;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    text-decoration: none;
+}
+
+.nexa-contact-owner-link:hover,
+.nexa-contact-owner-link:focus-visible,
+.nexa-contact-creator-link:hover,
+.nexa-contact-creator-link:focus-visible,
+.nexa-external-profile-link:hover,
+.nexa-external-profile-link:focus-visible {
+    color: #0b4d45;
+    text-decoration: underline;
+}
+
+.nexa-contact-owner-link:focus-visible,
+.nexa-contact-creator-link:focus-visible,
+.nexa-external-profile-link:focus-visible {
+    outline: 2px solid #77b9ae;
+    outline-offset: 2px;
+}
+
+.nexa-created-audit {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 11px;
+    gap: 2px 5px;
+    line-height: 1.35;
+}
+
+.nexa-created-by {
+    color: var(--nexa-record-muted);
+    white-space: nowrap;
+}
+
+.nexa-contact-creator-link {
+    font-weight: 600;
+}
+
+.nexa-social-profile-grid {
+    display: grid;
+    gap: 9px;
+    grid-template-columns: repeat(4, 38px);
+}
+
+.nexa-social-profile-link {
+    align-items: center;
+    background: #f1f7f6;
+    border: 1px solid #c9ded9;
+    border-radius: 6px;
+    color: #145f55;
+    display: inline-flex;
+    font-size: 16px;
+    height: 38px;
+    justify-content: center;
+    position: relative;
+    text-decoration: none;
+    width: 38px;
+}
+
+.nexa-social-profile-link img {
+    display: block;
+    height: 18px;
+    object-fit: contain;
+    width: 18px;
+}
+
+.nexa-social-profile-link:hover img,
+.nexa-social-profile-link:focus-visible img {
+    filter: brightness(0) invert(1);
+}
+
+.nexa-social-profile-link:hover,
+.nexa-social-profile-link:focus-visible {
+    background: #145f55;
+    border-color: #145f55;
+    color: #fff;
+    text-decoration: none;
+}
+
+.nexa-social-profile-link:focus-visible {
+    outline: 2px solid #77b9ae;
+    outline-offset: 2px;
+}
+
+.nexa-social-profile-link::after {
+    background: #173f3a;
+    border-radius: 4px;
+    bottom: calc(100% + 8px);
+    color: #fff;
+    content: attr(data-tooltip);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    left: 0;
+    line-height: 1.35;
+    max-width: 230px;
+    opacity: 0;
+    overflow-wrap: anywhere;
+    padding: 6px 8px;
+    pointer-events: none;
+    position: absolute;
+    transform: translateY(4px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    visibility: hidden;
+    width: max-content;
+    z-index: 30;
+}
+
+.nexa-social-profile-link:hover::after,
+.nexa-social-profile-link:focus-visible::after {
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+}
+
+.nexa-native-properties summary {
+    color: #176f63;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    list-style-position: outside;
+}
+
+.nexa-native-properties[open] summary {
+    margin-bottom: 14px;
+}
+
+.nexa-native-properties .panel,
+.nexa-native-activity .panel,
+.nexa-association-stack .panel {
+    border: 1px solid var(--nexa-record-border);
+    border-radius: 5px;
+    box-shadow: none;
+    margin: 0 0 12px;
+}
+
+.nexa-native-properties .panel-heading,
+.nexa-native-activity .panel-heading,
+.nexa-association-stack .panel-heading {
+    background: #fff;
+    border-bottom-color: var(--nexa-record-border);
+}
+
+.nexa-customer-tabs {
+    align-items: stretch;
+    background: #fff;
+    border-bottom: 1px solid var(--nexa-record-border);
+    display: flex;
+    min-height: 52px;
+    overflow-x: auto;
+    padding: 0 22px;
+}
+
+.nexa-customer-tabs button {
+    background: transparent;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    color: #52625d;
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0 14px;
+}
+
+.nexa-customer-tabs button:hover {
+    color: #105f55;
+}
+
+.nexa-customer-tabs button:focus-visible {
+    outline: 2px solid #318f82;
+    outline-offset: -4px;
+}
+
+.nexa-customer-tabs button[aria-selected="true"] {
+    border-bottom-color: #168273;
+    color: #105f55;
+}
+
+.nexa-customer-tab-content {
+    padding: 22px;
+}
+
+.nexa-customer-tab-panel[hidden] {
+    display: none;
+}
+
+.nexa-tab-heading {
+    align-items: flex-end;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.nexa-tab-heading h3 {
+    color: var(--nexa-record-ink);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.nexa-tab-heading > p {
+    color: var(--nexa-record-muted);
+    font-size: 12px;
+    line-height: 1.45;
+    margin: 0;
+    max-width: 290px;
+    text-align: right;
+}
+
+.nexa-highlight-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 12px;
+}
+
+.nexa-highlight {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--nexa-record-border);
+    border-radius: 5px;
+    display: flex;
+    gap: 11px;
+    min-height: 72px;
+    padding: 13px;
+}
+
+.nexa-highlight > span {
+    align-items: center;
+    background: #e7f3f0;
+    border-radius: 4px;
+    color: #167567;
+    display: flex;
+    flex: 0 0 32px;
+    height: 32px;
+    justify-content: center;
+}
+
+.nexa-highlight p {
+    color: var(--nexa-record-muted);
+    font-size: 11px;
+    margin: 0 0 3px;
+}
+
+.nexa-highlight strong {
+    color: var(--nexa-record-ink);
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.nexa-overview-cards {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nexa-context-card,
+.nexa-domain-facts,
+.nexa-domain-empty {
+    background: #fff;
+    border: 1px solid var(--nexa-record-border);
+    border-radius: 5px;
+    padding: 17px;
+}
+
+.nexa-context-card h4 {
+    border-bottom: 1px solid #e8eeec;
+    padding-bottom: 11px;
+}
+
+.nexa-domain-facts {
+    display: grid;
+    gap: 12px 22px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0 0 12px;
+}
+
+.nexa-domain-empty {
+    align-items: center;
+    color: var(--nexa-record-muted);
+    display: flex;
+    gap: 10px;
+}
+
+.nexa-domain-empty span {
+    color: #5b8d84;
+    font-size: 18px;
+}
+
+.nexa-domain-empty p {
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.nexa-native-activity .panel {
+    background: #fff;
+}
+
+.nexa-sidebar-title {
+    border-bottom: 1px solid var(--nexa-record-border);
+    margin: 0 -16px 14px;
+    padding: 0 16px 14px;
+}
+
+.nexa-sidebar-title h3 {
+    font-size: 16px;
+    margin-bottom: 0;
+}
+
+.nexa-customer-right > .nexa-context-card {
+    margin-top: 14px;
+    padding: 14px;
+}
+
+.nexa-association-stack .panel-body {
+    max-height: 260px;
+    overflow: auto;
+}
+
+/* The desktop Contact workspace behaves like a three-pane application rather
+ * than a long document. Each pane keeps its own reading position while the
+ * application shell and record toolbar remain stable. */
+@media (min-width: 901px) {
+    body.nexa-contact-detail-page {
+        overflow-y: hidden;
+    }
+
+    .nexa-contact-detail-workspace {
+        height: calc(
+            100dvh - var(--nexa-header-height, 64px) - var(--vertical-gap, 16px) -
+            var(--container-padding, 15px)
+        );
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .nexa-contact-detail-workspace .nexa-customer-record {
+        grid-template-rows: 58px minmax(0, 1fr);
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .nexa-contact-detail-workspace .nexa-customer-toolbar {
+        position: relative;
+        top: auto;
+    }
+
+    .nexa-contact-detail-workspace .nexa-customer-left,
+    .nexa-contact-detail-workspace .nexa-customer-centre,
+    .nexa-contact-detail-workspace .nexa-customer-right {
+        min-height: 0;
+        overscroll-behavior-y: contain;
+        overflow-x: hidden;
+        overflow-y: auto;
+        scrollbar-gutter: stable;
+        scrollbar-width: thin;
+    }
+
+    .nexa-contact-detail-workspace .nexa-customer-tabs {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+}
+
+@media (max-width: 1100px) {
+    .nexa-customer-record {
+        grid-template-columns: minmax(210px, .8fr) minmax(360px, 1.55fr) minmax(215px, .85fr);
+    }
+
+    .nexa-customer-tab-content {
+        padding: 18px;
+    }
+
+    .nexa-customer-tabs {
+        padding: 0 10px;
+    }
+
+    .nexa-customer-tabs button {
+        padding: 0 10px;
+    }
+}
+
+@media (max-width: 900px) {
+    .nexa-contact-detail-workspace {
+        margin: -10px;
+    }
+
+    .nexa-customer-record {
+        grid-template-columns: minmax(230px, .8fr) minmax(0, 1.6fr);
+    }
+
+    .nexa-customer-right {
+        border-left: 0;
+        border-right: 1px solid var(--nexa-record-border);
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .nexa-customer-centre {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+    }
+
+    .nexa-highlight-grid,
+    .nexa-overview-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .nexa-contact-detail-workspace {
+        margin: -8px;
+    }
+
+    .nexa-customer-record {
+        display: block;
+        min-height: auto;
+    }
+
+    .nexa-customer-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .nexa-native-actions,
+    .nexa-native-actions .record-buttons,
+    .nexa-native-actions .record-buttons .sub-container {
+        justify-content: flex-start;
+        max-width: 100%;
+        overflow-x: auto;
+        width: 100%;
+    }
+
+    .nexa-customer-left,
+    .nexa-customer-right {
+        border: 0;
+    }
+
+    .nexa-customer-identity {
+        grid-template-columns: 48px minmax(0, 1fr);
+        padding: 17px 15px 12px;
+    }
+
+    .nexa-customer-identity .nexa-contact-avatar {
+        flex-basis: 48px;
+        height: 48px;
+    }
+
+    .nexa-customer-left .nexa-contact-quick-actions {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        padding: 0 9px 13px;
+    }
+
+    .nexa-customer-command-menu {
+        bottom: 10px;
+        left: 10px !important;
+        max-height: min(70vh, 500px);
+        right: 10px;
+        top: auto !important;
+        width: auto !important;
+    }
+
+    .nexa-command-groups {
+        max-height: calc(70vh - 74px);
+    }
+
+    .nexa-interaction-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .nexa-interaction-dialog {
+        border-radius: 7px 7px 0 0;
+        max-height: 92vh;
+        width: 100%;
+    }
+
+    .nexa-note-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .nexa-note-dialog {
+        border-radius: 7px 7px 0 0;
+        max-height: 92vh;
+        width: 100%;
+    }
+
+    .nexa-interaction-dialog > header,
+    .nexa-interaction-dialog form,
+    .nexa-note-dialog > header,
+    .nexa-note-dialog form {
+        padding-left: 17px;
+        padding-right: 17px;
+    }
+
+    .nexa-contact-note-list {
+        padding: 0;
+    }
+
+    .nexa-notes-toolbar-primary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .nexa-notes-search {
+        width: 100%;
+    }
+
+    .nexa-notes-toolbar-actions {
+        justify-content: space-between;
+    }
+
+    .nexa-notes-filters {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .nexa-note-filter-menu {
+        max-width: calc(100vw - 48px);
+    }
+
+    .nexa-note-card > header .nexa-note-toggle {
+        flex-wrap: wrap;
+        padding: 11px 12px;
+    }
+
+    .nexa-note-card > header time {
+        flex-basis: auto;
+        margin-left: 0;
+    }
+
+    .nexa-note-details {
+        padding: 0 12px 14px;
+    }
+
+    .nexa-interaction-grid {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .nexa-sidebar-card,
+    .nexa-native-properties {
+        padding: 15px;
+    }
+
+    .nexa-customer-tabs {
+        min-height: 48px;
+        padding: 0 5px;
+    }
+
+    .nexa-customer-tab-content {
+        padding: 16px 12px;
+    }
+
+    .nexa-tab-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .nexa-tab-heading > p {
+        max-width: none;
+        text-align: left;
+    }
+
+    .nexa-highlight-grid,
+    .nexa-overview-cards,
+    .nexa-domain-facts {
+        grid-template-columns: 1fr;
+    }
+
+    .nexa-customer-right {
+        border-top: 1px solid var(--nexa-record-border);
+        padding: 18px 12px 28px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nexa-contact-detail-workspace.nexa-customer-workspace-loading::before {
+        animation: none;
+    }
+}
+
 .nexa-crm-list-workflow .nexa-list-toolbar {
     align-items: center;
     background: #ffffff;
@@ -43,8 +2236,8 @@
     display: flex;
     flex-direction: column;
     height: calc(
-        100dvh - var(--nexa-header-height, 64px) - var(--footer-height, 26px) -
-        var(--vertical-gap, 16px) - var(--container-padding, 15px)
+        100dvh - var(--nexa-header-height, 64px) - var(--vertical-gap, 16px) -
+        var(--container-padding, 15px)
     );
     min-height: 0 !important;
     overflow: hidden;
@@ -884,8 +3077,8 @@ td.nexa-inline-cell-error {
 @media (max-width: 767px) {
     .nexa-contact-list-page {
         height: calc(
-            100dvh - var(--nexa-header-height, 58px) - var(--footer-height, 26px) -
-            var(--vertical-gap, 16px) - var(--line-height-computed, 22px) -
+            100dvh - var(--nexa-header-height, 58px) - var(--vertical-gap, 16px) -
+            var(--line-height-computed, 22px) -
             var(--container-padding, 15px)
         );
     }
@@ -1216,5 +3409,349 @@ td.nexa-inline-cell-error {
 
     .nexa-trash-date {
         grid-column: 2;
+    }
+}
+
+/* Contact records are the canonical CRM and marketing customer workspace. */
+.nexa-contact-detail-workspace {
+    --nexa-contact-border: #dce5e2;
+    --nexa-contact-ink: #17231f;
+    --nexa-contact-muted: #64736e;
+    --nexa-contact-accent: #176c5b;
+}
+
+.nexa-contact-detail-workspace > .record-buttons {
+    display: none;
+}
+
+.nexa-contact-hero {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid var(--nexa-contact-border);
+    border-radius: 6px;
+    display: flex;
+    gap: 24px;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding: 20px 22px;
+}
+
+.nexa-contact-identity {
+    align-items: center;
+    display: flex;
+    gap: 15px;
+    min-width: 0;
+}
+
+.nexa-contact-avatar {
+    align-items: center;
+    background: #e4f1ed;
+    border: 1px solid #bad4cc;
+    border-radius: 50%;
+    color: #125849;
+    display: flex;
+    flex: 0 0 58px;
+    font-size: 18px;
+    font-weight: 700;
+    height: 58px;
+    justify-content: center;
+    text-transform: uppercase;
+    overflow: hidden;
+}
+
+.nexa-contact-avatar img {
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+
+.nexa-contact-heading {
+    min-width: 0;
+}
+
+.nexa-contact-eyebrow {
+    color: var(--nexa-contact-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+    margin: 0 0 3px;
+    text-transform: uppercase;
+}
+
+.nexa-contact-heading h2 {
+    color: var(--nexa-contact-ink);
+    font-size: 23px;
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.nexa-contact-subtitle {
+    color: var(--nexa-contact-muted);
+    margin: 3px 0 9px;
+}
+
+.nexa-contact-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.nexa-contact-status {
+    background: #f1f6f4;
+    border: 1px solid #d7e3df;
+    border-radius: 4px;
+    color: #354640;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 7px;
+}
+
+.nexa-contact-quick-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 7px;
+    justify-content: flex-end;
+}
+
+.nexa-contact-quick-actions .btn {
+    align-items: center;
+    border-radius: 4px;
+    display: inline-flex;
+    gap: 7px;
+    min-height: 38px;
+}
+
+.nexa-contact-domains {
+    background: #ffffff;
+    border: 1px solid var(--nexa-contact-border);
+    border-radius: 6px;
+    margin-bottom: 18px;
+    overflow: hidden;
+}
+
+.nexa-contact-tabs {
+    border-bottom: 1px solid var(--nexa-contact-border);
+    display: flex;
+    min-height: 48px;
+    overflow-x: auto;
+    padding: 0 14px;
+    scrollbar-width: thin;
+}
+
+.nexa-contact-tabs button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-bottom: 3px solid transparent;
+    color: #53625d;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-weight: 600;
+    gap: 7px;
+    min-height: 48px;
+    padding: 0 13px;
+}
+
+.nexa-contact-tabs button:hover,
+.nexa-contact-tabs button:focus-visible {
+    background: #f5f8f7;
+    color: var(--nexa-contact-ink);
+    outline: 0;
+}
+
+.nexa-contact-tabs button[aria-selected="true"] {
+    border-bottom-color: var(--nexa-contact-accent);
+    color: var(--nexa-contact-accent);
+}
+
+.nexa-contact-domain-grid {
+    min-height: 214px;
+    padding: 20px;
+}
+
+.nexa-contact-domain-panel[hidden] {
+    display: none;
+}
+
+.nexa-contact-domain-heading {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.nexa-contact-domain-heading h3 {
+    color: var(--nexa-contact-ink);
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.nexa-contact-facts {
+    display: grid;
+    gap: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+}
+
+.nexa-contact-fact {
+    border-left: 1px solid var(--nexa-contact-border);
+    min-width: 0;
+    padding: 5px 16px;
+}
+
+.nexa-contact-fact:first-child {
+    border-left: 0;
+    padding-left: 0;
+}
+
+.nexa-contact-fact dt {
+    color: var(--nexa-contact-muted);
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.nexa-contact-fact dd {
+    color: var(--nexa-contact-ink);
+    font-weight: 600;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-contact-signals {
+    border-top: 1px solid var(--nexa-contact-border);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 20px;
+    padding-top: 16px;
+}
+
+.nexa-contact-signal {
+    background: #f6f9f8;
+    border: 1px solid #e1e9e6;
+    border-radius: 4px;
+    display: grid;
+    gap: 3px;
+    padding: 11px 12px;
+}
+
+.nexa-contact-signal strong {
+    color: #34433e;
+    font-size: 12px;
+}
+
+.nexa-contact-signal span {
+    color: var(--nexa-contact-muted);
+    font-size: 12px;
+}
+
+.nexa-contact-empty {
+    align-items: center;
+    color: var(--nexa-contact-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: center;
+    min-height: 130px;
+    padding: 20px;
+    text-align: center;
+}
+
+.nexa-contact-empty .fa-folder-open {
+    color: #78908a;
+    font-size: 24px;
+}
+
+.nexa-contact-empty p {
+    line-height: 1.55;
+    margin: 0;
+    max-width: 580px;
+}
+
+@media (max-width: 980px) {
+    .nexa-contact-hero {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .nexa-contact-quick-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    .nexa-contact-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 16px;
+    }
+
+    .nexa-contact-fact:nth-child(odd) {
+        border-left: 0;
+        padding-left: 0;
+    }
+}
+
+@media (max-width: 600px) {
+    .nexa-contact-hero {
+        gap: 17px;
+        padding: 17px;
+    }
+
+    .nexa-contact-identity {
+        align-items: flex-start;
+    }
+
+    .nexa-contact-avatar {
+        flex-basis: 46px;
+        height: 46px;
+    }
+
+    .nexa-contact-heading h2 {
+        font-size: 19px;
+    }
+
+    .nexa-contact-quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .nexa-contact-quick-actions .btn {
+        justify-content: center;
+        margin: 0;
+    }
+
+    .nexa-contact-tabs {
+        padding: 0 5px;
+    }
+
+    .nexa-contact-tabs button {
+        padding: 0 10px;
+    }
+
+    .nexa-contact-domain-grid {
+        padding: 17px;
+    }
+
+    .nexa-contact-facts,
+    .nexa-contact-signals {
+        grid-template-columns: 1fr;
+    }
+
+    .nexa-contact-fact,
+    .nexa-contact-fact:nth-child(odd) {
+        border-left: 0;
+        border-top: 1px solid var(--nexa-contact-border);
+        padding: 12px 0 0;
+    }
+
+    .nexa-contact-fact:first-child {
+        border-top: 0;
+        padding-top: 0;
     }
 }

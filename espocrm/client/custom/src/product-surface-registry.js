@@ -4,7 +4,6 @@ define('custom:product-surface-registry', [], () => {
     const navigation = [
         {name: 'nexa-crm', label: 'CRM', iconClass: 'fas fa-address-book', items: [
             'Account', 'Contact', 'Lead',
-            ['nexa-customer-360', 'Customer 360'],
             ['nexa-customer-timeline', 'Customer Timeline'],
             ['nexa-lists-segments', 'Lists & Segments'],
             ['nexa-lifecycle', 'Lifecycle'],
