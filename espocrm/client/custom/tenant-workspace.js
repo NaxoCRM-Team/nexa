@@ -11,6 +11,32 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
             if (footer.textContent.trim() !== label) footer.textContent = label;
         });
     };
+    const ensureSidebarFooter = navigation => {
+        let footer = navigation.querySelector('.nexa-sidebar-footer');
+
+        if (!footer) {
+            footer = document.createElement('div');
+            const mark = document.createElement('span');
+            const copy = document.createElement('span');
+            const brand = document.createElement('span');
+            const year = document.createElement('span');
+
+            footer.className = 'nexa-sidebar-footer';
+            footer.setAttribute('role', 'contentinfo');
+            footer.title = 'Nexa CRM';
+            mark.className = 'nexa-sidebar-footer-mark';
+            mark.textContent = '\u00A9';
+            copy.className = 'nexa-sidebar-footer-copy';
+            brand.textContent = 'Nexa CRM';
+            year.dataset.nexaCurrentYear = '';
+            copy.append(brand, document.createTextNode(' '), year);
+            footer.append(mark, copy);
+            navigation.insertBefore(footer, navigation.querySelector('.minimizer'));
+        }
+
+        updateCurrentYear();
+    };
+
     const footerObserver = new MutationObserver(updateCurrentYear);
     footerObserver.observe(document.body, {childList: true, subtree: true});
     // Keep navigation organized around daily workspaces. Existing Espo screens are
@@ -25,7 +51,6 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
                 'Account',
                 'Contact',
                 'Lead',
-                ['nexa-customer-360', 'Customer 360'],
                 ['nexa-customer-timeline', 'Customer Timeline'],
                 ['nexa-lists-segments', 'Lists & Segments'],
                 ['nexa-lifecycle', 'Lifecycle'],
@@ -392,7 +417,10 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
             navigation?.setAttribute('aria-label', 'Workspace modules');
             main?.setAttribute('role', 'main');
 
-            if (navigation) enhanceWorkspaceNavigation(navigation);
+            if (navigation) {
+                enhanceWorkspaceNavigation(navigation);
+                ensureSidebarFooter(navigation);
+            }
 
             if (toggle && navigation) {
                 toggle.setAttribute('aria-label', 'Open workspace navigation');

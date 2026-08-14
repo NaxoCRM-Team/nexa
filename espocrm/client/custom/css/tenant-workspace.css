@@ -16,8 +16,47 @@ body.nexa-side-navigation #navbar .navbar-brand {
 
 body.nexa-side-navigation #main {
     min-height: calc(
-        100dvh - var(--nexa-header-height, 56px) - var(--footer-height, 26px) - var(--vertical-gap, 16px)
+        100dvh - var(--nexa-header-height, 56px) - var(--vertical-gap, 16px)
     );
+}
+
+/* The authenticated product copyright belongs to the application navigation,
+ * while public and authentication screens retain their native page footer. */
+body.nexa-side-navigation > footer {
+    display: none;
+}
+
+body.nexa-side-navigation #navbar .nexa-sidebar-footer {
+    align-items: center;
+    background: #f7f9fa;
+    border-right: 1px solid #dce4e8;
+    border-top: 1px solid #dce4e8;
+    bottom: 0;
+    box-sizing: border-box;
+    color: #60747c;
+    display: flex;
+    font-size: 11px;
+    gap: 5px;
+    height: 34px;
+    left: 0;
+    padding: 0 16px;
+    position: fixed;
+    width: var(--navbar-width);
+    z-index: 1028;
+}
+
+body.nexa-side-navigation #navbar .nexa-sidebar-footer-mark {
+    flex: 0 0 auto;
+}
+
+body.nexa-side-navigation.minimized #navbar .nexa-sidebar-footer {
+    justify-content: center;
+    padding: 0;
+    width: var(--navbar-minimized-width);
+}
+
+body.nexa-side-navigation.minimized #navbar .nexa-sidebar-footer-copy {
+    display: none;
 }
 
 /* Use all workspace space that remains beside the responsive navigation. */
@@ -392,8 +431,8 @@ body.nexa-side-navigation #navbar .notifications-badge-container .number-badge:n
 @media (max-width: 767px) {
     body.nexa-side-navigation #main {
         min-height: calc(
-            100dvh - var(--nexa-header-height, 58px) - var(--footer-height, 26px) -
-            var(--vertical-gap, 16px) - var(--line-height-computed, 22px)
+            100dvh - var(--nexa-header-height, 58px) - var(--vertical-gap, 16px) -
+            var(--line-height-computed, 22px)
         );
     }
 
@@ -486,7 +525,16 @@ body.nexa-side-navigation #navbar button:focus-visible {
 
 @media (min-width: 768px) {
     body.nexa-side-navigation #navbar .navbar-body > ul.tabs {
-        max-height: calc(100dvh - 112px);
+        max-height: calc(100dvh - 146px);
+    }
+}
+
+@media (max-width: 767px) {
+    body.nexa-side-navigation #navbar .nexa-sidebar-footer {
+        border-right: 0;
+        margin-top: 8px;
+        position: static;
+        width: 100%;
     }
 }
 

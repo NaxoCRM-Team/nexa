@@ -55,6 +55,7 @@ $required = @(
     'tests/workflows/ContactImportContractTest.php',
     'tests/workflows/ContactListExperienceTest.php',
     'tests/workflows/ContactDeletionWorkflowTest.php',
+    'tests/workflows/ContactDetailWorkspaceTest.php',
     'espocrm/client/custom/src/views/contact/fields/location-list.js',
     'espocrm/client/custom/res/templates/contact/fields/location-list.tpl',
     'espocrm/client/custom/src/views/contact/fields/lead-status-list.js',

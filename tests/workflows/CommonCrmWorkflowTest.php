@@ -43,8 +43,11 @@ $mustContain('body.has-navbar.nexa-side-navigation > #content.container', $works
 if (!preg_match('/body\.has-navbar\.nexa-side-navigation\s*>\s*#content\.container\s*\{[^}]*max-width:\s*none;/s', $workspaceCss)) {
     throw new RuntimeException('Authenticated workspace pages must not inherit the fixed desktop container cap.');
 }
-$mustContain('var(--footer-height, 26px)', $workspaceCss, 'Workspace minimum height must reserve space for the application footer.');
+$mustContain('body.nexa-side-navigation > footer', $workspaceCss, 'The authenticated body footer must be removed from the workspace canvas.');
+$mustContain('.nexa-sidebar-footer', $workspaceCss, 'The authenticated copyright must be positioned in the side navigation.');
 $mustContain('new Date().getFullYear()', $workspace, 'The workspace footer year must come from the browser clock.');
+$mustContain('ensureSidebarFooter(navigation)', $workspace, 'Navbar rendering must install the sidebar copyright.');
+$mustContain("mark.textContent = '\\u00A9'", $workspace, 'Minimized navigation must retain a compact copyright mark.');
 $mustContain('`© Nexa CRM ${year}`', $workspace, 'SPA footer rerenders must restore Nexa branding and current-year order.');
 foreach ([$footerTemplate, $compiledTemplates, $mainHtml] as $footerSource) {
     $mustContain('data-nexa-current-year', $footerSource, 'Every authenticated footer runtime source must expose the dynamic-year target.');

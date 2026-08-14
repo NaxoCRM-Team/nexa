@@ -134,11 +134,14 @@ $assert(
 );
 $assert(
     str_contains($mainHtml, "document.createElement('base')") &&
-    str_contains($mainHtml, "window.location.href.split(/[?#]/)[0]") &&
+    str_contains($mainHtml, "new URL('{{basePath}}', window.location.origin).href") &&
+    !str_contains($mainHtml, "window.location.href.split(/[?#]/)[0]") &&
     str_contains($mainHtml, 'showStartupFailure') &&
+    str_contains($mainHtml, 'if (loadedApp || hasVisibleClient())') &&
+    str_contains($mainHtml, 'clearStartupFailure()') &&
     str_contains($mainHtml, "basePath: '{{basePath}}'") &&
     str_contains($mainHtml, "window.location.reload()"),
-    'Lazy client assets must remain anchored to the original application mount after URL normalization.'
+    'Lazy client assets must remain anchored to the application mount and runtime rejections must not replace a working shell.'
 );
 $assert(
     str_contains($espoMain, 'new URL(url, baseUrl)') &&

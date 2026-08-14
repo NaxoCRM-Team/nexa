@@ -43,13 +43,30 @@
         <link rel="icon" href="{{basePath}}{{favicon}}" type="{{faviconType}}">
         <script nonce="{{nonce}}">
             // Espo lazy-loads bundles and theme assets after authentication. Keep
-            // their relative URLs anchored to the page that booted the client,
-            // even when the visible workspace pathname changes.
+            // their relative URLs anchored to the application mount, never to a
+            // tenant workspace route such as /w/{tenant}/Contact.
             const runtimeBase = document.createElement('base');
-            runtimeBase.href = window.location.href.split(/[?#]/)[0];
+            runtimeBase.href = new URL('{{basePath}}', window.location.origin).href;
             document.head.append(runtimeBase);
 
+            let loadedApp;
+
+            const hasVisibleClient = () => Boolean(document.querySelector(
+                '.modern-login-shell, .container.content > *, #main > *'
+            ));
+
+            const clearStartupFailure = () => {
+                document.querySelector('.nexa-startup-error')?.remove();
+                document.documentElement.classList.remove('nexa-client-booting');
+            };
+
             const showStartupFailure = () => {
+                // Runtime feature requests can reject without preventing the CRM
+                // shell from operating. Only pre-render failures are fatal here.
+                if (loadedApp || hasVisibleClient()) {
+                    return;
+                }
+
                 let loader = document.querySelector('.nexa-startup-error');
 
                 if (loader?.dataset.failed) {
@@ -77,17 +94,13 @@
                     showStartupFailure();
                 }
             }, true);
-            window.addEventListener('unhandledrejection', showStartupFailure);
-
-            let loadedApp;
+            window.addEventListener('unhandledrejection', () => {
+                window.setTimeout(showStartupFailure, 1200);
+            });
 
             const finishClientBoot = () => {
-                const hasVisibleClient = () => Boolean(document.querySelector(
-                    '.modern-login-shell, .container.content > *, #main > *'
-                ));
-
                 if (hasVisibleClient()) {
-                    document.documentElement.classList.remove('nexa-client-booting');
+                    clearStartupFailure();
 
                     return;
                 }
@@ -98,7 +111,7 @@
                     }
 
                     observer.disconnect();
-                    document.documentElement.classList.remove('nexa-client-booting');
+                    clearStartupFailure();
                 });
                 observer.observe(document.documentElement, {childList: true, subtree: true});
                 window.setTimeout(() => {
