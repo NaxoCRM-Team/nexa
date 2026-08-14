@@ -31,5 +31,10 @@
         "Upload profile image": "Upload profile image",
         "Contact profile image": "Contact profile image",
         "Contact profile preview": "Contact profile preview"
+    },
+    "massActions": {
+        "assign": "Assign",
+        "setDoNotContact": "Set do not contact",
+        "removeDoNotContact": "Remove do not contact"
     }
 }

@@ -97,6 +97,16 @@
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostDelete"
     },
     {
+        "route": "/Nexa/contact/assignees",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\GetAssignees"
+    },
+    {
+        "route": "/Nexa/contact/assign",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostAssign"
+    },
+    {
         "route": "/Nexa/contact/trash",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\GetTrash"
@@ -150,6 +160,11 @@
         "route": "/Nexa/contact-export/:id",
         "method": "delete",
         "actionClassName": "Espo\\Custom\\Tools\\ContactExport\\Api\\DeleteAudit"
+    },
+    {
+        "route": "/Nexa/contact/communication-preference",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostCommunicationPreference"
     },
     {
         "route":  "/Nexa/auth/recovery",

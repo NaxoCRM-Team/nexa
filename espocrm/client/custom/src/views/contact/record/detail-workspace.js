@@ -180,6 +180,16 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             shell.querySelector('.nexa-contact-avatar').textContent = initials.toUpperCase();
             shell.querySelector('.nexa-contact-heading h2').textContent = name;
+            if (this.model.get('doNotContact')) {
+                const badge = document.createElement('span');
+                const channels = String(this.model.get('doNotContactChannels') || '').split(',').filter(Boolean);
+                badge.className = 'nexa-do-not-contact-badge nexa-do-not-contact-badge--profile';
+                badge.setAttribute('role', 'img');
+                badge.setAttribute('aria-label', 'Do not contact');
+                badge.innerHTML = '<span class="fas fa-ban" aria-hidden="true"></span><span class="far fa-envelope" aria-hidden="true"></span>';
+                badge.title = channels.length ? `Restricted channels: ${channels.join(', ')}` : 'Do not contact';
+                shell.querySelector('.nexa-contact-heading').appendChild(badge);
+            }
             shell.querySelector('.nexa-contact-subtitle').textContent = [title, account].filter(Boolean).join(' at ');
             shell.querySelector('.nexa-contact-primary-email').textContent = this.model.get('emailAddress') || 'No email recorded';
 
@@ -275,6 +285,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         overviewPanel() {
             return `<section class="nexa-customer-tab-panel is-active" data-nexa-tab-panel="overview" role="tabpanel">
                 <div class="nexa-tab-heading"><div><p class="nexa-contact-eyebrow">Customer 360</p><h3>Overview</h3></div><p>CRM, marketing and service context for this customer.</p></div>
+                ${this.communicationRestrictionAlert()}
                 <div class="nexa-highlight-grid">
                     ${this.highlight('Lifecycle', this.optionLabel('lifecycleStage', this.model.get('lifecycleStage')), 'fas fa-route')}
                     ${this.highlight('Marketing status', this.optionLabel('marketingStatus', this.model.get('marketingStatus')), 'fas fa-bullhorn')}
@@ -294,6 +305,27 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     ])}
                 </div>
             </section>`;
+        }
+
+        communicationRestrictionAlert() {
+            if (!this.model.get('doNotContact')) return '';
+
+            const channelLabels = {email: 'Email', phone: 'Phone calls', sms: 'SMS', whatsapp: 'WhatsApp', postal: 'Postal mail'};
+            const reasonLabels = {
+                contact_request: 'Contact requested no communication', unsubscribed: 'Unsubscribed',
+                invalid_details: 'Invalid contact details', legal_compliance: 'Legal or compliance requirement',
+                complaint: 'Complaint', consent_restored: 'Consent restored',
+                correction: 'Previous restriction was incorrect', other: 'Other',
+            };
+            const channels = String(this.model.get('doNotContactChannels') || '').split(',').filter(Boolean)
+                .map(channel => channelLabels[channel] || channel);
+            const reason = reasonLabels[this.model.get('doNotContactReason')] || 'Communication restricted';
+            const note = this.model.get('doNotContactNote');
+
+            return `<aside class="nexa-communication-alert" role="alert">
+                <span class="nexa-communication-alert-icon"><span class="fas fa-ban" aria-hidden="true"></span><span class="far fa-envelope" aria-hidden="true"></span></span>
+                <div><strong>Do not contact</strong><p>${this.escape(channels.join(', ') || 'Restricted channels')} &middot; ${this.escape(reason)}</p>${note ? `<p class="nexa-communication-alert-note">${this.escape(note)}</p>` : ''}</div>
+            </aside>`;
         }
 
         activityPanel() {

@@ -40,6 +40,8 @@ $required = @(
     'database/shared/migrations/0012_extend_contact_profile_experience.sql',
     'database/shared/migrations/0013_add_contact_profile_image.sql',
     'database/shared/migrations/0014_extend_contact_lifecycle_compliance.sql',
+    'database/shared/migrations/0019_add_contact_communication_preferences.sql',
+    'database/shared/migrations/0020_add_contact_communication_summary.sql',
     'database/shared/migrations/0017_add_global_login_email.sql',
     'docs/architecture/existing-schema-audit.md', 'tests/architecture/SchemaRequirementsMappingTest.php',
     'tests/architecture/CustomerProfileSkeletonTest.php',
@@ -56,6 +58,9 @@ $required = @(
     'tests/workflows/ContactListExperienceTest.php',
     'tests/workflows/ContactDeletionWorkflowTest.php',
     'tests/workflows/ContactDetailWorkspaceTest.php',
+    'tests/workflows/ContactExportWorkflowTest.php',
+    'tests/workflows/ContactBulkAssignmentTest.php',
+    'tests/workflows/ContactCommunicationPreferenceTest.php',
     'espocrm/client/custom/src/views/contact/fields/location-list.js',
     'espocrm/client/custom/res/templates/contact/fields/location-list.tpl',
     'espocrm/client/custom/src/views/contact/fields/lead-status-list.js',
@@ -177,6 +182,10 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CommonCrmWo
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactListExperienceTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactDeletionWorkflowTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactDetailWorkspaceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactExportWorkflowTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactBulkAssignmentTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactCommunicationPreferenceTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -217,6 +226,14 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Contact list experience contract suite' } else { Fail 'Contact list experience contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\ContactDeletionWorkflowTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Contact deletion and recovery contract suite' } else { Fail 'Contact deletion and recovery contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ContactDetailWorkspaceTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Contact detail workspace contract suite' } else { Fail 'Contact detail workspace contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ContactExportWorkflowTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Contact export workflow contract suite' } else { Fail 'Contact export workflow contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ContactBulkAssignmentTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Contact bulk assignment contract suite' } else { Fail 'Contact bulk assignment contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ContactCommunicationPreferenceTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Contact communication preference contract suite' } else { Fail 'Contact communication preference contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')

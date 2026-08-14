@@ -12,6 +12,8 @@ use Espo\Core\ORM\EntityManager;
 use Espo\Core\ORM\Entity as CoreEntity;
 use Espo\Core\Record\DeleteParams;
 use Espo\Core\Record\ServiceContainer;
+use Espo\Core\Record\UpdateParams;
+use Espo\Core\Tenant\TenantContextStore;
 use Espo\Entities\User;
 use Espo\Entities\ArrayValue;
 use Espo\Entities\Attachment;
@@ -22,6 +24,7 @@ use Espo\ORM\Entity;
 use Espo\ORM\Name\Attribute;
 use Espo\ORM\Query\DeleteBuilder;
 use Espo\ORM\Repository\RDBRepository;
+use stdClass;
 
 /** Enforces Contact ownership and recoverability at the authenticated API boundary. */
 final class ContactLifecycleService
@@ -33,6 +36,7 @@ final class ContactLifecycleService
         private ServiceContainer $recordServiceContainer,
         private Acl $acl,
         private User $user,
+        private TenantContextStore $tenantContextStore,
     ) {}
 
     /** @param mixed[] $ids @return array{count: int, ids: string[]} */
@@ -152,6 +156,193 @@ final class ContactLifecycleService
         });
 
         return ['count' => count($restoredIds), 'ids' => $restoredIds];
+    }
+
+    /** @return array{list: array<int, array{id: string, name: string, emailAddress: ?string}>} */
+    public function getAssignableUsers(): array
+    {
+        if (!$this->acl->check('Contact', Table::ACTION_EDIT)) {
+            throw new Forbidden('You do not have permission to assign contacts.');
+        }
+
+        // TenantQueryProcessor applies the active tenant and service to this
+        // query, so platform, portal and other-tenant identities never appear.
+        $users = $this->entityManager->getRDBRepository(User::ENTITY_TYPE)
+            ->where([User::ATTRIBUTE_IS_ACTIVE => true])
+            ->order('firstName', 'ASC')
+            ->limit(500)
+            ->find();
+        $list = [];
+
+        foreach ($users as $candidate) {
+            $type = $candidate->getType();
+            if (!in_array($type, [null, User::TYPE_REGULAR, User::TYPE_ADMIN], true)) {
+                continue;
+            }
+
+            $name = trim((string) $candidate->get('firstName') . ' ' . (string) $candidate->get('lastName'));
+            $list[] = [
+                'id' => $candidate->getId(),
+                'name' => $name !== '' ? $name : (string) $candidate->get('userName'),
+                'emailAddress' => $candidate->get('emailAddress'),
+            ];
+        }
+
+        return ['list' => $list];
+    }
+
+    /** @param mixed[] $ids @return array{count: int, ids: string[]} */
+    public function assign(array $ids, ?string $assignedUserId): array
+    {
+        if (!$this->acl->check('Contact', Table::ACTION_EDIT)) {
+            throw new Forbidden('You do not have permission to assign contacts.');
+        }
+
+        $ids = $this->normalizeIds($ids);
+        $assignedUserId = trim((string) $assignedUserId) ?: null;
+
+        if ($assignedUserId !== null) {
+            $candidate = $this->entityManager->getRDBRepository(User::ENTITY_TYPE)->getById($assignedUserId);
+            $type = $candidate?->getType();
+
+            if (
+                !$candidate || !$candidate->isActive() ||
+                !in_array($type, [null, User::TYPE_REGULAR, User::TYPE_ADMIN], true)
+            ) {
+                throw new Forbidden('The selected owner is unavailable in this tenant.');
+            }
+        }
+
+        $updatedIds = [];
+        $service = $this->recordServiceContainer->get('Contact');
+
+        $this->entityManager->getTransactionManager()->run(
+            function () use ($ids, $assignedUserId, $service, &$updatedIds): void {
+                foreach ($ids as $id) {
+                    $contact = $this->entityManager->getRDBRepository('Contact')->getById($id);
+                    if (!$contact || !$this->acl->check($contact, Table::ACTION_EDIT)) {
+                        throw new Forbidden('One or more selected contacts cannot be assigned.');
+                    }
+
+                    $data = new stdClass();
+                    $data->assignedUserId = $assignedUserId;
+                    $service->update($id, $data, UpdateParams::create());
+                    $updatedIds[] = $id;
+                }
+            }
+        );
+
+        return ['count' => count($updatedIds), 'ids' => $updatedIds];
+    }
+
+    /**
+     * Records a channel-specific communication restriction without relying on
+     * the browser to enforce it. Each change is retained as compliance history.
+     *
+     * @param mixed[] $ids
+     * @param mixed[] $channels
+     * @return array{count: int, ids: string[], status: string, channels: string[]}
+     */
+    public function setCommunicationPreference(
+        array $ids,
+        array $channels,
+        string $status,
+        string $reason,
+        ?string $note,
+    ): array {
+        if (!$this->acl->check('Contact', Table::ACTION_EDIT)) {
+            throw new Forbidden('You do not have permission to update contact preferences.');
+        }
+
+        $ids = $this->normalizeIds($ids);
+        $channels = $this->normalizeCommunicationChannels($channels);
+        $status = strtolower(trim($status));
+        $reason = strtolower(trim($reason));
+        $note = trim((string) $note) ?: null;
+
+        if (!in_array($status, ['blocked', 'allowed'], true)) {
+            throw new BadRequest('Select a valid communication preference.');
+        }
+
+        $allowedReasons = [
+            'contact_request', 'unsubscribed', 'invalid_details',
+            'legal_compliance', 'complaint', 'consent_restored',
+            'correction', 'other',
+        ];
+        if (!in_array($reason, $allowedReasons, true)) {
+            throw new BadRequest('Select a reason for this change.');
+        }
+        if ($note !== null && mb_strlen($note) > 1000) {
+            throw new BadRequest('The internal note must be 1,000 characters or fewer.');
+        }
+
+        $tenant = $this->tenantContextStore->require();
+        $service = $this->recordServiceContainer->get('Contact');
+        $updatedIds = [];
+
+        $this->entityManager->getTransactionManager()->run(
+            function () use ($ids, $channels, $status, $reason, $note, $tenant, $service, &$updatedIds): void {
+                foreach ($ids as $id) {
+                    $contact = $this->entityManager->getRDBRepository('Contact')->getById($id);
+                    if (!$contact || !$this->acl->check($contact, Table::ACTION_EDIT)) {
+                        throw new Forbidden('One or more selected contacts cannot be updated.');
+                    }
+
+                    $current = array_values(array_filter(explode(',', (string) $contact->get('doNotContactChannels'))));
+                    $next = $status === 'blocked'
+                        ? array_values(array_unique(array_merge($current, $channels)))
+                        : array_values(array_diff($current, $channels));
+                    sort($next);
+
+                    $data = new stdClass();
+
+                    // Keep Espo's native delivery guards synchronized so current
+                    // email and phone workflows respect the Nexa preference.
+                    if (in_array('email', $channels, true)) {
+                        $data->emailAddressIsOptedOut = in_array('email', $next, true);
+                        $data->marketingStatus = in_array('email', $next, true)
+                            ? 'Unsubscribed'
+                            : 'Non-Marketing';
+                    }
+                    if (array_intersect(['phone', 'sms', 'whatsapp'], $channels)) {
+                        $phoneBlocked = (bool) array_intersect(['phone', 'sms', 'whatsapp'], $next);
+                        $data->doNotCall = $phoneBlocked;
+                        $data->phoneNumberIsOptedOut = $phoneBlocked;
+                    }
+
+                    $updatedContact = $service->update($id, $data, UpdateParams::create());
+
+                    // These summary fields are read-only to API clients. The
+                    // trusted service persists them after native delivery
+                    // guards have passed through the Record Service hooks.
+                    $updatedContact->set('doNotContact', $next !== []);
+                    $updatedContact->set('doNotContactChannels', $next === [] ? null : implode(',', $next));
+                    if ($status === 'blocked') {
+                        $updatedContact->set('doNotContactReason', $reason);
+                        $updatedContact->set('doNotContactNote', $note);
+                    } elseif ($next === []) {
+                        $updatedContact->set('doNotContactReason', null);
+                        $updatedContact->set('doNotContactNote', null);
+                    }
+                    $updatedContact->set('doNotContactChangedAt', $this->now());
+                    $updatedContact->set('doNotContactChangedById', $this->user->getId());
+                    $this->entityManager->saveEntity($updatedContact);
+                    $this->recordCommunicationPreference(
+                        $tenant->tenantId,
+                        $tenant->serviceId,
+                        $id,
+                        $channels,
+                        $status,
+                        $reason,
+                        $note,
+                    );
+                    $this->recordCommunicationActivity($id, $channels, $status, $reason, $note);
+                    $updatedIds[] = $id;
+                }
+            }
+        );
+
+        return ['count' => count($updatedIds), 'ids' => $updatedIds, 'status' => $status, 'channels' => $channels];
     }
 
     /** @param mixed[] $ids @return array{count: int, ids: string[]} */
@@ -303,6 +494,108 @@ final class ContactLifecycleService
         }
 
         return $ids;
+    }
+
+    /** @param mixed[] $channels @return string[] */
+    private function normalizeCommunicationChannels(array $channels): array
+    {
+        $channels = array_values(array_unique(array_map(
+            static fn ($channel): string => strtolower(trim((string) $channel)),
+            $channels
+        )));
+
+        if (in_array('all', $channels, true)) {
+            return ['email', 'phone', 'sms', 'whatsapp', 'postal'];
+        }
+
+        $allowed = ['email', 'phone', 'sms', 'whatsapp', 'postal'];
+        if ($channels === [] || array_diff($channels, $allowed) !== []) {
+            throw new BadRequest('Select a valid communication channel.');
+        }
+
+        return $channels;
+    }
+
+    /** @param string[] $channels */
+    private function recordCommunicationPreference(
+        string $tenantId,
+        string $serviceId,
+        string $contactId,
+        array $channels,
+        string $status,
+        string $reason,
+        ?string $note,
+    ): void {
+        $statement = $this->entityManager->getPDO()->prepare(
+            'INSERT INTO nexa_communication_preference ' .
+            '(id, tenant_id, service_id, contact_id, channel, status, reason, note, source, changed_by_id) ' .
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bulk_action', ?)"
+        );
+
+        foreach ($channels as $channel) {
+            $statement->execute([
+                $this->uuid(), $tenantId, $serviceId, $contactId, $channel,
+                $status, $reason, $note, $this->user->getId(),
+            ]);
+        }
+    }
+
+    private function uuid(): string
+    {
+        $bytes = random_bytes(16);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+    }
+
+    /** @param string[] $channels */
+    private function recordCommunicationActivity(
+        string $contactId,
+        array $channels,
+        string $status,
+        string $reason,
+        ?string $note,
+    ): void {
+        $reasonLabels = [
+            'contact_request' => 'Contact requested no communication',
+            'unsubscribed' => 'Unsubscribed',
+            'invalid_details' => 'Invalid contact details',
+            'legal_compliance' => 'Legal or compliance requirement',
+            'complaint' => 'Complaint',
+            'consent_restored' => 'Consent restored',
+            'correction' => 'Previous restriction was incorrect',
+            'other' => 'Other',
+        ];
+        $channelLabels = array_map(
+            static fn (string $channel): string => match ($channel) {
+                'sms' => 'SMS',
+                'whatsapp' => 'WhatsApp',
+                'postal' => 'Postal mail',
+                default => ucfirst($channel),
+            },
+            $channels
+        );
+        $heading = $status === 'blocked'
+            ? 'Communication restriction set'
+            : 'Communication restriction removed';
+        $parts = [
+            '<strong>' . $heading . '</strong>',
+            'Channels: ' . implode(', ', $channelLabels),
+            'Reason: ' . ($reasonLabels[$reason] ?? ucfirst(str_replace('_', ' ', $reason))),
+        ];
+        if ($note !== null) {
+            $parts[] = 'Internal note: ' . htmlspecialchars($note, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
+
+        // The native stream surfaces this in Activities; the preference table
+        // remains the immutable compliance audit record.
+        $this->entityManager->createEntity(Note::ENTITY_TYPE, [
+            'type' => 'Post',
+            'post' => implode('<br>', $parts),
+            'parentId' => $contactId,
+            'parentType' => 'Contact',
+        ], ['createdById' => $this->user->getId()]);
     }
 
     private function requireTenantAdmin(): void

@@ -30,11 +30,28 @@ define('custom:views/contact/record/list-infinite-v2', [
         });
     }
 
+    setupMassActionItems() {
+        super.setupMassActionItems();
+        this.removeMassAction('massUpdate');
+
+        if (
+            this.getAcl().check(this.entityType, 'edit') &&
+            this.getAcl().getPermissionLevel('massUpdatePermission') === 'yes'
+        ) {
+            this.addMassAction({name: 'assign', groupIndex: 0}, false, true);
+            this.addMassAction({name: 'setDoNotContact', groupIndex: 1}, false, true);
+            this.addMassAction({name: 'removeDoNotContact', groupIndex: 1}, false, true);
+        }
+    }
+
     getSelectAttributeList(callback) {
         super.getSelectAttributeList(attributeList => {
             if (attributeList && !attributeList.includes('profileImageId')) {
                 attributeList.push('profileImageId');
             }
+            ['doNotContact', 'doNotContactChannels'].forEach(attribute => {
+                if (attributeList && !attributeList.includes(attribute)) attributeList.push(attribute);
+            });
 
             callback(attributeList);
         });
@@ -140,6 +157,89 @@ define('custom:views/contact/record/list-infinite-v2', [
         if (this.getConfig().get('exportDisabled') && !this.getUser().isAdmin()) return;
 
         this.exportContacts();
+    }
+
+    massActionAssign() {
+        if (!this.getAcl().check(this.entityType, 'edit')) {
+            Espo.Ui.error(this.translate('Access denied'));
+            return false;
+        }
+        if (this.allResultIsChecked) {
+            Espo.Ui.warning('Select up to 500 individual contacts before assigning an owner.');
+            return false;
+        }
+
+        const ids = [...this.checkedList];
+        if (!ids.length) return false;
+
+        this.createView('contactBulkAssign', 'custom:views/contact/modals/bulk-assign', {
+            count: ids.length,
+        }, view => {
+            view.render();
+            this.listenToOnce(view, 'confirm', user => this.assignContacts(ids, user));
+        });
+    }
+
+    async assignContacts(ids, user) {
+        Espo.Ui.notify('Updating contact owners...');
+
+        try {
+            const result = await Espo.Ajax.postRequest('Nexa/contact/assign', {
+                ids,
+                assignedUserId: user?.id || null,
+            });
+            await this.collection.fetch();
+            this.uncheckAll();
+            Espo.Ui.success(`${result.count} ${result.count === 1 ? 'contact' : 'contacts'} assigned.`);
+        } catch (error) {
+            Espo.Ui.notify(false);
+            Espo.Ui.error('The selected contacts could not be assigned.');
+        }
+    }
+
+    massActionSetDoNotContact() {
+        return this.openCommunicationPreference('blocked');
+    }
+
+    massActionRemoveDoNotContact() {
+        return this.openCommunicationPreference('allowed');
+    }
+
+    openCommunicationPreference(status) {
+        if (!this.getAcl().check(this.entityType, 'edit')) {
+            Espo.Ui.error(this.translate('Access denied'));
+            return false;
+        }
+        if (this.allResultIsChecked) {
+            Espo.Ui.warning('Select up to 500 individual contacts before changing communication preferences.');
+            return false;
+        }
+
+        const ids = [...this.checkedList];
+        if (!ids.length) return false;
+
+        this.createView('contactCommunicationPreference', 'custom:views/contact/modals/communication-preference', {
+            count: ids.length,
+            status,
+        }, view => {
+            view.render();
+            this.listenToOnce(view, 'confirm', data => this.updateCommunicationPreference(ids, data));
+        });
+    }
+
+    async updateCommunicationPreference(ids, data) {
+        Espo.Ui.notify('Updating communication preferences...');
+
+        try {
+            const result = await Espo.Ajax.postRequest('Nexa/contact/communication-preference', {ids, ...data});
+            await this.collection.fetch();
+            this.uncheckAll();
+            const action = result.status === 'blocked' ? 'restricted' : 'restored';
+            Espo.Ui.success(`${result.count} ${result.count === 1 ? 'contact' : 'contacts'} ${action}.`);
+        } catch (error) {
+            Espo.Ui.notify(false);
+            Espo.Ui.error(error?.message || 'The communication preference could not be updated.');
+        }
     }
 
     exportContacts() {

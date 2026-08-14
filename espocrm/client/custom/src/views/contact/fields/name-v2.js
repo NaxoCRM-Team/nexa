@@ -22,8 +22,19 @@ define('custom:views/contact/fields/name-v2', ['views/fields/person-name'], Dep 
             data.displayName = displayName;
             data.initial = String(initialSource).trim().charAt(0).toUpperCase() || '?';
             data.profileImageId = this.model.get('profileImageId');
+            data.doNotContact = Boolean(this.model.get('doNotContact'));
+            data.doNotContactTitle = this.communicationPreferenceTitle();
 
             return data;
+        }
+
+        communicationPreferenceTitle() {
+            const channels = String(this.model.get('doNotContactChannels') || '')
+                .split(',').filter(Boolean).map(channel => channel === 'postal' ? 'postal mail' : channel);
+
+            return channels.length
+                ? `Do not contact: ${channels.join(', ')}`
+                : 'Do not contact';
         }
 
         afterRender() {
