@@ -1,4 +1,8 @@
-define('custom:views/contact/record/list-infinite-v2', ['views/record/list', 'custom:table-inline-editor'], (Dep, TableInlineEditor) => class extends Dep {
+define('custom:views/contact/record/list-infinite-v2', [
+    'views/record/list',
+    'custom:table-inline-editor',
+    'helpers/export',
+], (Dep, TableInlineEditor, ExportHelper) => class extends Dep {
     setup() {
         super.setup();
         this.inlineEditor = new TableInlineEditor(this, 'Contact', {
@@ -132,6 +136,131 @@ define('custom:views/contact/record/list-infinite-v2', ['views/record/list', 'cu
         return this.confirmContactDeletion([...this.checkedList]);
     }
 
+    massActionExport() {
+        if (this.getConfig().get('exportDisabled') && !this.getUser().isAdmin()) return;
+
+        this.exportContacts();
+    }
+
+    exportContacts() {
+        const data = {entityType: this.entityType};
+        const exportsAllResults = this.allResultIsChecked;
+
+        if (exportsAllResults) {
+            data.where = this.collection.getWhere();
+            data.searchParams = this.collection.data || null;
+        } else {
+            data.ids = [...this.checkedList];
+        }
+
+        const fieldList = (this.listLayout || []).map(item => item.name).filter(Boolean);
+        const requestedCount = exportsAllResults ? Number(this.collection.total) : data.ids.length;
+        const count = Number.isFinite(requestedCount) && requestedCount >= 0
+            ? requestedCount
+            : this.collection.length;
+        const source = exportsAllResults ? 'Filtered contacts' : 'Selected contacts';
+        const helper = new ExportHelper(this);
+        const idle = exportsAllResults && helper.checkIsIdle(this.collection.total);
+
+        this.createView('contactExport', 'custom:views/contact/modals/export', {
+            scope: this.entityType,
+            fieldList,
+            count,
+            source,
+        }, view => {
+            view.render();
+            this.listenToOnce(view, 'proceed', dialogData => {
+                if (!dialogData.exportAllFields) {
+                    data.attributeList = dialogData.attributeList;
+                    data.fieldList = dialogData.fieldList;
+                }
+
+                data.idle = idle;
+                data.format = dialogData.format;
+                data.params = dialogData.params;
+                Espo.Ui.notify(this.translate('pleaseWait', 'messages'));
+
+                Espo.Ajax.postRequest('Export', data, {timeout: 0})
+                    .then(response => {
+                        Espo.Ui.notify(false);
+
+                        if (response.exportId) {
+                            helper.process(response.exportId).then(idleView => {
+                                this.listenToOnce(idleView, 'download', attachmentId => {
+                                    this.completeContactExport(attachmentId, source, count, data.format, dialogData.exportName);
+                                });
+                            });
+                            return;
+                        }
+
+                        if (!response.id) throw new Error('No export attachment was returned.');
+
+                        return this.completeContactExport(response.id, source, count, data.format, dialogData.exportName);
+                    })
+                    .catch(() => {
+                        Espo.Ui.notify(false);
+                        Espo.Ui.error('The contact export could not be completed.');
+                    });
+            });
+        });
+    }
+
+    async completeContactExport(attachmentId, source, count, format, exportName) {
+        let audited = true;
+
+        try {
+            await Espo.Ajax.postRequest('Nexa/contact-export/audit', {
+                attachmentId,
+                source,
+                count,
+                format,
+                exportName,
+            });
+        } catch (error) {
+            // The generated file remains useful even when audit persistence is unavailable.
+            audited = false;
+        }
+
+        try {
+            await this.downloadContactExport(attachmentId);
+        } catch (error) {
+            Espo.Ui.error('The export file could not be downloaded.');
+            return;
+        }
+
+        if (!audited) {
+            Espo.Ui.warning('The file was downloaded, but its audit entry could not be recorded.');
+            return;
+        }
+
+        Espo.Ui.success(`${count} ${count === 1 ? 'contact' : 'contacts'} exported.`);
+        window.setTimeout(() => this.getRouter().navigate('#Contact/exportAudit', {trigger: true}), 250);
+    }
+
+    async downloadContactExport(attachmentId) {
+        const result = await Espo.Ajax.getRequest(
+            `Nexa/contact-export/${encodeURIComponent(attachmentId)}/download`
+        );
+        const binary = window.atob(result.contents || '');
+        const bytes = new Uint8Array(binary.length);
+
+        for (let index = 0; index < binary.length; index++) {
+            bytes[index] = binary.charCodeAt(index);
+        }
+
+        const url = URL.createObjectURL(new Blob([bytes], {
+            type: result.type || 'application/octet-stream',
+        }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = result.name || 'contacts-export';
+        link.hidden = true;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
     async actionQuickRemove(data = {}) {
         const model = data.id ? this.collection.get(data.id) : null;
         if (!model || !this.getAcl().checkModel(model, 'delete')) {
@@ -157,6 +286,7 @@ define('custom:views/contact/record/list-infinite-v2', ['views/record/list', 'cu
         Espo.Ui.notifyWait();
         try {
             const result = await Espo.Ajax.postRequest('Nexa/contact/delete', {ids});
+            document.dispatchEvent(new CustomEvent('nexa:contact-trash-changed'));
             (result.ids || []).forEach(id => {
                 this.collection.trigger('model-removing', id);
                 this.removeRecordFromList(id);

@@ -638,6 +638,163 @@
     min-height: 100%;
 }
 
+.nexa-activity-workspace {
+    background: #f5f6f5;
+    min-height: 100%;
+}
+
+.nexa-activity-toolbar {
+    border-bottom: 1px solid #d9e2df;
+    margin: 0 0 18px;
+    padding: 0 2px 17px;
+}
+
+.nexa-activity-toolbar-primary {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.nexa-activity-search {
+    display: block;
+    position: relative;
+    width: min(320px, 100%);
+}
+
+.nexa-activity-search input {
+    background: #ffffff;
+    border: 1px solid #83948f;
+    border-radius: 20px;
+    height: 38px;
+    padding: 7px 38px 7px 15px;
+    width: 100%;
+}
+
+.nexa-activity-search input:focus {
+    border-color: #167b6e;
+    box-shadow: 0 0 0 3px rgba(22, 123, 110, .14);
+    outline: 0;
+}
+
+.nexa-activity-search > .fas {
+    color: #4d615b;
+    pointer-events: none;
+    position: absolute;
+    right: 14px;
+    top: 12px;
+}
+
+.nexa-activity-count {
+    color: #61736d;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.nexa-activity-filter-toggle {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    margin-top: 12px;
+}
+
+.nexa-activity-filters {
+    display: grid;
+    gap: 13px;
+    grid-template-columns: repeat(2, minmax(180px, 240px));
+    margin-top: 12px;
+}
+
+.nexa-activity-filters[hidden] {
+    display: none;
+}
+
+.nexa-activity-filters label > span {
+    color: #52645e;
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.nexa-activity-filters .form-control {
+    border-color: #adbfba;
+    min-height: 38px;
+}
+
+.nexa-activity-note-feed {
+    margin-bottom: 18px;
+}
+
+.nexa-activity-note-feed[hidden] {
+    display: none;
+}
+
+.nexa-native-activity [data-nexa-activity-source] {
+    background: #ffffff;
+    border: 1px solid #d5dfdc;
+    border-radius: 6px;
+    box-shadow: none;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+
+.nexa-native-activity [data-nexa-activity-source][hidden],
+.nexa-native-activity .list-row[hidden] {
+    display: none !important;
+}
+
+.nexa-native-activity [data-nexa-activity-source="stream"] .post-container,
+.nexa-native-activity [data-nexa-activity-source="stream"] .button-container {
+    display: none;
+}
+
+.nexa-native-activity .list-row {
+    border-color: #e2e8e6;
+}
+
+.nexa-native-activity .list-row.nexa-activity-row:hover {
+    background: #f6f9f8;
+}
+
+.nexa-native-activity .stream-date-container,
+.nexa-native-activity [data-name="dateStart"],
+.nexa-native-activity [data-name="createdAt"] {
+    color: #657872;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.nexa-activity-empty {
+    align-items: center;
+    color: #62756f;
+    display: flex;
+    gap: 12px;
+    min-height: 100px;
+    padding: 24px 12px;
+}
+
+.nexa-activity-empty[hidden] {
+    display: none;
+}
+
+.nexa-activity-empty > span {
+    color: #418d80;
+    font-size: 22px;
+}
+
+.nexa-activity-empty strong,
+.nexa-activity-empty p {
+    display: block;
+    margin: 0;
+}
+
+.nexa-activity-empty p {
+    font-size: 12px;
+    margin-top: 3px;
+}
+
 .nexa-notes-toolbar {
     padding: 0 2px 18px;
 }
@@ -2118,6 +2275,19 @@
         flex-direction: column;
     }
 
+    .nexa-activity-toolbar-primary {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .nexa-activity-search {
+        width: 100%;
+    }
+
+    .nexa-activity-filters {
+        grid-template-columns: 1fr;
+    }
+
     .nexa-notes-search {
         width: 100%;
     }
@@ -2423,7 +2593,8 @@
     margin-left: auto;
 }
 
-.nexa-contact-import-button {
+.nexa-contact-import-button,
+.nexa-contact-export-audit-button {
     align-items: center;
     display: inline-flex;
     gap: 7px;
@@ -3319,6 +3490,7 @@ td.nexa-inline-cell-error {
 }
 
 .nexa-contact-trash-button,
+.nexa-contact-export-audit-button,
 .nexa-contact-import-button {
     align-items: center;
     display: inline-flex;
@@ -3753,5 +3925,618 @@ td.nexa-inline-cell-error {
     .nexa-contact-fact:first-child {
         border-top: 0;
         padding-top: 0;
+    }
+}
+.nexa-contact-export-dialog.modal-dialog,
+.nexa-contact-export-dialog .modal-dialog {
+    width: min(680px, calc(100vw - 32px));
+}
+
+.nexa-contact-export-dialog .modal-content {
+    border: 0;
+    border-radius: 8px;
+    box-shadow: 0 24px 70px rgba(20, 31, 43, 0.24);
+}
+
+.nexa-contact-export-dialog .modal-header,
+.nexa-contact-export-dialog .modal-footer {
+    padding: 18px 24px;
+}
+
+.nexa-contact-export-dialog .modal-body {
+    padding: 22px 24px;
+}
+
+.nexa-contact-export-dialog .modal-footer .btn + .btn {
+    margin-left: 8px;
+}
+
+.nexa-export-modal-intro {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.nexa-export-modal-intro > .fas {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 6px;
+    color: #087f6f;
+    background: #e6f5f2;
+    font-size: 18px;
+}
+
+.nexa-export-modal-intro h4,
+.nexa-export-modal-intro p {
+    margin: 0;
+}
+
+.nexa-export-modal-intro p {
+    margin-top: 3px;
+    color: #68757f;
+}
+
+.nexa-export-modal-note {
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border-left: 3px solid #168f7f;
+    background: #f2f8f7;
+    color: #34454f;
+    line-height: 1.5;
+}
+
+.nexa-export-name-field {
+    margin-bottom: 18px;
+}
+
+.nexa-export-name-field label {
+    color: #263a33;
+    font-weight: 700;
+}
+
+.nexa-export-name-field .form-control {
+    border-color: #a7b6b1;
+    box-shadow: none;
+    height: 42px;
+}
+
+.nexa-export-name-field .form-control:focus {
+    border-color: #168f7f;
+    box-shadow: 0 0 0 3px rgba(22, 143, 127, 0.13);
+}
+
+.nexa-export-name-field .form-control.has-error {
+    border-color: #b42318;
+}
+
+.nexa-export-name-field .help-block {
+    margin: 6px 0 0;
+}
+
+.nexa-export-workspace {
+    width: 100%;
+    min-height: 100%;
+    padding: 24px 28px 36px;
+    color: #1d2933;
+}
+
+.nexa-export-page-header,
+.nexa-export-import-band,
+.nexa-export-audit-heading,
+.nexa-export-guidance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.nexa-export-page-header {
+    margin-bottom: 22px;
+}
+
+.nexa-export-page-header h2,
+.nexa-export-page-header p,
+.nexa-export-import-band h4,
+.nexa-export-import-band p,
+.nexa-export-guidance h3,
+.nexa-export-guidance p,
+.nexa-export-audit-heading h3,
+.nexa-export-audit-heading p {
+    margin: 0;
+}
+
+.nexa-export-page-header p,
+.nexa-export-import-band p,
+.nexa-export-guidance p,
+.nexa-export-audit-heading p {
+    margin-top: 5px;
+    color: #68757f;
+}
+
+.nexa-export-import-band {
+    padding: 20px 22px;
+    border: 1px solid #dbe2e7;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.nexa-export-guidance {
+    justify-content: flex-start;
+    margin: 28px 0;
+    padding: 4px 0;
+}
+
+.nexa-export-guidance > .fas {
+    color: #087f6f;
+    font-size: 22px;
+}
+
+.nexa-export-audit-heading {
+    margin-bottom: 14px;
+}
+
+.nexa-export-table {
+    margin: 0;
+    border: 1px solid #dbe2e7;
+    background: #fff;
+}
+
+.nexa-export-table > thead > tr > th {
+    padding: 13px 16px;
+    border-bottom: 1px solid #cfd8de;
+    background: #f5f7f8;
+    color: #34454f;
+    font-weight: 700;
+}
+
+.nexa-export-table > tbody > tr > td {
+    padding: 15px 16px;
+    vertical-align: middle;
+}
+
+.nexa-export-actions {
+    text-align: right;
+    width: 56px;
+}
+
+.nexa-export-delete {
+    color: #6b7872;
+}
+
+.nexa-export-delete:hover,
+.nexa-export-delete:focus {
+    color: #b42318;
+}
+
+.modal.nexa-export-delete-dialog {
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.modal.nexa-export-delete-dialog.in {
+    display: flex !important;
+}
+
+.nexa-export-delete-dialog > .modal-dialog {
+    margin: 0;
+    max-width: 460px;
+    width: 100%;
+}
+
+.nexa-export-delete-dialog .modal-content {
+    border: 0;
+    border-radius: 8px;
+    box-shadow: 0 24px 70px rgba(25, 35, 42, 0.28);
+    overflow: hidden;
+}
+
+.nexa-export-delete-dialog .modal-header {
+    border-bottom: 1px solid #dce4e2;
+    padding: 22px 24px 18px;
+}
+
+.nexa-export-delete-dialog .modal-title {
+    color: #17231f;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.nexa-export-delete-dialog .modal-body {
+    padding: 22px 24px;
+}
+
+.nexa-export-delete-confirmation {
+    align-items: flex-start;
+    display: flex;
+    gap: 14px;
+}
+
+.nexa-export-delete-confirmation > .fas {
+    color: #b54708;
+    font-size: 22px;
+    margin-top: 2px;
+}
+
+.nexa-export-delete-confirmation p {
+    line-height: 1.55;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.nexa-export-delete-confirmation p + p {
+    margin-top: 7px;
+}
+
+.nexa-export-delete-dialog .modal-footer {
+    border-top: 0;
+    padding: 0 24px 24px;
+}
+
+.nexa-export-delete-dialog .modal-footer > .main-btn-group {
+    display: flex;
+    gap: 10px;
+}
+
+.nexa-export-delete-dialog .modal-footer .btn + .btn {
+    margin-left: 0;
+}
+
+/* Tenant-admin recovery is a full workspace so audit filters remain usable. */
+.nexa-restore-workspace {
+    color: #1d2933;
+    min-height: 100%;
+    padding: 24px 28px 36px;
+    width: 100%;
+}
+
+.nexa-restore-header,
+.nexa-restore-results-heading {
+    align-items: center;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+}
+
+.nexa-restore-header {
+    margin-bottom: 22px;
+}
+
+.nexa-restore-header h2,
+.nexa-restore-header p,
+.nexa-restore-results-heading h3,
+.nexa-restore-results-heading p {
+    margin: 0;
+}
+
+.nexa-restore-header p,
+.nexa-restore-results-heading p {
+    color: #68757f;
+    margin-top: 5px;
+}
+
+.nexa-restore-filters {
+    align-items: end;
+    background: #fff;
+    border: 1px solid #d8e1df;
+    border-radius: 6px;
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(240px, 1.5fr) repeat(3, minmax(150px, 0.8fr)) auto;
+    margin-bottom: 24px;
+    padding: 18px;
+}
+
+.nexa-restore-filters label {
+    margin: 0;
+    min-width: 0;
+}
+
+.nexa-restore-filters label > span:first-child {
+    color: #34443f;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.nexa-restore-filters .form-control {
+    border-color: #a9b8b3;
+    box-shadow: none;
+    height: 40px;
+}
+
+.nexa-restore-filters .form-control:focus {
+    border-color: #168f7f;
+    box-shadow: 0 0 0 3px rgba(22, 143, 127, 0.12);
+}
+
+.nexa-restore-input-wrap {
+    display: block;
+    position: relative;
+}
+
+.nexa-restore-input-wrap > .fas {
+    color: #71817b;
+    left: 13px;
+    position: absolute;
+    top: 13px;
+    z-index: 1;
+}
+
+.nexa-restore-input-wrap .form-control {
+    padding-left: 38px;
+}
+
+.nexa-restore-clear {
+    min-height: 40px;
+    white-space: nowrap;
+}
+
+.nexa-restore-results-heading {
+    margin-bottom: 14px;
+}
+
+.nexa-restore-results-heading .btn {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+}
+
+.nexa-restore-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.nexa-contact-header-action {
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.nexa-contact-header-action:hover,
+.nexa-contact-header-action:focus-visible {
+    box-shadow: 0 3px 10px rgba(20, 62, 53, 0.18);
+    transform: translateY(-1px);
+}
+
+.nexa-contact-trash-button:hover,
+.nexa-contact-trash-button:focus-visible {
+    background: #e4f4ef;
+    border-color: #168f7f;
+    color: #116d61;
+}
+
+.modal.nexa-permanent-delete-dialog {
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.modal.nexa-permanent-delete-dialog.in {
+    display: flex !important;
+}
+
+.nexa-permanent-delete-dialog > .modal-dialog {
+    margin: 0;
+    max-width: 500px;
+    width: 100%;
+}
+
+.nexa-permanent-delete-dialog .modal-content {
+    border: 0;
+    border-radius: 8px;
+    box-shadow: 0 24px 70px rgba(25, 35, 42, 0.28);
+    overflow: hidden;
+}
+
+.nexa-permanent-delete-dialog .modal-header,
+.nexa-permanent-delete-dialog .modal-body,
+.nexa-permanent-delete-dialog .modal-footer {
+    padding-left: 24px;
+    padding-right: 24px;
+}
+
+.nexa-permanent-delete-copy {
+    align-items: flex-start;
+    display: flex;
+    gap: 14px;
+}
+
+.nexa-permanent-delete-copy > .fas {
+    color: #b42318;
+    font-size: 22px;
+    margin-top: 2px;
+}
+
+.nexa-permanent-delete-copy p {
+    line-height: 1.55;
+    margin: 0 0 18px;
+}
+
+.nexa-permanent-delete-copy label {
+    display: block;
+    margin-bottom: 7px;
+}
+
+.nexa-permanent-delete-dialog .modal-footer > .main-btn-group {
+    display: flex;
+    gap: 10px;
+}
+
+.nexa-permanent-delete-dialog .modal-footer .btn + .btn {
+    margin-left: 0;
+}
+
+.nexa-restore-table-wrap {
+    border: 1px solid #d8e1df;
+    border-radius: 6px;
+    max-height: min(520px, calc(100vh - 330px));
+    overflow: auto;
+}
+
+.nexa-restore-table {
+    background: #fff;
+    margin: 0;
+    min-width: 720px;
+}
+
+.nexa-restore-table > thead > tr > th {
+    background: #f4f7f6;
+    border-bottom: 1px solid #cdd8d5;
+    color: #34443f;
+    font-weight: 700;
+    padding: 13px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.nexa-restore-table > tbody > tr > td {
+    padding: 14px 16px;
+    vertical-align: middle;
+}
+
+.nexa-restore-check {
+    text-align: center;
+    width: 52px;
+}
+
+.nexa-restore-check input {
+    accent-color: #168f7f;
+    height: 17px;
+    margin: 0;
+    width: 17px;
+}
+
+.nexa-restore-contact strong,
+.nexa-restore-contact span {
+    display: block;
+}
+
+.nexa-restore-contact strong {
+    color: #176c5b;
+}
+
+.nexa-restore-contact span {
+    color: #68757f;
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.nexa-restore-empty {
+    color: #68757f;
+    padding: 42px !important;
+    text-align: center;
+}
+
+@media (max-width: 1100px) {
+    .nexa-restore-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767px) {
+    .nexa-restore-workspace {
+        padding: 18px 14px 28px;
+    }
+
+    .nexa-restore-header,
+    .nexa-restore-results-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .nexa-restore-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .nexa-restore-header .btn,
+    .nexa-restore-results-heading .btn,
+    .nexa-restore-actions {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .nexa-restore-actions {
+        flex-direction: column;
+    }
+
+    .nexa-restore-table-wrap {
+        max-height: min(480px, 55vh);
+    }
+}
+
+.nexa-export-download {
+    display: block;
+    padding: 0;
+    color: #076f63;
+    font-weight: 700;
+    text-align: left;
+}
+
+.nexa-export-download[disabled] {
+    color: #7a858d;
+    text-decoration: none;
+}
+
+.nexa-export-status,
+.nexa-export-table td strong,
+.nexa-export-table td strong + span {
+    display: block;
+}
+
+.nexa-export-status {
+    margin-top: 4px;
+    color: #66757f;
+    font-size: 12px;
+}
+
+.nexa-export-status::before {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: #1c9b69;
+    content: '';
+}
+
+.nexa-export-status.is-expired::before {
+    background: #9aa3aa;
+}
+
+.nexa-export-table td strong + span {
+    margin-top: 2px;
+    color: #68757f;
+    font-size: 12px;
+}
+
+.nexa-export-empty {
+    padding: 34px !important;
+    color: #68757f;
+    text-align: center;
+}
+
+@media (max-width: 767px) {
+    .nexa-export-workspace {
+        padding: 18px 14px 28px;
+    }
+
+    .nexa-export-page-header,
+    .nexa-export-import-band,
+    .nexa-export-audit-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .nexa-export-page-header .btn,
+    .nexa-export-import-band .btn {
+        width: 100%;
+    }
+
+    .nexa-export-table {
+        min-width: 720px;
     }
 }

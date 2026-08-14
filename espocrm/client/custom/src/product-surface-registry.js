@@ -64,7 +64,7 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-tracking-events', 'Tracking & Events'],
             ['nexa-data-quality', 'Data Quality'],
             ['nexa-consent-privacy', 'Consent & Privacy'],
-            ['nexa-import-export', 'Import & Export'],
+            ['nexa-import-export', 'Import & Export', '#Contact/exportAudit'],
             ['nexa-integrations', 'Integrations'],
             ['nexa-api-webhooks', 'API & Webhooks'],
         ]},

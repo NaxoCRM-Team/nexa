@@ -109,8 +109,14 @@ class Application
                 return;
             }
 
-            $host = preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? '') ?? '';
-            $tenant = $this->container->getByClass(TenantResolver::class)->resolveHost($host);
+            $resolver = $this->container->getByClass(TenantResolver::class);
+            $authToken = is_string($_COOKIE['auth-token'] ?? null) ? $_COOKIE['auth-token'] : '';
+            $tenant = $authToken !== '' ? $resolver->resolveAuthToken($authToken) : null;
+
+            if ($tenant === null) {
+                $host = preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? '') ?? '';
+                $tenant = $resolver->resolveHost($host);
+            }
 
             if ($tenant === null) {
                 throw new \RuntimeException('The request host is not assigned to an active tenant.');

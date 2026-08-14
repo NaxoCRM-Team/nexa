@@ -18,12 +18,14 @@ $recordList = $read('espocrm/client/custom/src/views/contact/record/list-infinit
 $list = $read('espocrm/client/custom/src/views/contact/list-v2.js');
 $deleteModal = $read('espocrm/client/custom/src/views/contact/modals/delete-confirmation.js');
 $deleteTemplate = $read('espocrm/client/custom/res/templates/contact/modals/delete-confirmation.tpl');
-$trashModal = $read('espocrm/client/custom/src/views/contact/modals/trash.js');
+$trashPage = $read('espocrm/client/custom/src/views/contact/trash.js');
+$trashTemplate = $read('espocrm/client/custom/res/templates/contact/trash.tpl');
+$purgeModal = $read('espocrm/client/custom/src/views/contact/modals/permanent-delete-confirmation.js');
 $cleanup = $read('espocrm/application/Espo/Classes/Jobs/Cleanup.php');
 $migration = $read('database/shared/migrations/0016_add_contact_deletion_audit.sql');
 $styles = $read('espocrm/client/custom/css/crm-workflows.css');
 
-foreach (['/Nexa/contact/delete', '/Nexa/contact/trash', '/Nexa/contact/trash/restore'] as $path) {
+foreach (['/Nexa/contact/delete', '/Nexa/contact/trash', '/Nexa/contact/trash/restore', '/Nexa/contact/trash/purge'] as $path) {
     if (!array_filter($routes, static fn (array $route): bool =>
         ($route['route'] ?? '') === $path && empty($route['noAuth']))) {
         throw new RuntimeException("Authenticated Contact lifecycle route {$path} is missing.");
@@ -39,6 +41,11 @@ if (str_contains($service, "get('createdById') !== \$this->user->getId()")) {
 $mustContain("\$service->delete(\$id, DeleteParams::create())", $service, 'Deletion must use the native soft-delete service and hooks.');
 $mustContain("->withDeleted()", $service, 'Restore must explicitly query recoverable records.');
 $mustContain("requireTenantAdmin()", $service, 'Trash and restore must require tenant administration.');
+$mustContain("public function purge(array \$ids)", $service, 'Permanent deletion must use the protected Contact lifecycle service.');
+$mustContain("where(['id' => \$id, 'deleted' => true])", $service, 'Permanent deletion must verify a tenant-scoped soft-deleted record.');
+$mustContain("deleteFromDb(\$entity->getId(), true)", $service, 'Permanent deletion must only remove records already marked deleted.');
+$mustContain('purgeRelatedNotes', $service, 'Permanent deletion must clean related CRM notes.');
+$mustContain('purgeRelatedAttachments', $service, 'Permanent deletion must clean related attachments.');
 $mustContain("set('deletedAt', \$this->now())", $service, 'Deletion must preserve its retention timestamp.');
 $mustContain('idx_contact_tenant_deleted_at', $migration, 'Deletion retention lookup must be tenant-indexed.');
 
@@ -51,13 +58,30 @@ $mustContain("cssName = 'nexa-delete-confirmation-modal'", $deleteModal, 'The mo
 $mustContain("className = 'dialog nexa-delete-dialog'", $deleteModal, 'The deletion dialog must receive its custom visual class.');
 $mustContain('noFullHeight = true', $deleteModal, 'The compact confirmation must not inherit the full-height modal layout.');
 $mustContain("this.getUser().isAdmin()", $list, 'The trash control must be tenant-admin-only in the UI.');
-$mustContain("Nexa/contact/trash/restore", $trashModal, 'The recycle bin must restore through the protected endpoint.');
+$mustContain("href = '#Contact/trash'", $list, 'Restore records must open a dedicated tenant-admin page.');
+$mustContain('Restore records', $list, 'The Contact toolbar must use an unambiguous recovery label.');
+$mustContain('this.deletedContactTotal', $list, 'Restore records must remain hidden when no deleted contacts exist.');
+$mustContain('createButton.after(trashButton)', $list, 'Restore records must be placed beside New Contact.');
+$mustContain("Nexa/contact/trash/purge", $trashPage, 'Permanent deletion must use the protected endpoint.');
+$mustContain("this.selectedIds.size === 0", $trashPage, 'Permanent deletion must require a selected row.');
+$mustContain('Permanently delete', $trashTemplate, 'The recovery page must expose an explicit destructive action.');
+$mustContain("this.enableButton('confirm')", $purgeModal, 'Typing the selected count must enable permanent deletion through the modal API.');
+$mustContain("this.disableButton('confirm')", $purgeModal, 'An incorrect count must keep permanent deletion disabled.');
+$mustContain("Nexa/contact/trash/restore", $trashPage, 'The recovery page must restore through the protected endpoint.');
+$mustContain("input [data-name=\"search\"]", $trashPage, 'Deleted-record search must filter live.');
+$mustContain("change [data-name=\"dateFrom\"]", $trashPage, 'Recovery must support a deleted-from filter.');
+$mustContain("change [data-name=\"dateTo\"]", $trashPage, 'Recovery must support a deleted-to filter.');
+$mustContain("change [data-name=\"deletedBy\"]", $trashPage, 'Recovery must filter by the deleting user.');
+$mustContain('Deleted by', $trashTemplate, 'The recovery table must show who deleted a record.');
+$mustContain('Date deleted', $trashTemplate, 'The recovery table must show the deletion timestamp.');
+$mustContain("'deletedById'", $service, 'Trash records must include their deleting user identity.');
+$mustContain("'deletedByName'", $service, 'Trash records must include a readable deleting user name.');
 $mustContain("private string \$cleanupDeletedRecordsPeriod = '2 months'", $cleanup, 'All deleted records must use the global two-month default.');
 if (str_contains($cleanup, 'contactDeletedRecordsPeriod')) {
     throw new RuntimeException('Contact retention must not override the global deleted-record policy.');
 }
 $mustContain('.nexa-delete-dialog', $styles, 'The centered destructive modal must have dedicated responsive styling.');
-$mustContain('.nexa-trash-dialog', $styles, 'The tenant-admin recycle bin must have dedicated responsive styling.');
+$mustContain('.nexa-restore-workspace', $styles, 'The tenant-admin recovery page must have dedicated responsive styling.');
 $mustContain('.modal.nexa-delete-dialog.in', $styles, 'The visible deletion overlay must use full-screen flex centering.');
 $mustContain('.nexa-delete-dialog > .modal-dialog', $styles, 'Width constraints must apply to the inner dialog, not the overlay.');
 $mustContain('justify-content: center;', $styles, 'The deletion dialog must be horizontally centered.');
@@ -67,7 +91,7 @@ $mustContain('order: 3;', $styles, 'Deletion actions must remain below the modal
 $mustContain('gap: 12px;', $styles, 'Deletion actions must have clear separation.');
 
 foreach (['tenant-a', 'tenant-b', 'isolation-alpha'] as $literal) {
-    if (str_contains($service . $recordList . $trashModal, $literal)) {
+    if (str_contains($service . $recordList . $trashPage, $literal)) {
         throw new RuntimeException("Contact deletion must not hardcode tenant {$literal}.");
     }
 }
