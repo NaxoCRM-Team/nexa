@@ -2471,6 +2471,14 @@
     vertical-align: middle;
 }
 
+.nexa-contact-name-cell {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    max-width: 100%;
+    min-width: 0;
+}
+
 .nexa-contact-list-avatar {
     align-items: center;
     background: #e5ecea;
@@ -2509,24 +2517,38 @@
 
 .nexa-do-not-contact-badge {
     align-items: center;
-    background: #fde8e7;
-    border: 1px solid #efb4b0;
+    background: #d71935;
+    border: 1px solid #b90f29;
     border-radius: 999px;
-    color: #a62d27;
+    color: #fff;
+    cursor: pointer;
     display: inline-flex;
     flex: 0 0 auto;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    gap: 4px;
-    height: 22px;
+    height: 23px;
     justify-content: center;
     line-height: 1;
-    padding: 0 7px;
+    padding: 0;
+    transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    width: 23px;
+}
+
+.nexa-do-not-contact-badge:hover,
+.nexa-do-not-contact-badge:focus-visible {
+    background: #b80f29;
+    border-color: #91091f;
+    box-shadow: 0 0 0 3px rgba(215, 25, 53, 0.2);
+    color: #fff;
+    outline: 0;
 }
 
 .nexa-do-not-contact-badge--profile {
+    cursor: default;
+    gap: 6px;
     margin-top: 7px;
-    width: max-content;
+    padding: 0 9px;
+    width: auto;
 }
 
 .nexa-communication-alert {

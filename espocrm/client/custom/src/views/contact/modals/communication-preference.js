@@ -6,6 +6,7 @@ define('custom:views/contact/modals/communication-preference', ['views/modal'], 
     setup() {
         this.count = Number(this.options.count) || 0;
         this.status = this.options.status === 'allowed' ? 'allowed' : 'blocked';
+        this.activeChannels = Array.isArray(this.options.channels) ? this.options.channels : [];
         this.headerText = this.status === 'blocked'
             ? `Set do not contact for ${this.count} ${this.count === 1 ? 'record' : 'records'}`
             : `Remove do not contact for ${this.count} ${this.count === 1 ? 'record' : 'records'}`;
@@ -22,7 +23,20 @@ define('custom:views/contact/modals/communication-preference', ['views/modal'], 
             count: this.count,
             isSingle: this.count === 1,
             isBlocking: this.status === 'blocked',
+            channelOptions: this.channelOptions(),
         };
+    }
+
+    channelOptions() {
+        const labels = {
+            all: 'All channels', email: 'Email', phone: 'Phone calls',
+            sms: 'SMS', whatsapp: 'WhatsApp', postal: 'Postal mail',
+        };
+        const channels = this.status === 'blocked'
+            ? ['all', 'email', 'phone', 'sms', 'whatsapp', 'postal']
+            : this.activeChannels.filter(channel => labels[channel] && channel !== 'all');
+
+        return [...new Set(channels)].map(value => ({value, label: labels[value]}));
     }
 
     afterRender() {
@@ -45,7 +59,7 @@ define('custom:views/contact/modals/communication-preference', ['views/modal'], 
 
         this.trigger('confirm', {
             status: this.status,
-            channels: [this.element.querySelector('[data-name="channel"]')?.value || 'all'],
+            channels: [this.element.querySelector('[data-name="channel"]')?.value || ''],
             reason,
             note: this.element.querySelector('[data-name="note"]')?.value?.trim() || null,
         });

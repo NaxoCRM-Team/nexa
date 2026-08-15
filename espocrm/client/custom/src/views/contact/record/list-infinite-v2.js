@@ -217,14 +217,33 @@ define('custom:views/contact/record/list-infinite-v2', [
 
         const ids = [...this.checkedList];
         if (!ids.length) return false;
+        const channels = status === 'allowed' ? this.activeCommunicationChannels(ids) : [];
+        if (status === 'allowed' && !channels.length) {
+            Espo.Ui.warning('The selected contacts have no active communication restrictions.');
+            return false;
+        }
 
         this.createView('contactCommunicationPreference', 'custom:views/contact/modals/communication-preference', {
             count: ids.length,
             status,
+            channels,
         }, view => {
             view.render();
             this.listenToOnce(view, 'confirm', data => this.updateCommunicationPreference(ids, data));
         });
+    }
+
+    activeCommunicationChannels(ids) {
+        const selected = new Set(ids);
+        const channels = new Set();
+
+        this.collection.models.forEach(model => {
+            if (!selected.has(model.id)) return;
+            String(model.get('doNotContactChannels') || '').split(',').filter(Boolean)
+                .forEach(channel => channels.add(channel));
+        });
+
+        return [...channels];
     }
 
     async updateCommunicationPreference(ids, data) {

@@ -289,22 +289,28 @@ final class ContactLifecycleService
                     }
 
                     $current = array_values(array_filter(explode(',', (string) $contact->get('doNotContactChannels'))));
+                    $effectiveChannels = $status === 'blocked'
+                        ? $channels
+                        : array_values(array_intersect($current, $channels));
+                    if ($status === 'allowed' && $effectiveChannels === []) {
+                        continue;
+                    }
                     $next = $status === 'blocked'
-                        ? array_values(array_unique(array_merge($current, $channels)))
-                        : array_values(array_diff($current, $channels));
+                        ? array_values(array_unique(array_merge($current, $effectiveChannels)))
+                        : array_values(array_diff($current, $effectiveChannels));
                     sort($next);
 
                     $data = new stdClass();
 
                     // Keep Espo's native delivery guards synchronized so current
                     // email and phone workflows respect the Nexa preference.
-                    if (in_array('email', $channels, true)) {
+                    if (in_array('email', $effectiveChannels, true)) {
                         $data->emailAddressIsOptedOut = in_array('email', $next, true);
                         $data->marketingStatus = in_array('email', $next, true)
                             ? 'Unsubscribed'
                             : 'Non-Marketing';
                     }
-                    if (array_intersect(['phone', 'sms', 'whatsapp'], $channels)) {
+                    if (array_intersect(['phone', 'sms', 'whatsapp'], $effectiveChannels)) {
                         $phoneBlocked = (bool) array_intersect(['phone', 'sms', 'whatsapp'], $next);
                         $data->doNotCall = $phoneBlocked;
                         $data->phoneNumberIsOptedOut = $phoneBlocked;
@@ -331,12 +337,12 @@ final class ContactLifecycleService
                         $tenant->tenantId,
                         $tenant->serviceId,
                         $id,
-                        $channels,
+                        $effectiveChannels,
                         $status,
                         $reason,
                         $note,
                     );
-                    $this->recordCommunicationActivity($id, $channels, $status, $reason, $note);
+                    $this->recordCommunicationActivity($id, $effectiveChannels, $status, $reason, $note);
                     $updatedIds[] = $id;
                 }
             }

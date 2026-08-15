@@ -62,7 +62,13 @@ $mustContain("this.disableButton('update')", $modal, 'The modal action must rema
 $mustContain('Select a reason', $template, 'A required reason prompt must be visible.');
 $mustContain('nexa-do-not-contact-badge', $nameTemplate, 'Restricted contacts must be identified in list rows.');
 $mustContain('doNotContactTitle', $nameTemplate, 'The restriction icon must expose an accessible channel description.');
+$mustContain('data-action="removeCommunicationRestriction"', $nameTemplate, 'The restriction icon must open its removal workflow.');
+if (str_contains($nameTemplate, 'fa-envelope')) throw new RuntimeException('The list restriction control must use one unambiguous icon.');
+$mustContain('this.options.channels', $modal, 'Removal choices must come from active Contact restrictions.');
+$mustContain('{{#each channelOptions}}', $template, 'The channel selector must render only channels supplied by the modal.');
+$mustContain('array_intersect($current, $channels)', $service, 'Removal must be limited to active restrictions.');
 $mustContain('nexa-do-not-contact-badge--profile', $detail, 'Restricted contacts must be identified on their profile.');
+$mustContain('<span>Do not contact</span>', $detail, 'The Contact profile badge must pair its icon with a clear label.');
 $mustContain('nexa-communication-alert', $detail, 'The Overview must surface the active restriction context.');
 
 foreach (['tenant-a', 'tenant-b', 'isolation-alpha'] as $literal) {

@@ -44,6 +44,47 @@ define('custom:views/contact/fields/name-v2', ['views/fields/person-name'], Dep 
 
             const imageId = this.model.get('profileImageId');
             if (imageId) this.loadListAvatar(imageId);
+            this.element?.querySelector('[data-action="removeCommunicationRestriction"]')
+                ?.addEventListener('click', event => this.openRestrictionRemoval(event));
+        }
+
+        openRestrictionRemoval(event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (!this.getAcl().checkModel(this.model, 'edit')) {
+                Espo.Ui.error(this.translate('Access denied'));
+                return;
+            }
+
+            const channels = String(this.model.get('doNotContactChannels') || '').split(',').filter(Boolean);
+            if (!channels.length) return;
+
+            this.createView('removeCommunicationRestriction', 'custom:views/contact/modals/communication-preference', {
+                count: 1,
+                status: 'allowed',
+                channels,
+            }, view => {
+                view.render();
+                this.listenToOnce(view, 'confirm', data => this.removeCommunicationRestriction(data));
+            });
+        }
+
+        async removeCommunicationRestriction(data) {
+            Espo.Ui.notify('Removing communication restriction...');
+
+            try {
+                const result = await Espo.Ajax.postRequest('Nexa/contact/communication-preference', {
+                    ids: [this.model.id],
+                    ...data,
+                });
+                await this.model.fetch();
+                await this.reRender();
+                Espo.Ui.success(result.count === 1 ? 'Communication restriction removed.' : 'No active restriction was changed.');
+            } catch (error) {
+                Espo.Ui.notify(false);
+                Espo.Ui.error(error?.message || 'The communication restriction could not be removed.');
+            }
         }
 
         async loadListAvatar(imageId) {

@@ -186,7 +186,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 badge.className = 'nexa-do-not-contact-badge nexa-do-not-contact-badge--profile';
                 badge.setAttribute('role', 'img');
                 badge.setAttribute('aria-label', 'Do not contact');
-                badge.innerHTML = '<span class="fas fa-ban" aria-hidden="true"></span><span class="far fa-envelope" aria-hidden="true"></span>';
+                badge.innerHTML = '<span class="fas fa-ban" aria-hidden="true"></span><span>Do not contact</span>';
                 badge.title = channels.length ? `Restricted channels: ${channels.join(', ')}` : 'Do not contact';
                 shell.querySelector('.nexa-contact-heading').appendChild(badge);
             }
@@ -323,7 +323,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const note = this.model.get('doNotContactNote');
 
             return `<aside class="nexa-communication-alert" role="alert">
-                <span class="nexa-communication-alert-icon"><span class="fas fa-ban" aria-hidden="true"></span><span class="far fa-envelope" aria-hidden="true"></span></span>
+                <span class="nexa-communication-alert-icon"><span class="fas fa-ban" aria-hidden="true"></span></span>
                 <div><strong>Do not contact</strong><p>${this.escape(channels.join(', ') || 'Restricted channels')} &middot; ${this.escape(reason)}</p>${note ? `<p class="nexa-communication-alert-note">${this.escape(note)}</p>` : ''}</div>
             </aside>`;
         }

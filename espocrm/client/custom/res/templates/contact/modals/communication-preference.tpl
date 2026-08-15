@@ -6,12 +6,7 @@
     <div class="form-group">
         <label for="nexa-preference-channel">Channel scope</label>
         <select id="nexa-preference-channel" class="form-control" data-name="channel">
-            <option value="all">All channels</option>
-            <option value="email">Email</option>
-            <option value="phone">Phone calls</option>
-            <option value="sms">SMS</option>
-            <option value="whatsapp">WhatsApp</option>
-            <option value="postal">Postal mail</option>
+            {{#each channelOptions}}<option value="{{value}}">{{label}}</option>{{/each}}
         </select>
     </div>
     <div class="form-group">
