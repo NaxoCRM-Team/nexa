@@ -6,9 +6,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.once('remove', () => {
                 document.body.classList.remove('nexa-contact-detail-page');
                 this.cancelInlineDetailEdit();
+                this.cancelTaskFieldEdit();
                 this.closeCustomerCommandMenu();
                 this.closeInteractionDialog();
                 this.closeNoteDialog();
+                this.closeTaskDialog();
                 this.clearContactCommentEditors();
                 this.releaseProfileImage();
                 if (this.actionMenuDocumentHandler) {
@@ -16,6 +18,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 }
                 if (this.notesFilterDocumentHandler) {
                     document.removeEventListener('click', this.notesFilterDocumentHandler);
+                }
+                if (this.tasksFilterDocumentHandler) {
+                    document.removeEventListener('click', this.tasksFilterDocumentHandler);
                 }
                 if (this.noteActionsDocumentHandler) {
                     document.removeEventListener('click', this.noteActionsDocumentHandler);
@@ -82,6 +87,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.bindWorkspaceNavigation(shell);
             this.loadProfileImage(shell.querySelector('.nexa-contact-avatar'));
             this.loadContactNotes(shell);
+            this.loadContactTasks(shell);
+            this.loadContactCommunicationActivities(shell);
             if (this.activateActivityAfterRender) {
                 this.activateActivityAfterRender = false;
                 shell.querySelector('[data-nexa-tab="activity"]')?.click();
@@ -121,7 +128,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         </div>
                         <div class="nexa-contact-meta">
                             <p class="nexa-contact-subtitle"></p>
-                            <p class="nexa-contact-primary-email"></p>
+                            <button type="button" class="nexa-contact-primary-email" data-nexa-compose-email aria-label="Compose email to this contact"></button>
                         </div>
                     </div>
                     <div class="nexa-contact-quick-actions" role="toolbar" aria-label="Contact actions">
@@ -155,6 +162,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         ${this.tabButton('overview', 'Overview', true)}
                         ${this.tabButton('activity', 'Activities')}
                         ${this.tabButton('notes', 'Notes')}
+                        ${this.tabButton('tasks', 'Tasks')}
                         ${this.tabButton('sales', 'Sales')}
                         ${this.tabButton('marketing', 'Marketing')}
                         ${this.tabButton('service', 'Service')}
@@ -163,6 +171,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         ${this.overviewPanel()}
                         ${this.activityPanel()}
                         ${this.notesPanel()}
+                        ${this.tasksPanel()}
                         ${this.salesPanel()}
                         ${this.marketingPanel()}
                         ${this.servicePanel()}
@@ -333,18 +342,18 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 <div class="nexa-activity-toolbar">
                     <div class="nexa-activity-toolbar-primary">
                         <label class="nexa-activity-search"><span class="sr-only">Search activities</span><input type="search" data-nexa-activity-search placeholder="Search activities"><span class="fas fa-search" aria-hidden="true"></span></label>
-                        <span class="nexa-activity-count" data-nexa-activity-count aria-live="polite">Loading activities</span>
+                        <div class="nexa-activity-toolbar-actions"><span class="nexa-activity-count" data-nexa-activity-count aria-live="polite">Loading activities</span><button type="button" class="nexa-collapse-activities" data-nexa-collapse-activities>Collapse all <span class="fas fa-caret-down" aria-hidden="true"></span></button></div>
                     </div>
                     <button type="button" class="btn btn-default nexa-activity-filter-toggle" data-nexa-activity-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
                     <div class="nexa-activity-filters" data-nexa-activity-filters>
                         <label><span>Activity type</span><select class="form-control" data-nexa-activity-type>
-                            <option value="all">All activities</option><option value="notes">Notes</option><option value="stream">CRM timeline</option><option value="activities">Upcoming activities</option><option value="history">History</option><option value="tasks">Tasks</option>
+                            <option value="all">All activities</option><option value="call">Calls</option><option value="meeting">Meetings</option><option value="email">Emails</option><option value="task">Tasks</option><option value="preference">Communication preferences</option><option value="other">Other activity</option>
                         </select></label>
                         <label><span>Date range</span><select class="form-control" data-nexa-activity-period>${this.notePeriodOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>
                     </div>
                 </div>
-                <div class="nexa-activity-note-feed" data-nexa-activity-notes></div>
-                <div class="nexa-native-activity" data-nexa-activity-panels></div>
+                <div class="nexa-activity-list" data-nexa-activity-list aria-live="polite"><div class="nexa-note-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading activities</span></div></div>
+                <div class="nexa-native-activity-source" data-nexa-activity-panels aria-hidden="true"></div>
                 <div class="nexa-activity-empty" data-nexa-activity-empty hidden><span class="far fa-calendar-times" aria-hidden="true"></span><div><strong>No matching activities</strong><p>Try another search, activity type or date range.</p></div></div>
             </section>`;
         }
@@ -380,6 +389,42 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     <h4 id="nexa-contact-notes-title" class="sr-only">Saved notes</h4><span class="sr-only" data-nexa-note-count>0 notes</span>
                     <div class="nexa-contact-note-list" data-nexa-note-list aria-live="polite">
                         <div class="nexa-note-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading notes</span></div>
+                    </div>
+                </section>
+            </section>`;
+        }
+
+        tasksPanel() {
+            return `<section class="nexa-customer-tab-panel nexa-notes-workspace" data-nexa-tab-panel="tasks" role="tabpanel" hidden>
+                <div class="nexa-notes-toolbar">
+                    <div class="nexa-notes-toolbar-primary">
+                        <label class="nexa-notes-search"><span class="sr-only">Search tasks</span><input type="search" data-nexa-tasks-search placeholder="Search tasks"><span class="fas fa-search" aria-hidden="true"></span></label>
+                        <div class="nexa-notes-toolbar-actions">
+                            <button type="button" class="nexa-collapse-notes" data-nexa-collapse-tasks>Collapse all <span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                            <button type="button" class="btn btn-default" data-nexa-create-task><span class="far fa-check-square" aria-hidden="true"></span><span>Create a task</span></button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-default nexa-notes-filter-toggle" data-nexa-tasks-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
+                    <div class="nexa-notes-filters" data-nexa-tasks-filters>
+                        <div class="nexa-note-filter" data-nexa-task-period-filter>
+                            <button type="button" data-nexa-task-period-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-task-period-label>All time</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                            <div class="nexa-note-filter-menu nexa-note-period-menu" data-nexa-task-period-menu hidden>
+                                ${this.notePeriodOptions().map(([value, label]) => `<button type="button" data-nexa-task-period="${value}">${label}</button>`).join('')}
+                            </div>
+                        </div>
+                        <div class="nexa-note-filter" data-nexa-task-owner-filter>
+                            <button type="button" data-nexa-task-owner-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-task-owner-label>Activity assigned to</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                            <div class="nexa-note-filter-menu nexa-note-owner-menu" data-nexa-task-owner-menu hidden>
+                                <label><span class="fas fa-search" aria-hidden="true"></span><input type="search" data-nexa-task-owner-search placeholder="Search owners" aria-label="Search owners"></label>
+                                <div data-nexa-task-owner-options></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <section class="nexa-contact-notes" aria-labelledby="nexa-contact-tasks-title">
+                    <h4 id="nexa-contact-tasks-title" class="sr-only">Tasks</h4><span class="sr-only" data-nexa-task-count>0 tasks</span>
+                    <div class="nexa-contact-note-list" data-nexa-task-list aria-live="polite">
+                        <div class="nexa-note-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading tasks</span></div>
                     </div>
                 </section>
             </section>`;
@@ -445,6 +490,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             shell.querySelectorAll('[data-nexa-contact-action]').forEach(button => {
                 button.addEventListener('click', () => this.openActivity(button.dataset.nexaContactAction));
             });
+            shell.querySelector('[data-nexa-compose-email]')?.addEventListener('click', () => {
+                this.openContactEmailComposer();
+            });
             shell.querySelector('[data-nexa-more-actions]')?.addEventListener('click', event => {
                 event.stopPropagation();
                 this.toggleCustomerCommandMenu(event.currentTarget);
@@ -464,32 +512,49 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 });
             });
             this.bindContactNotesWorkspace(shell);
+            this.bindContactTasksWorkspace(shell);
             this.bindContactActivityWorkspace(shell);
         }
 
         bindContactActivityWorkspace(shell) {
             this.contactActivityFilter = this.contactActivityFilter || {query: '', type: 'all', period: 'all'};
+            this.collapsedContactActivityIds = this.collapsedContactActivityIds || new Set();
+            this.knownContactActivityIds = this.knownContactActivityIds || new Set();
             shell.querySelector('[data-nexa-activity-search]')?.addEventListener('input', event => {
                 this.contactActivityFilter.query = event.currentTarget.value.trim().toLowerCase();
-                this.renderContactActivityNotes(shell);
-                this.applyContactActivityFilters(shell);
+                this.renderContactActivities(shell);
             });
             shell.querySelector('[data-nexa-activity-type]')?.addEventListener('change', event => {
                 this.contactActivityFilter.type = event.currentTarget.value;
-                this.renderContactActivityNotes(shell);
-                this.applyContactActivityFilters(shell);
+                this.renderContactActivities(shell);
             });
             shell.querySelector('[data-nexa-activity-period]')?.addEventListener('change', event => {
                 this.contactActivityFilter.period = event.currentTarget.value;
-                this.renderContactActivityNotes(shell);
-                this.applyContactActivityFilters(shell);
+                this.renderContactActivities(shell);
             });
             shell.querySelector('[data-nexa-activity-filter-toggle]')?.addEventListener('click', event => {
                 const filters = shell.querySelector('[data-nexa-activity-filters]');
                 filters.hidden = !filters.hidden;
                 event.currentTarget.setAttribute('aria-expanded', String(!filters.hidden));
             });
-            this.applyContactActivityFilters(shell);
+            shell.querySelector('[data-nexa-collapse-activities]')?.addEventListener('click', () => {
+                const activities = this.filteredContactActivities(shell);
+                const allCollapsed = activities.length > 0 && activities.every(activity => activity.type === 'task'
+                    ? this.collapsedContactTaskIds?.has(activity.taskRef.id)
+                    : this.collapsedContactActivityIds.has(activity.id));
+                activities.forEach(activity => {
+                    if (activity.type === 'task') {
+                        if (allCollapsed) this.collapsedContactTaskIds?.delete(activity.taskRef.id);
+                        else this.collapsedContactTaskIds?.add(activity.taskRef.id);
+                    } else if (allCollapsed) {
+                        this.collapsedContactActivityIds.delete(activity.id);
+                    } else {
+                        this.collapsedContactActivityIds.add(activity.id);
+                    }
+                });
+                this.renderContactActivities(shell);
+            });
+            this.renderContactActivities(shell);
         }
 
         observeContactActivity(container) {
@@ -497,7 +562,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.contactActivityObserver?.disconnect();
             this.contactActivityObserver = new MutationObserver(() => {
                 window.clearTimeout(this.contactActivityFilterTimer);
-                this.contactActivityFilterTimer = window.setTimeout(() => this.applyContactActivityFilters(), 25);
+                this.contactActivityFilterTimer = window.setTimeout(() => this.renderContactActivities(), 25);
             });
             this.contactActivityObserver.observe(container, {childList: true, subtree: true});
         }
@@ -580,7 +645,15 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         actionButton(type, icon, label) {
-            return `<button type="button" class="btn btn-link" data-nexa-contact-action="${type}"><span class="${icon}" aria-hidden="true"></span><span>${label}</span></button>`;
+            const tooltips = {
+                note: 'Create a note',
+                email: 'Create email',
+                call: 'Make a phone call',
+                task: 'Create a task',
+                meeting: 'Schedule a meeting',
+            };
+            const tooltip = tooltips[type] || label;
+            return `<button type="button" class="btn btn-link" data-nexa-contact-action="${type}" data-tooltip="${this.escape(tooltip)}"><span class="${icon}" aria-hidden="true"></span><span>${label}</span></button>`;
         }
 
         moreActionButton() {
@@ -1144,13 +1217,73 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         openActivity(type) {
-            if (type === 'email' && typeof this.actionComposeEmail === 'function') return this.actionComposeEmail();
+            if (type === 'email') return this.openContactEmailComposer();
             if (type === 'note') {
                 return this.openNoteDialog();
             }
-            const activityMap = {call: 'Call', meeting: 'Meeting', task: 'Task'};
+            if (type === 'task') {
+                return this.openTaskDialog();
+            }
+            const activityMap = {call: 'Call', meeting: 'Meeting'};
             if (typeof this.createActivity === 'function') return this.createActivity(activityMap[type]);
             this.element.querySelector('[data-nexa-tab="activity"]')?.click();
+        }
+
+        openContactEmailComposer() {
+            const emailAddress = String(this.model.get('emailAddress') || '').trim();
+            const contactName = this.model.get('name') || emailAddress;
+            const blockedChannels = String(this.model.get('doNotContactChannels') || '')
+                .split(',').map(channel => channel.trim()).filter(Boolean);
+
+            if (!this.getAcl().checkScope('Email', 'create')) {
+                Espo.Ui.error('You do not have permission to send email.');
+                return;
+            }
+            if (!this.getAcl().checkField('Contact', 'emailAddress', 'read') || !emailAddress) {
+                Espo.Ui.error('Add an email address to this contact before composing a message.');
+                return;
+            }
+            if (blockedChannels.includes('email') || this.model.get('emailAddressIsOptedOut')) {
+                Espo.Ui.error('Email is restricted for this contact. Remove the communication restriction before sending.');
+                return;
+            }
+
+            const attributes = {
+                status: 'Draft',
+                to: emailAddress,
+                nameHash: {[emailAddress]: contactName},
+            };
+            if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
+                attributes.parentType = 'Contact';
+                attributes.parentId = this.model.id;
+                attributes.parentName = contactName;
+            } else {
+                attributes.parentType = 'Account';
+                attributes.parentId = this.model.get('accountId');
+                attributes.parentName = this.model.get('accountName');
+                attributes.accountId = this.model.get('accountId');
+                attributes.accountName = this.model.get('accountName');
+            }
+
+            let relate = null;
+            const emailLink = this.model.defs?.links?.emails;
+            if (emailLink?.foreign) relate = {model: this.model, link: emailLink.foreign};
+
+            Espo.Ui.notifyWait();
+            const viewName = this.getMetadata().get('clientDefs.Email.modalViews.compose') || 'views/modals/compose-email';
+            this.createView('nexaComposeEmail', viewName, {
+                relate,
+                attributes,
+                focusForCreate: true,
+            }, view => {
+                view.render();
+                view.notify(false);
+                this.listenToOnce(view, 'after:save', () => {
+                    this.model.trigger('update-related:emails');
+                    this.model.trigger('update-related:activities');
+                    this.model.trigger('after:relate');
+                });
+            });
         }
 
         async openNoteDialog() {
@@ -1350,6 +1483,92 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             }
         }
 
+        async ensureTenantOwnersLoaded() {
+            if (this.contactNoteTenantOwners) return this.contactNoteTenantOwners;
+            try {
+                const payload = await Espo.Ajax.getRequest('User', {
+                    maxSize: 200,
+                    orderBy: 'name',
+                    order: 'asc',
+                    select: 'id,name,isActive,type',
+                });
+                this.contactNoteTenantOwners = (payload?.list || []).filter(user => {
+                    const type = String(user.type || '').toLowerCase();
+                    return user.id && user.name && !['system', 'api', 'portal', 'bot'].includes(type);
+                });
+            } catch (error) {
+                this.contactNoteTenantOwners = [];
+            }
+            return this.contactNoteTenantOwners;
+        }
+
+        mountAssigneePicker(host, {userId = '', userName = '', onChange} = {}) {
+            if (!host) return null;
+            const users = this.contactNoteTenantOwners || [];
+
+            host.innerHTML = `
+                <div class="nexa-assignee-picker" data-nexa-assignee-picker>
+                    <button type="button" class="nexa-assignee-picker-toggle" data-nexa-assignee-toggle aria-haspopup="true" aria-expanded="false">
+                        <span data-nexa-assignee-label>${userName ? this.escape(userName) : 'Choose assignee'}</span>
+                        <span class="fas fa-caret-down" aria-hidden="true"></span>
+                    </button>
+                    <div class="nexa-note-filter-menu nexa-note-owner-menu" data-nexa-assignee-menu hidden>
+                        <label><span class="fas fa-search" aria-hidden="true"></span><input type="search" data-nexa-assignee-search placeholder="Search people" aria-label="Search people"></label>
+                        <div data-nexa-assignee-options>
+                            ${users.length ? users.map(user => `<button type="button" data-nexa-assignee-option="${this.escape(user.id)}" data-nexa-owner-search="${this.escape(user.name.toLowerCase())}"${user.id === userId ? ' aria-selected="true"' : ''}>${this.escape(user.name)}</button>`).join('') : '<p>No people found</p>'}
+                        </div>
+                    </div>
+                </div>`;
+
+            const picker = host.querySelector('[data-nexa-assignee-picker]');
+            const toggle = picker.querySelector('[data-nexa-assignee-toggle]');
+            const menu = picker.querySelector('[data-nexa-assignee-menu]');
+            const label = picker.querySelector('[data-nexa-assignee-label]');
+            const search = picker.querySelector('[data-nexa-assignee-search]');
+
+            const close = () => {
+                menu.hidden = true;
+                toggle.setAttribute('aria-expanded', 'false');
+            };
+
+            toggle.addEventListener('click', event => {
+                event.stopPropagation();
+                const opening = menu.hidden;
+                menu.hidden = !opening;
+                toggle.setAttribute('aria-expanded', String(opening));
+                if (opening) window.setTimeout(() => search?.focus(), 0);
+            });
+
+            search?.addEventListener('input', () => {
+                const term = search.value.trim().toLowerCase();
+                picker.querySelectorAll('[data-nexa-assignee-option]').forEach(button => {
+                    button.hidden = Boolean(term) && !button.dataset.nexaOwnerSearch.includes(term);
+                });
+            });
+
+            picker.querySelectorAll('[data-nexa-assignee-option]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const id = button.dataset.nexaAssigneeOption;
+                    const name = button.textContent.trim();
+                    label.textContent = name;
+                    picker.querySelectorAll('[data-nexa-assignee-option]').forEach(option => option.removeAttribute('aria-selected'));
+                    button.setAttribute('aria-selected', 'true');
+                    close();
+                    onChange?.(id, name);
+                });
+            });
+
+            const documentHandler = event => {
+                if (!picker.contains(event.target)) close();
+            };
+            document.addEventListener('click', documentHandler);
+
+            return {
+                element: picker,
+                destroy: () => document.removeEventListener('click', documentHandler),
+            };
+        }
+
         async loadContactNoteOwners(workspace) {
             const noteAuthors = (this.contactNoteRecords || []).map(note => ({
                 id: note.createdById,
@@ -1357,22 +1576,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 isActive: true,
             })).filter(owner => owner.id);
 
-            if (!this.contactNoteTenantOwners) {
-                try {
-                    const payload = await Espo.Ajax.getRequest('User', {
-                        maxSize: 200,
-                        orderBy: 'name',
-                        order: 'asc',
-                        select: 'id,name,isActive,type',
-                    });
-                    this.contactNoteTenantOwners = (payload?.list || []).filter(user => {
-                        const type = String(user.type || '').toLowerCase();
-                        return user.id && user.name && !['system', 'api', 'portal', 'bot'].includes(type);
-                    });
-                } catch (error) {
-                    this.contactNoteTenantOwners = [];
-                }
-            }
+            await this.ensureTenantOwnersLoaded();
 
             const owners = new Map();
             [...this.contactNoteTenantOwners, ...noteAuthors].forEach(owner => {
@@ -1495,76 +1699,212 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const allCollapsed = notes.length > 0 && notes.every(note => this.collapsedContactNoteIds?.has(note.id));
             if (collapse) collapse.firstChild.textContent = allCollapsed ? 'Expand all ' : 'Collapse all ';
             this.bindContactNoteList(list, 'notes');
-            this.renderContactActivityNotes(workspace);
         }
 
-        filteredContactActivityNotes() {
-            const filter = this.contactActivityFilter || {query: '', type: 'all', period: 'all'};
-            if (!['all', 'notes'].includes(filter.type)) return [];
-
-            return (this.contactNoteRecords || []).filter(note => {
-                const content = this.contactNotePreview(note.content).toLowerCase();
-                const matchesQuery = !filter.query || `${content} ${note.createdByName || ''}`.toLowerCase().includes(filter.query);
-                return matchesQuery && this.contactNoteMatchesPeriod(note.createdAt, filter.period);
-            });
-        }
-
-        renderContactActivityNotes(workspace = null) {
-            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
-            const container = workspace?.querySelector('[data-nexa-activity-notes]');
-            if (!container) return;
-            this.clearContactCommentEditors('activity');
-            const notes = this.filteredContactActivityNotes();
-            const groups = new Map();
-            const pinned = notes.filter(note => note.isPinned);
-            if (pinned.length) groups.set('pinned', {label: 'Pinned', notes: pinned, pinned: true});
-            notes.filter(note => !note.isPinned).forEach(note => {
-                const date = this.contactNoteDate(note.createdAt);
-                const key = date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : 'unknown';
-                const label = date ? new Intl.DateTimeFormat(undefined, {month: 'long', year: 'numeric'}).format(date) : 'Undated';
-                if (!groups.has(key)) groups.set(key, {label, notes: []});
-                groups.get(key).notes.push(note);
-            });
-            container.innerHTML = notes.length
-                ? [...groups.values()].map(group => `<section class="nexa-note-month${group.pinned ? ' is-pinned-group' : ''}"><h4>${group.pinned ? '<span class="fas fa-thumbtack" aria-hidden="true"></span>' : ''}${this.escape(group.label)}</h4>${group.notes.map(note => this.contactNoteCard(note, this.contactNoteComments?.get(note.id) || [], false, 'activity')).join('')}</section>`).join('')
-                : '';
-            container.hidden = notes.length === 0;
-            this.bindContactNoteList(container, 'activity');
-            this.applyContactActivityFilters(workspace);
-        }
-
-        applyContactActivityFilters(workspace = null) {
+        collectContactActivities(workspace = null) {
             workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
             const panels = workspace?.querySelector('[data-nexa-activity-panels]');
-            if (!panels) return;
-            const filter = this.contactActivityFilter || {query: '', type: 'all', period: 'all'};
-            const noteIds = new Set((this.contactNoteRecords || []).map(note => note.id));
-            let visibleNativeCount = 0;
+            if (!panels) return [];
+            const activities = [...(this.contactCommunicationActivities || [])];
+
+            activities.forEach(activity => {
+                if (!this.knownContactActivityIds.has(activity.id)) {
+                    this.knownContactActivityIds.add(activity.id);
+                    this.collapsedContactActivityIds.add(activity.id);
+                }
+            });
 
             panels.querySelectorAll('[data-nexa-activity-source]').forEach(panel => {
                 const source = panel.dataset.nexaActivitySource;
-                const sourceMatches = filter.type === 'all' || filter.type === source;
-                let panelVisibleCount = 0;
                 this.contactActivityRows(panel).forEach(row => {
-                    const isNexaNote = source === 'stream' && noteIds.has(row.dataset.id);
-                    const matchesQuery = !filter.query || row.textContent.toLowerCase().includes(filter.query);
+                    // Notes have their own workspace, communication preferences come from
+                    // the authoritative tenant-scoped audit endpoint, and tasks are sourced
+                    // directly from contactTaskRecords below (structured data, not scraped -
+                    // avoids the native panel's own pagination and a fragile text heuristic).
+                    if (source === 'stream' || source === 'tasks') return;
+
+                    const id = `${source}-${row.dataset.id}`;
+                    const text = row.textContent.replace(/\s+/g, ' ').trim();
                     const date = this.contactActivityRowDate(row);
-                    const matchesPeriod = filter.period === 'all' || !date || this.contactNoteMatchesPeriod(date.toISOString(), filter.period);
-                    const visible = sourceMatches && !isNexaNote && matchesQuery && matchesPeriod;
-                    row.hidden = !visible;
-                    row.classList.toggle('nexa-activity-row', visible);
-                    if (visible) panelVisibleCount++;
+                    const type = this.contactActivityType(row, source);
+                    const link = row.querySelector('a[href*="/view/"]');
+                    const title = type === 'preference'
+                        ? (text.includes('restriction removed') ? 'Communication restriction removed' : 'Communication restriction set')
+                        : (link?.textContent?.replace(/\s+/g, ' ').trim() || this.contactActivityTypeLabel(type));
+
+                    if (!this.knownContactActivityIds.has(id)) {
+                        this.knownContactActivityIds.add(id);
+                        this.collapsedContactActivityIds.add(id);
+                    }
+                    activities.push({id, type, title, text, date, href: link?.getAttribute('href') || ''});
                 });
-                panel.hidden = !sourceMatches || panelVisibleCount === 0;
-                visibleNativeCount += panelVisibleCount;
             });
 
-            const visibleNoteCount = this.filteredContactActivityNotes().length;
-            const total = visibleNativeCount + visibleNoteCount;
+            (this.contactTaskRecords || []).forEach(task => {
+                const text = [task.name, task.assignedUserName, task.description ? this.contactNotePreview(task.description) : '']
+                    .filter(Boolean).join(' ');
+                activities.push({
+                    id: `tasks-${task.id}`,
+                    type: 'task',
+                    title: task.name,
+                    text,
+                    date: this.contactNoteDate(task.dateEnd || task.createdAt),
+                    href: '',
+                    taskRef: task,
+                });
+            });
+
+            return activities.sort((left, right) => (right.date?.getTime() || 0) - (left.date?.getTime() || 0));
+        }
+
+        async loadContactCommunicationActivities(workspace = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            this.contactCommunicationActivities = [];
+
+            try {
+                const payload = await Espo.Ajax.getRequest(
+                    `Nexa/contact/${encodeURIComponent(this.model.id)}/communication-preferences`
+                );
+                const reasonLabels = {
+                    contact_request: 'Contact requested no communication', unsubscribed: 'Unsubscribed',
+                    invalid_details: 'Invalid contact details', legal_compliance: 'Legal or compliance requirement',
+                    complaint: 'Complaint', consent_restored: 'Consent restored',
+                    correction: 'Previous restriction was incorrect', other: 'Other',
+                };
+                const channelLabels = {email: 'Email', phone: 'Phone', sms: 'SMS', whatsapp: 'WhatsApp', postal: 'Postal mail'};
+
+                this.contactCommunicationActivities = (payload.list || []).map(record => {
+                    const createdAt = String(record.createdAt || '');
+                    const date = createdAt ? new Date(`${createdAt.replace(' ', 'T')}Z`) : null;
+                    const channels = (record.channels || []).map(channel => channelLabels[channel] || channel);
+                    const title = record.status === 'allowed'
+                        ? 'Communication restriction removed'
+                        : 'Communication restriction set';
+                    const reason = reasonLabels[record.reason] || String(record.reason || 'Not recorded');
+                    const actor = record.changedByName || 'Unknown user';
+                    const summary = [title, `by ${actor}`, channels.join(', '), reason, record.note || '']
+                        .filter(Boolean).join(' ');
+
+                    return {
+                        id: `preference-${record.id}`,
+                        type: 'preference',
+                        title,
+                        text: summary,
+                        date: date && !Number.isNaN(date.getTime()) ? date : null,
+                        href: '',
+                        actor,
+                        channels,
+                        reason,
+                        note: record.note || '',
+                    };
+                });
+            } catch (error) {
+                this.contactCommunicationActivities = [];
+            }
+
+            this.renderContactActivities(workspace);
+        }
+
+        filteredContactActivities(workspace = null) {
+            const filter = this.contactActivityFilter || {query: '', type: 'all', period: 'all'};
+            return this.collectContactActivities(workspace).filter(activity => {
+                const matchesType = filter.type === 'all' || filter.type === activity.type;
+                const matchesQuery = !filter.query || `${activity.title} ${activity.text}`.toLowerCase().includes(filter.query);
+                const matchesPeriod = filter.period === 'all' || !activity.date ||
+                    this.contactNoteMatchesPeriod(activity.date.toISOString(), filter.period);
+                return matchesType && matchesQuery && matchesPeriod;
+            });
+        }
+
+        renderContactActivities(workspace = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            const list = workspace?.querySelector('[data-nexa-activity-list]');
+            if (!list) return;
+            this.cancelTaskFieldEdit();
+            const activities = this.filteredContactActivities(workspace);
+            const groups = new Map();
+
+            activities.forEach(activity => {
+                const date = activity.date;
+                const key = date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : 'unknown';
+                const label = date
+                    ? new Intl.DateTimeFormat(undefined, {month: 'long', year: 'numeric'}).format(date)
+                    : 'Undated';
+                if (!groups.has(key)) groups.set(key, {label, activities: []});
+                groups.get(key).activities.push(activity);
+            });
+
+            list.innerHTML = [...groups.values()].map(group => `
+                <section class="nexa-activity-month"><h4>${this.escape(group.label)}</h4>
+                    ${group.activities.map(activity => activity.type === 'task'
+                        ? this.contactTaskCard(activity.taskRef, false, 'activity')
+                        : this.contactActivityCard(activity)).join('')}
+                </section>`).join('');
+            list.hidden = activities.length === 0;
+
             const count = workspace.querySelector('[data-nexa-activity-count]');
             const empty = workspace.querySelector('[data-nexa-activity-empty]');
-            if (count) count.textContent = `${total} ${total === 1 ? 'activity' : 'activities'}`;
-            if (empty) empty.hidden = total !== 0;
+            const collapse = workspace.querySelector('[data-nexa-collapse-activities]');
+            const allCollapsed = activities.length > 0 && activities.every(activity => activity.type === 'task'
+                ? this.collapsedContactTaskIds?.has(activity.taskRef.id)
+                : this.collapsedContactActivityIds.has(activity.id));
+            if (count) count.textContent = `${activities.length} ${activities.length === 1 ? 'activity' : 'activities'}`;
+            if (empty) empty.hidden = activities.length !== 0;
+            if (collapse) collapse.firstChild.textContent = allCollapsed ? 'Expand all ' : 'Collapse all ';
+
+            list.querySelectorAll('[data-nexa-activity-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const id = button.closest('[data-nexa-activity-id]').dataset.nexaActivityId;
+                    if (this.collapsedContactActivityIds.has(id)) this.collapsedContactActivityIds.delete(id);
+                    else this.collapsedContactActivityIds.add(id);
+                    this.renderContactActivities(workspace);
+                });
+            });
+            this.bindContactTaskList(list, 'activity');
+        }
+
+        contactActivityCard(activity) {
+            const collapsed = this.collapsedContactActivityIds.has(activity.id);
+            const icon = this.contactActivityTypeIcon(activity.type);
+            const timestamp = activity.date
+                ? new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'}).format(activity.date)
+                : 'Date not recorded';
+            const preview = activity.text || activity.title;
+            const subtitle = activity.actor
+                ? `${this.contactActivityTypeLabel(activity.type)} by ${activity.actor}`
+                : this.contactActivityTypeLabel(activity.type);
+            const details = activity.type === 'preference'
+                ? `<dl class="nexa-activity-audit-details">
+                    <div><dt>Changed by</dt><dd>${this.escape(activity.actor)}</dd></div>
+                    <div><dt>Channels</dt><dd>${this.escape(activity.channels.join(', ') || 'Not recorded')}</dd></div>
+                    <div><dt>Reason</dt><dd>${this.escape(activity.reason)}</dd></div>
+                    ${activity.note ? `<div class="is-note"><dt>Internal note</dt><dd>${this.escape(activity.note)}</dd></div>` : ''}
+                </dl>`
+                : `<p>${this.escape(preview)}</p>`;
+
+            return `<article class="nexa-activity-card${collapsed ? ' is-collapsed' : ''}" data-nexa-activity-id="${this.escape(activity.id)}">
+                <header><button type="button" class="nexa-activity-toggle" data-nexa-activity-toggle aria-expanded="${!collapsed}"><span class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></span><span class="fas nexa-activity-icon ${icon}" aria-hidden="true"></span><span class="nexa-activity-heading"><strong>${this.escape(activity.title)}</strong><span>${this.escape(subtitle)}</span></span></button><time>${this.escape(timestamp)}</time></header>
+                <p class="nexa-activity-preview"${collapsed ? '' : ' hidden'}>${this.escape(preview)}</p>
+                <div class="nexa-activity-details"${collapsed ? ' hidden' : ''}>${details}${activity.href ? `<a href="${this.escape(activity.href)}">View record <span class="fas fa-arrow-right" aria-hidden="true"></span></a>` : ''}</div>
+            </article>`;
+        }
+
+        contactActivityType(row, source) {
+            if (source === 'stream') return 'preference';
+            const value = `${row.innerHTML} ${row.textContent}`.toLowerCase();
+            if (source === 'tasks' || value.includes('#task/') || value.includes(' task')) return 'task';
+            if (value.includes('#call/') || value.includes(' call')) return 'call';
+            if (value.includes('#meeting/') || value.includes(' meeting')) return 'meeting';
+            if (value.includes('#email/') || value.includes(' email')) return 'email';
+            return 'other';
+        }
+
+        contactActivityTypeLabel(type) {
+            return {call: 'Call', meeting: 'Meeting', email: 'Email', task: 'Task', preference: 'Communication preference', other: 'CRM activity'}[type] || 'CRM activity';
+        }
+
+        contactActivityTypeIcon(type) {
+            return {call: 'fa-phone-alt', meeting: 'fa-calendar-check', email: 'fa-envelope', task: 'fa-check-square', preference: 'fa-ban', other: 'fa-history'}[type] || 'fa-history';
         }
 
         contactActivityRows(panel) {
@@ -1631,15 +1971,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         formatNoteContent(content) {
-            const source = String(content || '');
-            if (/<[a-z][\s\S]*>/i.test(source)) return this.getHelper().sanitizeHtml(source);
-
-            let value = this.escape(source);
-            value = value.replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-            value = value.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-            value = value.replace(/_([^_]+)_/g, '<em>$1</em>');
-            value = value.replace(/(^|\n)[-*]\s+([^\n]+)/g, '$1<span class="nexa-note-list-item">$2</span>');
-            return value.replace(/\r?\n/g, '<br>');
+            // All callers (note body, note comments, task notes) are authored via
+            // views/fields/wysiwyg, so content is always HTML - including plain
+            // single-line entries with no wrapping tag (e.g. an editor-inserted
+            // "&nbsp;"), which must never be re-escaped or it renders literally.
+            return this.getHelper().sanitizeHtml(String(content || ''));
         }
 
         bindContactNoteList(list, context = 'notes') {
@@ -2031,6 +2367,1239 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const node = document.createElement('span');
             node.textContent = String(value);
             return node.innerHTML;
+        }
+
+        async openTaskDialog() {
+            this.closeTaskDialog();
+            const contactName = this.model.get('name') || 'Contact';
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-task-overlay';
+            overlay.dataset.nexaTaskDialog = 'true';
+            overlay.innerHTML = `
+                <section class="nexa-task-dialog" role="dialog" aria-modal="true"
+                    aria-labelledby="nexa-task-dialog-title" aria-describedby="nexa-task-dialog-help">
+                    <header>
+                        <div><p>Customer workspace</p><h2 id="nexa-task-dialog-title">Task</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-task-close aria-label="Close task">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <form data-nexa-task-form>
+                        <div class="nexa-note-recipient"><span>For</span><strong>${this.escape(contactName)}</strong></div>
+                        <p id="nexa-task-dialog-help" class="nexa-note-help">Create a task for your team to follow up with this customer.</p>
+
+                        <div class="nexa-task-field">
+                            <label for="nexa-task-name">Task name</label>
+                            <input type="text" id="nexa-task-name" name="name" class="form-control" maxlength="255" required>
+                        </div>
+
+                        <div class="nexa-task-field">
+                            <label>Activity date &amp; time</label>
+                            <div data-nexa-task-dateend-host aria-label="Activity date and time"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading</span></div></div>
+                        </div>
+
+                        <div class="nexa-task-field-grid">
+                            <div class="nexa-task-field">
+                                <label for="nexa-task-reminder">Send reminder</label>
+                                <select id="nexa-task-reminder" class="form-control" data-nexa-task-reminder>
+                                    <option value="none">No reminder</option>
+                                    <option value="at-time">At task due time</option>
+                                    <option value="30m">30 minutes before</option>
+                                    <option value="1h">1 hour before</option>
+                                    <option value="1d">1 day before</option>
+                                    <option value="1w">1 week before</option>
+                                    <option value="custom">Custom date &amp; time</option>
+                                </select>
+                            </div>
+                            <div class="nexa-task-field" data-nexa-task-remind-at-field hidden>
+                                <label for="nexa-task-remind-at">Reminder date &amp; time</label>
+                                <input type="datetime-local" id="nexa-task-remind-at" class="form-control" data-nexa-task-remind-at>
+                            </div>
+                        </div>
+
+                        <div class="nexa-task-field-grid">
+                            <div class="nexa-task-field">
+                                <label for="nexa-task-type">Task type</label>
+                                <select id="nexa-task-type" class="form-control" name="taskType">
+                                    <option value="To-Do">To-Do</option>
+                                    <option value="Call">Call</option>
+                                    <option value="Email">Email</option>
+                                </select>
+                            </div>
+                            <div class="nexa-task-field">
+                                <label for="nexa-task-priority">Priority</label>
+                                <div class="nexa-task-priority-control">
+                                    <select id="nexa-task-priority" class="form-control" data-nexa-task-priority>
+                                        <option value="">None</option>
+                                        <option value="Low">Low</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="High">High</option>
+                                    </select>
+                                    <span class="nexa-task-priority-dot nexa-task-priority-dot--none" data-nexa-task-priority-preview aria-hidden="true"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="nexa-task-field">
+                            <label>Assigned to</label>
+                            <div data-nexa-task-assigned-user-host aria-label="Assigned to"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading</span></div></div>
+                        </div>
+
+                        <div class="nexa-task-field">
+                            <label>Task notes</label>
+                            <div class="nexa-native-rich-editor" data-nexa-task-notes-host aria-label="Task notes"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading editor</span></div></div>
+                        </div>
+
+                        <p class="nexa-note-error" data-nexa-task-error role="alert" hidden></p>
+                        <footer>
+                            <button type="button" class="btn btn-default" data-nexa-task-close>Cancel</button>
+                            <button type="submit" class="btn btn-primary" data-nexa-save-task disabled><span class="fas fa-check" aria-hidden="true"></span><span>Create</span></button>
+                        </footer>
+                    </form>
+                </section>`;
+
+            document.body.append(overlay);
+            this.taskDialog = overlay;
+            this.taskDialogReturnFocus = this.element.querySelector('[data-nexa-contact-action="task"]');
+            overlay.querySelectorAll('[data-nexa-task-close]').forEach(button => {
+                button.addEventListener('click', () => this.closeTaskDialog());
+            });
+            overlay.addEventListener('mousedown', event => {
+                if (event.target === overlay) this.closeTaskDialog();
+            });
+            overlay.addEventListener('keydown', event => this.handleTaskDialogKeys(event));
+            overlay.querySelector('[data-nexa-task-form]').addEventListener('submit', event => {
+                event.preventDefault();
+                this.saveTaskDialog(event.currentTarget);
+            });
+
+            const reminderSelect = overlay.querySelector('[data-nexa-task-reminder]');
+            const remindAtField = overlay.querySelector('[data-nexa-task-remind-at-field]');
+            reminderSelect.addEventListener('change', () => {
+                remindAtField.hidden = reminderSelect.value !== 'custom';
+            });
+
+            const prioritySelect = overlay.querySelector('[data-nexa-task-priority]');
+            const priorityPreview = overlay.querySelector('[data-nexa-task-priority-preview]');
+            prioritySelect.addEventListener('change', () => {
+                priorityPreview.className = `nexa-task-priority-dot ${this.taskPriorityDotClass(prioritySelect.value)}`;
+            });
+
+            try {
+                this.taskEditorModel = await this.getModelFactory().create('Task');
+                if (!this.taskDialog?.isConnected) return;
+                this.taskEditorModel.set({
+                    assignedUserId: this.getUser().id,
+                    assignedUserName: this.getUser().get('name'),
+                });
+
+                this.taskDateEndView = await this.createView('nexaTaskDateEnd', 'views/fields/datetime-optional', {
+                    fullSelector: '[data-nexa-task-dateend-host]',
+                    model: this.taskEditorModel,
+                    name: 'dateEnd',
+                    mode: 'edit',
+                    params: {required: true},
+                });
+                this.taskNotesEditorView = await this.createView('nexaTaskNotesEditor', 'views/fields/wysiwyg', {
+                    fullSelector: '[data-nexa-task-notes-host]',
+                    model: this.taskEditorModel,
+                    name: 'description',
+                    mode: 'edit',
+                    params: {height: 220, minHeight: 160},
+                });
+
+                if (!this.taskDialog?.isConnected) return;
+                await Promise.all([
+                    this.taskDateEndView.render(),
+                    this.taskNotesEditorView.render(),
+                ]);
+
+                await this.ensureTenantOwnersLoaded();
+                if (!this.taskDialog?.isConnected) return;
+                const assignedUserHost = overlay.querySelector('[data-nexa-task-assigned-user-host]');
+                this.taskAssigneePicker = this.mountAssigneePicker(assignedUserHost, {
+                    userId: this.taskEditorModel.get('assignedUserId'),
+                    userName: this.taskEditorModel.get('assignedUserName'),
+                    onChange: (id, name) => {
+                        this.taskEditorModel.set({assignedUserId: id, assignedUserName: name});
+                    },
+                });
+
+                overlay.querySelector('[data-nexa-save-task]').disabled = false;
+                window.setTimeout(() => overlay.querySelector('#nexa-task-name')?.focus(), 0);
+            } catch (error) {
+                const message = overlay.querySelector('[data-nexa-task-error]');
+                message.textContent = 'The task form could not be loaded.';
+                message.hidden = false;
+            }
+        }
+
+        handleTaskDialogKeys(event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeTaskDialog();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+
+            const controls = [...this.taskDialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])')];
+            if (!controls.length) return;
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        async saveTaskDialog(form = null) {
+            form = form || this.taskDialog?.querySelector('[data-nexa-task-form]');
+            if (!form || !this.taskEditorModel || this.taskSavePending) return;
+
+            const error = form.querySelector('[data-nexa-task-error]');
+            error.hidden = true;
+
+            const name = String(form.querySelector('#nexa-task-name')?.value || '').trim();
+            if (!name) {
+                error.textContent = 'Enter a task name.';
+                error.hidden = false;
+                return;
+            }
+            if (!this.taskEditorModel.get('assignedUserId')) {
+                error.textContent = 'Choose someone to assign this task to.';
+                error.hidden = false;
+                return;
+            }
+
+            this.taskDateEndView.fetchToModel();
+            this.taskNotesEditorView.fetchToModel();
+
+            const dateEnd = this.taskEditorModel.get('dateEnd');
+            if (!dateEnd) {
+                error.textContent = 'Select a due date and time.';
+                error.hidden = false;
+                return;
+            }
+
+            const reminderChoice = form.querySelector('[data-nexa-task-reminder]')?.value || 'none';
+            let reminders = [];
+            if (reminderChoice !== 'none') {
+                const customValue = form.querySelector('[data-nexa-task-remind-at]')?.value;
+                const {seconds, error: reminderError} = this.computeTaskReminderSeconds(reminderChoice, dateEnd, customValue);
+                if (reminderError) {
+                    error.textContent = reminderError;
+                    error.hidden = false;
+                    return;
+                }
+                reminders = [{type: 'Popup', seconds}, {type: 'Email', seconds}];
+            }
+
+            this.taskEditorModel.set({
+                name,
+                parentType: 'Contact',
+                parentId: this.model.id,
+                parentName: this.model.get('name'),
+                taskType: form.querySelector('#nexa-task-type')?.value || 'To-Do',
+                priority: form.querySelector('[data-nexa-task-priority]')?.value || '',
+                reminders,
+            });
+
+            const submit = form.querySelector('[data-nexa-save-task]');
+            this.taskSavePending = true;
+            submit.disabled = true;
+            submit.classList.add('is-loading');
+
+            try {
+                await this.taskEditorModel.save(null);
+                const newTaskId = this.taskEditorModel.id;
+                this.closeTaskDialog();
+                Espo.Ui.success('Task created');
+                this.model.trigger('update-related:tasks');
+                this.model.trigger('update-related:activities');
+                await this.loadContactTasks(this.element.querySelector('[data-nexa-contact-workspace]'), newTaskId);
+            } catch (saveError) {
+                error.textContent = 'The task could not be saved. Check your access and try again.';
+                error.hidden = false;
+                submit.disabled = false;
+                submit.classList.remove('is-loading');
+            } finally {
+                this.taskSavePending = false;
+            }
+        }
+
+        closeTaskDialog() {
+            const returnFocus = this.taskDialogReturnFocus;
+            if (this.getView('nexaTaskDateEnd')) this.clearView('nexaTaskDateEnd');
+            if (this.getView('nexaTaskNotesEditor')) this.clearView('nexaTaskNotesEditor');
+            this.taskAssigneePicker?.destroy();
+            this.taskAssigneePicker = null;
+            this.taskDialog?.remove();
+            this.taskDialog = null;
+            this.taskDialogReturnFocus = null;
+            this.taskDateEndView = null;
+            this.taskNotesEditorView = null;
+            this.taskEditorModel = null;
+            this.taskSavePending = false;
+            returnFocus?.focus?.();
+        }
+
+        computeTaskReminderSeconds(choice, dateEndIso, customRemindAtIso) {
+            if (!choice || choice === 'none') return {seconds: null, error: null};
+
+            const presetSeconds = {'at-time': 0, '30m': 1800, '1h': 3600, '1d': 86400, '1w': 604800};
+            if (choice !== 'custom') {
+                return {seconds: presetSeconds[choice] ?? 0, error: null};
+            }
+
+            if (!customRemindAtIso) {
+                return {seconds: null, error: 'Choose a reminder date and time.'};
+            }
+
+            const customDate = new Date(customRemindAtIso);
+            const dueDate = new Date(dateEndIso.includes('T') ? dateEndIso : `${dateEndIso.replace(' ', 'T')}Z`);
+            const seconds = Math.round((dueDate.getTime() - customDate.getTime()) / 1000);
+            if (!Number.isFinite(seconds) || seconds < 0) {
+                return {seconds: null, error: 'Choose a reminder time before the due date.'};
+            }
+
+            return {seconds, error: null};
+        }
+
+        taskReminderPresetFromSeconds(seconds) {
+            if (seconds === null || seconds === undefined) return 'none';
+            const map = {0: 'at-time', 1800: '30m', 3600: '1h', 86400: '1d', 604800: '1w'};
+            return map[seconds] ?? 'custom';
+        }
+
+        taskPriorityDotClass(value) {
+            const map = {
+                Low: 'nexa-task-priority-dot--low',
+                Medium: 'nexa-task-priority-dot--medium',
+                High: 'nexa-task-priority-dot--high',
+            };
+            return map[value] || 'nexa-task-priority-dot--none';
+        }
+
+        taskOptionLabel(field, value) {
+            if (value === null || value === undefined || value === '') return 'None';
+            return this.getLanguage().translateOption(value, field, 'Task') || value;
+        }
+
+        taskPriorityDot(value) {
+            const label = this.taskOptionLabel('priority', value);
+            return `<span class="nexa-task-priority-dot ${this.taskPriorityDotClass(value)}" aria-hidden="true"></span>${this.escape(label)}`;
+        }
+
+        taskStatusBadge(value) {
+            if (!value) return '<span class="nexa-record-empty">Not recorded</span>';
+
+            const statusClasses = {
+                'Not Started': 'not-started',
+                Started: 'in-progress',
+                Waiting: 'waiting',
+                Completed: 'completed',
+                Canceled: 'canceled',
+                Deferred: 'deferred',
+            };
+            const label = this.taskOptionLabel('status', value);
+            return `<span class="nexa-task-status nexa-task-status--${statusClasses[value] || 'other'}">${this.escape(label)}</span>`;
+        }
+
+        taskReminderSummary(task) {
+            if (!Array.isArray(task.reminders) || !task.reminders.length) return 'No reminder';
+
+            const seconds = task.reminders[0].seconds ?? 0;
+            const labels = {
+                0: 'At task due time',
+                1800: '30 minutes before',
+                3600: '1 hour before',
+                86400: '1 day before',
+                604800: '1 week before',
+            };
+            return labels[seconds] || `${Math.round(seconds / 60)} minutes before`;
+        }
+
+        taskIsOverdue(task) {
+            if (!task.dateEnd || ['Completed', 'Canceled'].includes(task.status)) return false;
+            const date = this.contactNoteDate(task.dateEnd);
+            return date ? date.getTime() < Date.now() : false;
+        }
+
+        bindContactTasksWorkspace(shell) {
+            this.contactTaskFilter = this.contactTaskFilter || {query: '', period: 'all', owner: 'all'};
+            this.collapsedContactTaskIds = this.collapsedContactTaskIds || new Set();
+
+            shell.querySelector('[data-nexa-create-task]')?.addEventListener('click', () => this.openTaskDialog());
+            shell.querySelector('[data-nexa-tasks-search]')?.addEventListener('input', event => {
+                this.contactTaskFilter.query = event.currentTarget.value.trim().toLowerCase();
+                this.renderContactTasks(shell);
+            });
+            shell.querySelector('[data-nexa-tasks-filter-toggle]')?.addEventListener('click', event => {
+                const filters = shell.querySelector('[data-nexa-tasks-filters]');
+                filters.hidden = !filters.hidden;
+                event.currentTarget.setAttribute('aria-expanded', String(!filters.hidden));
+            });
+            shell.querySelector('[data-nexa-task-period-toggle]')?.addEventListener('click', event => {
+                event.stopPropagation();
+                this.toggleTaskFilterMenu(shell, 'period');
+            });
+            shell.querySelector('[data-nexa-task-owner-toggle]')?.addEventListener('click', event => {
+                event.stopPropagation();
+                this.toggleTaskFilterMenu(shell, 'owner');
+            });
+            shell.querySelectorAll('[data-nexa-task-period]').forEach(button => {
+                button.addEventListener('click', () => {
+                    this.contactTaskFilter.period = button.dataset.nexaTaskPeriod;
+                    shell.querySelector('[data-nexa-task-period-label]').textContent = button.textContent.trim();
+                    this.closeTaskFilterMenus(shell);
+                    this.renderContactTasks(shell);
+                });
+            });
+            shell.querySelector('[data-nexa-task-owner-search]')?.addEventListener('input', event => {
+                const term = event.currentTarget.value.trim().toLowerCase();
+                shell.querySelectorAll('[data-nexa-task-owner-option]').forEach(button => {
+                    button.hidden = term && !button.dataset.nexaOwnerSearch.includes(term);
+                });
+            });
+            shell.querySelector('[data-nexa-collapse-tasks]')?.addEventListener('click', () => {
+                const visible = this.filteredContactTasks();
+                const allCollapsed = visible.length > 0 && visible.every(task => this.collapsedContactTaskIds.has(task.id));
+                if (allCollapsed) {
+                    visible.forEach(task => this.collapsedContactTaskIds.delete(task.id));
+                } else {
+                    visible.forEach(task => this.collapsedContactTaskIds.add(task.id));
+                }
+                this.renderContactTasks(shell);
+            });
+
+            if (this.tasksFilterDocumentHandler) document.removeEventListener('click', this.tasksFilterDocumentHandler);
+            this.tasksFilterDocumentHandler = event => {
+                if (!event.target.closest('[data-nexa-task-period-filter], [data-nexa-task-owner-filter]')) {
+                    this.closeTaskFilterMenus(shell);
+                }
+            };
+            document.addEventListener('click', this.tasksFilterDocumentHandler);
+        }
+
+        toggleTaskFilterMenu(shell, type) {
+            const ownMenu = shell.querySelector(`[data-nexa-task-${type}-menu]`);
+            const ownToggle = shell.querySelector(`[data-nexa-task-${type}-toggle]`);
+            const otherType = type === 'period' ? 'owner' : 'period';
+            const otherMenu = shell.querySelector(`[data-nexa-task-${otherType}-menu]`);
+            const otherToggle = shell.querySelector(`[data-nexa-task-${otherType}-toggle]`);
+            const opening = ownMenu.hidden;
+            ownMenu.hidden = !opening;
+            ownToggle.setAttribute('aria-expanded', String(opening));
+            otherMenu.hidden = true;
+            otherToggle.setAttribute('aria-expanded', 'false');
+            if (opening && type === 'owner') window.setTimeout(() => ownMenu.querySelector('input')?.focus(), 0);
+        }
+
+        closeTaskFilterMenus(shell) {
+            ['period', 'owner'].forEach(type => {
+                shell.querySelector(`[data-nexa-task-${type}-menu]`)?.setAttribute('hidden', '');
+                shell.querySelector(`[data-nexa-task-${type}-toggle]`)?.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        async loadContactTaskOwners(workspace) {
+            const taskAssignees = (this.contactTaskRecords || []).map(task => ({
+                id: task.assignedUserId,
+                name: task.assignedUserName || 'Removed owner',
+                isActive: true,
+            })).filter(owner => owner.id);
+
+            await this.ensureTenantOwnersLoaded();
+
+            const owners = new Map();
+            [...this.contactNoteTenantOwners, ...taskAssignees].forEach(owner => {
+                if (!owners.has(owner.id) || owner.isActive === false) owners.set(owner.id, owner);
+            });
+            this.contactTaskOwners = [...owners.values()].sort((a, b) => a.name.localeCompare(b.name));
+            const knownIds = new Set(this.contactNoteTenantOwners.map(owner => owner.id));
+            this.deactivatedContactOwnerIds = new Set([
+                ...(this.deactivatedContactOwnerIds || []),
+                ...this.contactTaskOwners
+                    .filter(owner => owner.isActive === false || !knownIds.has(owner.id))
+                    .map(owner => owner.id),
+            ]);
+            this.renderContactTaskOwnerOptions(workspace);
+        }
+
+        renderContactTaskOwnerOptions(workspace) {
+            const container = workspace?.querySelector('[data-nexa-task-owner-options]');
+            if (!container) return;
+            const owners = this.contactTaskOwners || [];
+            container.innerHTML = `
+                <button type="button" data-nexa-task-owner-option="all" data-nexa-owner-search="all owners">All owners</button>
+                <button type="button" data-nexa-task-owner-option="me" data-nexa-owner-search="me my activity">Me</button>
+                <button type="button" data-nexa-task-owner-option="deactivated" data-nexa-owner-search="deactivated removed owners">Deactivated and removed owners</button>
+                ${owners.length ? '<p>Owners</p>' : ''}
+                ${owners.map(owner => `<button type="button" data-nexa-task-owner-option="${this.escape(owner.id)}" data-nexa-owner-search="${this.escape(owner.name.toLowerCase())}">${this.escape(owner.name)}${owner.isActive === false ? ' (deactivated)' : ''}</button>`).join('')}`;
+            container.querySelectorAll('[data-nexa-task-owner-option]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const value = button.dataset.nexaTaskOwnerOption;
+                    this.contactTaskFilter.owner = value;
+                    const labels = {
+                        all: 'Activity assigned to',
+                        me: 'Me',
+                        deactivated: 'Deactivated and removed owners',
+                    };
+                    workspace.querySelector('[data-nexa-task-owner-label]').textContent = labels[value] || button.textContent.trim();
+                    const search = workspace.querySelector('[data-nexa-task-owner-search]');
+                    search.value = '';
+                    container.querySelectorAll('[data-nexa-task-owner-option]').forEach(option => option.hidden = false);
+                    this.closeTaskFilterMenus(workspace);
+                    this.renderContactTasks(workspace);
+                });
+            });
+        }
+
+        async loadContactTasks(shell = null, newestId = null) {
+            const workspace = shell || this.element.querySelector('[data-nexa-contact-workspace]');
+            const list = workspace?.querySelector('[data-nexa-task-list]');
+            const count = workspace?.querySelector('[data-nexa-task-count]');
+            if (!list || !count) return;
+
+            try {
+                const payload = await Espo.Ajax.getRequest('Task', {
+                    where: [
+                        {type: 'equals', attribute: 'parentType', value: 'Contact'},
+                        {type: 'equals', attribute: 'parentId', value: this.model.id},
+                    ],
+                    select: 'id,name,status,priority,taskType,dateEnd,assignedUserId,assignedUserName,description,createdAt,reminders',
+                    maxSize: 200,
+                    orderBy: 'dateEnd',
+                    order: 'asc',
+                });
+                this.contactTaskRecords = Array.isArray(payload?.list) ? payload.list : [];
+                this.knownContactTaskIds = this.knownContactTaskIds || new Set();
+                this.contactTaskRecords.forEach(task => {
+                    if (this.knownContactTaskIds.has(task.id)) return;
+                    this.knownContactTaskIds.add(task.id);
+                    this.collapsedContactTaskIds?.add(task.id);
+                });
+                await Promise.all(this.contactTaskRecords.map(async task => {
+                    const model = await this.getModelFactory().create('Task');
+                    model.set(task);
+                    model.id = task.id;
+                    const canEditModel = this.getAcl().checkModel(model, 'edit') === true;
+                    task._editable = {
+                        name: canEditModel && !!this.getAcl().checkField('Task', 'name', 'edit'),
+                        description: canEditModel && !!this.getAcl().checkField('Task', 'description', 'edit'),
+                        status: canEditModel && !!this.getAcl().checkField('Task', 'status', 'edit'),
+                        taskType: canEditModel && !!this.getAcl().checkField('Task', 'taskType', 'edit'),
+                        priority: canEditModel && !!this.getAcl().checkField('Task', 'priority', 'edit'),
+                        assignedUser: canEditModel && !!this.getAcl().checkField('Task', 'assignedUser', 'edit'),
+                        dueDateReminder: canEditModel && !!this.getAcl().checkField('Task', 'dateEnd', 'edit'),
+                    };
+                }));
+                this.renderContactTasks(workspace, newestId);
+                this.renderContactActivities(workspace);
+                this.loadContactTaskCommentCounts(workspace);
+                this.loadContactTaskOwners(workspace);
+            } catch (error) {
+                list.innerHTML = `<div class="nexa-note-empty is-error"><span class="fas fa-exclamation-circle" aria-hidden="true"></span><div><strong>Tasks unavailable</strong><p>Refresh the page to try loading them again.</p></div></div>`;
+            }
+        }
+
+        async loadContactTaskCommentCounts(workspace) {
+            const ids = (this.contactTaskRecords || []).map(task => task.id);
+            this.contactTaskCommentCounts = new Map();
+            if (!ids.length) {
+                this.renderContactTasks(workspace);
+                this.renderContactActivities(workspace);
+                return;
+            }
+            try {
+                const payload = await Espo.Ajax.getRequest('Note', {
+                    where: [
+                        {type: 'equals', attribute: 'parentType', value: 'Task'},
+                        {type: 'in', attribute: 'parentId', value: ids},
+                        {type: 'equals', attribute: 'type', value: 'Post'},
+                    ],
+                    select: 'id,parentId',
+                    maxSize: 200,
+                });
+                (payload?.list || []).forEach(note => {
+                    const current = this.contactTaskCommentCounts.get(note.parentId) || 0;
+                    this.contactTaskCommentCounts.set(note.parentId, current + 1);
+                });
+            } catch (error) {
+                // Comment counts are a display enhancement only; failures are non-blocking.
+            }
+            this.renderContactTasks(workspace);
+            this.renderContactActivities(workspace);
+        }
+
+        filteredContactTasks() {
+            const filter = this.contactTaskFilter || {query: '', period: 'all', owner: 'all'};
+            const currentUserId = this.getUser()?.id || this.getUser()?.get?.('id');
+            return (this.contactTaskRecords || []).filter(task => {
+                const matchesQuery = !filter.query ||
+                    `${task.name || ''} ${task.assignedUserName || ''}`.toLowerCase().includes(filter.query);
+                const ownerId = task.assignedUserId || '';
+                const matchesOwner = !filter.owner || filter.owner === 'all' ||
+                    (filter.owner === 'me' && ownerId === currentUserId) ||
+                    (filter.owner === 'deactivated' && this.deactivatedContactOwnerIds?.has(ownerId)) ||
+                    ownerId === filter.owner;
+                const matchesPeriod = this.contactNoteMatchesPeriod(task.dateEnd || task.createdAt, filter.period);
+                return matchesQuery && matchesOwner && matchesPeriod;
+            });
+        }
+
+        renderContactTasks(workspace = null, newestId = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            const list = workspace?.querySelector('[data-nexa-task-list]');
+            const count = workspace?.querySelector('[data-nexa-task-count]');
+            if (!list || !count) return;
+            this.cancelTaskFieldEdit();
+
+            const tasks = this.filteredContactTasks();
+            const groups = new Map();
+            tasks.forEach(task => {
+                const date = this.contactNoteDate(task.dateEnd);
+                const key = date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : 'unknown';
+                const label = date
+                    ? new Intl.DateTimeFormat(undefined, {month: 'long', year: 'numeric'}).format(date)
+                    : 'No due date';
+                if (!groups.has(key)) groups.set(key, {label, tasks: []});
+                groups.get(key).tasks.push(task);
+            });
+
+            count.textContent = `${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}`;
+            list.innerHTML = tasks.length
+                ? [...groups.values()].map(group => `<section class="nexa-note-month"><h4>${this.escape(group.label)}</h4>${group.tasks.map(task => this.contactTaskCard(task, task.id === newestId)).join('')}</section>`).join('')
+                : `<div class="nexa-note-empty"><span class="far fa-check-square" aria-hidden="true"></span><div><strong>No matching tasks</strong><p>Try another search or create a new task.</p></div></div>`;
+
+            const collapse = workspace.querySelector('[data-nexa-collapse-tasks]');
+            const allCollapsed = tasks.length > 0 && tasks.every(task => this.collapsedContactTaskIds?.has(task.id));
+            if (collapse) collapse.firstChild.textContent = allCollapsed ? 'Expand all ' : 'Collapse all ';
+            this.bindContactTaskList(list);
+        }
+
+        contactTaskCard(task, isNewest = false, context = 'tasks') {
+            const collapsed = this.collapsedContactTaskIds?.has(task.id);
+            const commentCount = this.contactTaskCommentCounts?.get(task.id) || 0;
+            const comments = this.contactTaskComments?.get(task.id) || [];
+            const commentsVisible = this.taskCommentsVisibleIds?.has(task.id) === true;
+            const overdue = this.taskIsOverdue(task);
+            const isCompleted = task.status === 'Completed';
+            const dueLabel = task.dateEnd ? this.getDateTime().toDisplay(task.dateEnd) : 'No due date';
+            const dueTime = overdue
+                ? `<span class="fas fa-exclamation-circle" aria-hidden="true"></span> Overdue: ${this.escape(dueLabel)}`
+                : this.escape(dueLabel);
+            const nameText = `<span class="nexa-task-name-text${isCompleted ? ' is-completed' : ''}">${this.escape(task.name || 'Untitled task')}</span>`;
+            const editorHost = `${context}-${task.id}`;
+            const canComment = this.getAcl().checkScope('Note', 'create') === true;
+
+            return `<article class="nexa-note-card${isNewest ? ' is-new' : ''}${collapsed ? ' is-collapsed' : ''}" data-nexa-task-id="${this.escape(task.id)}" data-nexa-task-context="${this.escape(context)}">
+                <header>
+                    <button class="nexa-note-toggle" type="button" data-nexa-task-toggle aria-expanded="${!collapsed}"><span class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></span><span class="nexa-note-kind">Task</span><span>assigned to <strong>${this.escape(task.assignedUserName || 'Unassigned')}</strong></span>${commentCount ? `<span class="nexa-note-comment-count"><span class="far fa-comment" aria-hidden="true"></span>${commentCount}</span>` : ''}</button>
+                    <div class="nexa-note-header-meta"><time class="${overdue ? 'nexa-task-overdue' : ''}">${dueTime}</time></div>
+                </header>
+                <p class="nexa-note-preview"${collapsed ? '' : ' hidden'}>${this.taskCompleteToggleButton(task)}${nameText}</p>
+                <div class="nexa-note-details" data-nexa-task-details${collapsed ? ' hidden' : ''}>
+                    ${this.taskTitleRow(task, nameText)}
+                    <dl class="nexa-activity-audit-details">
+                        ${this.taskInlineFactRow(task, 'dueDateReminder', 'Due date & reminder', `${this.escape(dueLabel)} &middot; ${this.escape(this.taskReminderSummary(task))}`)}
+                    </dl>
+                    <div class="nexa-task-fact-line">
+                        ${this.taskInlineFactItem(task, 'status', 'Task stage', this.taskStatusBadge(task.status))}
+                        ${this.taskInlineFactItem(task, 'taskType', 'Task type', this.escape(task.taskType || 'To-Do'))}
+                        ${this.taskInlineFactItem(task, 'priority', 'Priority', this.taskPriorityDot(task.priority))}
+                        ${this.taskInlineFactItem(task, 'assignedUser', 'Assigned to', this.escape(task.assignedUserName || 'Unassigned'))}
+                    </div>
+                    ${this.taskNotesSection(task)}
+                    <footer>
+                        ${canComment ? '<button type="button" data-nexa-comment-toggle><span class="far fa-comment" aria-hidden="true"></span><span>Add comment</span></button>' : ''}
+                        ${commentCount ? `<button type="button" class="nexa-task-reply-toggle" data-nexa-task-comments-visibility-toggle>${commentsVisible ? 'Hide comments' : `Show comments (${commentCount})`}</button>` : '<span>0 comments</span>'}
+                    </footer>
+                    <div class="nexa-note-comments"${commentsVisible ? '' : ' hidden'}>${comments.map(comment => this.contactTaskComment(comment, context)).join('')}</div>
+                    <form class="nexa-note-comment-form" data-nexa-comment-form hidden>
+                        <div class="nexa-native-rich-editor nexa-comment-editor" data-nexa-comment-editor-host="${this.escape(editorHost)}" aria-label="Comment"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading editor</span></div></div>
+                        <div><button type="button" class="btn btn-default btn-xs" data-nexa-comment-cancel>Cancel</button><button type="submit" class="btn btn-primary btn-xs">Comment</button></div>
+                        <p role="alert" data-nexa-comment-error hidden></p>
+                    </form>
+                </div>
+            </article>`;
+        }
+
+        taskCompleteToggleButton(task) {
+            const isCompleted = task.status === 'Completed';
+            const icon = '<span class="fas fa-check-square" aria-hidden="true"></span>';
+            if (!task._editable?.status) {
+                return `<span class="nexa-task-complete-toggle${isCompleted ? ' is-completed' : ''}" aria-hidden="true">${icon}</span>`;
+            }
+            return `<button type="button" class="nexa-task-complete-toggle${isCompleted ? ' is-completed' : ''}" data-nexa-task-complete-toggle aria-label="${isCompleted ? 'Mark as not started' : 'Mark as completed'}" aria-pressed="${isCompleted}">${icon}</button>`;
+        }
+
+        taskTitleRow(task, nameText) {
+            const toggle = this.taskCompleteToggleButton(task);
+            if (!task._editable?.name) {
+                return `<p class="nexa-task-title">${toggle}${nameText}</p>`;
+            }
+
+            return `<div class="nexa-task-title nexa-inline-detail nexa-inline-detail--title" data-nexa-task-inline-field data-field="name">
+                ${toggle}
+                <span class="nexa-inline-detail-display" data-nexa-inline-display>${nameText}</span>
+                <button type="button" class="nexa-inline-detail-trigger" data-nexa-task-inline-trigger aria-label="Edit task name"><span class="fas fa-pencil-alt" aria-hidden="true"></span></button>
+            </div>`;
+        }
+
+        taskNotesSection(task) {
+            const bodyHtml = task.description ? this.formatNoteContent(task.description) : '<span class="nexa-record-empty">No notes added</span>';
+            if (!task._editable?.description) {
+                return `<div class="nexa-task-notes-section"><h5 class="nexa-task-notes-heading">Task Notes</h5><div class="nexa-note-body">${bodyHtml}</div></div>`;
+            }
+
+            return `<div class="nexa-task-notes-section nexa-inline-detail nexa-inline-detail--notes" data-nexa-task-inline-field data-field="description">
+                <div class="nexa-task-notes-heading-row"><h5 class="nexa-task-notes-heading">Task Notes</h5><button type="button" class="nexa-inline-detail-trigger" data-nexa-task-inline-trigger aria-label="Edit task notes"><span class="fas fa-pencil-alt" aria-hidden="true"></span></button></div>
+                <div class="nexa-note-body" data-nexa-inline-display>${bodyHtml}</div>
+            </div>`;
+        }
+
+        taskInlineFactItem(task, field, label, displayHtml) {
+            if (!task._editable?.[field]) {
+                return `<span class="nexa-task-fact-item"><span class="nexa-task-fact-label">${this.escape(label)}</span><span class="nexa-task-fact-value-row"><strong>${displayHtml}</strong></span></span>`;
+            }
+
+            return `<span class="nexa-task-fact-item nexa-inline-detail nexa-inline-detail--compact" data-nexa-task-inline-field data-field="${this.escape(field)}">
+                <span class="nexa-task-fact-label">${this.escape(label)}</span>
+                <span class="nexa-task-fact-value-row">
+                    <strong class="nexa-inline-detail-display" data-nexa-inline-display>${displayHtml}</strong>
+                    <button type="button" class="nexa-inline-detail-trigger" data-nexa-task-inline-trigger aria-label="Edit ${this.escape(label)}"><span class="fas fa-pencil-alt" aria-hidden="true"></span></button>
+                </span>
+            </span>`;
+        }
+
+        taskInlineFactRow(task, field, label, displayHtml) {
+            if (!task._editable?.[field]) {
+                return `<div><dt>${this.escape(label)}</dt><dd>${displayHtml}</dd></div>`;
+            }
+
+            return `<div class="nexa-inline-detail nexa-inline-detail--compact" data-nexa-task-inline-field data-field="${this.escape(field)}">
+                <dt>${this.escape(label)}</dt>
+                <dd><span class="nexa-inline-detail-display" data-nexa-inline-display>${displayHtml}</span><button type="button" class="nexa-inline-detail-trigger" data-nexa-task-inline-trigger aria-label="Edit ${this.escape(label)}"><span class="fas fa-pencil-alt" aria-hidden="true"></span></button></dd>
+            </div>`;
+        }
+
+        contactTaskComment(comment, context) {
+            const author = comment.createdByName || 'Team member';
+            const createdAt = comment.createdAt ? this.getDateTime().toDisplay(comment.createdAt) : '';
+            const replies = comment.replies || [];
+            const repliesVisible = this.taskRepliesVisibleIds?.has(comment.id) === true;
+            const replyEditorHost = `${context}-reply-${comment.id}`;
+            const canComment = this.getAcl().checkScope('Note', 'create') === true;
+
+            return `<div class="nexa-note-comment" data-nexa-task-comment-id="${this.escape(comment.id)}">
+                <div><strong>${this.escape(author)}</strong><time>${this.escape(createdAt)}</time></div>
+                <p>${this.formatNoteContent(comment.content)}</p>
+                <div class="nexa-task-comment-actions">
+                    ${canComment ? '<button type="button" class="nexa-task-reply-toggle" data-nexa-task-reply-toggle>Reply</button>' : ''}
+                    ${replies.length ? `<button type="button" class="nexa-task-reply-toggle" data-nexa-task-replies-visibility-toggle>${repliesVisible ? 'Hide replies' : `Show replies (${replies.length})`}</button>` : ''}
+                </div>
+                ${replies.length ? `<div class="nexa-task-comment-replies"${repliesVisible ? '' : ' hidden'}>${replies.map(reply => this.contactTaskReply(reply)).join('')}</div>` : ''}
+                <form class="nexa-note-comment-form nexa-task-reply-form" data-nexa-reply-form hidden>
+                    <div class="nexa-native-rich-editor nexa-comment-editor" data-nexa-comment-editor-host="${this.escape(replyEditorHost)}" aria-label="Reply"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading editor</span></div></div>
+                    <div><button type="button" class="btn btn-default btn-xs" data-nexa-reply-cancel>Cancel</button><button type="submit" class="btn btn-primary btn-xs">Reply</button></div>
+                    <p role="alert" data-nexa-reply-error hidden></p>
+                </form>
+            </div>`;
+        }
+
+        contactTaskReply(reply) {
+            const author = reply.createdByName || 'Team member';
+            const createdAt = reply.createdAt ? this.getDateTime().toDisplay(reply.createdAt) : '';
+            return `<div class="nexa-note-comment nexa-task-comment-reply"><div><strong>${this.escape(author)}</strong><time>${this.escape(createdAt)}</time></div><p>${this.formatNoteContent(reply.content)}</p></div>`;
+        }
+
+        async loadTaskComments(taskId, {force = false} = {}) {
+            this.contactTaskComments = this.contactTaskComments || new Map();
+            if (!force && this.contactTaskComments.has(taskId)) return;
+
+            try {
+                const payload = await Espo.Ajax.getRequest('Note', {
+                    where: [
+                        {type: 'equals', attribute: 'parentType', value: 'Task'},
+                        {type: 'equals', attribute: 'parentId', value: taskId},
+                        {type: 'equals', attribute: 'type', value: 'Post'},
+                    ],
+                    select: 'id,post,createdAt,createdById,createdByName',
+                    orderBy: 'createdAt',
+                    order: 'asc',
+                    maxSize: 200,
+                });
+                const records = payload?.list || [];
+                const topLevel = [];
+                const repliesByParent = new Map();
+
+                records.forEach(record => {
+                    const post = String(record.post || '');
+                    const replyMatch = post.match(/^<!-- nexa-task-reply:([A-Za-z0-9_-]+) -->\s*\n?/);
+                    if (replyMatch) {
+                        const list = repliesByParent.get(replyMatch[1]) || [];
+                        list.push({...record, content: post.replace(replyMatch[0], '')});
+                        repliesByParent.set(replyMatch[1], list);
+                        return;
+                    }
+                    topLevel.push({...record, content: post});
+                });
+                topLevel.forEach(comment => {
+                    comment.replies = repliesByParent.get(comment.id) || [];
+                });
+
+                this.contactTaskComments.set(taskId, topLevel);
+                this.contactTaskCommentCounts = this.contactTaskCommentCounts || new Map();
+                this.contactTaskCommentCounts.set(taskId, records.length);
+            } catch (error) {
+                this.contactTaskComments.set(taskId, []);
+            }
+        }
+
+        async createTaskStreamNote(taskId, post) {
+            const note = await this.getModelFactory().create('Note');
+            note.set({
+                type: 'Post',
+                post,
+                parentType: 'Task',
+                parentId: taskId,
+            });
+            await note.save(null);
+            return note;
+        }
+
+        async saveTaskComment(taskId, form) {
+            if (form.dataset.saving === 'true') return;
+            const context = form.closest('[data-nexa-task-context]')?.dataset.nexaTaskContext || 'tasks';
+            const editor = this.contactCommentEditors?.get(`${context}-${taskId}`);
+            if (!editor) return;
+            editor.view.fetchToModel();
+            const content = String(editor.model.get('post') || '').trim();
+            const error = form.querySelector('[data-nexa-comment-error]');
+            if (this.richTextIsEmpty(content)) {
+                error.textContent = 'Enter a comment before saving.';
+                error.hidden = false;
+                return;
+            }
+
+            form.dataset.saving = 'true';
+            form.querySelector('button[type="submit"]').disabled = true;
+            error.hidden = true;
+            try {
+                const note = await this.createTaskStreamNote(taskId, content);
+                this.contactTaskComments = this.contactTaskComments || new Map();
+                const comments = this.contactTaskComments.get(taskId) || [];
+                comments.push({
+                    id: note.id,
+                    content,
+                    replies: [],
+                    createdAt: note.get('createdAt') || new Date().toISOString(),
+                    createdById: this.getUser().id,
+                    createdByName: this.getUser().get('name'),
+                });
+                this.contactTaskComments.set(taskId, comments);
+                this.contactTaskCommentCounts = this.contactTaskCommentCounts || new Map();
+                this.contactTaskCommentCounts.set(taskId, comments.length);
+                this.clearContactCommentEditor(taskId, context);
+                form.hidden = true;
+                this.taskCommentsVisibleIds = this.taskCommentsVisibleIds || new Set();
+                this.taskCommentsVisibleIds.add(taskId);
+                this.renderContactTasks();
+                this.renderContactActivities();
+            } catch (saveError) {
+                error.textContent = 'The comment could not be saved.';
+                error.hidden = false;
+                form.dataset.saving = 'false';
+                form.querySelector('button[type="submit"]').disabled = false;
+            }
+        }
+
+        async saveTaskReply(taskId, commentId, form) {
+            if (form.dataset.saving === 'true') return;
+            const context = form.closest('[data-nexa-task-context]')?.dataset.nexaTaskContext || 'tasks';
+            const editor = this.contactCommentEditors?.get(`${context}-reply-${commentId}`);
+            if (!editor) return;
+            editor.view.fetchToModel();
+            const content = String(editor.model.get('post') || '').trim();
+            const error = form.querySelector('[data-nexa-reply-error]');
+            if (this.richTextIsEmpty(content)) {
+                error.textContent = 'Enter a reply before saving.';
+                error.hidden = false;
+                return;
+            }
+
+            form.dataset.saving = 'true';
+            form.querySelector('button[type="submit"]').disabled = true;
+            error.hidden = true;
+            try {
+                await this.createTaskStreamNote(taskId, `<!-- nexa-task-reply:${commentId} -->\n${content}`);
+                this.clearContactCommentEditor(`reply-${commentId}`, context);
+                form.hidden = true;
+                await this.loadTaskComments(taskId, {force: true});
+                this.taskCommentsVisibleIds = this.taskCommentsVisibleIds || new Set();
+                this.taskCommentsVisibleIds.add(taskId);
+                this.taskRepliesVisibleIds = this.taskRepliesVisibleIds || new Set();
+                this.taskRepliesVisibleIds.add(commentId);
+                this.renderContactTasks();
+                this.renderContactActivities();
+            } catch (saveError) {
+                error.textContent = 'The reply could not be saved.';
+                error.hidden = false;
+                form.dataset.saving = 'false';
+                form.querySelector('button[type="submit"]').disabled = false;
+            }
+        }
+
+        async toggleTaskCompletion(taskId) {
+            const task = (this.contactTaskRecords || []).find(item => item.id === taskId);
+            if (!task || task._togglingCompletion || !task._editable?.status) return;
+
+            const newStatus = task.status === 'Completed' ? 'Not Started' : 'Completed';
+            task._togglingCompletion = true;
+            try {
+                const model = await this.getModelFactory().create('Task');
+                model.id = taskId;
+                await model.save({status: newStatus}, {patch: true});
+                task.status = newStatus;
+                Espo.Ui.success(newStatus === 'Completed' ? 'Task completed' : 'Task reopened');
+                this.renderContactTasks();
+                this.renderContactActivities();
+            } catch (error) {
+                Espo.Ui.error(this.translate('Error occurred'));
+            } finally {
+                task._togglingCompletion = false;
+            }
+        }
+
+        bindContactTaskList(list, context = 'tasks') {
+            list.querySelectorAll('[data-nexa-task-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const card = button.closest('[data-nexa-task-id]');
+                    const id = card.dataset.nexaTaskId;
+                    const expanding = this.collapsedContactTaskIds.has(id);
+                    if (expanding) this.collapsedContactTaskIds.delete(id);
+                    else this.collapsedContactTaskIds.add(id);
+                    if (expanding && !this.contactTaskComments?.has(id)) {
+                        this.loadTaskComments(id).then(() => {
+                            this.renderContactTasks();
+                            this.renderContactActivities();
+                        });
+                    }
+                    this.renderContactTasks();
+                    this.renderContactActivities();
+                });
+            });
+            list.querySelectorAll('[data-nexa-comment-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const card = button.closest('[data-nexa-task-id]');
+                    const form = card.querySelector('[data-nexa-comment-form]');
+                    form.hidden = false;
+                    this.mountContactCommentEditor(card.dataset.nexaTaskId, form, context);
+                });
+            });
+            list.querySelectorAll('[data-nexa-comment-cancel]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const form = button.closest('[data-nexa-comment-form]');
+                    this.clearContactCommentEditor(form.closest('[data-nexa-task-id]').dataset.nexaTaskId, context);
+                    form.hidden = true;
+                });
+            });
+            list.querySelectorAll('[data-nexa-comment-form]').forEach(form => {
+                form.addEventListener('submit', event => {
+                    event.preventDefault();
+                    this.saveTaskComment(form.closest('[data-nexa-task-id]').dataset.nexaTaskId, form);
+                });
+            });
+            list.querySelectorAll('[data-nexa-task-inline-trigger]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const row = button.closest('[data-nexa-task-inline-field]');
+                    const taskId = row.closest('[data-nexa-task-id]').dataset.nexaTaskId;
+                    const field = row.dataset.field;
+                    this.startTaskFieldEdit(taskId, field, row);
+                });
+            });
+            list.querySelectorAll('[data-nexa-task-complete-toggle]').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const taskId = button.closest('[data-nexa-task-id]').dataset.nexaTaskId;
+                    this.toggleTaskCompletion(taskId);
+                });
+            });
+            list.querySelectorAll('[data-nexa-task-reply-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const commentEl = button.closest('[data-nexa-task-comment-id]');
+                    const commentId = commentEl.dataset.nexaTaskCommentId;
+                    const form = commentEl.querySelector('[data-nexa-reply-form]');
+                    form.hidden = false;
+                    this.mountContactCommentEditor(`reply-${commentId}`, form, context);
+                });
+            });
+            list.querySelectorAll('[data-nexa-reply-cancel]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const form = button.closest('[data-nexa-reply-form]');
+                    const commentId = form.closest('[data-nexa-task-comment-id]').dataset.nexaTaskCommentId;
+                    this.clearContactCommentEditor(`reply-${commentId}`, context);
+                    form.hidden = true;
+                });
+            });
+            list.querySelectorAll('[data-nexa-reply-form]').forEach(form => {
+                form.addEventListener('submit', event => {
+                    event.preventDefault();
+                    const taskId = form.closest('[data-nexa-task-id]').dataset.nexaTaskId;
+                    const commentId = form.closest('[data-nexa-task-comment-id]').dataset.nexaTaskCommentId;
+                    this.saveTaskReply(taskId, commentId, form);
+                });
+            });
+            list.querySelectorAll('[data-nexa-task-comments-visibility-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const taskId = button.closest('[data-nexa-task-id]').dataset.nexaTaskId;
+                    this.taskCommentsVisibleIds = this.taskCommentsVisibleIds || new Set();
+                    if (this.taskCommentsVisibleIds.has(taskId)) this.taskCommentsVisibleIds.delete(taskId);
+                    else this.taskCommentsVisibleIds.add(taskId);
+                    this.renderContactTasks();
+                    this.renderContactActivities();
+                });
+            });
+            list.querySelectorAll('[data-nexa-task-replies-visibility-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const commentId = button.closest('[data-nexa-task-comment-id]').dataset.nexaTaskCommentId;
+                    this.taskRepliesVisibleIds = this.taskRepliesVisibleIds || new Set();
+                    if (this.taskRepliesVisibleIds.has(commentId)) this.taskRepliesVisibleIds.delete(commentId);
+                    else this.taskRepliesVisibleIds.add(commentId);
+                    this.renderContactTasks();
+                    this.renderContactActivities();
+                });
+            });
+        }
+
+        taskFieldEditConfig(field) {
+            const configs = {
+                name: {mode: 'varchar'},
+                description: {mode: 'wysiwyg'},
+                status: {mode: 'enum'},
+                taskType: {mode: 'enum'},
+                priority: {mode: 'enum'},
+                assignedUser: {mode: 'assignedUser'},
+                dueDateReminder: {mode: 'dueDateReminder'},
+            };
+            return configs[field] || null;
+        }
+
+        async startTaskFieldEdit(taskId, field, row) {
+            const task = (this.contactTaskRecords || []).find(item => item.id === taskId);
+            const config = this.taskFieldEditConfig(field);
+            if (!task || !config || !task._editable?.[field]) {
+                Espo.Ui.error(this.translate('Access denied'));
+                return;
+            }
+
+            this.cancelTaskFieldEdit();
+
+            const display = row.querySelector('[data-nexa-inline-display]');
+            const trigger = row.querySelector('[data-nexa-task-inline-trigger]');
+            const originalHtml = display.innerHTML;
+
+            this.taskInlineEditSeq = (this.taskInlineEditSeq || 0) + 1;
+            const key = `nexaTaskField${this.taskInlineEditSeq}`;
+            const hostId = `nexa-task-inline-host-${this.taskInlineEditSeq}`;
+
+            row.classList.add('is-editing');
+            trigger.hidden = true;
+            display.innerHTML = `<div class="nexa-task-inline-editor" data-nexa-task-inline-host="${hostId}"></div>
+                <div class="nexa-task-inline-actions">
+                    <button type="button" class="btn btn-default btn-xs" data-nexa-task-inline-cancel>Cancel</button>
+                    <button type="button" class="btn btn-primary btn-xs" data-nexa-task-inline-save>Save</button>
+                </div>
+                <p class="nexa-note-error" data-nexa-task-inline-error role="alert" hidden></p>`;
+
+            this.taskFieldEditState = {
+                taskId, field, config, row, display, trigger, originalHtml, key,
+                views: [], model: null, saving: false,
+            };
+
+            display.querySelector('[data-nexa-task-inline-cancel]').addEventListener('click', () => this.cancelTaskFieldEdit());
+            display.querySelector('[data-nexa-task-inline-save]').addEventListener('click', () => this.saveTaskFieldEdit());
+
+            try {
+                const model = await this.getModelFactory().create('Task');
+                model.id = task.id;
+                model.set(task);
+                if (!this.taskFieldEditState || this.taskFieldEditState.key !== key) return;
+                this.taskFieldEditState.model = model;
+
+                const hostSelector = `[data-nexa-task-inline-host="${hostId}"]`;
+
+                if (config.mode === 'dueDateReminder') {
+                    await this.mountTaskDueDateReminderEditor(task, model, key, hostSelector);
+                } else if (config.mode === 'assignedUser') {
+                    await this.ensureTenantOwnersLoaded();
+                    if (!this.taskFieldEditState || this.taskFieldEditState.key !== key) return;
+                    const assigneeHost = document.querySelector(hostSelector);
+                    this.taskFieldEditState.assigneePicker = this.mountAssigneePicker(assigneeHost, {
+                        userId: model.get('assignedUserId'),
+                        userName: model.get('assignedUserName'),
+                        onChange: (id, name) => {
+                            model.set({assignedUserId: id, assignedUserName: name});
+                        },
+                    });
+                } else {
+                    const viewPathByMode = {
+                        enum: 'views/fields/enum',
+                        varchar: 'views/fields/varchar',
+                        wysiwyg: 'views/fields/wysiwyg',
+                    };
+                    const params = config.mode === 'wysiwyg' ? {height: 180, minHeight: 140} : undefined;
+                    const view = await this.createView(key, viewPathByMode[config.mode], {
+                        fullSelector: hostSelector, model, name: field, mode: 'edit',
+                        ...(params ? {params} : {}),
+                    });
+                    await view.render();
+                    if (!this.taskFieldEditState || this.taskFieldEditState.key !== key) return;
+                    this.taskFieldEditState.views = [view];
+                }
+            } catch (error) {
+                this.cancelTaskFieldEdit();
+                Espo.Ui.error(this.translate('Error occurred'));
+            }
+        }
+
+        async mountTaskDueDateReminderEditor(task, model, key, hostSelector) {
+            const host = document.querySelector(hostSelector);
+            if (!host) return;
+
+            host.innerHTML = `
+                <div class="nexa-task-field" data-nexa-task-inline-dateend></div>
+                <div class="nexa-task-field">
+                    <label>Send reminder</label>
+                    <select class="form-control" data-nexa-task-inline-reminder>
+                        <option value="none">No reminder</option>
+                        <option value="at-time">At task due time</option>
+                        <option value="30m">30 minutes before</option>
+                        <option value="1h">1 hour before</option>
+                        <option value="1d">1 day before</option>
+                        <option value="1w">1 week before</option>
+                        <option value="custom">Custom date &amp; time</option>
+                    </select>
+                </div>
+                <div class="nexa-task-field" data-nexa-task-inline-remind-at-field hidden>
+                    <label>Reminder date &amp; time</label>
+                    <input type="datetime-local" class="form-control" data-nexa-task-inline-remind-at>
+                </div>`;
+
+            const view = await this.createView(key, 'views/fields/datetime-optional', {
+                fullSelector: `${hostSelector} [data-nexa-task-inline-dateend]`,
+                model,
+                name: 'dateEnd',
+                mode: 'edit',
+                params: {required: true},
+            });
+            await view.render();
+            if (!this.taskFieldEditState || this.taskFieldEditState.key !== key) return;
+            this.taskFieldEditState.views = [view];
+
+            const currentSeconds = Array.isArray(task.reminders) && task.reminders.length ?
+                (task.reminders[0].seconds ?? 0) : null;
+            const reminderSelect = host.querySelector('[data-nexa-task-inline-reminder]');
+            reminderSelect.value = this.taskReminderPresetFromSeconds(currentSeconds);
+            const remindAtField = host.querySelector('[data-nexa-task-inline-remind-at-field]');
+            remindAtField.hidden = reminderSelect.value !== 'custom';
+            reminderSelect.addEventListener('change', () => {
+                remindAtField.hidden = reminderSelect.value !== 'custom';
+            });
+        }
+
+        async saveTaskFieldEdit() {
+            const state = this.taskFieldEditState;
+            if (!state || state.saving) return;
+
+            const error = state.display.querySelector('[data-nexa-task-inline-error]');
+            error.hidden = true;
+
+            state.views.forEach(view => view.fetchToModel());
+
+            let attributes = null;
+
+            if (state.field === 'name') {
+                const name = String(state.model.get('name') || '').trim();
+                if (!name) {
+                    error.textContent = 'Enter a task name.';
+                    error.hidden = false;
+                    return;
+                }
+                attributes = {name};
+            } else if (state.field === 'description') {
+                attributes = {description: state.model.get('description') || ''};
+            } else if (state.field === 'status' || state.field === 'priority' || state.field === 'taskType') {
+                attributes = {[state.field]: state.model.get(state.field)};
+            } else if (state.field === 'assignedUser') {
+                const assignedUserId = state.model.get('assignedUserId') || null;
+                if (!assignedUserId) {
+                    error.textContent = 'Choose someone to assign this task to.';
+                    error.hidden = false;
+                    return;
+                }
+                attributes = {assignedUserId, assignedUserName: state.model.get('assignedUserName') || null};
+            } else if (state.field === 'dueDateReminder') {
+                const dateEnd = state.model.get('dateEnd');
+                if (!dateEnd) {
+                    error.textContent = 'Select a due date and time.';
+                    error.hidden = false;
+                    return;
+                }
+                const reminderChoice = state.display.querySelector('[data-nexa-task-inline-reminder]')?.value || 'none';
+                let reminders = [];
+                if (reminderChoice !== 'none') {
+                    const customValue = state.display.querySelector('[data-nexa-task-inline-remind-at]')?.value;
+                    const {seconds, error: reminderError} = this.computeTaskReminderSeconds(reminderChoice, dateEnd, customValue);
+                    if (reminderError) {
+                        error.textContent = reminderError;
+                        error.hidden = false;
+                        return;
+                    }
+                    reminders = [{type: 'Popup', seconds}, {type: 'Email', seconds}];
+                }
+                attributes = {dateEnd, reminders};
+            }
+
+            if (!attributes) return;
+
+            state.saving = true;
+            const saveButton = state.display.querySelector('[data-nexa-task-inline-save]');
+            saveButton.disabled = true;
+            saveButton.classList.add('is-loading');
+
+            try {
+                await state.model.save(attributes, {patch: true});
+                const task = (this.contactTaskRecords || []).find(item => item.id === state.taskId);
+                if (task) Object.assign(task, attributes);
+                this.cancelTaskFieldEdit({skipRestore: true});
+                Espo.Ui.success('Task updated');
+                this.renderContactTasks();
+                this.renderContactActivities();
+            } catch (saveError) {
+                error.textContent = 'The task could not be saved. Check your access and try again.';
+                error.hidden = false;
+                state.saving = false;
+                saveButton.disabled = false;
+                saveButton.classList.remove('is-loading');
+            }
+        }
+
+        cancelTaskFieldEdit({skipRestore = false} = {}) {
+            const state = this.taskFieldEditState;
+            if (!state) return;
+            if (this.getView(state.key)) this.clearView(state.key);
+            state.assigneePicker?.destroy();
+            if (!skipRestore && state.row?.isConnected) {
+                state.display.innerHTML = state.originalHtml;
+                state.row.classList.remove('is-editing');
+                if (state.trigger) state.trigger.hidden = false;
+            }
+            this.taskFieldEditState = null;
         }
     };
 });

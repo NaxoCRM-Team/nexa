@@ -167,6 +167,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostCommunicationPreference"
     },
     {
+        "route": "/Nexa/contact/:id/communication-preferences",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\GetCommunicationPreferenceHistory"
+    },
+    {
         "route":  "/Nexa/auth/recovery",
         "method":  "post",
         "actionClassName":  "Espo\\Custom\\Tools\\Auth\\Api\\PostRecovery",

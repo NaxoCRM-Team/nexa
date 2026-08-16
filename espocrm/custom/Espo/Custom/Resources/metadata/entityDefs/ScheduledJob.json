@@ -1,0 +1,9 @@
+{
+    "jobs": {
+        "SendTaskDueSoonNotifications": {
+            "name": "Send Task Due-Soon Notifications",
+            "isSystem": true,
+            "scheduling": "*/15 * * * *"
+        }
+    }
+}

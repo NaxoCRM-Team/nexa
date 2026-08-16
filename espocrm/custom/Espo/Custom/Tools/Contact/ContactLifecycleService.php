@@ -351,6 +351,55 @@ final class ContactLifecycleService
         return ['count' => count($updatedIds), 'ids' => $updatedIds, 'status' => $status, 'channels' => $channels];
     }
 
+    /** @return array{list: array<int, array<string, mixed>>, total: int} */
+    public function getCommunicationPreferenceHistory(string $contactId): array
+    {
+        $contactId = trim($contactId);
+        if ($contactId === '' || preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $contactId) !== 1) {
+            throw new BadRequest('Invalid contact ID.');
+        }
+
+        // The ORM lookup applies the active tenant and service before record ACL
+        // is checked. The SQL below repeats that scope for the custom audit table.
+        $contact = $this->entityManager->getRDBRepository('Contact')->getById($contactId);
+        if (!$contact || !$this->acl->checkEntityRead($contact)) {
+            throw new Forbidden('The contact communication history is not accessible.');
+        }
+
+        $tenant = $this->tenantContextStore->require();
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT MIN(p.id) AS id, p.status, p.reason, p.note, p.changed_by_id, ' .
+            'DATE_FORMAT(MIN(p.created_at), \'%Y-%m-%d %H:%i:%s\') AS created_at, ' .
+            'GROUP_CONCAT(DISTINCT p.channel ORDER BY p.channel SEPARATOR \',\') AS channels, ' .
+            'u.first_name, u.last_name, u.user_name ' .
+            'FROM nexa_communication_preference p ' .
+            'LEFT JOIN user u ON u.id = p.changed_by_id ' .
+            'AND u.tenant_id = p.tenant_id AND u.service_id = p.service_id ' .
+            'WHERE p.tenant_id = ? AND p.service_id = ? AND p.contact_id = ? ' .
+            'GROUP BY p.status, p.reason, p.note, p.changed_by_id, ' .
+            'DATE_FORMAT(p.created_at, \'%Y-%m-%d %H:%i:%s\') ' .
+            'ORDER BY MIN(p.created_at) DESC LIMIT 500'
+        );
+        $statement->execute([$tenant->tenantId, $tenant->serviceId, $contactId]);
+        $list = [];
+
+        foreach ($statement->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $actorName = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
+            $list[] = [
+                'id' => (string) $row['id'],
+                'status' => (string) $row['status'],
+                'reason' => (string) $row['reason'],
+                'note' => $row['note'] !== null ? (string) $row['note'] : null,
+                'channels' => array_values(array_filter(explode(',', (string) $row['channels']))),
+                'changedById' => (string) $row['changed_by_id'],
+                'changedByName' => $actorName !== '' ? $actorName : (string) ($row['user_name'] ?? 'Unknown user'),
+                'createdAt' => (string) $row['created_at'],
+            ];
+        }
+
+        return ['list' => $list, 'total' => count($list)];
+    }
+
     /** @param mixed[] $ids @return array{count: int, ids: string[]} */
     public function purge(array $ids): array
     {
@@ -586,7 +635,7 @@ final class ContactLifecycleService
             ? 'Communication restriction set'
             : 'Communication restriction removed';
         $parts = [
-            '<strong>' . $heading . '</strong>',
+            '<!-- nexa-communication-preference --><strong>' . $heading . '</strong>',
             'Channels: ' . implode(', ', $channelLabels),
             'Reason: ' . ($reasonLabels[$reason] ?? ucfirst(str_replace('_', ' ', $reason))),
         ];

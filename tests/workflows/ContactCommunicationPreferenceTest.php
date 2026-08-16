@@ -23,11 +23,17 @@ $modal = $read('espocrm/client/custom/src/views/contact/modals/communication-pre
 $template = $read('espocrm/client/custom/res/templates/contact/modals/communication-preference.tpl');
 $nameTemplate = $read('espocrm/client/custom/res/templates/contact/fields/name/list-link-v2.tpl');
 $detail = $read('espocrm/client/custom/src/views/contact/record/detail-workspace.js');
+$historyApi = $read('espocrm/custom/Espo/Custom/Tools/Contact/Api/GetCommunicationPreferenceHistory.php');
 
 if (!array_filter($routes, static fn (array $route): bool =>
     ($route['route'] ?? '') === '/Nexa/contact/communication-preference' &&
     ($route['method'] ?? '') === 'post' && empty($route['noAuth']))) {
     throw new RuntimeException('The communication-preference endpoint must require authentication.');
+}
+if (!array_filter($routes, static fn (array $route): bool =>
+    ($route['route'] ?? '') === '/Nexa/contact/:id/communication-preferences' &&
+    ($route['method'] ?? '') === 'get' && empty($route['noAuth']))) {
+    throw new RuntimeException('The communication-preference audit endpoint must require authentication.');
 }
 
 foreach (['doNotContact', 'doNotContactChannels', 'doNotContactReason', 'doNotContactNote', 'doNotContactChangedAt', 'doNotContactChangedById'] as $field) {
@@ -51,6 +57,13 @@ $mustContain("['email', 'phone', 'sms', 'whatsapp', 'postal']", $service, 'All s
 $mustContain('emailAddressIsOptedOut', $service, 'Email restrictions must synchronize the native delivery guard.');
 $mustContain('phoneNumberIsOptedOut', $service, 'Phone restrictions must synchronize the native delivery guard.');
 $mustContain('INSERT INTO nexa_communication_preference', $service, 'Each change must create compliance history.');
+$mustContain('getCommunicationPreferenceHistory', $service, 'Preference history must have a protected tenant-scoped reader.');
+$mustContain('p.tenant_id = ? AND p.service_id = ? AND p.contact_id = ?', $service, 'Preference history reads must enforce tenant, service and Contact ownership.');
+$mustContain('checkEntityRead($contact)', $service, 'Preference history must enforce Contact read permission.');
+$mustContain('changedByName', $service, 'Preference history must resolve the user responsible for each change.');
+$mustContain("'createdAt'", $service, 'Preference history must expose its authoritative audit timestamp.');
+$mustContain("getRouteParam('id')", $historyApi, 'The history API must read only the Contact selected by the route.');
+$mustContain("'Cache-Control', 'private, no-store'", $historyApi, 'Communication audit responses must never use shared caches.');
 $mustContain("'type' => 'Post'", $service, 'Preference changes must create native Contact activities.');
 $mustContain('Communication restriction removed', $service, 'Restriction removal must also appear in Activities.');
 $mustContain('do_not_contact_reason', $summaryMigration, 'The active restriction reason must be available to Contact workspaces.');
