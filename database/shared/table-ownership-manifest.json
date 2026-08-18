@@ -190,6 +190,12 @@
                        "classification":  "tenantOwned",
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "none"
+                   },
+                   {
+                       "name":  "nexa_communication_preference",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
                    }
                ],
     "espoCoreConversion":  {

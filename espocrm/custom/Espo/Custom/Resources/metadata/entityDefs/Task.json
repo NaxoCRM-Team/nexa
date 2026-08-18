@@ -1,0 +1,23 @@
+{
+    "fields": {
+        "status": {
+            "options": ["Not Started", "Started", "Waiting", "Completed", "Canceled", "Deferred"],
+            "style": {"Completed": "success", "Started": "primary", "Waiting": "warning", "Canceled": "info"}
+        },
+        "priority": {
+            "options": ["", "Low", "Medium", "High"],
+            "default": "",
+            "style": {"High": "danger", "Medium": "warning"}
+        },
+        "taskType": {"type": "enum", "options": ["To-Do", "Call", "Email"], "default": "To-Do"},
+        "isPinned": {
+            "type": "bool",
+            "default": false,
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        }
+    }
+}

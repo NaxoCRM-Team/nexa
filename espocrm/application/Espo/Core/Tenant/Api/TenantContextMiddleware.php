@@ -79,6 +79,13 @@ final class TenantContextMiddleware implements MiddlewareInterface
             '/api/v1/Nexa/signup/verify',
             '/api/v1/Nexa/signup/resend',
             '/api/v1/Nexa/auth/recovery',
+            // Twilio-originated webhooks: no EspoCRM session exists, so no tenant
+            // can be resolved from login identity/host here. Authenticity is
+            // established by X-Twilio-Signature (see Tools/Call/TwilioClient),
+            // and the handlers resolve their own tenant from the stored
+            // nexa_call_session row via correlation_id - never from this context.
+            '/api/v1/Nexa/call/twiml',
+            '/api/v1/Nexa/call/status',
         ];
 
         return ($method === 'POST' && in_array($path, $postRoutes, true)) ||

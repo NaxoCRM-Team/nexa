@@ -6,8 +6,8 @@ This is the standard Windows development setup for Nexa. It runs the complete
 tracked repository at <http://localhost/nexa/> without a virtual host, hosts-file
 entry, browser installer, Docker, XAMPP, or a separate application download.
 
-A completed installation contains 166 tables, 155 tenant columns, 138 service
-columns, all 9 migrations, the bootstrap administrator, two demo tenants, and
+A completed installation contains 167 tables, 156 tenant columns, 139 service
+columns, all 20 migrations, the bootstrap administrator, two demo tenants, and
 tenant-scoped CRM demo data.
 
 ## Required Software
@@ -272,6 +272,6 @@ WampServer setup is complete only when:
 - `/install/` redirects away from the installer;
 - PHP reports 8.2.x with the required extensions;
 - MariaDB reports a supported 10.11 or 11.x version;
-- verification reports 166 tables, 155 tenant columns, 138 service columns, and 9 migrations;
+- verification reports 167 tables, 156 tenant columns, 139 service columns, and 20 migrations;
 - both demo administrators authenticate and resolve different tenants;
 - repository verification passes without errors.

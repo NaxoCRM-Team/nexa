@@ -26,7 +26,7 @@ if (($clientDefs['recordViews']['detail'] ?? '') !== 'custom:views/contact/recor
     throw new RuntimeException('Contact detail must use the customer workspace record view.');
 }
 
-$mustContain("['crm:views/contact/record/detail']", $view, 'The workspace must extend the native Contact detail record.');
+$mustContain("['crm:views/contact/record/detail'", $view, 'The workspace must extend the native Contact detail record.');
 $mustContain('super.afterRender()', $view, 'Native Contact rendering must complete before the workspace is added.');
 $mustContain('await this.model.fetch()', $view, 'The customer summary must refresh the Contact before displaying saved values.');
 $mustContain('workspaceFetchPending', $view, 'Contact refreshes must not issue duplicate concurrent requests.');
@@ -47,8 +47,18 @@ $mustContain("group.classList.add('open')", $view, 'The repositioned native Acti
 $mustContain("event.key === 'Escape'", $view, 'The Actions menu must support keyboard dismissal.');
 $mustContain('navigate(`#Contact/edit/${this.model.id}`', $view, 'Contact edit controls must navigate directly to the supported edit route.');
 $mustContain('nexa-contact-primary-email', $view, 'The customer identity card must expose the primary email address.');
+$mustContain('data-nexa-compose-email', $view, 'The displayed Contact email must open the composer directly.');
+$mustContain('openContactEmailComposer', $view, 'The Contact Email action must have an explicit composer integration.');
+$mustContain("checkScope('Email', 'create')", $view, 'Email composition must enforce the current user Email-create permission.');
+$mustContain("checkField('Contact', 'emailAddress', 'read')", $view, 'Email composition must enforce Contact email field access.');
+$mustContain("blockedChannels.includes('email')", $view, 'Email composition must respect tenant communication restrictions.');
+$mustContain("'views/modals/compose-email'", $view, 'Contact messages must use the native authenticated Espo email composer.');
+$mustContain('to: emailAddress', $view, 'The Contact email composer must pre-address the active Contact.');
+$mustContain('nameHash: {[emailAddress]: contactName}', $view, 'The composer must preserve the Contact display name for its recipient.');
+$mustContain("this.model.trigger('update-related:emails')", $view, 'Sent or saved emails must refresh the Contact email relationship.');
 $mustContain('nexa-contact-meta', $view, 'Title, company and email must share a full-width row below the Contact identity.');
 $mustContain('.nexa-customer-identity .nexa-contact-meta', $styles, 'Contact identity metadata must have a dedicated responsive layout rule.');
+$mustContain('.nexa-contact-primary-email:focus-visible', $styles, 'The clickable Contact email must expose a keyboard focus state.');
 $mustContain('grid-column: 1 / -1', $styles, 'Contact identity metadata must span the complete card width below the avatar.');
 $mustContain('data-nexa-edit-contact', $view, 'The top toolbar must retain the complete Contact edit action.');
 $mustContain('data-nexa-more-actions', $view, 'Contact actions must expose a familiar More command control.');
@@ -71,13 +81,28 @@ $mustContain("await note.save(null)", $view, 'Manual interactions must use authe
 $mustContain('handleCustomerCommandKeys', $view, 'The customer-action palette must support keyboard navigation.');
 $mustContain('handleInteractionDialogKeys', $view, 'The interaction dialog must trap focus and support keyboard dismissal.');
 $mustContain("this.tabButton('notes', 'Notes')", $view, 'Notes must have a dedicated tab beside Contact activities.');
-$mustContain('data-nexa-activity-search', $view, 'Activities must provide live search across native records and Nexa notes.');
-$mustContain('data-nexa-activity-type', $view, 'Activities must provide a type filter for notes, timeline, upcoming work, history and tasks.');
+$mustContain('data-nexa-activity-search', $view, 'Activities must provide live search across customer interactions.');
+$mustContain('data-nexa-activity-type', $view, 'Activities must provide a type filter for calls, meetings, emails, tasks and communication preferences.');
 $mustContain('data-nexa-activity-period', $view, 'Activities must provide the same date-range choices as Notes.');
 $mustContain('observeContactActivity', $view, 'Native activity rows loaded asynchronously must be included in the active filters.');
 $mustContain('contactActivityRows', $view, 'Activity filtering must target individual native records rather than only whole panels.');
-$mustContain("this.contactNoteCard(note, this.contactNoteComments?.get(note.id) || [], false, 'activity')", $view, 'Nexa notes in Activities must use the same interactive card as the Notes tab.');
-$mustContain('const editorId = `${context}-${noteId}`', $view, 'Note comment editors must remain isolated between Notes and Activities surfaces.');
+$mustContain('data-nexa-activity-list', $view, 'Activities must render into a dedicated customer activity list.');
+$mustContain('data-nexa-collapse-activities', $view, 'Activities must support collapsing and expanding all visible records.');
+$mustContain('collectContactActivities', $view, 'Activities must be collected from the tenant-scoped native record sources.');
+$mustContain('renderContactActivities', $view, 'Activity search and filters must rerender the standalone card collection.');
+$mustContain("if (source === 'stream') return", $view, 'The legacy Stream must not leak generic posts into standalone Activities.');
+$mustContain('loadContactCommunicationActivities', $view, 'Communication preferences must load from their authoritative audit history.');
+$mustContain('/communication-preferences`', $view, 'Communication audit reads must use the protected Contact endpoint.');
+$mustContain('changedByName', $view, 'Communication activities must identify the user who made the change.');
+$mustContain('Internal note', $view, 'Communication activities must display a supplied internal note.');
+foreach (['Calls', 'Meetings', 'Emails', 'Tasks', 'Communication preferences'] as $activityLabel) {
+    $mustContain($activityLabel, $view, "The Activity type filter is missing {$activityLabel}.");
+}
+if (preg_match('/activityPanel\(\).*?notesPanel\(\)/s', $view, $activityPanel)) {
+    if (str_contains($activityPanel[0], 'data-nexa-activity-notes') || str_contains($activityPanel[0], '>Stream<')) {
+        throw new RuntimeException('Activities must not expose the legacy Stream or duplicate the dedicated Notes tab.');
+    }
+}
 $mustContain('data-nexa-activity-count', $view, 'Activities must announce the filtered result count.');
 $mustContain('data-nexa-tab-panel="notes"', $view, 'The Contact workspace must expose a separate Notes panel.');
 $mustContain('openNoteDialog()', $view, 'The direct Contact Note action must open the standalone note editor.');
@@ -164,14 +189,13 @@ $mustContain('data-tooltip=', $view, 'Social profile icons must reveal their des
 $mustContain("replace(/^www\\./i, '')", $view, 'External profile labels must omit the www prefix.');
 $mustContain("['accounts', 'opportunities', 'cases', 'documents', 'targetLists']", $view, 'CRM associations must remain available in the customer workspace.');
 
-foreach (['overview', 'activity'] as $domain) {
+// Sales/Marketing/Service were intentionally removed in favour of the
+// redesigned Overview "customer 360" hub - see renderContactOverviewInsights.
+foreach (['overview', 'activity', 'notes', 'tasks', 'meetings', 'calls'] as $domain) {
     $mustContain("data-nexa-tab-panel=\"{$domain}\"", $view, "The {$domain} customer workspace domain is missing.");
 }
-foreach (['sales', 'marketing', 'service'] as $domain) {
-    $mustContain("domainPanel('{$domain}'", $view, "The {$domain} customer workspace domain is missing.");
-}
 
-$mustContain('Marketing engagement', $view, 'Contact detail must expose marketing context.');
+$mustContain('Marketing status', $view, 'Contact detail must expose marketing context.');
 $mustContain('Preferences & activity', $view, 'Contact preferences, consent and website activity must share one concise card.');
 $mustContain("['Legal basis', this.optionLabel('legalBasis', this.model.get('legalBasis')), false, 'legalBasis']", $view, 'The combined card must retain the editable recorded legal basis.');
 $mustContain("['Last website visit', this.model.get('lastWebsiteVisitAt')]", $view, 'The combined card must retain identified website activity.');
@@ -195,7 +219,11 @@ $mustContain('.nexa-native-rich-editor', $styles, 'The Contact note editor must 
 $mustContain('.nexa-native-rich-editor .note-toolbar', $styles, 'The complete native formatting toolbar must remain visible and responsive.');
 $mustContain('.nexa-contact-notes', $styles, 'Saved Contact notes must have a dedicated Notes surface.');
 $mustContain('.nexa-activity-toolbar', $styles, 'The Activity workspace must provide a structured search and filter toolbar.');
-$mustContain('.nexa-native-activity .stream-date-container', $styles, 'Native activity date and time values must remain visibly styled.');
+$mustContain('.nexa-native-activity-source', $styles, 'Native activity panels must remain a hidden data source rather than a visible Stream.');
+$mustContain('.nexa-activity-card', $styles, 'Each customer activity must use a stable standalone card.');
+$mustContain('.nexa-activity-month > h4', $styles, 'Activities must be grouped under clear chronological headings.');
+$mustContain('.nexa-activity-preview', $styles, 'Collapsed activities must retain a useful one-line summary.');
+$mustContain('.nexa-activity-audit-details', $styles, 'Communication audit details must use a readable structured layout.');
 $mustContain('.nexa-activity-empty', $styles, 'The Activity workspace must provide a clear empty result state.');
 $mustContain('.nexa-notes-toolbar', $styles, 'The Notes workspace must provide a responsive search and action toolbar.');
 $mustContain('.nexa-note-filter-menu', $styles, 'Notes filters must use stable accessible dropdown surfaces.');

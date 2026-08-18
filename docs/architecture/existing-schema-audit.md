@@ -15,7 +15,7 @@ The audit compared:
 - the local MariaDB schema; and
 - all 47 sections of the unified product specification.
 
-The current verified local database contains 166 tables, 155 `tenant_id` columns, 138 `service_id` columns, and all ten migrations through `0010`. The original fixture defines 136 Espo tables. The additional Nexa tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup, identity-security and unified-customer foundations.
+The current verified local database contains 167 tables, 156 `tenant_id` columns, 139 `service_id` columns, and all 20 migrations through `0020`. The original fixture defines 136 Espo tables. The additional Nexa tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup, identity-security, unified-customer and communication-preference foundations.
 
 ## Decisions
 

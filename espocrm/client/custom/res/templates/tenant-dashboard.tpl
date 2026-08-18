@@ -39,6 +39,27 @@
         </div>
     </section>
 
+    {{#if isAdmin}}
+    <section class="nexa-credit-requests-panel" data-credit-requests-panel aria-labelledby="nexa-credit-requests-title">
+        <div class="nexa-section-heading">
+            <div><p>Voice calling</p><h2 id="nexa-credit-requests-title">Calling-minutes requests</h2></div>
+            <div class="nexa-credit-requests-tabs" role="tablist">
+                <button type="button" class="btn btn-text active" data-credit-requests-tab="pending" aria-selected="true">Pending</button>
+                <button type="button" class="btn btn-text" data-credit-requests-tab="history" aria-selected="false">History</button>
+            </div>
+        </div>
+        <div class="nexa-call-settings-row" data-call-settings>
+            <label for="nexa-per-call-cap">Per-call time limit</label>
+            <input id="nexa-per-call-cap" type="number" class="form-control" min="1" max="480" data-call-settings-per-call-cap>
+            <span>minutes &mdash; calls auto-disconnect at this length (default 60)</span>
+            <button type="button" class="btn btn-default btn-sm" data-call-settings-save>Save</button>
+        </div>
+        <ul class="nexa-credit-requests-list" data-credit-requests-list aria-live="polite">
+            <li class="nexa-credit-requests-loading" data-credit-requests-loading><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span> Loading requests&hellip;</li>
+        </ul>
+    </section>
+    {{/if}}
+
     <section class="nexa-saved-dashboard" aria-labelledby="nexa-saved-dashboard-title">
         <div class="page-header dashboard-header nexa-saved-dashboard-header">
             <div><p>Custom workspace</p><h2 id="nexa-saved-dashboard-title">Your dashboard</h2></div>

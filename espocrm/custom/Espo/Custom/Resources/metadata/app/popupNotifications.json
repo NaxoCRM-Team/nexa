@@ -1,0 +1,5 @@
+{
+    "event": {
+        "providerClassName": "Espo\\Custom\\Tools\\Activities\\PopupNotificationsProvider"
+    }
+}

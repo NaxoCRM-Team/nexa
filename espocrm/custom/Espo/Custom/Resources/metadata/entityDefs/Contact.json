@@ -36,6 +36,12 @@
         "marketingStatus": {"type": "enum", "options": ["Marketing", "Non-Marketing", "Unsubscribed"], "default": "Non-Marketing", "tooltip": true},
         "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true, "tooltip": true},
         "legalBasis": {"type": "enum", "options": ["", "LegitimateInterestLead", "LegitimateInterestCustomer", "LegitimateInterestOther", "PerformanceOfContract", "FreelyGivenConsent", "NotApplicable"]},
+        "doNotContact": {"type": "bool", "default": false, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
+        "doNotContactChannels": {"type": "varchar", "maxLength": 160, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
+        "doNotContactReason": {"type": "varchar", "maxLength": 64, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
+        "doNotContactNote": {"type": "text", "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
+        "doNotContactChangedAt": {"type": "datetime", "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
+        "doNotContactChangedById": {"type": "varchar", "maxLength": 17, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
         "deletedAt": {"type": "datetime", "readOnly": true, "disabled": true},
         "deletedById": {"type": "varchar", "maxLength": 17, "readOnly": true, "disabled": true}
     }

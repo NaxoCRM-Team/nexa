@@ -1,0 +1,8 @@
+{
+    "fields": {"taskType": "Task Type"},
+    "options": {
+        "status": {"Started": "In Progress", "Waiting": "Waiting"},
+        "priority": {"Low": "Low", "Medium": "Medium", "High": "High"},
+        "taskType": {"To-Do": "To-Do", "Call": "Call", "Email": "Email"}
+    }
+}
