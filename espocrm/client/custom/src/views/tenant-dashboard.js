@@ -144,7 +144,7 @@ define('custom:views/tenant-dashboard', [
         const plannedDashboardWorkspaces = productSurfaceRegistry.dashboards
             .filter(item => !item.active && !activeNames.has(item.name));
 
-        return {...data, tenant, firstName, plannedDashboardWorkspaces};
+        return {...data, tenant, firstName, plannedDashboardWorkspaces, isAdmin: this.getUser().isAdmin()};
     }
 
     afterRender() {
@@ -173,6 +173,156 @@ define('custom:views/tenant-dashboard', [
         this.element.querySelector('[data-action="refreshDashboard"]')?.addEventListener('click', () => this.loadSummary());
         this.element.querySelector('[data-action="retryDashboard"]')?.addEventListener('click', () => this.loadSummary());
         this.loadSummary();
+
+        if (this.getUser().isAdmin()) {
+            this.creditRequestsStatus = 'pending';
+            this.element.querySelectorAll('[data-credit-requests-tab]').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    this.creditRequestsStatus = tab.dataset.creditRequestsTab;
+                    this.element.querySelectorAll('[data-credit-requests-tab]').forEach(item => {
+                        const active = item === tab;
+                        item.classList.toggle('active', active);
+                        item.setAttribute('aria-selected', String(active));
+                    });
+                    this.loadCreditRequests();
+                });
+            });
+            this.loadCreditRequests();
+            this.loadCallSettings();
+            this.element.querySelector('[data-call-settings-save]')?.addEventListener('click', () => this.saveCallSettings());
+        }
+    }
+
+    async loadCallSettings() {
+        const input = this.element.querySelector('[data-call-settings-per-call-cap]');
+        if (!input) return;
+
+        try {
+            const payload = await Espo.Ajax.getRequest('Nexa/call/minutes');
+            input.value = payload.perCallCapMinutes || 60;
+        } catch (error) {
+            // Non-blocking - the settings row just stays at its blank default.
+        }
+    }
+
+    async saveCallSettings() {
+        const input = this.element.querySelector('[data-call-settings-per-call-cap]');
+        const button = this.element.querySelector('[data-call-settings-save]');
+        const perCallCapMinutes = parseInt(input.value, 10);
+
+        if (!perCallCapMinutes || perCallCapMinutes < 1 || perCallCapMinutes > 480) {
+            Espo.Ui.error('Enter a per-call time limit between 1 and 480 minutes.');
+            return;
+        }
+
+        button.disabled = true;
+        try {
+            await Espo.Ajax.postRequest('Nexa/call/settings', {perCallCapMinutes});
+            Espo.Ui.success('Calling settings saved');
+        } catch (error) {
+            Espo.Ui.error('Could not save calling settings.');
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async loadCreditRequests() {
+        const list = this.element.querySelector('[data-credit-requests-list]');
+        if (!list) return;
+
+        const status = this.creditRequestsStatus === 'history' ? 'all' : 'pending';
+        list.innerHTML = '<li class="nexa-credit-requests-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span> Loading requests&hellip;</li>';
+
+        try {
+            const payload = await Espo.Ajax.getRequest('Nexa/call/credit-requests', {status});
+            const items = (payload.list || []).filter(item => this.creditRequestsStatus === 'pending' ? item.status === 'pending' : item.status !== 'pending');
+            this.renderCreditRequests(items);
+        } catch (error) {
+            list.innerHTML = '<li class="nexa-credit-requests-empty">Requests could not be loaded.</li>';
+        }
+    }
+
+    renderCreditRequests(items) {
+        const list = this.element.querySelector('[data-credit-requests-list]');
+        if (!list) return;
+
+        if (!items.length) {
+            list.innerHTML = `<li class="nexa-credit-requests-empty">No ${this.creditRequestsStatus === 'history' ? 'reviewed' : 'pending'} requests.</li>`;
+            return;
+        }
+
+        const formatDate = value => value
+            ? new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(`${value.replace(' ', 'T')}Z`))
+            : '';
+
+        list.innerHTML = items.map(item => {
+            const requesterName = [item.requester_first_name, item.requester_last_name].filter(Boolean).join(' ') || 'A user';
+            if (this.creditRequestsStatus === 'pending') {
+                return `<li class="nexa-credit-request-row" data-credit-request-id="${item.id}">
+                    <div class="nexa-credit-request-main">
+                        <strong>${this.escapeHtml(requesterName)} requested ${item.requested_minutes} minutes</strong>
+                        <p>${this.escapeHtml(item.reason)}</p>
+                        <time>${formatDate(item.created_at)}</time>
+                    </div>
+                    <div class="nexa-credit-request-actions">
+                        <label class="sr-only" for="grant-${item.id}">Minutes to grant</label>
+                        <input id="grant-${item.id}" type="number" class="form-control" min="1" max="500" value="${item.requested_minutes}" data-credit-request-grant>
+                        <button type="button" class="btn btn-primary btn-sm" data-credit-request-approve>Approve</button>
+                        <button type="button" class="btn btn-default btn-sm" data-credit-request-deny>Deny</button>
+                    </div>
+                </li>`;
+            }
+
+            const reviewerName = [item.reviewer_first_name, item.reviewer_last_name].filter(Boolean).join(' ');
+            const statusLabel = item.status === 'approved' ? 'Approved' : 'Denied';
+            return `<li class="nexa-credit-request-row is-decided is-${item.status}" data-credit-request-id="${item.id}">
+                <div class="nexa-credit-request-main">
+                    <strong>${this.escapeHtml(requesterName)} requested ${item.requested_minutes} minutes</strong>
+                    <p>${this.escapeHtml(item.reason)}</p>
+                    <time>${formatDate(item.created_at)}</time>
+                </div>
+                <div class="nexa-credit-request-decision">
+                    <span class="nexa-credit-request-status">${statusLabel}${item.status === 'approved' ? ` (${item.granted_minutes} min)` : ''}</span>
+                    ${reviewerName ? `<span>by ${this.escapeHtml(reviewerName)}</span>` : ''}
+                    ${item.decision_note ? `<p>${this.escapeHtml(item.decision_note)}</p>` : ''}
+                </div>
+            </li>`;
+        }).join('');
+
+        list.querySelectorAll('[data-credit-request-approve]').forEach(button => {
+            button.addEventListener('click', () => {
+                const row = button.closest('[data-credit-request-id]');
+                const grantedMinutes = parseInt(row.querySelector('[data-credit-request-grant]').value, 10);
+                this.decideCreditRequest(row.dataset.creditRequestId, true, grantedMinutes, null, row);
+            });
+        });
+        list.querySelectorAll('[data-credit-request-deny]').forEach(button => {
+            button.addEventListener('click', () => {
+                const row = button.closest('[data-credit-request-id]');
+                const note = window.prompt('Optional note for the requester (why it was denied):') || null;
+                this.decideCreditRequest(row.dataset.creditRequestId, false, null, note, row);
+            });
+        });
+    }
+
+    async decideCreditRequest(requestId, approve, grantedMinutes, decisionNote, row) {
+        row.querySelectorAll('button').forEach(button => button.disabled = true);
+        try {
+            await Espo.Ajax.postRequest('Nexa/call/credit-request/decide', {
+                requestId, approve, grantedMinutes, decisionNote,
+            });
+            Espo.Ui.success(approve ? 'Request approved' : 'Request denied');
+            this.loadCreditRequests();
+        } catch (error) {
+            Espo.Ui.error('Could not update this request. It may have already been reviewed.');
+            this.loadCreditRequests();
+        }
+    }
+
+    escapeHtml(value) {
+        const node = document.createElement('span');
+        node.textContent = String(value ?? '');
+        return node.innerHTML;
     }
 
     async loadSummary() {

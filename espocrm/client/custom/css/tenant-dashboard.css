@@ -48,6 +48,31 @@
 .nexa-activity-list li:first-child { border-top: 0; padding-top: 0; }
 .nexa-activity-list a { color: #2c434a; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nexa-activity-list time { color: #52646b; font-size: 11px; }
+.nexa-credit-requests-panel { background: #fff; border: 1px solid #dce5e8; border-radius: 6px; margin-top: 24px; padding: 20px; }
+.nexa-credit-requests-tabs { display: flex; gap: 2px; }
+.nexa-credit-requests-tabs .btn { border-bottom: 2px solid transparent; color: #52646b; font-weight: 700; }
+.nexa-credit-requests-tabs .btn.active { border-bottom-color: #16758a; color: #17353d; }
+.nexa-call-settings-row { align-items: center; background: #f7f9fa; border: 1px solid #e7edef; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; padding: 10px 12px; }
+.nexa-call-settings-row label { color: #20383f; font-size: 12px; font-weight: 700; margin: 0; }
+.nexa-call-settings-row input[type="number"] { width: 76px; }
+.nexa-call-settings-row span { color: #66777d; flex: 1 1 auto; font-size: 12px; min-width: 160px; }
+.nexa-credit-requests-list { list-style: none; margin: 0; padding: 0; }
+.nexa-credit-requests-loading, .nexa-credit-requests-empty { color: #66777d; padding: 14px 0; text-align: center; }
+.nexa-credit-request-row { align-items: center; border-top: 1px solid #e7edef; display: flex; gap: 16px; justify-content: space-between; padding: 14px 0; }
+.nexa-credit-request-row:first-child { border-top: 0; }
+.nexa-credit-request-main { min-width: 0; }
+.nexa-credit-request-main strong { color: #20383f; display: block; }
+.nexa-credit-request-main p { color: #52646b; font-size: 12px; margin: 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-credit-request-main time { color: #819198; font-size: 11px; }
+.nexa-credit-request-actions { align-items: center; display: flex; flex-shrink: 0; gap: 8px; }
+.nexa-credit-request-actions input[type="number"] { width: 70px; }
+.nexa-credit-request-decision { flex-shrink: 0; text-align: right; }
+.nexa-credit-request-status { font-size: 12px; font-weight: 700; }
+.nexa-credit-request-row.is-approved .nexa-credit-request-status { color: #0d7a53; }
+.nexa-credit-request-row.is-denied .nexa-credit-request-status { color: #b3402f; }
+.nexa-credit-request-decision span { color: #66777d; display: block; font-size: 11px; }
+.nexa-credit-request-decision p { color: #52646b; font-size: 12px; margin: 4px 0 0; max-width: 220px; }
+
 .nexa-saved-dashboard { margin-top: 28px; }
 .nexa-saved-dashboard-header { align-items: center; border-bottom: 1px solid #dce5e8; display: flex; justify-content: space-between; margin: 0 0 12px; padding: 0 0 12px; }
 .nexa-dashboard-actions { align-items: center; display: flex; gap: 8px; min-width: 0; }

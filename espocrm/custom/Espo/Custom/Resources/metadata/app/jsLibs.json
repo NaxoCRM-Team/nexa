@@ -1,0 +1,7 @@
+{
+    "twilio-voice-sdk": {
+        "path": "client/custom/lib/twilio.js",
+        "exportsTo": "window",
+        "exportsAs": "Twilio"
+    }
+}

@@ -653,6 +653,23 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.nexa-interaction-attendee {
+    align-items: center;
+    display: flex;
+    min-height: 38px;
+}
+
+.nexa-interaction-attendee-badge {
+    align-items: center;
+    background: #e7f3f0;
+    border-radius: 999px;
+    color: #117668;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 14px;
+}
+
 .nexa-interaction-error {
     background: #fff0f0;
     border: 1px solid #e6aaaa;
@@ -680,6 +697,174 @@
 
 .nexa-interaction-dialog [data-nexa-log-interaction].is-loading > :first-child {
     animation: fa-spin 1s infinite linear;
+}
+
+.nexa-call-dialog {
+    width: min(360px, 100%);
+}
+
+.nexa-call-panel {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 24px 26px;
+    text-align: center;
+}
+
+.nexa-call-avatar {
+    align-items: center;
+    background: #e7f3f0;
+    border-radius: 999px;
+    color: #117668;
+    display: flex;
+    font-size: 26px;
+    height: 72px;
+    justify-content: center;
+    margin-bottom: 16px;
+    width: 72px;
+}
+
+.nexa-call-number {
+    color: #172e29;
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 6px;
+}
+
+.nexa-call-status {
+    color: #596c67;
+    margin: 0 0 22px;
+}
+
+.nexa-call-status.is-error {
+    color: #922d2d;
+}
+
+.nexa-call-panel footer {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    width: 100%;
+}
+
+.nexa-call-panel [data-nexa-call-hangup] {
+    align-items: center;
+    display: inline-flex;
+    gap: 8px;
+}
+
+.nexa-call-panel [data-nexa-call-hangup][hidden] {
+    display: none;
+}
+
+.nexa-call-picker-dialog {
+    width: min(420px, 100%);
+}
+
+.nexa-call-picker-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 24px 24px;
+}
+
+.nexa-call-picker-option {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #dfe7e4;
+    border-radius: 7px;
+    display: flex;
+    gap: 14px;
+    padding: 14px 16px;
+    text-align: left;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.nexa-call-picker-option:hover,
+.nexa-call-picker-option:focus-visible {
+    border-color: #168779;
+    box-shadow: 0 0 0 3px rgba(22, 135, 121, 0.14);
+    outline: none;
+}
+
+.nexa-call-picker-icon {
+    align-items: center;
+    background: #e7f3f0;
+    border-radius: 999px;
+    color: #117668;
+    display: flex;
+    flex-shrink: 0;
+    font-size: 16px;
+    height: 40px;
+    justify-content: center;
+    width: 40px;
+}
+
+.nexa-call-picker-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nexa-call-picker-text strong {
+    color: #172e29;
+    font-size: 14px;
+}
+
+.nexa-call-picker-text span:not(strong) {
+    color: #657a74;
+    font-size: 12px;
+}
+
+.nexa-call-picker-text span.is-low {
+    color: #b3690a;
+    font-weight: 600;
+}
+
+.nexa-credit-request-form {
+    padding: 19px 24px 22px;
+}
+
+.nexa-credit-request-form label {
+    color: #2b403b;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+.nexa-credit-request-form label > span {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.nexa-credit-request-form .form-control {
+    border-color: #b9c9c5;
+    border-radius: 4px;
+    color: #1e332e;
+    font-weight: 400;
+}
+
+.nexa-credit-request-form form > footer,
+.nexa-credit-request-form footer {
+    align-items: center;
+    border-top: 1px solid #e2e9e7;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+    padding-top: 17px;
+}
+
+.nexa-credit-request-form [data-nexa-credit-request-submit].is-loading {
+    opacity: .7;
+    pointer-events: none;
+}
+
+.nexa-credit-request-sent {
+    color: #2b403b;
+    line-height: 1.5;
+    margin: 0 0 18px;
 }
 
 .nexa-notes-workspace {
@@ -821,6 +1006,12 @@
     overflow: hidden;
 }
 
+.nexa-activity-card.is-pinned {
+    background: #fff7d6;
+    border-color: #d8b958;
+    box-shadow: 0 3px 10px rgba(130, 92, 8, .13);
+}
+
 .nexa-activity-card > header {
     align-items: center;
     display: flex;
@@ -944,6 +1135,10 @@
     border-left: 3px solid #d99b27;
     grid-column: 1 / -1;
     padding: 9px 11px;
+}
+
+.nexa-activity-audit-details > div.is-note dd {
+    white-space: pre-wrap;
 }
 
 .nexa-activity-audit-details dt {
@@ -1169,6 +1364,32 @@
     background: #e7f2ef;
     color: #0d6559;
     outline: 0;
+}
+
+.nexa-filter-checkbox-option {
+    align-items: center;
+    border-radius: 3px;
+    color: #29403a;
+    cursor: pointer;
+    display: flex;
+    font-size: 12px;
+    font-weight: 400;
+    gap: 8px;
+    margin: 0;
+    min-height: 35px;
+    padding: 7px 10px;
+    width: 100%;
+}
+
+.nexa-filter-checkbox-option:hover,
+.nexa-filter-checkbox-option:focus-within {
+    background: #e7f2ef;
+    color: #0d6559;
+}
+
+.nexa-filter-checkbox-option input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin: 0;
 }
 
 .nexa-note-owner-menu {
@@ -1464,6 +1685,13 @@
     gap: 4px;
 }
 
+.nexa-note-overdue-badge {
+    align-items: center;
+    color: #a13636;
+    display: inline-flex;
+    font-size: 13px;
+}
+
 .nexa-note-preview {
     color: #334842;
     font-size: 13px;
@@ -1508,14 +1736,16 @@
     position: absolute;
 }
 
-.nexa-note-details > footer {
+.nexa-note-details > footer,
+.nexa-activity-details > footer {
     align-items: center;
     display: flex;
     gap: 13px;
     margin: 10px 0 0;
 }
 
-.nexa-note-details > footer button {
+.nexa-note-details > footer button,
+.nexa-activity-details > footer button {
     align-items: center;
     background: transparent;
     border: 0;
@@ -1527,7 +1757,8 @@
     padding: 0;
 }
 
-.nexa-note-details > footer > span {
+.nexa-note-details > footer > span,
+.nexa-activity-details > footer > span {
     color: #74847f;
     font-size: 10px;
 }
@@ -1986,7 +2217,8 @@
     animation: fa-spin 1s infinite linear;
 }
 
-.nexa-task-status {
+.nexa-task-status,
+.nexa-meeting-status {
     border: 1px solid transparent;
     border-radius: 12px;
     display: inline-block;
@@ -2003,14 +2235,10 @@
 .nexa-task-status--deferred { background: #f0ebff; border-color: #d4c5fa; color: #5d4095; }
 .nexa-task-status--other { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
 
-.nexa-task-overdue {
-    color: #a13636 !important;
-    font-weight: 700;
-}
-
-.nexa-task-overdue .fa-exclamation-circle {
-    margin-right: 2px;
-}
+.nexa-meeting-status--planned { background: #e8f1ff; border-color: #bfd4f5; color: #245a9b; }
+.nexa-meeting-status--held { background: #e4f5ea; border-color: #b7ddc5; color: #276b40; }
+.nexa-meeting-status--not-held { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
+.nexa-meeting-status--other { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
 
 .nexa-task-title {
     align-items: center;
@@ -2284,6 +2512,15 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
 
 .nexa-task-notes-section.nexa-inline-detail--notes .nexa-inline-detail-trigger {
     position: static;
+    transform: none;
+}
+
+.nexa-note-body-inline {
+    padding-top: 5px;
+}
+
+.nexa-note-body-inline .nexa-inline-detail-trigger {
+    top: 12px;
     transform: none;
 }
 
@@ -2640,15 +2877,7 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     overflow-wrap: anywhere;
 }
 
-.nexa-overview-cards {
-    display: grid;
-    gap: 12px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.nexa-context-card,
-.nexa-domain-facts,
-.nexa-domain-empty {
+.nexa-context-card {
     background: #fff;
     border: 1px solid var(--nexa-record-border);
     border-radius: 5px;
@@ -2660,29 +2889,65 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     padding-bottom: 11px;
 }
 
-.nexa-domain-facts {
-    display: grid;
-    gap: 12px 22px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin: 0 0 12px;
-}
-
-.nexa-domain-empty {
-    align-items: center;
-    color: var(--nexa-record-muted);
+.nexa-overview-insights {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.nexa-domain-empty span {
-    color: #5b8d84;
-    font-size: 18px;
+.nexa-overview-next-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 0;
 }
 
-.nexa-domain-empty p {
+.nexa-activity-trend-card h4 {
+    align-items: baseline;
+    border-bottom: 1px solid #e8eeec;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    padding-bottom: 11px;
+}
+
+.nexa-activity-trend-card h4 span {
+    color: var(--nexa-record-muted);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.nexa-activity-trend-svg {
+    display: block;
+    margin-top: 10px;
+    width: 100%;
+}
+
+.nexa-activity-trend-svg g {
+    cursor: default;
+}
+
+.nexa-activity-trend-svg g:focus {
+    outline: 0;
+}
+
+.nexa-activity-trend-svg g:hover path,
+.nexa-activity-trend-svg g:focus-visible path {
+    opacity: 0.85;
+}
+
+.nexa-activity-trend-baseline {
+    stroke: var(--nexa-record-border);
+    stroke-width: 1;
+}
+
+.nexa-activity-trend-value {
+    fill: #117668;
     font-size: 12px;
-    line-height: 1.5;
-    margin: 0;
+    font-weight: 700;
+}
+
+.nexa-activity-trend-label {
+    fill: var(--nexa-record-muted);
+    font-size: 10px;
 }
 
 .nexa-native-activity .panel {
@@ -2797,7 +3062,7 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     }
 
     .nexa-highlight-grid,
-    .nexa-overview-cards {
+    .nexa-overview-next-grid {
         grid-template-columns: 1fr;
     }
 }
@@ -3010,8 +3275,7 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     }
 
     .nexa-highlight-grid,
-    .nexa-overview-cards,
-    .nexa-domain-facts {
+    .nexa-overview-next-grid {
         grid-template-columns: 1fr;
     }
 
@@ -4235,6 +4499,79 @@ td.nexa-inline-cell-error {
 .nexa-delete-dialog .modal-footer .btn-danger {
     background: #b42318;
     border-color: #b42318;
+}
+
+.nexa-meeting-modal .modal-content {
+    border: 0;
+    border-radius: 8px;
+    box-shadow: 0 24px 70px rgba(25, 35, 42, 0.28);
+    overflow: hidden;
+}
+
+.nexa-meeting-modal .modal-header {
+    border-bottom: 1px solid #dce4e2;
+    padding: 22px 24px 18px;
+}
+
+.nexa-meeting-modal .modal-title {
+    color: #172e29;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.nexa-meeting-modal .modal-header .close {
+    color: #657a74;
+}
+
+.nexa-meeting-modal .modal-body {
+    padding: 22px 24px;
+}
+
+.nexa-meeting-modal .modal-footer {
+    border-top: 0;
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 0 24px 24px;
+}
+
+.nexa-meeting-modal .modal-footer > .main-btn-group,
+.nexa-meeting-modal .modal-footer > .additional-btn-group {
+    display: flex;
+    float: none;
+    gap: 12px;
+}
+
+.nexa-meeting-modal .modal-footer .btn {
+    border-radius: 4px;
+    float: none;
+    margin: 0;
+    min-height: 40px;
+}
+
+.nexa-meeting-modal .modal-footer .btn-primary {
+    background: #168779;
+    border-color: #168779;
+}
+
+.nexa-meeting-modal .modal-footer .btn-primary:hover,
+.nexa-meeting-modal .modal-footer .btn-primary:focus-visible {
+    background: #126c61;
+    border-color: #126c61;
+}
+
+.nexa-meeting-modal .form-control:focus {
+    border-color: #176c5b;
+    box-shadow: 0 0 0 3px rgba(23, 108, 91, 0.14);
+}
+
+.nexa-meeting-modal .avatar,
+.nexa-meeting-modal .avatar-link,
+.nexa-meeting-modal .avatar-in-input,
+.nexa-meeting-modal .avatar-field-color,
+.nexa-meeting-modal img[class*="avatar"] {
+    display: none !important;
 }
 
 .nexa-contact-trash-button,

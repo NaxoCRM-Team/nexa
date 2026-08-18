@@ -9,6 +9,15 @@
             "default": "",
             "style": {"High": "danger", "Medium": "warning"}
         },
-        "taskType": {"type": "enum", "options": ["To-Do", "Call", "Email"], "default": "To-Do"}
+        "taskType": {"type": "enum", "options": ["To-Do", "Call", "Email"], "default": "To-Do"},
+        "isPinned": {
+            "type": "bool",
+            "default": false,
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        }
     }
 }

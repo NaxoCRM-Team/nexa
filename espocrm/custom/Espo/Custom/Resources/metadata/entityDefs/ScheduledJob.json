@@ -4,6 +4,11 @@
             "name": "Send Task Due-Soon Notifications",
             "isSystem": true,
             "scheduling": "*/15 * * * *"
+        },
+        "ReleaseStaleCallReservations": {
+            "name": "Release Stale Call Reservations",
+            "isSystem": true,
+            "scheduling": "*/15 * * * *"
         }
     }
 }

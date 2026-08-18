@@ -176,5 +176,52 @@
         "method":  "post",
         "actionClassName":  "Espo\\Custom\\Tools\\Auth\\Api\\PostRecovery",
         "noAuth":  true
+    },
+    {
+        "route": "/Nexa/call/token",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostToken"
+    },
+    {
+        "route": "/Nexa/call/minutes",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\GetMinutes"
+    },
+    {
+        "route": "/Nexa/call/credit-request",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostCreditRequest"
+    },
+    {
+        "route": "/Nexa/call/credit-requests",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\GetCreditRequests"
+    },
+    {
+        "route": "/Nexa/call/credit-request/decide",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostCreditRequestDecide"
+    },
+    {
+        "route": "/Nexa/call/settings",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostCallSettings"
+    },
+    {
+        "route": "/Nexa/call/initiate",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostInitiate"
+    },
+    {
+        "route": "/Nexa/call/twiml",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostTwiml",
+        "noAuth": true
+    },
+    {
+        "route": "/Nexa/call/status",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostStatus",
+        "noAuth": true
     }
 ]

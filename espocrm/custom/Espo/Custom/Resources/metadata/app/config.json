@@ -4,6 +4,13 @@
         "nexaMicrosoftClientSecret": {"level": "internal"},
         "nexaMicrosoftTenantId": {"level": "admin"},
         "nexaMicrosoftRedirectUri": {"level": "admin"},
-        "nexaAuthSecretKey": {"level": "internal"}
+        "nexaAuthSecretKey": {"level": "internal"},
+        "nexaTwilioAccountSid": {"level": "internal"},
+        "nexaTwilioAuthToken": {"level": "internal"},
+        "nexaTwilioApiKeySid": {"level": "internal"},
+        "nexaTwilioApiKeySecret": {"level": "internal"},
+        "nexaTwilioTwimlAppSid": {"level": "internal"},
+        "nexaTwilioCallerNumber": {"level": "internal"},
+        "nexaTwilioPublicBaseUrl": {"level": "internal"}
     }
 }

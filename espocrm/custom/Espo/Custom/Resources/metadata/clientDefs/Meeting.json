@@ -1,0 +1,5 @@
+{
+    "modalViews": {
+        "edit": "custom:views/meeting/modals/edit"
+    }
+}
