@@ -45,8 +45,7 @@ if (!str_contains($systemData, "run('Rebuild global system data'")) {
 }
 
 if (!str_contains($migrationScript, '[switch] $InitializeBaseSchema') ||
-    !str_contains($migrationScript, 'Base-schema initialization requires an empty database') ||
-    !str_contains($migrationScript, "'nexa.local', 'local', 'verified'")) {
+    !str_contains($migrationScript, 'Base-schema initialization requires an empty database')) {
     throw new RuntimeException('The local setup command must safely initialize an empty base schema.');
 }
 

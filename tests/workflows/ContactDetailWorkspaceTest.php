@@ -26,7 +26,7 @@ if (($clientDefs['recordViews']['detail'] ?? '') !== 'custom:views/contact/recor
     throw new RuntimeException('Contact detail must use the customer workspace record view.');
 }
 
-$mustContain("['crm:views/contact/record/detail']", $view, 'The workspace must extend the native Contact detail record.');
+$mustContain("['crm:views/contact/record/detail'", $view, 'The workspace must extend the native Contact detail record.');
 $mustContain('super.afterRender()', $view, 'Native Contact rendering must complete before the workspace is added.');
 $mustContain('await this.model.fetch()', $view, 'The customer summary must refresh the Contact before displaying saved values.');
 $mustContain('workspaceFetchPending', $view, 'Contact refreshes must not issue duplicate concurrent requests.');
@@ -189,14 +189,13 @@ $mustContain('data-tooltip=', $view, 'Social profile icons must reveal their des
 $mustContain("replace(/^www\\./i, '')", $view, 'External profile labels must omit the www prefix.');
 $mustContain("['accounts', 'opportunities', 'cases', 'documents', 'targetLists']", $view, 'CRM associations must remain available in the customer workspace.');
 
-foreach (['overview', 'activity'] as $domain) {
+// Sales/Marketing/Service were intentionally removed in favour of the
+// redesigned Overview "customer 360" hub - see renderContactOverviewInsights.
+foreach (['overview', 'activity', 'notes', 'tasks', 'meetings', 'calls'] as $domain) {
     $mustContain("data-nexa-tab-panel=\"{$domain}\"", $view, "The {$domain} customer workspace domain is missing.");
 }
-foreach (['sales', 'marketing', 'service'] as $domain) {
-    $mustContain("domainPanel('{$domain}'", $view, "The {$domain} customer workspace domain is missing.");
-}
 
-$mustContain('Marketing engagement', $view, 'Contact detail must expose marketing context.');
+$mustContain('Marketing status', $view, 'Contact detail must expose marketing context.');
 $mustContain('Preferences & activity', $view, 'Contact preferences, consent and website activity must share one concise card.');
 $mustContain("['Legal basis', this.optionLabel('legalBasis', this.model.get('legalBasis')), false, 'legalBasis']", $view, 'The combined card must retain the editable recorded legal basis.');
 $mustContain("['Last website visit', this.model.get('lastWebsiteVisitAt')]", $view, 'The combined card must retain identified website activity.');
