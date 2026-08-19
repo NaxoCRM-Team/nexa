@@ -13,7 +13,8 @@ define('custom:views/call/caller-id-modal', [], function () {
             this.handlers = handlers;
         }
 
-        open() {
+        /** @param {string} [prefillNumber] Pre-fills the input, e.g. when re-verifying an existing number. */
+        open(prefillNumber) {
             this.close();
             const overlay = document.createElement('div');
             overlay.className = 'nexa-interaction-overlay nexa-caller-id-overlay';
@@ -29,7 +30,7 @@ define('custom:views/call/caller-id-modal', [], function () {
                         <p>Enter the phone number your team calls customers from. This becomes the caller ID your customers see.</p>
                         <form data-nexa-caller-id-form>
                             <label><span>Business phone number</span>
-                                <input class="form-control" type="tel" name="phoneNumber" placeholder="+14155551234" required>
+                                <input class="form-control" type="tel" name="phoneNumber" placeholder="+14155551234" value="${this.escape(prefillNumber || '')}" required>
                             </label>
                             <p class="nexa-interaction-error" data-nexa-caller-id-error role="alert" hidden></p>
                             <footer>

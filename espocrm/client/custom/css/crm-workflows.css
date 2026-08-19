@@ -908,6 +908,62 @@
     text-align: center;
 }
 
+.nexa-company-panel .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.nexa-company-row label {
+    color: #596c67;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.nexa-company-value {
+    align-items: center;
+    color: #172e29;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.nexa-company-value input.form-control {
+    max-width: 320px;
+}
+
+.nexa-phone-status-badge {
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    text-transform: uppercase;
+}
+
+.nexa-phone-status-badge.is-verified {
+    background: #e3f5eb;
+    color: #1f7a4d;
+}
+
+.nexa-phone-status-badge.is-pending {
+    background: #fdf2e3;
+    color: #a5650c;
+}
+
+.nexa-phone-status-badge.is-unverified {
+    background: #fdecea;
+    color: #b3402f;
+}
+
+.nexa-company-note {
+    color: #819198;
+    font-size: 12px;
+    margin: 0;
+}
+
 .nexa-caller-id-body > footer {
     align-items: center;
     border-top: 1px solid #e2e9e7;

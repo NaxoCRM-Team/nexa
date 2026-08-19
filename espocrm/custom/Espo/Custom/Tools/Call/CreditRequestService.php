@@ -144,6 +144,30 @@ final class CreditRequestService
         $status = $approve ? 'approved' : 'denied';
         $granted = $approve ? max(1, $grantedMinutes ?? (int) $request['requested_minutes']) : null;
 
+        // Approving a request never creates new tenant-wide capacity - it
+        // only gives this one user permission to draw more of the tenant's
+        // existing pool. If the pool doesn't have that much room left right
+        // now, reject the approval outright and leave the request pending,
+        // rather than marking it decided against a grant the pool can't
+        // actually back. There's no top-up path yet to fall back on.
+        if ($approve) {
+            $poolRemaining = $this->ledger->tenantPoolRemaining(
+                $tenant->tenantId,
+                (string) $request['service_id'],
+                (string) $request['period_key']
+            );
+
+            if ($poolRemaining <= 0) {
+                throw new BadRequest('This plan\'s call allocation is fully used for the month. Top-up purchasing is coming soon.');
+            }
+
+            if ($poolRemaining < $granted) {
+                throw new BadRequest(
+                    "Insufficient balance: only {$poolRemaining} minute(s) left in this plan's monthly allocation."
+                );
+            }
+        }
+
         $update = $pdo->prepare(
             'UPDATE nexa_call_credit_request ' .
             'SET status = :status, reviewed_by_user_id = :reviewerId, reviewed_at = NOW(6), ' .
@@ -166,17 +190,13 @@ final class CreditRequestService
         }
 
         if ($approve) {
-            $grant = $pdo->prepare(
-                'INSERT INTO nexa_tenant_credit_grant (tenant_id, service_id, period_key, granted_minutes) ' .
-                'VALUES (:tenantId, :serviceId, :periodKey, :granted) ' .
-                'ON DUPLICATE KEY UPDATE granted_minutes = granted_minutes + VALUES(granted_minutes)'
+            $this->ledger->grantUserCredit(
+                $tenant->tenantId,
+                (string) $request['requested_by_user_id'],
+                (string) $request['service_id'],
+                (string) $request['period_key'],
+                $granted
             );
-            $grant->execute([
-                'tenantId' => $tenant->tenantId,
-                'serviceId' => (string) $request['service_id'],
-                'periodKey' => (string) $request['period_key'],
-                'granted' => $granted,
-            ]);
         }
 
         $message = $approve

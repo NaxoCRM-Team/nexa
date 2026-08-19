@@ -60,6 +60,12 @@
             <span>minutes &mdash; calls auto-disconnect at this length (default 60)</span>
             <button type="button" class="btn btn-default btn-sm" data-call-settings-save>Save</button>
         </div>
+        <div class="nexa-call-settings-row" data-user-share-settings>
+            <label for="nexa-user-share">Per-user monthly share</label>
+            <input id="nexa-user-share" type="number" class="form-control" min="1" max="2000" data-user-share-settings-minutes>
+            <span>minutes &mdash; each user's own slice of the shared pool before they need to request more (default 60)</span>
+            <button type="button" class="btn btn-default btn-sm" data-user-share-settings-save>Save</button>
+        </div>
         <ul class="nexa-credit-requests-list" data-credit-requests-list aria-live="polite">
             <li class="nexa-credit-requests-loading" data-credit-requests-loading><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span> Loading requests&hellip;</li>
         </ul>

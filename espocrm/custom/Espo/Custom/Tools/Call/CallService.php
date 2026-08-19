@@ -59,12 +59,18 @@ final class CallService
     }
 
     /**
-     * Read-only minutes summary for the picker UI. "remaining" nets out both
-     * committed usage (quantity) and minutes currently held by in-flight
-     * calls (reserved_quantity) - an honest "how much could I reserve right
-     * now" figure, matching what reserveForCall() would actually grant.
+     * Read-only minutes summary for the picker UI. Both "remaining" figures
+     * net out committed usage (quantity) and minutes currently held by
+     * in-flight calls (reserved_quantity) - honest "how much could I reserve
+     * right now" figures, matching what reserveForCall() would actually
+     * grant against each ceiling. userRemaining is what actually gates the
+     * "Request more minutes" prompt day to day, since a user can hit their
+     * own share well before the tenant-wide pool runs out.
      *
-     * @return array{remaining: ?int, limit: ?int, unlimited: bool, periodKey: string, perCallCapMinutes: int}
+     * @return array{
+     *     remaining: int, limit: int, periodKey: string, perCallCapMinutes: int,
+     *     userRemaining: int, userLimit: int, userShareMinutes: int
+     * }
      */
     public function getMinutesSummary(): array
     {
@@ -75,10 +81,11 @@ final class CallService
         $tenant = $this->tenantContextStore->require();
         $serviceId = $this->resolveServiceId($tenant->tenantId);
         $periodKey = gmdate('Y-m');
+        $pdo = $this->entityManager->getPDO();
 
         $limit = $this->ledger->effectiveLimit($tenant->tenantId, $serviceId, $periodKey);
 
-        $usageStatement = $this->entityManager->getPDO()->prepare(
+        $usageStatement = $pdo->prepare(
             'SELECT quantity, reserved_quantity FROM nexa_usage_counter ' .
             'WHERE tenant_id = :tenantId AND service_id = :serviceId AND period_key = :periodKey LIMIT 1'
         );
@@ -87,12 +94,27 @@ final class CallService
         $used = $row ? (int) $row['quantity'] : 0;
         $reserved = $row ? (int) $row['reserved_quantity'] : 0;
 
+        $userLimit = $this->ledger->userEffectiveLimit($tenant->tenantId, $this->user->getId(), $serviceId, $periodKey);
+
+        $userUsageStatement = $pdo->prepare(
+            'SELECT quantity, reserved_quantity FROM nexa_user_usage_counter ' .
+            'WHERE tenant_id = :tenantId AND user_id = :userId AND service_id = :serviceId AND period_key = :periodKey LIMIT 1'
+        );
+        $userUsageStatement->execute([
+            'tenantId' => $tenant->tenantId, 'userId' => $this->user->getId(), 'serviceId' => $serviceId, 'periodKey' => $periodKey,
+        ]);
+        $userRow = $userUsageStatement->fetch(PDO::FETCH_ASSOC);
+        $userUsed = $userRow ? (int) $userRow['quantity'] : 0;
+        $userReserved = $userRow ? (int) $userRow['reserved_quantity'] : 0;
+
         return [
-            'remaining' => $limit === null ? null : max(0, $limit - $used - $reserved),
+            'remaining' => max(0, $limit - $used - $reserved),
             'limit' => $limit,
-            'unlimited' => $limit === null,
             'periodKey' => $periodKey,
             'perCallCapMinutes' => $this->ledger->perCallCapMinutes($tenant->tenantId, $serviceId),
+            'userRemaining' => max(0, $userLimit - $userUsed - $userReserved),
+            'userLimit' => $userLimit,
+            'userShareMinutes' => $this->ledger->userShareMinutes($tenant->tenantId, $serviceId),
         ];
     }
 
@@ -119,6 +141,29 @@ final class CallService
         $serviceId = $this->resolveServiceId($tenant->tenantId);
 
         $this->ledger->setPerCallCapMinutes($tenant->tenantId, $serviceId, $perCallCapMinutes);
+    }
+
+    /**
+     * Tenant-admin-only: sets each user's default monthly share of the
+     * shared pool - the ceiling a single user hits (prompting a credit
+     * request) before the tenant-wide pool itself runs out.
+     */
+    public function updateUserShareMinutes(int $userShareMinutes): void
+    {
+        if (!$this->user->isAdmin()) {
+            throw new Forbidden('Only a tenant administrator can change calling settings.');
+        }
+
+        if ($userShareMinutes < 1 || $userShareMinutes > CallMinutesLedger::MAX_USER_SHARE_MINUTES) {
+            throw new BadRequest(
+                'Enter a per-user monthly share between 1 and ' . CallMinutesLedger::MAX_USER_SHARE_MINUTES . ' minutes.'
+            );
+        }
+
+        $tenant = $this->tenantContextStore->require();
+        $serviceId = $this->resolveServiceId($tenant->tenantId);
+
+        $this->ledger->setUserShareMinutes($tenant->tenantId, $serviceId, $userShareMinutes);
     }
 
     private const CALLER_ID_VERIFICATION_TIMEOUT_SECONDS = 600;
@@ -287,8 +332,9 @@ final class CallService
         // pool atomically (see CallMinutesLedger) before the call is ever
         // allowed to ring, so no number of concurrent callers can over-admit
         // the tenant's allocation. Throws Forbidden('MINUTES_EXHAUSTED') if
-        // there's no room left.
-        $reservedMinutes = $this->ledger->reserveForCall($tenant->tenantId, $serviceId, $periodKey);
+        // the tenant-wide pool is out, or Forbidden('USER_SHARE_EXHAUSTED')
+        // if this specific user has used their own share of it.
+        $reservedMinutes = $this->ledger->reserveForCall($tenant->tenantId, $this->user->getId(), $serviceId, $periodKey);
 
         $correlationId = $this->uuid();
 
@@ -313,7 +359,7 @@ final class CallService
             // The reservation already succeeded; if the session row can't be
             // written, release it immediately rather than leaking it until
             // the stale-cleanup job runs (it has no session row to find).
-            $this->ledger->settleCall($tenant->tenantId, $serviceId, $periodKey, $reservedMinutes, 0);
+            $this->ledger->settleCall($tenant->tenantId, $this->user->getId(), $serviceId, $periodKey, $reservedMinutes, 0);
 
             throw $e;
         }
@@ -437,7 +483,8 @@ final class CallService
         }
 
         $select = $pdo->prepare(
-            'SELECT tenant_id, service_id, reserved_minutes, created_at FROM nexa_call_session WHERE id = :id LIMIT 1'
+            'SELECT tenant_id, service_id, initiated_by_user_id, reserved_minutes, created_at ' .
+            'FROM nexa_call_session WHERE id = :id LIMIT 1'
         );
         $select->execute(['id' => $sessionId]);
         $session = $select->fetch(PDO::FETCH_ASSOC);
@@ -458,6 +505,7 @@ final class CallService
 
         $this->ledger->settleCall(
             (string) $session['tenant_id'],
+            (string) $session['initiated_by_user_id'],
             (string) $session['service_id'],
             $periodKey,
             $reservedMinutes,
@@ -499,9 +547,7 @@ final class CallService
     private function notifySoftLimitReached(string $tenantId, string $serviceId, string $periodKey, int $used): void
     {
         $limit = $this->ledger->effectiveLimit($tenantId, $serviceId, $periodKey);
-        $message = $limit !== null
-            ? "Your team has used {$used} of {$limit} calling minutes this month - approaching the plan limit."
-            : "Your team has used {$used} calling minutes this month - approaching the usual plan threshold.";
+        $message = "Your team has used {$used} of {$limit} calling minutes this month - approaching the plan limit.";
 
         $adminStatement = $this->entityManager->getPDO()->prepare(
             "SELECT id FROM `user` WHERE tenant_id = :tenantId AND type = 'admin' AND deleted = 0"
