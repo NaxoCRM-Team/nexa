@@ -23,22 +23,56 @@ define('custom:views/contact/record/twilio-call-controller', [], function () {
                 return sdkLoadPromise;
             }
 
-            sdkLoadPromise = new Promise((resolve, reject) => {
+            sdkLoadPromise = this.loadLoglevel()
+                .then(() => new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = `${this.basePath}client/custom/lib/twilio.js`;
+                    script.async = true;
+                    script.onload = () => {
+                        if (window.Twilio && window.Twilio.Device) resolve();
+                        else reject(new Error('Twilio Voice SDK failed to initialize.'));
+                    };
+                    script.onerror = () => reject(new Error('Twilio Voice SDK could not be loaded.'));
+                    document.head.appendChild(script);
+                }))
+                .catch(error => {
+                    sdkLoadPromise = null;
+                    throw error;
+                });
+
+            return sdkLoadPromise;
+        }
+
+        /**
+         * loglevel (a Twilio SDK dependency) ships as a raw UMD file. Its AMD
+         * branch fires on any truthy `define`, including EspoCRM's own
+         * unrelated global AMD-style module loader - so `define` has to be
+         * hidden for the duration of this one script load, or the SDK ends up
+         * with a broken logger and throws inside the Device constructor.
+         */
+        loadLoglevel() {
+            if (window.log && window.log.levels) {
+                return Promise.resolve();
+            }
+
+            return new Promise((resolve, reject) => {
+                const originalDefine = window.define;
+                window.define = undefined;
+
                 const script = document.createElement('script');
-                script.src = `${this.basePath}client/custom/lib/twilio.js`;
+                script.src = `${this.basePath}client/custom/lib/loglevel.js`;
                 script.async = true;
                 script.onload = () => {
-                    if (window.Twilio && window.Twilio.Device) resolve();
-                    else reject(new Error('Twilio Voice SDK failed to initialize.'));
+                    window.define = originalDefine;
+                    if (window.log && window.log.levels) resolve();
+                    else reject(new Error('loglevel failed to initialize.'));
                 };
                 script.onerror = () => {
-                    sdkLoadPromise = null;
-                    reject(new Error('Twilio Voice SDK could not be loaded.'));
+                    window.define = originalDefine;
+                    reject(new Error('loglevel could not be loaded.'));
                 };
                 document.head.appendChild(script);
             });
-
-            return sdkLoadPromise;
         }
 
         async ensureDevice(token) {

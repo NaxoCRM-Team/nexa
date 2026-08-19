@@ -27,7 +27,7 @@ final class PostTwiml implements Action
         parse_str((string) $request->getBodyContents(), $params);
 
         $signature = $request->getHeader('X-Twilio-Signature') ?? '';
-        $url = (string) $request->getUri();
+        $url = $this->twilioClient->publicWebhookUrl();
 
         if (!$this->twilioClient->verifySignature($url, $params, $signature)) {
             return ResponseComposer::empty()->setStatus(403);
