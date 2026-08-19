@@ -908,6 +908,62 @@
     text-align: center;
 }
 
+.nexa-company-panel .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.nexa-company-row label {
+    color: #596c67;
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+
+.nexa-company-value {
+    align-items: center;
+    color: #172e29;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.nexa-company-value input.form-control {
+    max-width: 320px;
+}
+
+.nexa-phone-status-badge {
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    text-transform: uppercase;
+}
+
+.nexa-phone-status-badge.is-verified {
+    background: #e3f5eb;
+    color: #1f7a4d;
+}
+
+.nexa-phone-status-badge.is-pending {
+    background: #fdf2e3;
+    color: #a5650c;
+}
+
+.nexa-phone-status-badge.is-unverified {
+    background: #fdecea;
+    color: #b3402f;
+}
+
+.nexa-company-note {
+    color: #819198;
+    font-size: 12px;
+    margin: 0;
+}
+
 .nexa-caller-id-body > footer {
     align-items: center;
     border-top: 1px solid #e2e9e7;
@@ -3718,6 +3774,49 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     letter-spacing: 0;
     line-height: 1.25;
     text-transform: uppercase;
+}
+
+/* Excel/HubSpot-style column-width drag handle. A visible border on every
+   header cell marks each column boundary at rest, so where to grab is
+   obvious without first having to hover to discover it; the wider invisible
+   strip on top of that border is the actual drag hit-target, and it darkens
+   the border on hover/drag as direct feedback. */
+.nexa-contact-list-page .nexa-crm-table > thead > tr > th {
+    border-right: 1px solid #d7e0e3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-col-resizer {
+    cursor: col-resize;
+    height: 100%;
+    position: absolute;
+    right: 0;
+    top: 0;
+    touch-action: none;
+    user-select: none;
+    width: 9px;
+    z-index: 3;
+}
+
+.nexa-col-resizer::after {
+    background: transparent;
+    content: '';
+    display: block;
+    height: 100%;
+    margin: 0 auto;
+    width: 2px;
+}
+
+.nexa-col-resizer:hover::after,
+.nexa-col-resizer.is-resizing::after {
+    background: #16758a;
+}
+
+body.nexa-col-resizing {
+    cursor: col-resize !important;
+    user-select: none !important;
 }
 
 .nexa-lead-status {

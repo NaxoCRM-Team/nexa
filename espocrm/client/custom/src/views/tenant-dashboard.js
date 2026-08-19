@@ -192,6 +192,7 @@ define('custom:views/tenant-dashboard', [
             this.loadCreditRequests();
             this.loadCallSettings();
             this.element.querySelector('[data-call-settings-save]')?.addEventListener('click', () => this.saveCallSettings());
+            this.element.querySelector('[data-user-share-settings-save]')?.addEventListener('click', () => this.saveUserShareSettings());
         }
     }
 
@@ -230,13 +231,36 @@ define('custom:views/tenant-dashboard', [
 
     async loadCallSettings() {
         const input = this.element.querySelector('[data-call-settings-per-call-cap]');
-        if (!input) return;
+        const shareInput = this.element.querySelector('[data-user-share-settings-minutes]');
+        if (!input && !shareInput) return;
 
         try {
             const payload = await Espo.Ajax.getRequest('Nexa/call/minutes');
-            input.value = payload.perCallCapMinutes || 60;
+            if (input) input.value = payload.perCallCapMinutes || 60;
+            if (shareInput) shareInput.value = payload.userShareMinutes || 60;
         } catch (error) {
-            // Non-blocking - the settings row just stays at its blank default.
+            // Non-blocking - the settings rows just stay at their blank default.
+        }
+    }
+
+    async saveUserShareSettings() {
+        const input = this.element.querySelector('[data-user-share-settings-minutes]');
+        const button = this.element.querySelector('[data-user-share-settings-save]');
+        const userShareMinutes = parseInt(input.value, 10);
+
+        if (!userShareMinutes || userShareMinutes < 1 || userShareMinutes > 2000) {
+            Espo.Ui.error('Enter a per-user monthly share between 1 and 2000 minutes.');
+            return;
+        }
+
+        button.disabled = true;
+        try {
+            await Espo.Ajax.postRequest('Nexa/call/user-share-settings', {userShareMinutes});
+            Espo.Ui.success('Calling settings saved');
+        } catch (error) {
+            Espo.Ui.error('Could not save calling settings.');
+        } finally {
+            button.disabled = false;
         }
     }
 

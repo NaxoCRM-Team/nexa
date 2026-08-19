@@ -1634,19 +1634,26 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             try {
                 const payload = await Espo.Ajax.getRequest('Nexa/call/minutes');
                 if (!overlay.isConnected) return;
-                if (payload.unlimited) {
-                    label.textContent = 'Unlimited calling minutes on your plan';
-                    return;
-                }
 
                 const remaining = Math.max(0, Math.floor(payload.remaining));
+                const userRemaining = Math.max(0, Math.floor(payload.userRemaining));
+
+                // Two independent ceilings - either one being exhausted blocks
+                // calling, so "Request more" has to trigger on whichever one
+                // the user actually hit, not just their own personal share.
                 if (remaining <= 0) {
+                    label.textContent = "This month's plan calling minutes are used up";
+                    this.showRequestMinutesOption(overlay);
+                    return;
+                }
+                if (userRemaining <= 0) {
+                    label.textContent = `You've used your ${payload.userLimit}-minute monthly share`;
                     this.showRequestMinutesOption(overlay);
                     return;
                 }
 
-                label.textContent = `${remaining} of ${payload.limit} minutes left this month`;
-                label.classList.toggle('is-low', payload.limit > 0 && remaining / payload.limit <= 0.2);
+                label.textContent = `${userRemaining} of ${payload.userLimit} minutes left this month`;
+                label.classList.toggle('is-low', payload.userLimit > 0 && userRemaining / payload.userLimit <= 0.2);
             } catch (error) {
                 if (overlay.isConnected) label.textContent = 'Minutes remaining unavailable right now';
             }
@@ -1828,7 +1835,10 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             const reason = error?.getResponseHeader?.('X-Status-Reason') || '';
             if (reason === 'MINUTES_EXHAUSTED') {
-                return 'Calling minutes for this billing period are used up. Close this and request more from the call menu.';
+                return "This month's plan calling minutes are used up. Close this and request more from the call menu.";
+            }
+            if (reason === 'USER_SHARE_EXHAUSTED') {
+                return "You've used your own monthly share of calling minutes. Close this and request more from the call menu.";
             }
             if (reason === 'CALLER_ID_NOT_VERIFIED') {
                 return 'No verified business phone number is set up for calling yet. Ask your tenant admin to verify one.';

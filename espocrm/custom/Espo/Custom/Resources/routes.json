@@ -208,6 +208,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostCallSettings"
     },
     {
+        "route": "/Nexa/call/user-share-settings",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostUserShareSettings"
+    },
+    {
         "route": "/Nexa/call/initiate",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostInitiate"
@@ -238,5 +243,10 @@
         "route": "/Nexa/call/caller-id/confirm",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostCallerIdConfirm"
+    },
+    {
+        "route": "/Nexa/tenant/company-name",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Tenant\\Api\\PostCompanyName"
     }
 ]

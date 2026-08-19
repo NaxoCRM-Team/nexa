@@ -143,9 +143,7 @@ class PopupNotificationsProvider implements Provider
         $this->entityManager->createEntity(Notification::ENTITY_TYPE, [
             'type' => Notification::TYPE_SYSTEM,
             'userId' => $userId,
-            'data' => [
-                'message' => "Reminder: '{$name}' is due",
-            ],
+            'message' => "Reminder: '{$name}' is due",
             'relatedType' => $entityType,
             'relatedId' => $entityId,
         ]);
