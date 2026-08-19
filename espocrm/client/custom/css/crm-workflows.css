@@ -3776,6 +3776,49 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     text-transform: uppercase;
 }
 
+/* Excel/HubSpot-style column-width drag handle. A visible border on every
+   header cell marks each column boundary at rest, so where to grab is
+   obvious without first having to hover to discover it; the wider invisible
+   strip on top of that border is the actual drag hit-target, and it darkens
+   the border on hover/drag as direct feedback. */
+.nexa-contact-list-page .nexa-crm-table > thead > tr > th {
+    border-right: 1px solid #d7e0e3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-col-resizer {
+    cursor: col-resize;
+    height: 100%;
+    position: absolute;
+    right: 0;
+    top: 0;
+    touch-action: none;
+    user-select: none;
+    width: 9px;
+    z-index: 3;
+}
+
+.nexa-col-resizer::after {
+    background: transparent;
+    content: '';
+    display: block;
+    height: 100%;
+    margin: 0 auto;
+    width: 2px;
+}
+
+.nexa-col-resizer:hover::after,
+.nexa-col-resizer.is-resizing::after {
+    background: #16758a;
+}
+
+body.nexa-col-resizing {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
 .nexa-lead-status {
     border: 1px solid transparent;
     border-radius: 999px;

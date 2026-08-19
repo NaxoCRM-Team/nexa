@@ -558,7 +558,7 @@ final class CallService
             $this->entityManager->createEntity(Notification::ENTITY_TYPE, [
                 'type' => Notification::TYPE_SYSTEM,
                 'userId' => (string) $adminId,
-                'data' => ['message' => $message],
+                'message' => $message,
             ]);
         }
     }

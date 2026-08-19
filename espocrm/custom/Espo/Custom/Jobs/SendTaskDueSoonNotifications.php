@@ -96,9 +96,7 @@ class SendTaskDueSoonNotifications implements JobDataLess
         $this->entityManager->createEntity(Notification::ENTITY_TYPE, [
             'type' => Notification::TYPE_SYSTEM,
             'userId' => $task->get('assignedUserId'),
-            'data' => [
-                'message' => "Task '" . $task->get('name') . "' is due soon",
-            ],
+            'message' => "Task '" . $task->get('name') . "' is due soon",
             'relatedType' => Task::ENTITY_TYPE,
             'relatedId' => $task->getId(),
         ]);

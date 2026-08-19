@@ -64,8 +64,125 @@ define('custom:views/contact/record/list-infinite-v2', [
         this.inlineEditor.decorate();
         this.observeScrollContainer();
         this.scheduleScrollCheck();
+        this.setupColumnResize();
 
         return result;
+    }
+
+    // Excel/HubSpot-style column resizing: a thin draggable handle on the
+    // right edge of each header cell. Widths are stored per-user (keyed by
+    // column name) so a resize sticks across visits, not just the session.
+    // Called on every render AND after each infinite-scroll page loads, since
+    // newly appended rows need the saved widths applied too - handle
+    // creation itself is guarded separately so it only happens once.
+    setupColumnResize() {
+        const table = this.element?.querySelector('table.nexa-crm-table');
+        if (!table) return;
+
+        const storageKey = `nexaListColumnWidths:${this.entityType}`;
+        const savedWidths = this.getStorage().get('state', storageKey) || {};
+
+        if (table !== this.resizeTable) {
+            // A brand new table (first render, or re-rendered by a sort/filter
+            // change) starts out width: 100% and auto-shrinks everything to
+            // fit - freeze it to explicit pixel widths first so it's capable
+            // of growing past the container at all once saved widths are
+            // reapplied below.
+            this.freezeColumnWidths(table);
+        }
+
+        Object.entries(savedWidths).forEach(([columnName, width]) => {
+            this.applyColumnWidth(table, columnName, width);
+        });
+
+        if (table === this.resizeTable) return;
+        this.resizeTable = table;
+
+        table.querySelectorAll('thead > tr > th[data-name]').forEach(th => {
+            const columnName = th.dataset.name;
+            if (columnName === 'r-checkbox' || th.classList.contains('action-cell')) return;
+
+            const handle = document.createElement('span');
+            handle.className = 'nexa-col-resizer';
+            handle.setAttribute('aria-hidden', 'true');
+            th.style.position = 'relative';
+            th.append(handle);
+
+            handle.addEventListener('mousedown', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                this.startColumnResize(table, th, columnName, event, storageKey, savedWidths);
+            });
+        });
+    }
+
+    startColumnResize(table, th, columnName, startEvent, storageKey, savedWidths) {
+        const startX = startEvent.pageX;
+        const startWidth = th.getBoundingClientRect().width;
+        const handle = th.querySelector('.nexa-col-resizer');
+        handle?.classList.add('is-resizing');
+        document.body.classList.add('nexa-col-resizing');
+
+        const onMouseMove = moveEvent => {
+            const newWidth = Math.max(60, startWidth + (moveEvent.pageX - startX));
+            this.applyColumnWidth(table, columnName, newWidth);
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            handle?.classList.remove('is-resizing');
+            document.body.classList.remove('nexa-col-resizing');
+
+            const finalWidth = th.getBoundingClientRect().width;
+            savedWidths[columnName] = Math.round(finalWidth);
+            this.getStorage().set('state', storageKey, savedWidths);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    applyColumnWidth(table, columnName, width) {
+        const px = `${Math.round(width)}px`;
+        table.querySelectorAll(
+            `thead > tr > th[data-name="${columnName}"], tbody > tr > td[data-name="${columnName}"]`
+        ).forEach(cell => { cell.style.width = px; });
+
+        this.recalculateTableWidth(table);
+    }
+
+    // table-layout: fixed combined with a CSS width of 100% makes the browser
+    // proportionally shrink every OTHER column to compensate whenever one
+    // column is widened, so the table can never actually grow past its
+    // container - which is exactly what should happen once columns no
+    // longer fit, so the existing horizontal scrollbar can do its job.
+    // Freezing every column (including the checkbox/action ones) to its
+    // current pixel width and driving the table's own width from their sum
+    // breaks that compensation: the table becomes exactly as wide as its
+    // columns need, growing beyond the container once they don't all fit.
+    freezeColumnWidths(table) {
+        table.querySelectorAll('thead > tr > th').forEach(th => {
+            const width = Math.round(th.getBoundingClientRect().width);
+            th.style.width = `${width}px`;
+
+            const columnName = th.dataset.name;
+            if (!columnName) return;
+
+            table.querySelectorAll(`tbody > tr > td[data-name="${columnName}"]`).forEach(td => {
+                td.style.width = `${width}px`;
+            });
+        });
+
+        this.recalculateTableWidth(table);
+    }
+
+    recalculateTableWidth(table) {
+        let total = 0;
+        table.querySelectorAll('thead > tr > th').forEach(th => {
+            total += th.getBoundingClientRect().width;
+        });
+        table.style.width = `${Math.round(total)}px`;
     }
 
     bindScrollContainer() {
@@ -89,6 +206,7 @@ define('custom:views/contact/record/list-infinite-v2', [
             this.bindScrollContainer();
             this.inlineEditor.decorate();
             this.scheduleScrollCheck();
+            this.setupColumnResize();
         });
         this.scrollObserver.observe(this.element, {childList: true, subtree: true});
     }

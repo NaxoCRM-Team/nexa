@@ -82,10 +82,8 @@ final class CreditRequestService
             $this->entityManager->createEntity(Notification::ENTITY_TYPE, [
                 'type' => Notification::TYPE_SYSTEM,
                 'userId' => $adminId,
-                'data' => [
-                    'message' => $requesterName . ' requested ' . $requestedMinutes .
-                        ' more calling minutes: "' . $reason . '". Review it in your dashboard.',
-                ],
+                'message' => $requesterName . ' requested ' . $requestedMinutes .
+                    ' more calling minutes: "' . $reason . '". Review it in your dashboard.',
             ]);
         }
 
@@ -210,7 +208,7 @@ final class CreditRequestService
         $this->entityManager->createEntity(Notification::ENTITY_TYPE, [
             'type' => Notification::TYPE_SYSTEM,
             'userId' => (string) $request['requested_by_user_id'],
-            'data' => ['message' => $message],
+            'message' => $message,
         ]);
     }
 
