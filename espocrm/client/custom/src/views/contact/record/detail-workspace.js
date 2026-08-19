@@ -1,4 +1,4 @@
-define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'custom:views/contact/record/twilio-call-controller'], (Dep, RecordModalHelper, TwilioCallController) => {
+define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'custom:views/contact/record/twilio-call-controller', 'custom:views/call/caller-id-modal'], (Dep, RecordModalHelper, TwilioCallController, CallerIdVerifyModal) => {
     return class extends Dep {
         setup() {
             super.setup();
@@ -1520,7 +1520,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.element.querySelector('[data-nexa-tab="activity"]')?.click();
         }
 
-        openCallPicker() {
+        async openCallPicker() {
+            const callerIdStatus = await this.getCallerIdStatus();
+            if (callerIdStatus.status !== 'verified') {
+                return this.openCallerIdBlockedState();
+            }
+
             this.closeCallPickerDialog();
             const overlay = document.createElement('div');
             overlay.className = 'nexa-interaction-overlay nexa-call-picker-overlay';
@@ -1575,6 +1580,52 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         closeCallPickerDialog() {
             this.callPickerDialog?.remove();
             this.callPickerDialog = null;
+        }
+
+        async getCallerIdStatus() {
+            try {
+                return await Espo.Ajax.getRequest('Nexa/call/caller-id');
+            } catch (error) {
+                return {status: 'unverified', callerNumber: null};
+            }
+        }
+
+        // Shown instead of the normal call picker whenever the tenant has no
+        // verified caller ID yet - admins get the verification popup right
+        // here rather than a dead end; everyone else gets told who to ask.
+        openCallerIdBlockedState() {
+            this.closeCallPickerDialog();
+
+            if (this.getUser().isAdmin()) {
+                const modal = new CallerIdVerifyModal({onVerified: () => {}});
+                modal.open();
+                return;
+            }
+
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay nexa-call-picker-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-call-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-call-blocked-title">
+                    <header>
+                        <div><p>Phone call</p><h2 id="nexa-call-blocked-title">Calling isn't set up yet</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-call-picker-close aria-label="Close">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <div class="nexa-call-picker-options">
+                        <p>Ask your tenant admin to verify a business phone number before calls can be made.</p>
+                    </div>
+                </section>`;
+
+            document.body.append(overlay);
+            this.callPickerDialog = overlay;
+            overlay.querySelector('[data-nexa-call-picker-close]').addEventListener('click', () => this.closeCallPickerDialog());
+            overlay.addEventListener('mousedown', event => {
+                if (event.target === overlay) this.closeCallPickerDialog();
+            });
+            overlay.addEventListener('keydown', event => {
+                if (event.key === 'Escape') this.closeCallPickerDialog();
+            });
         }
 
         async loadCallMinutesSummary(overlay) {
@@ -1708,9 +1759,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             this.closeCallDialog();
             this.renderCallDialog(this.model.get('name') || 'Contact', toNumber);
-            this.setCallStatus('Connecting…');
+            this.setCallStatus('Requesting microphone access…');
 
             try {
+                await this.ensureMicrophoneAccess();
+                this.setCallStatus('Connecting…');
                 const tokenPayload = await Espo.Ajax.postRequest('Nexa/call/token', {});
                 const initiatePayload = await Espo.Ajax.postRequest('Nexa/call/initiate', {
                     contactId: this.model.id,
@@ -1738,15 +1791,53 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     onDeviceError: error => this.endCallDialog(error?.message || 'Call error', true),
                 });
             } catch (error) {
-                const reason = error?.getResponseHeader?.('X-Status-Reason') || '';
-                let message = 'Could not start the call. Check the number and try again.';
-                if (reason === 'MINUTES_EXHAUSTED') {
-                    message = 'Calling minutes for this billing period are used up. Close this and request more from the call menu.';
-                } else if (error?.status === 403) {
-                    message = 'Calling is not available on your current plan.';
-                }
-                this.endCallDialog(message, true);
+                this.endCallDialog(this.describeCallStartError(error), true);
             }
+        }
+
+        // Requests mic access as its own explicit, predictable step - rather
+        // than leaving it to happen implicitly deep inside the Twilio SDK's
+        // own connect() call, where a denial surfaces as an opaque, generic
+        // failure with no indication the problem is permissions at all.
+        // Twilio's SDK requests its own stream once connected; this call
+        // exists purely to trigger the browser prompt and catch a clear
+        // rejection - the stream itself is stopped immediately after.
+        async ensureMicrophoneAccess() {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                throw Object.assign(new Error('MIC_UNSUPPORTED'), {code: 'MIC_UNSUPPORTED'});
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+                stream.getTracks().forEach(track => track.stop());
+            } catch (error) {
+                throw Object.assign(new Error(error?.name || 'MIC_ERROR'), {code: error?.name || 'MIC_ERROR'});
+            }
+        }
+
+        describeCallStartError(error) {
+            if (error?.code === 'NotAllowedError' || error?.code === 'PermissionDeniedError') {
+                return 'Microphone access is required to make calls. Allow microphone access for this site in your browser settings, then try again.';
+            }
+            if (error?.code === 'NotFoundError' || error?.code === 'DevicesNotFoundError') {
+                return 'No microphone was found. Connect a microphone and try again.';
+            }
+            if (error?.code === 'MIC_UNSUPPORTED') {
+                return 'This browser or connection does not support microphone access. Calling requires a secure (HTTPS) connection.';
+            }
+
+            const reason = error?.getResponseHeader?.('X-Status-Reason') || '';
+            if (reason === 'MINUTES_EXHAUSTED') {
+                return 'Calling minutes for this billing period are used up. Close this and request more from the call menu.';
+            }
+            if (reason === 'CALLER_ID_NOT_VERIFIED') {
+                return 'No verified business phone number is set up for calling yet. Ask your tenant admin to verify one.';
+            }
+            if (error?.status === 403) {
+                return 'Calling is not available on your current plan.';
+            }
+
+            return 'Could not start the call. Check the number and try again.';
         }
 
         renderCallDialog(contactName, toNumber) {

@@ -867,6 +867,57 @@
     margin: 0 0 18px;
 }
 
+.nexa-caller-id-success {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #2b403b;
+    line-height: 1.5;
+    margin: 0 0 18px;
+}
+
+.nexa-caller-id-success .fa-check-circle {
+    color: #2f8f5b;
+    margin-top: 2px;
+}
+
+.nexa-caller-id-body {
+    padding: 19px 24px 22px;
+}
+
+.nexa-caller-id-body form {
+    padding: 0;
+}
+
+.nexa-caller-id-code-label {
+    color: #596c67;
+    margin: 0 0 6px;
+}
+
+.nexa-caller-id-code {
+    background: #f5f6f5;
+    border: 1px solid #dfe7e4;
+    border-radius: 7px;
+    color: #172e29;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    margin: 0 0 18px;
+    padding: 12px 16px;
+    text-align: center;
+}
+
+.nexa-caller-id-body > footer {
+    align-items: center;
+    border-top: 1px solid #e2e9e7;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+    padding-top: 17px;
+}
+
 .nexa-notes-workspace {
     background: #f5f6f5;
     min-height: 100%;

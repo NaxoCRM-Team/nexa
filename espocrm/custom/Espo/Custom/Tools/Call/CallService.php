@@ -121,6 +121,135 @@ final class CallService
         $this->ledger->setPerCallCapMinutes($tenant->tenantId, $serviceId, $perCallCapMinutes);
     }
 
+    private const CALLER_ID_VERIFICATION_TIMEOUT_SECONDS = 600;
+
+    /**
+     * Read-only caller ID status for the call button's gate and the global
+     * banner - available to any tenant user (not just admins), since a
+     * non-admin still needs to know why calling is blocked.
+     *
+     * @return array{status: string, callerNumber: ?string}
+     */
+    public function getCallerIdStatus(): array
+    {
+        $tenant = $this->tenantContextStore->require();
+        $serviceId = $this->resolveServiceId($tenant->tenantId);
+
+        $row = $this->fetchCallerIdRow($tenant->tenantId, $serviceId);
+
+        return [
+            'status' => $row['caller_number_status'],
+            'callerNumber' => $row['caller_number_status'] === 'verified' ? $row['caller_number'] : null,
+        ];
+    }
+
+    /**
+     * Tenant-admin-only: starts Twilio's call-based verification for the
+     * tenant's business phone number. Twilio calls the number immediately;
+     * the admin completes it by answering and entering the code Twilio reads
+     * out, then calling confirmCallerIdVerification(). If Twilio already has
+     * this exact number verified from some earlier attempt, it's marked
+     * verified immediately - there's no call left to place or wait on.
+     *
+     * @return array{status: string, validationCode: ?string}
+     */
+    public function startCallerIdVerification(string $phoneNumber): array
+    {
+        if (!$this->user->isAdmin()) {
+            throw new Forbidden('Only a tenant administrator can verify a business phone number.');
+        }
+
+        $phoneNumber = trim($phoneNumber);
+
+        if ($phoneNumber === '' || preg_match('/^\+[1-9][0-9]{6,14}$/', $phoneNumber) !== 1) {
+            throw new BadRequest(
+                'Enter the business phone number in international format, starting with "+" and the country code.'
+            );
+        }
+
+        $tenant = $this->tenantContextStore->require();
+        $serviceId = $this->resolveServiceId($tenant->tenantId);
+
+        $result = $this->twilioClient->startCallerIdVerification($phoneNumber, $tenant->displayName ?: $tenant->slug);
+        $status = $result['alreadyVerified'] ? 'verified' : 'pending';
+
+        $statement = $this->entityManager->getPDO()->prepare(
+            'UPDATE nexa_tenant_service SET caller_number = :callerNumber, caller_number_status = :status, ' .
+            'caller_number_verification_started_at = NOW(6) WHERE tenant_id = :tenantId AND service_id = :serviceId'
+        );
+        $statement->execute([
+            'callerNumber' => $phoneNumber,
+            'status' => $status,
+            'tenantId' => $tenant->tenantId,
+            'serviceId' => $serviceId,
+        ]);
+
+        return ['status' => $status, 'validationCode' => $result['validationCode']];
+    }
+
+    /**
+     * Tenant-admin-only: re-checks Twilio for whether the pending number has
+     * actually been verified yet (code entered on the call). A stale pending
+     * attempt (the admin never completed the call) resets to unverified so
+     * they get a clean retry instead of being stuck.
+     *
+     * @return array{status: string, callerNumber: ?string}
+     */
+    public function confirmCallerIdVerification(): array
+    {
+        if (!$this->user->isAdmin()) {
+            throw new Forbidden('Only a tenant administrator can verify a business phone number.');
+        }
+
+        $tenant = $this->tenantContextStore->require();
+        $serviceId = $this->resolveServiceId($tenant->tenantId);
+        $row = $this->fetchCallerIdRow($tenant->tenantId, $serviceId);
+
+        if ($row['caller_number_status'] !== 'pending' || $row['caller_number'] === null) {
+            return ['status' => $row['caller_number_status'], 'callerNumber' => null];
+        }
+
+        if ($this->twilioClient->isCallerIdVerified($row['caller_number'])) {
+            $statement = $this->entityManager->getPDO()->prepare(
+                'UPDATE nexa_tenant_service SET caller_number_status = \'verified\' ' .
+                'WHERE tenant_id = :tenantId AND service_id = :serviceId'
+            );
+            $statement->execute(['tenantId' => $tenant->tenantId, 'serviceId' => $serviceId]);
+
+            return ['status' => 'verified', 'callerNumber' => $row['caller_number']];
+        }
+
+        $startedAt = $row['caller_number_verification_started_at'];
+        if ($startedAt !== null && (time() - strtotime($startedAt)) > self::CALLER_ID_VERIFICATION_TIMEOUT_SECONDS) {
+            $statement = $this->entityManager->getPDO()->prepare(
+                'UPDATE nexa_tenant_service SET caller_number_status = \'unverified\', caller_number = NULL, ' .
+                'caller_number_verification_started_at = NULL WHERE tenant_id = :tenantId AND service_id = :serviceId'
+            );
+            $statement->execute(['tenantId' => $tenant->tenantId, 'serviceId' => $serviceId]);
+
+            return ['status' => 'unverified', 'callerNumber' => null];
+        }
+
+        return ['status' => 'pending', 'callerNumber' => null];
+    }
+
+    /** @return array{caller_number: ?string, caller_number_status: string, caller_number_verification_started_at: ?string} */
+    private function fetchCallerIdRow(string $tenantId, string $serviceId): array
+    {
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT caller_number, caller_number_status, caller_number_verification_started_at ' .
+            'FROM nexa_tenant_service WHERE tenant_id = :tenantId AND service_id = :serviceId LIMIT 1'
+        );
+        $statement->execute(['tenantId' => $tenantId, 'serviceId' => $serviceId]);
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+
+        return [
+            'caller_number' => $row['caller_number'] ?? null,
+            'caller_number_status' => $row['caller_number_status'] ?? 'unverified',
+            'caller_number_verification_started_at' => $row['caller_number_verification_started_at'] ?? null,
+        ];
+    }
+
     /** @return array{correlationId: string} */
     public function initiateCall(string $contactId, string $toNumber): array
     {
@@ -146,6 +275,14 @@ final class CallService
         $serviceId = $this->resolveServiceId($tenant->tenantId);
         $periodKey = gmdate('Y-m');
 
+        // Every tenant calls out on its own verified business number, never
+        // a shared platform number - fail fast here, before ever touching
+        // the minutes ledger, if that hasn't been set up yet.
+        $callerIdRow = $this->fetchCallerIdRow($tenant->tenantId, $serviceId);
+        if ($callerIdRow['caller_number_status'] !== 'verified' || $callerIdRow['caller_number'] === null) {
+            throw new Forbidden('CALLER_ID_NOT_VERIFIED');
+        }
+
         // Race-free admission control: this reserves a slice of the shared
         // pool atomically (see CallMinutesLedger) before the call is ever
         // allowed to ring, so no number of concurrent callers can over-admit
@@ -168,7 +305,7 @@ final class CallService
                 'contactId' => $contactId,
                 'userId' => $this->user->getId(),
                 'correlationId' => $correlationId,
-                'fromNumber' => $this->twilioClient->callerNumber(),
+                'fromNumber' => $callerIdRow['caller_number'],
                 'toNumber' => $toNumber,
                 'reservedMinutes' => $reservedMinutes,
             ]);
@@ -200,7 +337,7 @@ final class CallService
         }
 
         $statement = $this->entityManager->getPDO()->prepare(
-            'SELECT id, to_number, reserved_minutes FROM nexa_call_session ' .
+            'SELECT id, to_number, from_number, reserved_minutes FROM nexa_call_session ' .
             'WHERE correlation_id = :correlationId AND status = \'initiated\' LIMIT 1'
         );
         $statement->execute(['correlationId' => $correlationId]);
@@ -219,7 +356,7 @@ final class CallService
         }
 
         $toNumber = $this->xmlEscape((string) $session['to_number']);
-        $callerId = $this->xmlEscape($this->twilioClient->callerNumber());
+        $callerId = $this->xmlEscape((string) $session['from_number']);
         $statusCallback = $this->xmlEscape($this->statusCallbackUrl($correlationId));
         // Twilio hangs the call up itself once this many seconds elapse -
         // the reservation ceiling from initiateCall(), enforced provider-side
@@ -327,6 +464,13 @@ final class CallService
             $billedMinutes
         );
 
+        // The guarded UPDATE above already won the idempotency race for this
+        // session (rowCount() === 1, checked earlier) - no concurrent caller
+        // can reach this point for the same id, so a plain follow-up UPDATE
+        // is safe here without its own guard.
+        $pdo->prepare('UPDATE nexa_call_session SET billed_minutes = :billedMinutes WHERE id = :id')
+            ->execute(['billedMinutes' => $billedMinutes, 'id' => $sessionId]);
+
         // Outside the ledger's own transaction (settleCall() already
         // committed above) - safe to do the ORM Notification write here.
         if ($billedMinutes > 0) {
@@ -394,7 +538,8 @@ final class CallService
             throw new RuntimeException('No public base URL is configured for Twilio callbacks.');
         }
 
-        return $base . '/api/v1/Nexa/call/status?correlationId=' . rawurlencode($correlationId);
+        return $base . $this->twilioClient->installPathPrefix() .
+            '/api/v1/Nexa/call/status?correlationId=' . rawurlencode($correlationId);
     }
 
     /** Mirrors TenantDashboardService::resolveCrmServiceId(), for the voice service. */

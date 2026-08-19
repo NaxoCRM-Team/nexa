@@ -7,6 +7,10 @@
     padding: 24px 0 48px;
     width: 100%;
 }
+.nexa-caller-id-banner { align-items: center; background: #fdecea; border: 1px solid #f3b7b0; border-radius: 10px; color: #7a2318; display: flex; gap: 12px; margin: 16px 0 0; padding: 12px 16px; }
+.nexa-caller-id-banner .fa-exclamation-triangle { color: #c0392b; font-size: 16px; }
+.nexa-caller-id-banner p { flex: 1; margin: 0; }
+.nexa-caller-id-banner [data-nexa-caller-id-banner-action] { flex-shrink: 0; }
 .nexa-dashboard-hero { align-items: flex-end; display: flex; gap: 24px; justify-content: space-between; padding: 10px 0 24px; }
 .nexa-workspace-context { align-items: center; color: #52646b; display: flex; font-size: 12px; font-weight: 700; gap: 7px; text-transform: uppercase; }
 .nexa-workspace-dot { background: #12a594; border-radius: 50%; height: 8px; width: 8px; }

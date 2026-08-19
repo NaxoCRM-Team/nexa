@@ -1,7 +1,8 @@
 define('custom:views/tenant-dashboard', [
     'views/dashboard',
     'custom:product-surface-registry',
-], (DashboardView, productSurfaceRegistry) => class extends DashboardView {
+    'custom:views/call/caller-id-modal',
+], (DashboardView, productSurfaceRegistry, CallerIdVerifyModal) => class extends DashboardView {
     template = 'custom:tenant-dashboard';
 
     setupCurrentTabLayout() {
@@ -173,6 +174,7 @@ define('custom:views/tenant-dashboard', [
         this.element.querySelector('[data-action="refreshDashboard"]')?.addEventListener('click', () => this.loadSummary());
         this.element.querySelector('[data-action="retryDashboard"]')?.addEventListener('click', () => this.loadSummary());
         this.loadSummary();
+        this.loadCallerIdBanner();
 
         if (this.getUser().isAdmin()) {
             this.creditRequestsStatus = 'pending';
@@ -190,6 +192,39 @@ define('custom:views/tenant-dashboard', [
             this.loadCreditRequests();
             this.loadCallSettings();
             this.element.querySelector('[data-call-settings-save]')?.addEventListener('click', () => this.saveCallSettings());
+        }
+    }
+
+    async loadCallerIdBanner() {
+        const banner = this.element.querySelector('[data-nexa-caller-id-banner]');
+        if (!banner) return;
+
+        try {
+            const status = await Espo.Ajax.getRequest('Nexa/call/caller-id');
+            if (status.status === 'verified') {
+                banner.hidden = true;
+                return;
+            }
+
+            const text = banner.querySelector('[data-nexa-caller-id-banner-text]');
+            const action = banner.querySelector('[data-nexa-caller-id-banner-action]');
+            const isAdmin = this.getUser().isAdmin();
+
+            text.textContent = isAdmin
+                ? 'Voice calling needs a verified business phone number before your team can make calls.'
+                : 'Voice calling is not set up yet - ask your tenant admin to verify a business phone number.';
+            action.hidden = !isAdmin;
+            banner.hidden = false;
+
+            if (isAdmin) {
+                action.onclick = () => {
+                    const modal = new CallerIdVerifyModal({onVerified: () => this.loadCallerIdBanner()});
+                    modal.open();
+                };
+            }
+        } catch (error) {
+            // Non-blocking - voice calling may simply not be enabled for this plan.
+            banner.hidden = true;
         }
     }
 

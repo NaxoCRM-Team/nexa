@@ -119,6 +119,31 @@ class Application
             }
 
             if ($tenant === null) {
+                // Twilio's voice webhooks arrive at whatever public host is
+                // fronting this install (an ngrok tunnel in local dev, a real
+                // domain in production) - never a registered tenant domain,
+                // since Twilio has no concept of our tenants. This mirrors
+                // TenantContextMiddleware::isPublicPlatformRoute()'s allow-list
+                // for the same two routes - that check runs one layer deeper,
+                // but requests never reach it if this outer gate throws first.
+                // Matched by suffix, not exact path: this app supports being
+                // installed under any subfolder (see PortableSubfolderTest),
+                // so REQUEST_URI here still carries that prefix (e.g. /nexa/...)
+                // - unlike TenantContextMiddleware's check, which runs after
+                // EspoCRM's own routing has already stripped it.
+                $requestPath = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+                $isTwilioVoiceWebhook = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (
+                    str_ends_with($requestPath, '/api/v1/Nexa/call/twiml') ||
+                    str_ends_with($requestPath, '/api/v1/Nexa/call/status')
+                );
+
+                if ($isTwilioVoiceWebhook) {
+                    $this->container->getByClass(PlatformExecutionGateway::class)
+                        ->run('Twilio voice webhook', $run);
+
+                    return;
+                }
+
                 throw new \RuntimeException('The request host is not assigned to an active tenant.');
             }
 

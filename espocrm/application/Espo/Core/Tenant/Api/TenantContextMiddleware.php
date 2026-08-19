@@ -71,9 +71,12 @@ final class TenantContextMiddleware implements MiddlewareInterface
     private function isPublicPlatformRoute(ServerRequestInterface $request): bool
     {
         $method = strtoupper($request->getMethod());
-        $path = '/' . trim($request->getUri()->getPath(), '/');
+        // Matched by suffix, not exact path: this app supports being installed
+        // under any subfolder (see PortableSubfolderTest), and this URI's path
+        // isn't guaranteed to already be stripped of that prefix at this point.
+        $path = (string) $request->getUri()->getPath();
 
-        $postRoutes = [
+        $postRouteSuffixes = [
             '/api/v1/Nexa/signup',
             '/api/v1/Nexa/signup/profile',
             '/api/v1/Nexa/signup/verify',
@@ -88,11 +91,18 @@ final class TenantContextMiddleware implements MiddlewareInterface
             '/api/v1/Nexa/call/status',
         ];
 
-        return ($method === 'POST' && in_array($path, $postRoutes, true)) ||
-            ($method === 'GET' && (
-                $path === '/api/v1/Nexa/auth/providers' ||
-                preg_match('#^/api/v1/Nexa/auth/provider/[a-z0-9_-]+/(start|callback)$#', $path) === 1
-            ));
+        if ($method === 'POST') {
+            foreach ($postRouteSuffixes as $suffix) {
+                if (str_ends_with($path, $suffix)) {
+                    return true;
+                }
+            }
+        }
+
+        return $method === 'GET' && (
+            str_ends_with($path, '/api/v1/Nexa/auth/providers') ||
+            preg_match('#/api/v1/Nexa/auth/provider/[a-z0-9_-]+/(start|callback)$#', $path) === 1
+        );
     }
 
     private function extractLoginIdentifier(ServerRequestInterface $request): ?string
