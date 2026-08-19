@@ -10,7 +10,6 @@
         "nexaTwilioApiKeySid": {"level": "internal"},
         "nexaTwilioApiKeySecret": {"level": "internal"},
         "nexaTwilioTwimlAppSid": {"level": "internal"},
-        "nexaTwilioCallerNumber": {"level": "internal"},
         "nexaTwilioPublicBaseUrl": {"level": "internal"}
     }
 }

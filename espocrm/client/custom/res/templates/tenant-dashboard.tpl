@@ -1,4 +1,10 @@
-<header class="nexa-dashboard-hero">
+<div class="nexa-caller-id-banner" data-nexa-caller-id-banner hidden role="alert">
+        <span class="fas fa-exclamation-triangle" aria-hidden="true"></span>
+        <p data-nexa-caller-id-banner-text></p>
+        <button type="button" class="btn btn-default btn-sm" data-nexa-caller-id-banner-action hidden>Verify now</button>
+    </div>
+
+    <header class="nexa-dashboard-hero">
         <div>
             <div class="nexa-workspace-context"><span class="nexa-workspace-dot" aria-hidden="true"></span>{{tenant.displayName}} workspace</div>
             <h1 id="nexa-dashboard-title">Good to see you, {{firstName}}</h1>

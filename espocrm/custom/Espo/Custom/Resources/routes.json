@@ -223,5 +223,20 @@
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostStatus",
         "noAuth": true
+    },
+    {
+        "route": "/Nexa/call/caller-id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\GetCallerId"
+    },
+    {
+        "route": "/Nexa/call/caller-id/start",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostCallerIdStart"
+    },
+    {
+        "route": "/Nexa/call/caller-id/confirm",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Call\\Api\\PostCallerIdConfirm"
     }
 ]

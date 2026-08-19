@@ -1,0 +1,20 @@
+<?php
+
+namespace Espo\Custom\Tools\Call\Api;
+
+use Espo\Core\Api\Action;
+use Espo\Core\Api\Request;
+use Espo\Core\Api\Response;
+use Espo\Core\Api\ResponseComposer;
+use Espo\Custom\Tools\Call\CallService;
+
+final class GetCallerId implements Action
+{
+    public function __construct(private CallService $service) {}
+
+    public function process(Request $request): Response
+    {
+        return ResponseComposer::json($this->service->getCallerIdStatus())
+            ->setHeader('Cache-Control', 'private, no-store');
+    }
+}

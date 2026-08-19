@@ -31,7 +31,7 @@ try {
     $writer->setMultiple($settings);
     $writer->save();
 
-    fwrite(STDOUT, "Twilio configured (caller number {$settings['nexaTwilioCallerNumber']}).\n");
+    fwrite(STDOUT, "Twilio configured (account {$settings['nexaTwilioAccountSid']}).\n");
 } catch (Throwable $e) {
     fwrite(STDERR, "Twilio configuration failed: {$e->getMessage()}\n");
     exit(1);
@@ -64,7 +64,6 @@ function loadTwilioSettings(string $environmentPath): ?array
         'nexaTwilioApiKeySid' => $env['TWILIO_API_KEY_SID'] ?? '',
         'nexaTwilioApiKeySecret' => $env['TWILIO_API_KEY_SECRET'] ?? '',
         'nexaTwilioTwimlAppSid' => $env['TWILIO_TWIML_APP_SID'] ?? '',
-        'nexaTwilioCallerNumber' => $env['TWILIO_CALLER_NUMBER'] ?? '',
         'nexaTwilioPublicBaseUrl' => $env['TWILIO_PUBLIC_BASE_URL'] ?? '',
     ];
 }
