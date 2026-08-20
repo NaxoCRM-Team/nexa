@@ -761,6 +761,57 @@
     width: min(420px, 100%);
 }
 
+.nexa-connect-inbox-dialog {
+    width: min(480px, 100%);
+}
+
+.nexa-connect-inbox-intro {
+    padding: 4px 24px 24px;
+}
+
+.nexa-connect-inbox-intro > p {
+    color: #596c67;
+    line-height: 1.5;
+    margin: 0 0 16px;
+}
+
+.nexa-connect-inbox-benefits {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 0;
+}
+
+.nexa-connect-inbox-benefits li {
+    align-items: center;
+    color: #2b403b;
+    display: flex;
+    font-size: 13px;
+    gap: 12px;
+}
+
+.nexa-connect-inbox-benefits li > span {
+    align-items: center;
+    background: #e7f3f0;
+    border-radius: 999px;
+    color: #117668;
+    display: flex;
+    flex-shrink: 0;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+}
+
+.nexa-connect-inbox-section-title {
+    color: #172e29;
+    font-size: 12px;
+    font-weight: 700;
+    margin: 4px 0 12px;
+    text-transform: uppercase;
+}
+
 .nexa-call-picker-options {
     display: flex;
     flex-direction: column;
@@ -2976,6 +3027,15 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     margin: 0 0 3px;
 }
 
+.nexa-highlight.is-danger > span {
+    background: #fdecea;
+    color: #c0392b;
+}
+
+.nexa-highlight.is-danger strong {
+    color: #c0392b;
+}
+
 .nexa-highlight strong {
     color: var(--nexa-record-ink);
     display: block;
@@ -3007,7 +3067,7 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     margin-bottom: 0;
 }
 
-.nexa-activity-trend-card h4 {
+.nexa-mini-calendar-card h4 {
     align-items: baseline;
     border-bottom: 1px solid #e8eeec;
     display: flex;
@@ -3016,45 +3076,123 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     padding-bottom: 11px;
 }
 
-.nexa-activity-trend-card h4 span {
+.nexa-mini-calendar-card h4 span {
     color: var(--nexa-record-muted);
     font-size: 11px;
     font-weight: 400;
 }
 
-.nexa-activity-trend-svg {
-    display: block;
-    margin-top: 10px;
-    width: 100%;
+.nexa-mini-calendar-header {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
 }
 
-.nexa-activity-trend-svg g {
-    cursor: default;
+.nexa-mini-calendar-header strong {
+    color: var(--nexa-record-ink);
+    font-size: 13px;
 }
 
-.nexa-activity-trend-svg g:focus {
-    outline: 0;
-}
-
-.nexa-activity-trend-svg g:hover path,
-.nexa-activity-trend-svg g:focus-visible path {
-    opacity: 0.85;
-}
-
-.nexa-activity-trend-baseline {
-    stroke: var(--nexa-record-border);
-    stroke-width: 1;
-}
-
-.nexa-activity-trend-value {
-    fill: #117668;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.nexa-activity-trend-label {
-    fill: var(--nexa-record-muted);
+.nexa-mini-calendar-weekdays {
+    color: var(--nexa-record-muted);
+    display: grid;
     font-size: 10px;
+    font-weight: 700;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    margin-top: 10px;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.nexa-mini-calendar-grid {
+    border: 1px solid #e8eeec;
+    border-left: none;
+    border-top: none;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    margin-top: 4px;
+}
+
+.nexa-mini-calendar-cell {
+    background: none;
+    border-left: 1px solid #e8eeec;
+    border-top: 1px solid #e8eeec;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 68px;
+    padding: 4px;
+    position: relative;
+}
+
+.nexa-mini-calendar-cell.is-outside {
+    background: #fbfbfb;
+    visibility: hidden;
+}
+
+.nexa-mini-calendar-cell:nth-child(7n),
+.nexa-mini-calendar-cell:nth-child(7n-1) {
+    background: #fafbfb;
+}
+
+.nexa-mini-calendar-cell.is-today {
+    background: #eef7f5;
+}
+
+.nexa-mini-calendar-cell.is-today .nexa-mini-calendar-daynum {
+    background: #117668;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    height: 18px;
+    justify-content: center;
+    width: 18px;
+}
+
+.nexa-mini-calendar-daynum {
+    align-items: center;
+    align-self: flex-start;
+    display: flex;
+    flex: 0 0 auto;
+    font-size: 11px;
+    justify-content: center;
+}
+
+.nexa-mini-calendar-pills {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nexa-mini-calendar-pill {
+    border-radius: 3px;
+    color: #fff;
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.5;
+    overflow: hidden;
+    padding: 1px 5px;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-mini-calendar-pill:hover {
+    filter: brightness(0.92);
+    color: #fff;
+}
+
+.nexa-mini-calendar-pill.is-overdue {
+    box-shadow: inset 0 0 0 1px #c0392b;
+}
+
+.nexa-mini-calendar-more {
+    color: var(--nexa-record-muted);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 0 5px;
 }
 
 .nexa-native-activity .panel {
@@ -4223,6 +4361,13 @@ td.nexa-inline-cell-error {
 
 .nexa-profile-image-field .attachment {
     order: -1;
+}
+
+.nexa-profile-image-hint {
+    display: block;
+    font-size: 11px;
+    margin-top: 6px;
+    text-align: center;
 }
 
 .nexa-profile-image-placeholder,

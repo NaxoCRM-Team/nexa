@@ -365,64 +365,129 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             }
         }
 
-        computeActivityTrend(workspace) {
-            const activities = this.collectContactActivities(workspace);
-            const months = [];
-            const now = new Date();
-            for (let offset = 5; offset >= 0; offset -= 1) {
-                const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-                months.push({
-                    key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-                    label: new Intl.DateTimeFormat(undefined, {month: 'short'}).format(date),
-                    count: 0,
+        // One combined list of this contact's meetings/tasks/calls, each
+        // reduced to a single calendar date - tasks use their due date
+        // (dateEnd), meetings/calls use their start date (dateStart).
+        // Colors match EspoCRM's own core Calendar module exactly
+        // (Meeting/Call/Task), so this reads as "the same calendar", just
+        // scoped to one contact instead of a user's whole schedule.
+        contactCalendarEvents() {
+            const events = [];
+
+            (this.contactMeetingRecords || []).forEach(meeting => {
+                if (!meeting.dateStart) return;
+                events.push({
+                    id: meeting.id, type: 'Meeting', name: meeting.name || 'Untitled meeting',
+                    date: this.contactNoteDate(meeting.dateStart), rawDate: meeting.dateStart, status: meeting.status,
+                    icon: 'far fa-calendar', color: '#558BBD',
                 });
-            }
-            const byKey = new Map(months.map(month => [month.key, month]));
-            activities.forEach(activity => {
-                if (!activity.date) return;
-                const key = `${activity.date.getFullYear()}-${String(activity.date.getMonth() + 1).padStart(2, '0')}`;
-                const month = byKey.get(key);
-                if (month) month.count += 1;
             });
-            return months;
+            (this.contactCallRecords || []).forEach(call => {
+                if (!call.dateStart) return;
+                events.push({
+                    id: call.id, type: 'Call', name: call.name || 'Untitled call',
+                    date: this.contactNoteDate(call.dateStart), rawDate: call.dateStart, status: call.status,
+                    icon: 'fas fa-phone', color: '#CF605D',
+                });
+            });
+            (this.contactTaskRecords || []).forEach(task => {
+                if (!task.dateEnd) return;
+                events.push({
+                    id: task.id, type: 'Task', name: task.name || 'Untitled task',
+                    date: this.contactNoteDate(task.dateEnd), rawDate: task.dateEnd, status: task.status,
+                    icon: 'far fa-check-square', color: '#70c173',
+                    overdue: this.taskIsOverdue(task),
+                });
+            });
+
+            return events.filter(event => event.date);
         }
 
-        roundedTopBarPath(x, yTop, width, height, radius) {
-            const r = Math.max(0, Math.min(radius, width / 2, height));
-            const yBottom = yTop + height;
-            return `M${x},${yBottom} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + width - r},${yTop} Q${x + width},${yTop} ${x + width},${yTop + r} L${x + width},${yBottom} Z`;
+        dateKey(date) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         }
 
-        activityTrendChart(months) {
-            const width = 340;
-            const height = 120;
-            const chartBottom = 90;
-            const chartTop = 16;
-            const barMaxHeight = chartBottom - chartTop;
-            const max = Math.max(1, ...months.map(month => month.count));
-            const bandWidth = width / months.length;
-            const barWidth = Math.min(24, bandWidth - 12);
-            const lastIndex = months.length - 1;
+        // "0:00" on a parsed date almost always means the source field had no
+        // time component (an all-day task due-date, for instance) - skip the
+        // time prefix for those, same as a real calendar would for an all-day item.
+        formatEventTime(date) {
+            if (date.getHours() === 0 && date.getMinutes() === 0) return '';
+            return new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false}).format(date);
+        }
 
-            const bars = months.map((month, index) => {
-                const x = index * bandWidth + (bandWidth - barWidth) / 2;
-                const barHeight = month.count === 0 ? 2 : Math.max(4, Math.round((month.count / max) * barMaxHeight));
-                const y = chartBottom - barHeight;
-                const isCurrent = index === lastIndex;
-                const fill = isCurrent ? '#117668' : '#8590a0';
-                const description = `${month.label}: ${month.count} ${month.count === 1 ? 'activity' : 'activities'}`;
-                return `<g tabindex="0" role="img" aria-label="${this.escape(description)}">
-                    <title>${this.escape(description)}</title>
-                    <path d="${this.roundedTopBarPath(x, y, barWidth, barHeight, 4)}" fill="${fill}"></path>
-                    ${isCurrent ? `<text x="${x + barWidth / 2}" y="${y - 7}" text-anchor="middle" class="nexa-activity-trend-value">${month.count}</text>` : ''}
-                    <text x="${x + barWidth / 2}" y="${chartBottom + 17}" text-anchor="middle" class="nexa-activity-trend-label">${this.escape(month.label)}</text>
-                </g>`;
-            }).join('');
+        renderContactMiniCalendar(workspace) {
+            const container = workspace?.querySelector('[data-nexa-mini-calendar]');
+            if (!container) return;
 
-            return `<svg class="nexa-activity-trend-svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="Activity count per month, last 6 months" focusable="false">
-                <line x1="0" y1="${chartBottom}" x2="${width}" y2="${chartBottom}" class="nexa-activity-trend-baseline"></line>
-                ${bars}
-            </svg>`;
+            this.contactCalendarMonth = this.contactCalendarMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            const monthDate = this.contactCalendarMonth;
+            const events = this.contactCalendarEvents();
+
+            const byDay = new Map();
+            events.forEach(event => {
+                const key = this.dateKey(event.date);
+                if (!byDay.has(key)) byDay.set(key, []);
+                byDay.get(key).push(event);
+            });
+
+            const monthLabel = new Intl.DateTimeFormat(undefined, {month: 'long', year: 'numeric'}).format(monthDate);
+            const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+            // Monday-first week, matching EspoCRM's own Calendar module.
+            const startOffset = (firstOfMonth.getDay() + 6) % 7;
+            const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+            const todayKey = this.dateKey(new Date());
+            const maxVisiblePerDay = 4;
+
+            const cells = [];
+            for (let index = 0; index < startOffset; index += 1) {
+                cells.push('<div class="nexa-mini-calendar-cell is-outside" aria-hidden="true"></div>');
+            }
+            for (let day = 1; day <= daysInMonth; day += 1) {
+                const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+                const key = this.dateKey(date);
+                const dayEvents = (byDay.get(key) || []).sort((left, right) => left.date.getTime() - right.date.getTime());
+                const isToday = key === todayKey;
+
+                const visible = dayEvents.slice(0, maxVisiblePerDay);
+                const overflowCount = dayEvents.length - visible.length;
+                const pills = visible.map(event => {
+                    const time = this.formatEventTime(event.date);
+                    return `
+                        <a class="nexa-mini-calendar-pill${event.overdue ? ' is-overdue' : ''}" style="background:${event.color}"
+                            href="#${event.type}/view/${event.id}" title="${this.escape(event.name)}">${time ? `${this.escape(time)} ` : ''}${this.escape(event.name)}</a>`;
+                }).join('');
+                const overflowLabel = overflowCount > 0
+                    ? `<span class="nexa-mini-calendar-more">+${overflowCount} more</span>`
+                    : '';
+
+                cells.push(`
+                    <div class="nexa-mini-calendar-cell${isToday ? ' is-today' : ''}">
+                        <span class="nexa-mini-calendar-daynum">${day}</span>
+                        <div class="nexa-mini-calendar-pills">${pills}${overflowLabel}</div>
+                    </div>`);
+            }
+
+            const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+            container.innerHTML = `
+                <div class="nexa-mini-calendar-header">
+                    <button type="button" class="btn btn-default btn-icon btn-sm" data-nexa-calendar-prev aria-label="Previous month"><span class="fas fa-chevron-left" aria-hidden="true"></span></button>
+                    <strong>${this.escape(monthLabel)}</strong>
+                    <button type="button" class="btn btn-default btn-icon btn-sm" data-nexa-calendar-next aria-label="Next month"><span class="fas fa-chevron-right" aria-hidden="true"></span></button>
+                </div>
+                <div class="nexa-mini-calendar-weekdays">
+                    ${weekdayLabels.map(label => `<span>${label}</span>`).join('')}
+                </div>
+                <div class="nexa-mini-calendar-grid">${cells.join('')}</div>`;
+
+            container.querySelector('[data-nexa-calendar-prev]').addEventListener('click', () => {
+                this.contactCalendarMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
+                this.renderContactMiniCalendar(workspace);
+            });
+            container.querySelector('[data-nexa-calendar-next]').addEventListener('click', () => {
+                this.contactCalendarMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+                this.renderContactMiniCalendar(workspace);
+            });
         }
 
         renderContactOverviewInsights(workspace = null) {
@@ -454,18 +519,18 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         ? `${this.formatCurrencyAmount(this.contactOpenPipelineValue, this.contactOpenPipelineCurrency)} · ${this.contactOpenPipelineCount} open`
                         : 'No open deals';
 
-            const trend = this.computeActivityTrend(workspace);
-
             container.innerHTML = `
                 <div class="nexa-highlight-grid nexa-overview-next-grid">
-                    ${this.highlight('Open tasks', openTasksValue, 'far fa-check-square')}
+                    ${this.highlight('Open tasks', openTasksValue, 'far fa-check-square', overdueCount ? 'danger' : null)}
                     ${this.highlight('Next meeting', nextMeetingValue, 'far fa-calendar')}
                     ${this.highlight('Open pipeline', pipelineValue, 'fas fa-sack-dollar')}
                 </div>
-                <section class="nexa-context-card nexa-activity-trend-card">
-                    <h4>Activity trend<span>Last 6 months</span></h4>
-                    ${this.activityTrendChart(trend)}
+                <section class="nexa-context-card nexa-mini-calendar-card">
+                    <h4>Calendar<span>Meetings, tasks &amp; calls</span></h4>
+                    <div class="nexa-mini-calendar" data-nexa-mini-calendar></div>
                 </section>`;
+
+            this.renderContactMiniCalendar(workspace);
         }
 
         communicationRestrictionAlert() {
@@ -1499,8 +1564,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return `<div class="nexa-record-fact"><dt>${this.escape(label)}</dt><dd>${value}</dd></div>`;
         }
 
-        highlight(label, value, icon) {
-            return `<article class="nexa-highlight"><span class="${icon}" aria-hidden="true"></span><div><p>${this.escape(label)}</p><strong>${this.escape(this.displayValue(value))}</strong></div></article>`;
+        highlight(label, value, icon, state = null) {
+            const stateClass = state ? ` is-${state}` : '';
+            return `<article class="nexa-highlight${stateClass}"><span class="${icon}" aria-hidden="true"></span><div><p>${this.escape(label)}</p><strong>${this.escape(this.displayValue(value))}</strong></div></article>`;
         }
 
         openActivity(type) {
@@ -1914,16 +1980,20 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.callDialog = null;
         }
 
-        openContactEmailComposer() {
+        async openContactEmailComposer() {
+            if (!this.getAcl().checkScope('Email', 'create')) {
+                Espo.Ui.error('You do not have permission to send email.');
+                return;
+            }
+            if (!(await this.hasConnectedMailbox())) {
+                return this.openConnectInboxPrompt();
+            }
+
             const emailAddress = String(this.model.get('emailAddress') || '').trim();
             const contactName = this.model.get('name') || emailAddress;
             const blockedChannels = String(this.model.get('doNotContactChannels') || '')
                 .split(',').map(channel => channel.trim()).filter(Boolean);
 
-            if (!this.getAcl().checkScope('Email', 'create')) {
-                Espo.Ui.error('You do not have permission to send email.');
-                return;
-            }
             if (!this.getAcl().checkField('Contact', 'emailAddress', 'read') || !emailAddress) {
                 Espo.Ui.error('Add an email address to this contact before composing a message.');
                 return;
@@ -1969,6 +2039,222 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     this.model.trigger('after:relate');
                 });
             });
+        }
+
+        async hasConnectedMailbox() {
+            if (this.mailboxConnected) return true;
+            try {
+                const payload = await Espo.Ajax.getRequest('EmailAccount', {
+                    maxSize: 1,
+                    select: 'id',
+                    where: [
+                        {type: 'isTrue', attribute: 'useSmtp'},
+                        {type: 'equals', attribute: 'status', value: 'Active'},
+                    ],
+                });
+                this.mailboxConnected = ((payload && payload.total) || (payload && payload.list || []).length || 0) > 0;
+            } catch (error) {
+                this.mailboxConnected = false;
+            }
+            return this.mailboxConnected;
+        }
+
+        closeConnectInboxDialog() {
+            this.connectInboxDialog?.remove();
+            this.connectInboxDialog = null;
+        }
+
+        // Gate shown instead of compose when the current user has no personal
+        // mailbox connected yet - unlike caller-id verification, every user
+        // (not just admins) self-serves this by connecting their own inbox.
+        openConnectInboxPrompt() {
+            this.closeConnectInboxDialog();
+
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay nexa-connect-inbox-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-connect-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-connect-inbox-title">
+                    <header>
+                        <div><p>Email</p><h2 id="nexa-connect-inbox-title">Keep track of your email activity in your CRM</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-connect-inbox-close aria-label="Close">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <div class="nexa-connect-inbox-intro">
+                        <p>Connect your email account to begin sending emails from your CRM. Messages you send will show your own address, not a shared one.</p>
+                        <ul class="nexa-connect-inbox-benefits">
+                            <li><span class="fas fa-paper-plane" aria-hidden="true"></span>Send emails from your own address</li>
+                            <li><span class="fas fa-user-check" aria-hidden="true"></span>Recipients reply straight to you</li>
+                            <li><span class="fas fa-lock" aria-hidden="true"></span>Your password is stored securely and only used to send</li>
+                        </ul>
+                        <button type="button" class="btn btn-primary btn-block" data-nexa-connect-inbox-start>Connect Inbox</button>
+                    </div>
+                </section>`;
+
+            document.body.append(overlay);
+            this.connectInboxDialog = overlay;
+            overlay.querySelector('[data-nexa-connect-inbox-close]').addEventListener('click', () => this.closeConnectInboxDialog());
+            overlay.addEventListener('mousedown', event => {
+                if (event.target === overlay) this.closeConnectInboxDialog();
+            });
+            overlay.addEventListener('keydown', event => {
+                if (event.key === 'Escape') this.closeConnectInboxDialog();
+            });
+            overlay.querySelector('[data-nexa-connect-inbox-start]').addEventListener('click', () => this.openConnectInboxModal());
+        }
+
+        // The actual connect form. Phase 1 is IMAP/SMTP-only (no Gmail/Microsoft
+        // one-click yet) - collects both incoming and outgoing settings up front,
+        // matching EmailAccount's own fields, and validates via the core
+        // EmailAccount "test connection" action before saving.
+        openConnectInboxModal() {
+            this.closeConnectInboxDialog();
+
+            const currentUserEmail = this.getUser().get('emailAddress') || '';
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay nexa-connect-inbox-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-connect-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-connect-inbox-form-title">
+                    <header>
+                        <div><p>Email</p><h2 id="nexa-connect-inbox-form-title">Set up your email account</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-connect-inbox-close aria-label="Close">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <form data-nexa-connect-inbox-form>
+                        <div data-nexa-connect-inbox-error></div>
+                        <label><span>Email address</span>
+                            <input type="email" class="form-control" name="emailAddress" value="${this.escape(currentUserEmail)}" required>
+                        </label>
+                        <div class="nexa-interaction-grid">
+                            <label><span>Username <small>(optional — defaults to your email)</small></span>
+                                <input type="text" class="form-control" name="username">
+                            </label>
+                            <label><span>Password</span>
+                                <input type="password" class="form-control" name="password" required autocomplete="new-password">
+                            </label>
+                        </div>
+                        <h4 class="nexa-connect-inbox-section-title">Incoming mail (IMAP)</h4>
+                        <div class="nexa-interaction-grid">
+                            <label><span>Server</span>
+                                <input type="text" class="form-control" name="host" placeholder="imap.yourdomain.com" required>
+                            </label>
+                            <label><span>Port</span>
+                                <input type="number" class="form-control" name="port" value="993" required>
+                            </label>
+                        </div>
+                        <label><span>Security</span>
+                            <select class="form-control" name="security">
+                                <option value="SSL" selected>SSL</option>
+                                <option value="TLS">TLS</option>
+                                <option value="">None</option>
+                            </select>
+                        </label>
+                        <h4 class="nexa-connect-inbox-section-title">Outgoing mail (SMTP)</h4>
+                        <div class="nexa-interaction-grid">
+                            <label><span>Server</span>
+                                <input type="text" class="form-control" name="smtpHost" placeholder="smtp.yourdomain.com" required>
+                            </label>
+                            <label><span>Port</span>
+                                <input type="number" class="form-control" name="smtpPort" value="587" required>
+                            </label>
+                        </div>
+                        <label><span>Security</span>
+                            <select class="form-control" name="smtpSecurity">
+                                <option value="TLS" selected>TLS</option>
+                                <option value="SSL">SSL</option>
+                                <option value="">None</option>
+                            </select>
+                        </label>
+                        <footer>
+                            <button type="button" class="btn btn-default" data-nexa-connect-inbox-close>Cancel</button>
+                            <button type="submit" class="btn btn-primary" data-nexa-connect-inbox-submit>
+                                <span class="fas fa-plug" aria-hidden="true"></span> Connect inbox
+                            </button>
+                        </footer>
+                    </form>
+                </section>`;
+
+            document.body.append(overlay);
+            this.connectInboxDialog = overlay;
+            overlay.querySelectorAll('[data-nexa-connect-inbox-close]').forEach(button => {
+                button.addEventListener('click', () => this.closeConnectInboxDialog());
+            });
+            overlay.addEventListener('mousedown', event => {
+                if (event.target === overlay) this.closeConnectInboxDialog();
+            });
+            overlay.addEventListener('keydown', event => {
+                if (event.key === 'Escape') this.closeConnectInboxDialog();
+            });
+
+            const form = overlay.querySelector('[data-nexa-connect-inbox-form]');
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                this.submitConnectInboxForm(form, overlay);
+            });
+        }
+
+        async submitConnectInboxForm(form, overlay) {
+            const errorBox = overlay.querySelector('[data-nexa-connect-inbox-error]');
+            const submitButton = overlay.querySelector('[data-nexa-connect-inbox-submit]');
+            const submitIcon = submitButton.querySelector('span');
+            errorBox.innerHTML = '';
+
+            const data = new FormData(form);
+            const emailAddress = String(data.get('emailAddress') || '').trim();
+            const password = String(data.get('password') || '');
+            const username = String(data.get('username') || '').trim() || emailAddress;
+            const host = String(data.get('host') || '').trim();
+            const port = Number(data.get('port')) || 993;
+            const security = String(data.get('security') || '');
+            const smtpHost = String(data.get('smtpHost') || '').trim();
+            const smtpPort = Number(data.get('smtpPort')) || 587;
+            const smtpSecurity = String(data.get('smtpSecurity') || '');
+
+            if (!emailAddress || !password || !host || !smtpHost) {
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Please fill in your email address, password, and both mail servers.</p>`;
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitIcon.className = 'fas fa-circle-notch fa-spin';
+
+            const suppressGlobalError = {error: xhr => { xhr.errorIsHandled = true; }};
+
+            try {
+                await Espo.Ajax.postRequest('EmailAccount/action/testConnection', {
+                    emailAddress, username, password, host, port, security,
+                }, suppressGlobalError);
+            } catch (error) {
+                submitButton.disabled = false;
+                submitIcon.className = 'fas fa-plug';
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Couldn't connect with those settings. Double-check your password and server details, then try again.</p>`;
+                return;
+            }
+
+            try {
+                const created = await Espo.Ajax.postRequest('EmailAccount', {
+                    name: emailAddress,
+                    emailAddress,
+                    assignedUserId: this.getUser().id,
+                    status: 'Active',
+                    useImap: true,
+                    host, port, security, username, password,
+                    useSmtp: true,
+                    smtpHost, smtpPort, smtpSecurity,
+                    smtpUsername: username,
+                    smtpPassword: password,
+                    smtpAuth: true,
+                }, suppressGlobalError);
+                this.mailboxConnected = true;
+                Espo.Ui.success('Inbox connected.');
+                this.closeConnectInboxDialog();
+                if (created?.id) this.openContactEmailComposer();
+            } catch (error) {
+                submitButton.disabled = false;
+                submitIcon.className = 'fas fa-plug';
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Connection looked good, but saving failed. Please try again.</p>`;
+            }
         }
 
         async openMeetingModal() {
