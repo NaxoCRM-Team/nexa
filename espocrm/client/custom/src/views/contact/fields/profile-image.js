@@ -4,11 +4,25 @@ define('custom:views/contact/fields/profile-image', ['views/fields/image'], Dep 
      * Attachment. Once upload completes, the normal protected image URL takes over.
      */
     return class extends Dep {
+        // Must match GetProfileImage.php's ALLOWED_TYPE_LIST exactly - the
+        // default accept="image/*" let a user pick a format (e.g. .bmp,
+        // .tiff, .heic) that would upload fine but could then never actually
+        // be displayed, since the server-side endpoint that serves it back
+        // rejects anything outside this list.
+        static ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         setup() {
             super.setup();
 
+            // The only reliable signal that an attachment id is actually
+            // persisted server-side (and therefore safe to fetch the
+            // protected preview for) is a real sync - not just "the model
+            // currently holds an id", which is equally true the instant a
+            // fresh, unsaved upload sets it in memory.
+            this.savedAttachmentId = this.model.get(this.idName) || null;
+
             this.listenTo(this.model, 'sync', () => {
                 const id = this.model.get(this.idName);
+                this.savedAttachmentId = id || null;
                 if (id && !this.model.isNew()) {
                     this.loadProtectedPreview(id);
                 }
@@ -26,7 +40,7 @@ define('custom:views/contact/fields/profile-image', ['views/fields/image'], Dep 
             this.$el.addClass('nexa-profile-image-field');
 
             const id = this.model.get(this.idName);
-            if (id && !this.model.isNew()) {
+            if (id && id === this.savedAttachmentId && !this.model.isNew()) {
                 this.loadProtectedPreview(id);
             }
 
@@ -34,12 +48,21 @@ define('custom:views/contact/fields/profile-image', ['views/fields/image'], Dep 
                 return;
             }
 
-            this.$el.find('.attach-file-label')
+            const allowedTypes = this.constructor.ALLOWED_MIME_TYPES;
+            const label = this.$el.find('.attach-file-label')
                 .attr('title', this.translate('Upload profile image', 'labels', 'Contact'))
                 .attr('aria-label', this.translate('Upload profile image', 'labels', 'Contact'));
-            this.$el.find('.attach-file-label .fa-paperclip')
+            label.find('.fa-paperclip')
                 .removeClass('fa-paperclip')
                 .addClass('fa-camera');
+            label.find('input[type="file"]').attr('accept', allowedTypes.join(','));
+
+            if (!this.$el.find('.nexa-profile-image-hint').length) {
+                $('<small>')
+                    .addClass('nexa-profile-image-hint text-muted')
+                    .text('JPG, PNG, GIF or WEBP')
+                    .insertAfter(label);
+            }
 
             if (!this.model.get(this.idName) && !this.localPreviewUrl) {
                 this.renderPlaceholder();
@@ -79,19 +102,39 @@ define('custom:views/contact/fields/profile-image', ['views/fields/image'], Dep 
         }
 
         getEditPreview(name, type, id) {
+            if (this.localPreviewUrl) {
+                return $('<img>')
+                    .attr('src', this.localPreviewUrl)
+                    .attr('alt', this.translate('Contact profile preview', 'labels', 'Contact'))
+                    .addClass('nexa-profile-image-preview')
+                    .get(0).outerHTML;
+            }
+
             return this.getProtectedPreviewHtml(id);
         }
 
         getDetailPreview(name, type, id) {
+            if (this.localPreviewUrl) {
+                return $('<img>')
+                    .attr('src', this.localPreviewUrl)
+                    .attr('alt', this.translate('Contact profile preview', 'labels', 'Contact'))
+                    .addClass('nexa-profile-image-preview')
+                    .get(0).outerHTML;
+            }
+
             return this.getProtectedPreviewHtml(id);
         }
 
         setAttachment(attachment, ui) {
             super.setAttachment(attachment, ui);
 
-            if (!this.model.isNew()) {
-                window.setTimeout(() => this.loadProtectedPreview(attachment.id), 0);
-            }
+            // Don't fetch the protected preview here: this attachment was
+            // just uploaded and isn't associated with the contact server-side
+            // yet (that only happens once the edit form is actually saved) -
+            // GetProfileImage.php correctly 404s until then. The local blob
+            // preview from uploadFile() already shows it immediately; the
+            // model's own 'sync' listener (in setup()) picks up the real
+            // protected preview once a save actually happens.
         }
 
         deleteAttachment() {

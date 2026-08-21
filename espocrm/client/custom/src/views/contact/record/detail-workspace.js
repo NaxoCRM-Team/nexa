@@ -13,6 +13,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 this.closeInteractionDialog();
                 this.closeCallDialog();
                 this.closeCallPickerDialog();
+                this.closeLogEmailDialog();
                 this.callController?.destroy();
                 this.closeNoteDialog();
                 this.closeTaskDialog();
@@ -47,14 +48,20 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 if (this.taskActionsDocumentHandler) {
                     document.removeEventListener('click', this.taskActionsDocumentHandler);
                 }
+                if (this.emailActionsDocumentHandler) {
+                    document.removeEventListener('click', this.emailActionsDocumentHandler);
+                }
                 if (this.activityActionsDocumentHandler) {
                     document.removeEventListener('click', this.activityActionsDocumentHandler);
                 }
                 this.contactActivityObserver?.disconnect();
+                this.accountAssociationObserver?.disconnect();
+                this.stopContactEmailPolling();
                 this.closeNoteDeleteDialog();
                 this.closeMeetingDeleteDialog();
                 this.closeTaskDeleteDialog();
                 this.closeActivityDeleteDialog();
+                this.closeEmailDeleteDialog();
             });
         }
 
@@ -119,6 +126,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.loadContactTasks(shell);
             this.loadContactMeetings(shell);
             this.loadContactCalls(shell);
+            this.loadContactEmails(shell);
+            this.startContactEmailPolling(shell);
             this.loadContactCommunicationActivities(shell);
             this.loadContactPipelineValue(shell);
             if (this.activateActivityAfterRender) {
@@ -133,8 +142,6 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const firstName = this.model.get('firstName') || '';
             const lastName = this.model.get('lastName') || '';
             const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.trim() || name.charAt(0);
-            const account = this.model.get('accountName') || 'No company associated';
-            const title = this.model.get('title');
 
             shell.className = 'nexa-customer-record';
             shell.dataset.nexaContactWorkspace = 'true';
@@ -159,8 +166,21 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                             <h2></h2>
                         </div>
                         <div class="nexa-contact-meta">
-                            <p class="nexa-contact-subtitle"></p>
-                            <button type="button" class="nexa-contact-primary-email" data-nexa-compose-email aria-label="Compose email to this contact"></button>
+                            <div class="nexa-contact-title-company">
+                                <div class="nexa-record-fact nexa-inline-detail nexa-contact-inline-title" data-nexa-inline-detail data-field="title" tabindex="0" aria-label="Job title. Press Enter or use the edit button to update.">
+                                    <span class="nexa-inline-detail-display" data-nexa-inline-display></span>
+                                    <button type="button" class="nexa-inline-detail-trigger" data-nexa-inline-trigger aria-label="Edit job title"><span class="fas fa-pencil-alt" aria-hidden="true"></span></button>
+                                </div>
+                                <span class="nexa-contact-at" aria-hidden="true">at</span>
+                                <div class="nexa-record-fact nexa-inline-detail nexa-contact-inline-account" data-nexa-inline-detail data-field="account" tabindex="0" aria-label="Company. Press Enter or use the edit button to update.">
+                                    <span class="nexa-inline-detail-display" data-nexa-inline-display></span>
+                                    <button type="button" class="nexa-inline-detail-trigger" data-nexa-inline-trigger aria-label="Edit company"><span class="fas fa-pencil-alt" aria-hidden="true"></span></button>
+                                </div>
+                            </div>
+                            <div class="nexa-record-fact nexa-inline-detail nexa-contact-inline-email" data-nexa-inline-detail data-field="emailAddress" tabindex="0" aria-label="Email address. Press Enter or use the edit button to update.">
+                                <span class="nexa-inline-detail-display" data-nexa-inline-display></span>
+                                <button type="button" class="nexa-inline-detail-trigger" data-nexa-inline-trigger aria-label="Edit email address"><span class="fas fa-pencil-alt" aria-hidden="true"></span></button>
+                            </div>
                         </div>
                     </div>
                     <div class="nexa-contact-quick-actions" role="toolbar" aria-label="Contact actions">
@@ -197,6 +217,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         ${this.tabButton('tasks', 'Tasks')}
                         ${this.tabButton('meetings', 'Meetings')}
                         ${this.tabButton('calls', 'Calls')}
+                        ${this.tabButton('email', 'Email')}
                     </nav>
                     <div class="nexa-customer-tab-content">
                         ${this.overviewPanel()}
@@ -205,6 +226,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         ${this.tasksPanel()}
                         ${this.meetingsPanel()}
                         ${this.callsPanel()}
+                        ${this.emailsPanel()}
                     </div>
                 </main>
                 <aside class="nexa-customer-right" aria-label="Contact associations">
@@ -229,8 +251,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 badge.title = channels.length ? `Restricted channels: ${channels.join(', ')}` : 'Do not contact';
                 shell.querySelector('.nexa-contact-heading').appendChild(badge);
             }
-            shell.querySelector('.nexa-contact-subtitle').textContent = [title, account].filter(Boolean).join(' at ');
-            shell.querySelector('.nexa-contact-primary-email').textContent = this.model.get('emailAddress') || 'No email recorded';
+            shell.querySelector('.nexa-contact-inline-title [data-nexa-inline-display]').innerHTML = this.inlineDetailDisplay('title');
+            shell.querySelector('.nexa-contact-inline-account [data-nexa-inline-display]').innerHTML = this.inlineDetailDisplay('account');
+            shell.querySelector('.nexa-contact-inline-email [data-nexa-inline-display]').innerHTML = this.inlineDetailDisplay('emailAddress');
 
             return shell;
         }
@@ -264,6 +287,152 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             nativeRecord.classList.add('nexa-native-record-host');
             this.observeContactActivity(activity);
+            this.addAssociationPanelCollapseToggles(associations);
+            this.bindRelocatedPanelActions(associations);
+            this.observeAccountAssociationRows(associations);
+        }
+
+        // Espo's native row markup puts an avatar-less name link in one
+        // cell and a floating View/Edit/Unlink dropdown wherever it lands
+        // in the row - fine for a full-width page, cluttered in a sidebar
+        // card. This adds a small initials avatar and relocates that
+        // dropdown to sit right next to the name (styled as a quiet "..."
+        // that only shows on hover, in crm-workflows.css), reusing the
+        // real native menu rather than rebuilding View/Edit/Unlink.
+        // The accounts list re-renders its rows whenever the collection
+        // changes (a create/unlink), which replaces the DOM Espo just
+        // rendered - a plain one-time pass here would only survive until
+        // that next render, so this re-applies it via the same debounced
+        // MutationObserver pattern already used for the Activities feed
+        // (see observeContactActivity above).
+        styleAccountAssociationRows(associations) {
+            const panel = associations?.querySelector(':scope > .panel[data-name="accounts"]');
+            if (!panel) return;
+
+            panel.querySelectorAll('.panel-body table.table tbody tr').forEach(row => {
+                const nameCell = row.querySelector('td:first-child');
+                if (!nameCell || nameCell.dataset.nexaStyled === 'true') return;
+                nameCell.dataset.nexaStyled = 'true';
+
+                const name = (nameCell.querySelector('a')?.textContent || nameCell.textContent || '').trim();
+                const initials = name.split(/\s+/).filter(Boolean).slice(0, 2)
+                    .map(word => word.charAt(0).toUpperCase()).join('') || '?';
+
+                const avatar = document.createElement('span');
+                avatar.className = 'nexa-association-avatar';
+                avatar.textContent = initials;
+                avatar.setAttribute('aria-hidden', 'true');
+                nameCell.prepend(avatar);
+
+                const kebab = row.querySelector('.list-row-buttons');
+                if (kebab) {
+                    kebab.classList.add('nexa-association-kebab');
+                    nameCell.append(kebab);
+                }
+            });
+        }
+
+        observeAccountAssociationRows(associations) {
+            const panel = associations?.querySelector(':scope > .panel[data-name="accounts"] .panel-body');
+            if (!panel) return;
+
+            this.styleAccountAssociationRows(associations);
+            this.accountAssociationObserver?.disconnect();
+            this.accountAssociationObserver = new MutationObserver(() => {
+                window.clearTimeout(this.accountAssociationStyleTimer);
+                this.accountAssociationStyleTimer = window.setTimeout(
+                    () => this.styleAccountAssociationRows(associations), 25
+                );
+            });
+            this.accountAssociationObserver.observe(panel, {childList: true, subtree: true});
+        }
+
+        // These native panels render permanently expanded (Espo has no
+        // built-in per-panel inline collapse - only an all-or-nothing
+        // "hide from the tab" preference elsewhere). Sitting five of them in
+        // a narrow sidebar makes that a real cost, so this adds the same
+        // kind of chevron toggle already used for Notes/Tasks/etc. cards.
+        // Inserted as the first child of .panel-heading, ahead of both the
+        // actions-container and the title's own click-to-refresh span, so
+        // it never intercepts their clicks.
+        addAssociationPanelCollapseToggles(associations) {
+            // Accounts stays permanently expanded by design - a Contact
+            // usually has exactly one, and it's the identity of who you're
+            // looking at, not optional detail to tuck away.
+            associations?.querySelectorAll(':scope > .panel:not([data-name="accounts"])').forEach(panel => {
+                if (panel.querySelector('[data-nexa-panel-collapse]')) return;
+                const heading = panel.querySelector(':scope > .panel-heading');
+                if (!heading) return;
+
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'nexa-panel-collapse-toggle';
+                toggle.dataset.nexaPanelCollapse = 'true';
+                toggle.setAttribute('aria-expanded', 'true');
+                toggle.setAttribute('aria-label', `Collapse ${panel.dataset.name || 'panel'}`);
+                toggle.innerHTML = '<span class="fas fa-chevron-down" aria-hidden="true"></span>';
+                heading.prepend(toggle);
+            });
+        }
+
+        // views/record/panels-container binds 'click .action' as a jQuery
+        // delegated handler on its OWN root element (`bottom`, above) at
+        // render time. Moving a panel out of that root via .append() takes
+        // it out of that root's DOM subtree, so those clicks stop bubbling
+        // to a listener that's still bound to `bottom` - every header
+        // action (+, Select, the "..." menu) on a relocated panel silently
+        // does nothing. This replicates that same handler, scoped to the
+        // panels' new home instead, by resolving the same panel view
+        // (`this.getView('bottom')` is the panels-container itself for a
+        // view extending crm:views/contact/record/detail) and calling the
+        // same Espo.Utils.handleAction() dispatch it would have.
+        toggleAssociationPanelCollapse(panel, toggle) {
+            if (!panel || !toggle) return;
+            const collapsed = panel.classList.toggle('is-collapsed');
+            toggle.setAttribute('aria-expanded', String(!collapsed));
+            toggle.setAttribute('aria-label', `${collapsed ? 'Expand' : 'Collapse'} ${panel.dataset.name || 'panel'}`);
+        }
+
+        bindRelocatedPanelActions(associations) {
+            if (!associations || associations.dataset.nexaActionsBound === 'true') return;
+            associations.dataset.nexaActionsBound = 'true';
+
+            associations.addEventListener('click', event => {
+                const collapseToggle = event.target.closest('[data-nexa-panel-collapse]');
+                if (collapseToggle) {
+                    this.toggleAssociationPanelCollapse(collapseToggle.closest('.panel'), collapseToggle);
+                    return;
+                }
+
+                const actionEl = event.target.closest('.action');
+                if (!actionEl) return;
+
+                // Clicking the title itself expands/collapses too (when
+                // this panel supports it) - the chevron alone is too small
+                // a target for what's naturally the main click area.
+                if (actionEl.dataset.action === 'refresh' && actionEl.closest('.panel-title')) {
+                    const panel = actionEl.closest('.panel');
+                    const toggle = panel?.querySelector('[data-nexa-panel-collapse]');
+                    if (toggle) this.toggleAssociationPanelCollapse(panel, toggle);
+                }
+
+                const panelName = actionEl.dataset.panel || actionEl.getAttribute('data-panel');
+                if (!panelName) return;
+
+                const panelsContainerView = this.getView('bottom');
+                const panelView = panelsContainerView?.getView(panelName);
+                if (!panelView) return;
+
+                let actionItems;
+                if (typeof panelView.getButtonList === 'function' && typeof panelView.getActionList === 'function') {
+                    actionItems = [...panelView.getButtonList(), ...panelView.getActionList()];
+                }
+
+                Espo.Utils.handleAction(panelView, event, actionEl, {
+                    actionItems,
+                    className: 'panel-action',
+                });
+            });
         }
 
         configureActionMenu(recordButtons, actions) {
@@ -365,64 +534,129 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             }
         }
 
-        computeActivityTrend(workspace) {
-            const activities = this.collectContactActivities(workspace);
-            const months = [];
-            const now = new Date();
-            for (let offset = 5; offset >= 0; offset -= 1) {
-                const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-                months.push({
-                    key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-                    label: new Intl.DateTimeFormat(undefined, {month: 'short'}).format(date),
-                    count: 0,
+        // One combined list of this contact's meetings/tasks/calls, each
+        // reduced to a single calendar date - tasks use their due date
+        // (dateEnd), meetings/calls use their start date (dateStart).
+        // Colors match EspoCRM's own core Calendar module exactly
+        // (Meeting/Call/Task), so this reads as "the same calendar", just
+        // scoped to one contact instead of a user's whole schedule.
+        contactCalendarEvents() {
+            const events = [];
+
+            (this.contactMeetingRecords || []).forEach(meeting => {
+                if (!meeting.dateStart) return;
+                events.push({
+                    id: meeting.id, type: 'Meeting', name: meeting.name || 'Untitled meeting',
+                    date: this.contactNoteDate(meeting.dateStart), rawDate: meeting.dateStart, status: meeting.status,
+                    icon: 'far fa-calendar', color: '#558BBD',
                 });
-            }
-            const byKey = new Map(months.map(month => [month.key, month]));
-            activities.forEach(activity => {
-                if (!activity.date) return;
-                const key = `${activity.date.getFullYear()}-${String(activity.date.getMonth() + 1).padStart(2, '0')}`;
-                const month = byKey.get(key);
-                if (month) month.count += 1;
             });
-            return months;
+            (this.contactCallRecords || []).forEach(call => {
+                if (!call.dateStart) return;
+                events.push({
+                    id: call.id, type: 'Call', name: call.name || 'Untitled call',
+                    date: this.contactNoteDate(call.dateStart), rawDate: call.dateStart, status: call.status,
+                    icon: 'fas fa-phone', color: '#CF605D',
+                });
+            });
+            (this.contactTaskRecords || []).forEach(task => {
+                if (!task.dateEnd) return;
+                events.push({
+                    id: task.id, type: 'Task', name: task.name || 'Untitled task',
+                    date: this.contactNoteDate(task.dateEnd), rawDate: task.dateEnd, status: task.status,
+                    icon: 'far fa-check-square', color: '#70c173',
+                    overdue: this.taskIsOverdue(task),
+                });
+            });
+
+            return events.filter(event => event.date);
         }
 
-        roundedTopBarPath(x, yTop, width, height, radius) {
-            const r = Math.max(0, Math.min(radius, width / 2, height));
-            const yBottom = yTop + height;
-            return `M${x},${yBottom} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + width - r},${yTop} Q${x + width},${yTop} ${x + width},${yTop + r} L${x + width},${yBottom} Z`;
+        dateKey(date) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         }
 
-        activityTrendChart(months) {
-            const width = 340;
-            const height = 120;
-            const chartBottom = 90;
-            const chartTop = 16;
-            const barMaxHeight = chartBottom - chartTop;
-            const max = Math.max(1, ...months.map(month => month.count));
-            const bandWidth = width / months.length;
-            const barWidth = Math.min(24, bandWidth - 12);
-            const lastIndex = months.length - 1;
+        // "0:00" on a parsed date almost always means the source field had no
+        // time component (an all-day task due-date, for instance) - skip the
+        // time prefix for those, same as a real calendar would for an all-day item.
+        formatEventTime(date) {
+            if (date.getHours() === 0 && date.getMinutes() === 0) return '';
+            return new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false}).format(date);
+        }
 
-            const bars = months.map((month, index) => {
-                const x = index * bandWidth + (bandWidth - barWidth) / 2;
-                const barHeight = month.count === 0 ? 2 : Math.max(4, Math.round((month.count / max) * barMaxHeight));
-                const y = chartBottom - barHeight;
-                const isCurrent = index === lastIndex;
-                const fill = isCurrent ? '#117668' : '#8590a0';
-                const description = `${month.label}: ${month.count} ${month.count === 1 ? 'activity' : 'activities'}`;
-                return `<g tabindex="0" role="img" aria-label="${this.escape(description)}">
-                    <title>${this.escape(description)}</title>
-                    <path d="${this.roundedTopBarPath(x, y, barWidth, barHeight, 4)}" fill="${fill}"></path>
-                    ${isCurrent ? `<text x="${x + barWidth / 2}" y="${y - 7}" text-anchor="middle" class="nexa-activity-trend-value">${month.count}</text>` : ''}
-                    <text x="${x + barWidth / 2}" y="${chartBottom + 17}" text-anchor="middle" class="nexa-activity-trend-label">${this.escape(month.label)}</text>
-                </g>`;
-            }).join('');
+        renderContactMiniCalendar(workspace) {
+            const container = workspace?.querySelector('[data-nexa-mini-calendar]');
+            if (!container) return;
 
-            return `<svg class="nexa-activity-trend-svg" viewBox="0 0 ${width} ${height}" role="group" aria-label="Activity count per month, last 6 months" focusable="false">
-                <line x1="0" y1="${chartBottom}" x2="${width}" y2="${chartBottom}" class="nexa-activity-trend-baseline"></line>
-                ${bars}
-            </svg>`;
+            this.contactCalendarMonth = this.contactCalendarMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+            const monthDate = this.contactCalendarMonth;
+            const events = this.contactCalendarEvents();
+
+            const byDay = new Map();
+            events.forEach(event => {
+                const key = this.dateKey(event.date);
+                if (!byDay.has(key)) byDay.set(key, []);
+                byDay.get(key).push(event);
+            });
+
+            const monthLabel = new Intl.DateTimeFormat(undefined, {month: 'long', year: 'numeric'}).format(monthDate);
+            const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+            // Monday-first week, matching EspoCRM's own Calendar module.
+            const startOffset = (firstOfMonth.getDay() + 6) % 7;
+            const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+            const todayKey = this.dateKey(new Date());
+            const maxVisiblePerDay = 4;
+
+            const cells = [];
+            for (let index = 0; index < startOffset; index += 1) {
+                cells.push('<div class="nexa-mini-calendar-cell is-outside" aria-hidden="true"></div>');
+            }
+            for (let day = 1; day <= daysInMonth; day += 1) {
+                const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), day);
+                const key = this.dateKey(date);
+                const dayEvents = (byDay.get(key) || []).sort((left, right) => left.date.getTime() - right.date.getTime());
+                const isToday = key === todayKey;
+
+                const visible = dayEvents.slice(0, maxVisiblePerDay);
+                const overflowCount = dayEvents.length - visible.length;
+                const pills = visible.map(event => {
+                    const time = this.formatEventTime(event.date);
+                    return `
+                        <a class="nexa-mini-calendar-pill${event.overdue ? ' is-overdue' : ''}" style="background:${event.color}"
+                            href="#${event.type}/view/${event.id}" title="${this.escape(event.name)}">${time ? `${this.escape(time)} ` : ''}${this.escape(event.name)}</a>`;
+                }).join('');
+                const overflowLabel = overflowCount > 0
+                    ? `<span class="nexa-mini-calendar-more">+${overflowCount} more</span>`
+                    : '';
+
+                cells.push(`
+                    <div class="nexa-mini-calendar-cell${isToday ? ' is-today' : ''}">
+                        <span class="nexa-mini-calendar-daynum">${day}</span>
+                        <div class="nexa-mini-calendar-pills">${pills}${overflowLabel}</div>
+                    </div>`);
+            }
+
+            const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+            container.innerHTML = `
+                <div class="nexa-mini-calendar-header">
+                    <button type="button" class="btn btn-default btn-icon btn-sm" data-nexa-calendar-prev aria-label="Previous month"><span class="fas fa-chevron-left" aria-hidden="true"></span></button>
+                    <strong>${this.escape(monthLabel)}</strong>
+                    <button type="button" class="btn btn-default btn-icon btn-sm" data-nexa-calendar-next aria-label="Next month"><span class="fas fa-chevron-right" aria-hidden="true"></span></button>
+                </div>
+                <div class="nexa-mini-calendar-weekdays">
+                    ${weekdayLabels.map(label => `<span>${label}</span>`).join('')}
+                </div>
+                <div class="nexa-mini-calendar-grid">${cells.join('')}</div>`;
+
+            container.querySelector('[data-nexa-calendar-prev]').addEventListener('click', () => {
+                this.contactCalendarMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
+                this.renderContactMiniCalendar(workspace);
+            });
+            container.querySelector('[data-nexa-calendar-next]').addEventListener('click', () => {
+                this.contactCalendarMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1);
+                this.renderContactMiniCalendar(workspace);
+            });
         }
 
         renderContactOverviewInsights(workspace = null) {
@@ -454,18 +688,18 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         ? `${this.formatCurrencyAmount(this.contactOpenPipelineValue, this.contactOpenPipelineCurrency)} · ${this.contactOpenPipelineCount} open`
                         : 'No open deals';
 
-            const trend = this.computeActivityTrend(workspace);
-
             container.innerHTML = `
                 <div class="nexa-highlight-grid nexa-overview-next-grid">
-                    ${this.highlight('Open tasks', openTasksValue, 'far fa-check-square')}
+                    ${this.highlight('Open tasks', openTasksValue, 'far fa-check-square', overdueCount ? 'danger' : null)}
                     ${this.highlight('Next meeting', nextMeetingValue, 'far fa-calendar')}
                     ${this.highlight('Open pipeline', pipelineValue, 'fas fa-sack-dollar')}
                 </div>
-                <section class="nexa-context-card nexa-activity-trend-card">
-                    <h4>Activity trend<span>Last 6 months</span></h4>
-                    ${this.activityTrendChart(trend)}
+                <section class="nexa-context-card nexa-mini-calendar-card">
+                    <h4>Calendar<span>Meetings, tasks &amp; calls</span></h4>
+                    <div class="nexa-mini-calendar" data-nexa-mini-calendar></div>
                 </section>`;
+
+            this.renderContactMiniCalendar(workspace);
         }
 
         communicationRestrictionAlert() {
@@ -598,32 +832,35 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return `<section class="nexa-customer-tab-panel nexa-notes-workspace" data-nexa-tab-panel="meetings" role="tabpanel" hidden>
                 <div class="nexa-notes-toolbar">
                     <div class="nexa-notes-toolbar-primary">
-                        <label class="nexa-notes-search"><span class="sr-only">Search meetings</span><input type="search" data-nexa-meetings-search placeholder="Search meetings"><span class="fas fa-search" aria-hidden="true"></span></label>
+                        <div class="nexa-notes-toolbar-search-column">
+                            <label class="nexa-notes-search"><span class="sr-only">Search meetings</span><input type="search" data-nexa-meetings-search placeholder="Search meetings"><span class="fas fa-search" aria-hidden="true"></span></label>
+                            <button type="button" class="btn btn-default nexa-notes-filter-toggle" data-nexa-meetings-filter-toggle aria-expanded="false"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
+                            <div class="nexa-notes-filters" data-nexa-meetings-filters hidden>
+                                <div class="nexa-note-filter" data-nexa-meeting-period-filter>
+                                    <button type="button" data-nexa-meeting-period-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-meeting-period-label>All time</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu nexa-note-period-menu" data-nexa-meeting-period-menu hidden>
+                                        ${this.notePeriodOptions().map(([value, label]) => `<button type="button" data-nexa-meeting-period="${value}">${label}</button>`).join('')}
+                                    </div>
+                                </div>
+                                <div class="nexa-note-filter" data-nexa-meeting-owner-filter>
+                                    <button type="button" data-nexa-meeting-owner-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-meeting-owner-label>Activity assigned to</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu nexa-note-owner-menu" data-nexa-meeting-owner-menu hidden>
+                                        <label><span class="fas fa-search" aria-hidden="true"></span><input type="search" data-nexa-meeting-owner-search placeholder="Search owners" aria-label="Search owners"></label>
+                                        <div data-nexa-meeting-owner-options></div>
+                                    </div>
+                                </div>
+                                <div class="nexa-note-filter" data-nexa-meeting-status-filter>
+                                    <button type="button" data-nexa-meeting-status-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-meeting-status-label>Meeting outcome</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu" data-nexa-meeting-status-menu hidden>
+                                        ${this.filterCheckboxMenu('meeting-status', this.meetingStatusFilterOptions())}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="nexa-notes-toolbar-actions">
                             <button type="button" class="nexa-collapse-notes" data-nexa-collapse-meetings>Collapse all <span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <button type="button" class="btn btn-default" data-nexa-create-meeting><span class="far fa-calendar" aria-hidden="true"></span><span>Schedule a meeting</span></button>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-default nexa-notes-filter-toggle" data-nexa-meetings-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
-                    <div class="nexa-notes-filters" data-nexa-meetings-filters>
-                        <div class="nexa-note-filter" data-nexa-meeting-period-filter>
-                            <button type="button" data-nexa-meeting-period-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-meeting-period-label>All time</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <div class="nexa-note-filter-menu nexa-note-period-menu" data-nexa-meeting-period-menu hidden>
-                                ${this.notePeriodOptions().map(([value, label]) => `<button type="button" data-nexa-meeting-period="${value}">${label}</button>`).join('')}
-                            </div>
-                        </div>
-                        <div class="nexa-note-filter" data-nexa-meeting-owner-filter>
-                            <button type="button" data-nexa-meeting-owner-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-meeting-owner-label>Activity assigned to</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <div class="nexa-note-filter-menu nexa-note-owner-menu" data-nexa-meeting-owner-menu hidden>
-                                <label><span class="fas fa-search" aria-hidden="true"></span><input type="search" data-nexa-meeting-owner-search placeholder="Search owners" aria-label="Search owners"></label>
-                                <div data-nexa-meeting-owner-options></div>
-                            </div>
-                        </div>
-                        <div class="nexa-note-filter" data-nexa-meeting-status-filter>
-                            <button type="button" data-nexa-meeting-status-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-meeting-status-label>Meeting outcome</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <div class="nexa-note-filter-menu" data-nexa-meeting-status-menu hidden>
-                                ${this.filterCheckboxMenu('meeting-status', this.meetingStatusFilterOptions())}
-                            </div>
+                            <button type="button" class="btn btn-default btn-sm" data-nexa-log-meeting><span class="fas fa-clipboard-list" aria-hidden="true"></span><span>Log meeting</span></button>
+                            <button type="button" class="btn btn-default btn-sm" data-nexa-create-meeting><span class="far fa-calendar" aria-hidden="true"></span><span>Schedule a meeting</span></button>
                         </div>
                     </div>
                 </div>
@@ -640,32 +877,36 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return `<section class="nexa-customer-tab-panel nexa-notes-workspace" data-nexa-tab-panel="calls" role="tabpanel" hidden>
                 <div class="nexa-notes-toolbar">
                     <div class="nexa-notes-toolbar-primary">
-                        <label class="nexa-notes-search"><span class="sr-only">Search calls</span><input type="search" data-nexa-callrecords-search placeholder="Search calls"><span class="fas fa-search" aria-hidden="true"></span></label>
+                        <div class="nexa-notes-toolbar-search-column">
+                            <label class="nexa-notes-search"><span class="sr-only">Search calls</span><input type="search" data-nexa-callrecords-search placeholder="Search calls"><span class="fas fa-search" aria-hidden="true"></span></label>
+                            <button type="button" class="btn btn-default nexa-notes-filter-toggle" data-nexa-callrecords-filter-toggle aria-expanded="false"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
+                            <div class="nexa-notes-filters" data-nexa-callrecords-filters hidden>
+                                <div class="nexa-note-filter" data-nexa-callrecord-period-filter>
+                                    <button type="button" data-nexa-callrecord-period-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-callrecord-period-label>All time</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu nexa-note-period-menu" data-nexa-callrecord-period-menu hidden>
+                                        ${this.notePeriodOptions().map(([value, label]) => `<button type="button" data-nexa-callrecord-period="${value}">${label}</button>`).join('')}
+                                    </div>
+                                </div>
+                                <div class="nexa-note-filter" data-nexa-callrecord-owner-filter>
+                                    <button type="button" data-nexa-callrecord-owner-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-callrecord-owner-label>Activity assigned to</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu nexa-note-owner-menu" data-nexa-callrecord-owner-menu hidden>
+                                        <label><span class="fas fa-search" aria-hidden="true"></span><input type="search" data-nexa-callrecord-owner-search placeholder="Search owners" aria-label="Search owners"></label>
+                                        <div data-nexa-callrecord-owner-options></div>
+                                    </div>
+                                </div>
+                                <div class="nexa-note-filter" data-nexa-callrecord-status-filter>
+                                    <button type="button" data-nexa-callrecord-status-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-callrecord-status-label>Call outcome</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu" data-nexa-callrecord-status-menu hidden>
+                                        ${this.filterCheckboxMenu('callrecord-status', this.meetingStatusFilterOptions())}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="nexa-notes-toolbar-actions">
                             <button type="button" class="nexa-collapse-notes" data-nexa-collapse-callrecords>Collapse all <span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <button type="button" class="btn btn-default" data-nexa-create-callrecord><span class="fas fa-phone" aria-hidden="true"></span><span>Schedule a call</span></button>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-default nexa-notes-filter-toggle" data-nexa-callrecords-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
-                    <div class="nexa-notes-filters" data-nexa-callrecords-filters>
-                        <div class="nexa-note-filter" data-nexa-callrecord-period-filter>
-                            <button type="button" data-nexa-callrecord-period-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-callrecord-period-label>All time</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <div class="nexa-note-filter-menu nexa-note-period-menu" data-nexa-callrecord-period-menu hidden>
-                                ${this.notePeriodOptions().map(([value, label]) => `<button type="button" data-nexa-callrecord-period="${value}">${label}</button>`).join('')}
-                            </div>
-                        </div>
-                        <div class="nexa-note-filter" data-nexa-callrecord-owner-filter>
-                            <button type="button" data-nexa-callrecord-owner-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-callrecord-owner-label>Activity assigned to</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <div class="nexa-note-filter-menu nexa-note-owner-menu" data-nexa-callrecord-owner-menu hidden>
-                                <label><span class="fas fa-search" aria-hidden="true"></span><input type="search" data-nexa-callrecord-owner-search placeholder="Search owners" aria-label="Search owners"></label>
-                                <div data-nexa-callrecord-owner-options></div>
-                            </div>
-                        </div>
-                        <div class="nexa-note-filter" data-nexa-callrecord-status-filter>
-                            <button type="button" data-nexa-callrecord-status-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-callrecord-status-label>Call outcome</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
-                            <div class="nexa-note-filter-menu" data-nexa-callrecord-status-menu hidden>
-                                ${this.filterCheckboxMenu('callrecord-status', this.meetingStatusFilterOptions())}
-                            </div>
+                            <button type="button" class="btn btn-default btn-sm" data-nexa-log-callrecord><span class="fas fa-clipboard-list" aria-hidden="true"></span><span>Log call</span></button>
+                            <button type="button" class="btn btn-default btn-sm" data-nexa-create-callrecord><span class="fas fa-calendar-plus" aria-hidden="true"></span><span>Schedule a call</span></button>
+                            <button type="button" class="btn btn-primary btn-sm" data-nexa-make-callrecord><span class="fas fa-phone" aria-hidden="true"></span><span>Make call</span></button>
                         </div>
                     </div>
                 </div>
@@ -676,6 +917,52 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     </div>
                 </section>
             </section>`;
+        }
+
+        emailsPanel() {
+            return `<section class="nexa-customer-tab-panel nexa-notes-workspace" data-nexa-tab-panel="email" role="tabpanel" hidden>
+                <div class="nexa-notes-toolbar">
+                    <div class="nexa-notes-toolbar-primary">
+                        <div class="nexa-notes-toolbar-search-column">
+                            <label class="nexa-notes-search"><span class="sr-only">Search emails</span><input type="search" data-nexa-emailrecords-search placeholder="Search emails"><span class="fas fa-search" aria-hidden="true"></span></label>
+                            <button type="button" class="btn btn-default nexa-notes-filter-toggle" data-nexa-emailrecords-filter-toggle aria-expanded="false"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
+                            <div class="nexa-notes-filters" data-nexa-emailrecords-filters hidden>
+                                <div class="nexa-note-filter" data-nexa-emailrecord-period-filter>
+                                    <button type="button" data-nexa-emailrecord-period-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-emailrecord-period-label>All time</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu nexa-note-period-menu" data-nexa-emailrecord-period-menu hidden>
+                                        ${this.notePeriodOptions().map(([value, label]) => `<button type="button" data-nexa-emailrecord-period="${value}">${label}</button>`).join('')}
+                                    </div>
+                                </div>
+                                <div class="nexa-note-filter" data-nexa-emailrecord-status-filter>
+                                    <button type="button" data-nexa-emailrecord-status-toggle aria-haspopup="true" aria-expanded="false"><span data-nexa-emailrecord-status-label>Email status</span><span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                                    <div class="nexa-note-filter-menu" data-nexa-emailrecord-status-menu hidden>
+                                        ${this.filterCheckboxMenu('emailrecord-status', this.emailStatusFilterOptions())}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="nexa-notes-toolbar-actions">
+                            <button type="button" class="nexa-collapse-notes" data-nexa-collapse-emailrecords>Collapse all <span class="fas fa-caret-down" aria-hidden="true"></span></button>
+                            <button type="button" class="btn btn-default btn-sm" data-nexa-log-emailrecord><span class="fas fa-clipboard-list" aria-hidden="true"></span><span>Log email</span></button>
+                            <button type="button" class="btn btn-default btn-sm" data-nexa-create-emailrecord><span class="far fa-envelope" aria-hidden="true"></span><span>Compose email</span></button>
+                            <button type="button" class="nexa-email-reconnect-btn" data-nexa-manage-inbox hidden><span class="fas fa-triangle-exclamation" aria-hidden="true"></span><span data-nexa-manage-inbox-label>Reconnect inbox</span></button>
+                        </div>
+                    </div>
+                </div>
+                <section class="nexa-contact-notes" aria-labelledby="nexa-contact-emails-title">
+                    <h4 id="nexa-contact-emails-title" class="sr-only">Email</h4><span class="sr-only" data-nexa-emailrecord-count>0 emails</span>
+                    <div class="nexa-contact-note-list" data-nexa-emailrecord-list aria-live="polite">
+                        <div class="nexa-note-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading emails</span></div>
+                    </div>
+                </section>
+            </section>`;
+        }
+
+        emailStatusFilterOptions() {
+            return [
+                ['Draft', 'Draft'], ['Sending', 'Sending'], ['Sent', 'Sent'],
+                ['Archived', 'Archived'], ['Failed', 'Failed'],
+            ];
         }
 
         notePeriodOptions() {
@@ -726,8 +1013,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             shell.querySelectorAll('[data-nexa-contact-action]').forEach(button => {
                 button.addEventListener('click', () => this.openActivity(button.dataset.nexaContactAction));
             });
-            shell.querySelector('[data-nexa-compose-email]')?.addEventListener('click', () => {
-                this.openContactEmailComposer();
+            // Delegated (not a one-time direct bind): the email display gets
+            // its innerHTML replaced on every inline-edit save (see
+            // inlineDetailDisplay('emailAddress')), which would otherwise
+            // silently drop a directly-bound listener on the old node.
+            shell.addEventListener('click', event => {
+                if (event.target.closest('[data-nexa-compose-email]')) this.openContactEmailComposer();
             });
             shell.querySelector('[data-nexa-more-actions]')?.addEventListener('click', event => {
                 event.stopPropagation();
@@ -751,6 +1042,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.bindContactTasksWorkspace(shell);
             this.bindContactMeetingsWorkspace(shell);
             this.bindContactCallsWorkspace(shell);
+            this.bindContactEmailsWorkspace(shell);
             this.bindContactActivityWorkspace(shell);
         }
 
@@ -780,6 +1072,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 const allCollapsed = activities.length > 0 && activities.every(activity => {
                     if (activity.type === 'task' && activity.taskRef) return this.collapsedContactTaskIds?.has(activity.taskRef.id);
                     if (activity.type === 'meeting' && activity.meetingRef) return this.collapsedContactMeetingIds?.has(activity.meetingRef.id);
+                    if (activity.type === 'email' && activity.emailRef) return this.collapsedContactEmailIds?.has(activity.emailRef.id);
+                    if (activity.type === 'call' && activity.callRef) return this.collapsedContactCallIds?.has(activity.callRef.id);
                     return this.collapsedContactActivityIds.has(activity.id);
                 });
                 activities.forEach(activity => {
@@ -789,6 +1083,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     } else if (activity.type === 'meeting' && activity.meetingRef) {
                         if (allCollapsed) this.collapsedContactMeetingIds?.delete(activity.meetingRef.id);
                         else this.collapsedContactMeetingIds?.add(activity.meetingRef.id);
+                    } else if (activity.type === 'email' && activity.emailRef) {
+                        if (allCollapsed) this.collapsedContactEmailIds?.delete(activity.emailRef.id);
+                        else this.collapsedContactEmailIds?.add(activity.emailRef.id);
+                    } else if (activity.type === 'call' && activity.callRef) {
+                        if (allCollapsed) this.collapsedContactCallIds?.delete(activity.callRef.id);
+                        else this.collapsedContactCallIds?.add(activity.callRef.id);
                     } else if (allCollapsed) {
                         this.collapsedContactActivityIds.delete(activity.id);
                     } else {
@@ -1280,6 +1580,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
         inlineDetailConfig(field) {
             const fields = {
+                emailAddress: {inputType: 'email', maxLength: 255},
+                title: {inputType: 'text', maxLength: 100},
+                account: {type: 'link', entityType: 'Account'},
                 website: {inputType: 'text', maxLength: 255},
                 phoneNumber: {inputType: 'tel', maxLength: 50},
                 address: {
@@ -1316,7 +1619,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const trigger = row.querySelector('[data-nexa-inline-trigger]');
             const originalValue = config.type === 'address'
                 ? Object.fromEntries(config.fields.map(name => [name, this.model.get(name) ?? '']))
-                : this.model.get(field) ?? '';
+                : config.type === 'link'
+                    ? {id: this.model.get(`${field}Id`) ?? '', name: this.model.get(`${field}Name`) ?? ''}
+                    : this.model.get(field) ?? '';
             const editor = this.createInlineDetailEditor(field, config, originalValue);
 
             this.inlineDetailState = {
@@ -1382,6 +1687,80 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 return editor;
             }
 
+            if (config.type === 'link') {
+                const editor = document.createElement('div');
+                editor.className = 'nexa-inline-link-editor';
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'form-control nexa-inline-detail-input';
+                input.value = value.name || '';
+                input.autocomplete = 'off';
+                input.setAttribute('aria-label', `Edit ${field}`);
+                input.placeholder = `Search ${config.entityType}`;
+
+                const results = document.createElement('div');
+                results.className = 'nexa-inline-link-results';
+                results.hidden = true;
+
+                editor.dataset.selectedId = value.id || '';
+                editor.dataset.selectedName = value.name || '';
+
+                let searchToken = 0;
+                const runSearch = async query => {
+                    const token = ++searchToken;
+                    if (!query) {
+                        results.hidden = true;
+                        results.innerHTML = '';
+                        return;
+                    }
+                    let list = [];
+                    try {
+                        const payload = await Espo.Ajax.getRequest(config.entityType, {
+                            select: 'id,name',
+                            where: [{type: 'contains', attribute: 'name', value: query}],
+                            maxSize: 8,
+                            orderBy: 'name',
+                        });
+                        list = Array.isArray(payload?.list) ? payload.list : [];
+                    } catch (error) {
+                        list = [];
+                    }
+                    if (token !== searchToken) return;
+                    if (!list.length) {
+                        results.innerHTML = `<div class="nexa-inline-link-empty">No ${this.escape(config.entityType.toLowerCase())} found</div>`;
+                        results.hidden = false;
+                        return;
+                    }
+                    results.innerHTML = list.map(item =>
+                        `<button type="button" data-nexa-inline-link-option data-id="${this.escape(item.id)}" data-name="${this.escape(item.name)}">${this.escape(item.name)}</button>`
+                    ).join('');
+                    results.hidden = false;
+                };
+
+                let debounce = null;
+                input.addEventListener('input', () => {
+                    editor.dataset.selectedId = '';
+                    editor.dataset.selectedName = '';
+                    window.clearTimeout(debounce);
+                    const query = input.value.trim();
+                    debounce = window.setTimeout(() => runSearch(query), 250);
+                });
+                results.addEventListener('click', event => {
+                    const option = event.target.closest('[data-nexa-inline-link-option]');
+                    if (!option) return;
+                    editor.dataset.selectedId = option.dataset.id;
+                    editor.dataset.selectedName = option.dataset.name;
+                    input.value = option.dataset.name;
+                    results.hidden = true;
+                    results.innerHTML = '';
+                    input.focus();
+                });
+
+                editor.append(input, results);
+                return editor;
+            }
+
             const options = config.type === 'dropdown'
                 ? this.getMetadata().get(`entityDefs.Contact.fields.${field}.options`) || []
                 : [];
@@ -1414,6 +1793,17 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     .map(input => [input.dataset.addressField, input.value.trim()]));
             }
 
+            if (state.config.type === 'link') {
+                const selectedId = state.editor.dataset.selectedId || '';
+                const typed = state.editor.querySelector('input')?.value.trim() || '';
+                if (selectedId) return {id: selectedId, name: state.editor.dataset.selectedName || ''};
+                if (!typed) return {id: '', name: ''};
+                // Typed text with no matching result picked - nothing valid
+                // to save, so leave the link exactly as it was rather than
+                // storing a name with no real account behind it.
+                return state.originalValue;
+            }
+
             return state.editor.value.trim();
         }
 
@@ -1435,7 +1825,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             try {
                 const attributes = state.config.type === 'address'
                     ? Object.fromEntries(Object.entries(value).map(([name, item]) => [name, item || null]))
-                    : {[state.field]: value || null};
+                    : state.config.type === 'link'
+                        ? {[`${state.field}Id`]: value.id || null, [`${state.field}Name`]: value.id ? value.name : null}
+                        : {[state.field]: value || null};
                 await this.model.save(attributes, {patch: true});
                 if (!state.row.isConnected) {
                     this.inlineDetailState = null;
@@ -1450,6 +1842,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             } catch (error) {
                 if (state.config.type === 'address') {
                     this.model.set(state.originalValue, {silent: true});
+                } else if (state.config.type === 'link') {
+                    this.model.set({
+                        [`${state.field}Id`]: state.originalValue.id || null,
+                        [`${state.field}Name`]: state.originalValue.name || null,
+                    }, {silent: true});
                 } else {
                     this.model.set(state.field, state.originalValue, {silent: true});
                 }
@@ -1473,6 +1870,13 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         inlineDetailDisplay(field) {
+            if (field === 'emailAddress') {
+                const value = this.model.get('emailAddress');
+                return value
+                    ? `<button type="button" class="nexa-contact-primary-email" data-nexa-compose-email aria-label="Compose email to this contact">${this.escape(value)}</button>`
+                    : '<span class="nexa-record-empty">No email recorded</span>';
+            }
+            if (field === 'account') return this.escape(this.model.get('accountName') || 'No company associated');
             if (field === 'website') return this.externalLink(this.model.get(field));
             if (field === 'address') return this.escape(this.displayValue(this.formatAddress()));
             if (field === 'leadStatus') return this.leadStatusBadge();
@@ -1499,8 +1903,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return `<div class="nexa-record-fact"><dt>${this.escape(label)}</dt><dd>${value}</dd></div>`;
         }
 
-        highlight(label, value, icon) {
-            return `<article class="nexa-highlight"><span class="${icon}" aria-hidden="true"></span><div><p>${this.escape(label)}</p><strong>${this.escape(this.displayValue(value))}</strong></div></article>`;
+        highlight(label, value, icon, state = null) {
+            const stateClass = state ? ` is-${state}` : '';
+            return `<article class="nexa-highlight${stateClass}"><span class="${icon}" aria-hidden="true"></span><div><p>${this.escape(label)}</p><strong>${this.escape(this.displayValue(value))}</strong></div></article>`;
         }
 
         openActivity(type) {
@@ -1914,16 +2319,20 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.callDialog = null;
         }
 
-        openContactEmailComposer() {
+        async openContactEmailComposer({subject = ''} = {}) {
+            if (!this.getAcl().checkScope('Email', 'create')) {
+                Espo.Ui.error('You do not have permission to send email.');
+                return;
+            }
+            if (!(await this.hasConnectedMailbox())) {
+                return this.openConnectInboxPrompt();
+            }
+
             const emailAddress = String(this.model.get('emailAddress') || '').trim();
             const contactName = this.model.get('name') || emailAddress;
             const blockedChannels = String(this.model.get('doNotContactChannels') || '')
                 .split(',').map(channel => channel.trim()).filter(Boolean);
 
-            if (!this.getAcl().checkScope('Email', 'create')) {
-                Espo.Ui.error('You do not have permission to send email.');
-                return;
-            }
             if (!this.getAcl().checkField('Contact', 'emailAddress', 'read') || !emailAddress) {
                 Espo.Ui.error('Add an email address to this contact before composing a message.');
                 return;
@@ -1938,6 +2347,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 to: emailAddress,
                 nameHash: {[emailAddress]: contactName},
             };
+            if (this.connectedMailboxAddress) {
+                attributes.from = this.connectedMailboxAddress;
+            }
+            if (subject) {
+                attributes.name = subject;
+            }
             if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
                 attributes.parentType = 'Contact';
                 attributes.parentId = this.model.id;
@@ -1964,11 +2379,572 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 view.render();
                 view.notify(false);
                 this.listenToOnce(view, 'after:save', () => {
+                    this.loadContactEmails();
                     this.model.trigger('update-related:emails');
                     this.model.trigger('update-related:activities');
                     this.model.trigger('after:relate');
                 });
             });
+        }
+
+        replyToContactEmail(email) {
+            const subjectLine = email.subject || email.name || 'your message';
+            const prefixed = /^re:/i.test(subjectLine) ? subjectLine : `Re: ${subjectLine}`;
+            return this.openContactEmailComposer({subject: prefixed});
+        }
+
+        // For an email that happened outside the CRM (sent from a personal
+        // client, or received before this contact connected any mailbox) -
+        // records it as a plain Archived Email, same shape a real fetched
+        // message ends up in, without going through the compose modal's
+        // send action at all.
+        closeLogEmailDialog() {
+            this.logEmailDialog?.remove();
+            this.logEmailDialog = null;
+        }
+
+        openLogEmailDialog() {
+            if (!this.getAcl().checkScope('Email', 'create')) {
+                Espo.Ui.error('You do not have permission to log email.');
+                return;
+            }
+            const contactEmail = String(this.model.get('emailAddress') || '').trim();
+            if (!contactEmail) {
+                Espo.Ui.error('Add an email address to this contact before logging a message.');
+                return;
+            }
+            this.closeLogEmailDialog();
+
+            const now = new Date();
+            const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-log-email-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-log-email-title">
+                    <header>
+                        <div><p>Email</p><h2 id="nexa-log-email-title">Log an email</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-log-email-close aria-label="Close"><span class="fas fa-times" aria-hidden="true"></span></button>
+                    </header>
+                    <form data-nexa-log-email-form>
+                        <div data-nexa-log-email-error></div>
+                        <label><span>Direction</span>
+                            <div class="nexa-log-email-direction" role="radiogroup">
+                                <label><input type="radio" name="direction" value="sent" checked> I sent this</label>
+                                <label><input type="radio" name="direction" value="received"> I received this</label>
+                            </div>
+                        </label>
+                        <label><span>Subject</span>
+                            <input type="text" class="form-control" data-nexa-log-email-subject required>
+                        </label>
+                        <div class="nexa-interaction-grid">
+                            <label><span>Date &amp; time</span>
+                                <input type="datetime-local" class="form-control" data-nexa-log-email-date value="${localDateTime}" required>
+                            </label>
+                        </div>
+                        <label><span>Message</span>
+                            <textarea class="form-control" data-nexa-log-email-body rows="6"></textarea>
+                        </label>
+                        <footer>
+                            <button type="button" class="btn btn-default" data-nexa-log-email-cancel>Cancel</button>
+                            <button type="submit" class="btn btn-primary" data-nexa-log-email-save><span class="fas fa-check" aria-hidden="true"></span><span>Log email</span></button>
+                        </footer>
+                    </form>
+                </section>`;
+
+            document.body.append(overlay);
+            this.logEmailDialog = overlay;
+            const close = () => this.closeLogEmailDialog();
+            overlay.querySelector('[data-nexa-log-email-close]').addEventListener('click', close);
+            overlay.querySelector('[data-nexa-log-email-cancel]').addEventListener('click', close);
+            overlay.addEventListener('mousedown', event => { if (event.target === overlay) close(); });
+            overlay.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+            overlay.querySelector('[data-nexa-log-email-form]').addEventListener('submit', event => {
+                event.preventDefault();
+                this.saveLoggedEmail(overlay, contactEmail);
+            });
+            window.setTimeout(() => overlay.querySelector('[data-nexa-log-email-subject]')?.focus(), 0);
+        }
+
+        async saveLoggedEmail(overlay, contactEmail) {
+            const form = overlay.querySelector('[data-nexa-log-email-form]');
+            const button = overlay.querySelector('[data-nexa-log-email-save]');
+            const errorBox = overlay.querySelector('[data-nexa-log-email-error]');
+            if (button.dataset.saving === 'true') return;
+            errorBox.innerHTML = '';
+
+            const direction = form.querySelector('input[name="direction"]:checked')?.value || 'sent';
+            const subject = overlay.querySelector('[data-nexa-log-email-subject]').value.trim();
+            const dateValue = overlay.querySelector('[data-nexa-log-email-date]').value;
+            const body = overlay.querySelector('[data-nexa-log-email-body]').value.trim();
+
+            if (!subject || !dateValue) {
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Subject and date are required.</p>`;
+                return;
+            }
+
+            const myAddress = this.connectedMailboxAddress || String(this.getUser().get('emailAddress') || '').trim();
+            const contactName = this.model.get('name') || contactEmail;
+            const attributes = {
+                name: subject,
+                status: 'Archived',
+                dateSent: new Date(dateValue).toISOString().slice(0, 19).replace('T', ' '),
+                isHtml: false,
+                body: body ? this.escape(body).replace(/\n/g, '<br>') : '',
+                from: direction === 'sent' ? (myAddress || undefined) : contactEmail,
+                to: direction === 'sent' ? contactEmail : (myAddress || undefined),
+                nameHash: {[contactEmail]: contactName},
+            };
+            if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
+                attributes.parentType = 'Contact';
+                attributes.parentId = this.model.id;
+                attributes.parentName = contactName;
+            } else {
+                attributes.parentType = 'Account';
+                attributes.parentId = this.model.get('accountId');
+                attributes.parentName = this.model.get('accountName');
+                attributes.accountId = this.model.get('accountId');
+                attributes.accountName = this.model.get('accountName');
+            }
+
+            button.dataset.saving = 'true';
+            button.disabled = true;
+            try {
+                await Espo.Ajax.postRequest('Email', attributes);
+                this.closeLogEmailDialog();
+                this.loadContactEmails();
+                this.model.trigger('update-related:emails');
+                this.model.trigger('update-related:activities');
+                Espo.Ui.success('Email logged');
+            } catch (saveError) {
+                errorBox.innerHTML = `<p class="nexa-interaction-error">The email could not be logged. Check the fields and try again.</p>`;
+                button.dataset.saving = 'false';
+                button.disabled = false;
+            }
+        }
+
+        async hasConnectedMailbox() {
+            if (this.mailboxConnected) return true;
+
+            // Must match the user's CURRENT profile email specifically, not
+            // just "any connected mailbox exists" - found the hard way: if a
+            // user changes their profile email after connecting a mailbox
+            // for the old one, compose silently defaults From to the new
+            // (unconnected) address, which has no matching EmailAccount and
+            // falls through to the shared system SMTP with no visible error.
+            const profileEmail = String(this.getUser().get('emailAddress') || '').trim();
+            if (!profileEmail) {
+                this.mailboxConnected = false;
+                this.connectedMailboxAddress = null;
+                return false;
+            }
+
+            try {
+                const payload = await Espo.Ajax.getRequest('EmailAccount', {
+                    maxSize: 1,
+                    select: 'id,emailAddress,useImap',
+                    where: [
+                        {type: 'isTrue', attribute: 'useSmtp'},
+                        {type: 'equals', attribute: 'status', value: 'Active'},
+                        {type: 'equals', attribute: 'emailAddress', value: profileEmail},
+                    ],
+                });
+                const record = (payload && payload.list || [])[0];
+                this.mailboxConnected = !!record;
+                this.connectedMailboxAddress = record ? record.emailAddress : null;
+                this.mailboxImapConnected = record ? record.useImap === true : false;
+            } catch (error) {
+                this.mailboxConnected = false;
+                this.connectedMailboxAddress = null;
+                this.mailboxImapConnected = false;
+            }
+            return this.mailboxConnected;
+        }
+
+        // openConnectInboxModal() is normally gated behind hasConnectedMailbox()
+        // (only shown when nothing is connected yet), so there was no way for
+        // a user to voluntarily re-run it - e.g. to pick up a broader OAuth
+        // scope granted after the first connection. This toolbar link always
+        // opens it directly, connected or not; the OAuth finish step itself
+        // updates the existing mailbox connection in place rather than
+        // duplicating it.
+        // Only surfaced when something actually needs the user's attention -
+        // not connected at all, or connected for sending but not fetching
+        // (e.g. an OAuth mailbox connected before IMAP scope was added).
+        // Fully working stays quiet; no permanent "Connected as..." fixture
+        // taking up toolbar space once there's nothing left to do.
+        async refreshInboxConnectionNotice(shell) {
+            const button = shell.querySelector('[data-nexa-manage-inbox]');
+            const label = shell.querySelector('[data-nexa-manage-inbox-label]');
+            if (!button || !label) return;
+            const connected = await this.hasConnectedMailbox();
+            const needsAttention = !connected || !this.mailboxImapConnected;
+            button.hidden = !needsAttention;
+            label.textContent = connected ? 'Reconnect inbox' : 'Connect inbox';
+        }
+
+        closeConnectInboxDialog() {
+            this.connectInboxDialog?.remove();
+            this.connectInboxDialog = null;
+        }
+
+        // Gate shown instead of compose when the current user has no personal
+        // mailbox connected yet - unlike caller-id verification, every user
+        // (not just admins) self-serves this by connecting their own inbox.
+        openConnectInboxPrompt() {
+            this.closeConnectInboxDialog();
+
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay nexa-connect-inbox-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-connect-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-connect-inbox-title">
+                    <header>
+                        <div><p>Email</p><h2 id="nexa-connect-inbox-title">Keep track of your email activity in your CRM</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-connect-inbox-close aria-label="Close">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <div class="nexa-connect-inbox-intro">
+                        <p>Connect your email account to begin sending emails from your CRM. Messages you send will show your own address, not a shared one.</p>
+                        <ul class="nexa-connect-inbox-benefits">
+                            <li><span class="fas fa-paper-plane" aria-hidden="true"></span>Send emails from your own address</li>
+                            <li><span class="fas fa-user-check" aria-hidden="true"></span>Recipients reply straight to you</li>
+                            <li><span class="fas fa-lock" aria-hidden="true"></span>Your password is stored securely and only used to send</li>
+                        </ul>
+                        <button type="button" class="btn btn-primary btn-block" data-nexa-connect-inbox-start>Connect Inbox</button>
+                    </div>
+                </section>`;
+
+            document.body.append(overlay);
+            this.connectInboxDialog = overlay;
+            overlay.querySelector('[data-nexa-connect-inbox-close]').addEventListener('click', () => this.closeConnectInboxDialog());
+            overlay.addEventListener('mousedown', event => {
+                if (event.target === overlay) this.closeConnectInboxDialog();
+            });
+            overlay.addEventListener('keydown', event => {
+                if (event.key === 'Escape') this.closeConnectInboxDialog();
+            });
+            overlay.querySelector('[data-nexa-connect-inbox-start]').addEventListener('click', () => this.openConnectInboxModal());
+        }
+
+        wireConnectInboxDialogChrome(overlay) {
+            overlay.querySelectorAll('[data-nexa-connect-inbox-close]').forEach(button => {
+                button.addEventListener('click', () => this.closeConnectInboxDialog());
+            });
+            overlay.addEventListener('mousedown', event => {
+                if (event.target === overlay) this.closeConnectInboxDialog();
+            });
+            overlay.addEventListener('keydown', event => {
+                if (event.key === 'Escape') this.closeConnectInboxDialog();
+            });
+        }
+
+        async getMailOAuthProviders() {
+            if (this.mailOAuthProviders) return this.mailOAuthProviders;
+            try {
+                const payload = await Espo.Ajax.getRequest('Nexa/mail/oauth/providers');
+                this.mailOAuthProviders = (payload?.list || []).map(item => item.key);
+            } catch (error) {
+                this.mailOAuthProviders = [];
+            }
+            return this.mailOAuthProviders;
+        }
+
+        detectMailProvider(email) {
+            const domain = String(email).split('@')[1]?.toLowerCase() || '';
+            if (['gmail.com', 'googlemail.com'].includes(domain)) return 'google';
+            if (['outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'office365.com'].includes(domain)) return 'microsoft';
+            return null;
+        }
+
+        // Always connects the user's CURRENT profile email specifically -
+        // no free-text entry here. Found the hard way why this matters: if a
+        // user could connect an address different from their profile email,
+        // hasConnectedMailbox()'s required match (see its docblock) would
+        // never recognize that connection as valid, forever re-prompting
+        // despite a real, working connection existing. Tying them together
+        // makes "connected address" and "profile email" the same question,
+        // so the two can never drift apart. Recognized Gmail/Microsoft
+        // domains branch to one-click OAuth (if configured); everything
+        // else falls through to the manual IMAP/SMTP form.
+        async openConnectInboxModal() {
+            this.closeConnectInboxDialog();
+
+            const email = String(this.getUser().get('emailAddress') || '').trim();
+            if (!email) {
+                Espo.Ui.error('Add an email address to your profile before connecting an inbox.');
+                return;
+            }
+
+            const provider = this.detectMailProvider(email);
+
+            if (!provider) {
+                // Not a recognized Gmail/Microsoft domain - only case
+                // where a password-based IMAP/SMTP form makes sense.
+                return this.openConnectInboxManualForm(email);
+            }
+
+            const configured = await this.getMailOAuthProviders();
+            if (configured.includes(provider)) {
+                this.openConnectInboxOAuthChoice(email, provider);
+            } else {
+                // Recognized Gmail/Microsoft address, but one-click isn't
+                // set up yet - never fall through to a password form here.
+                // Google/Microsoft mostly reject plain-password IMAP/SMTP
+                // now anyway, so that would just fail confusingly.
+                this.openConnectInboxProviderUnavailable(email, provider);
+            }
+        }
+
+        openConnectInboxProviderUnavailable(email, provider) {
+            this.closeConnectInboxDialog();
+
+            const label = provider === 'google' ? 'Google' : 'Microsoft';
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay nexa-connect-inbox-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-connect-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-connect-inbox-unavailable-title">
+                    <header>
+                        <div><p>Email</p><h2 id="nexa-connect-inbox-unavailable-title">${this.escape(email)}</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-connect-inbox-close aria-label="Close">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <div class="nexa-connect-inbox-intro">
+                        <p>${this.escape(label)} sign-in isn't set up for this workspace yet. Ask your admin to enable it, or use a different email address.</p>
+                        <button type="button" class="btn btn-default btn-block" data-nexa-connect-inbox-close>Close</button>
+                    </div>
+                </section>`;
+
+            document.body.append(overlay);
+            this.connectInboxDialog = overlay;
+            this.wireConnectInboxDialogChrome(overlay);
+        }
+
+        openConnectInboxOAuthChoice(email, provider) {
+            this.closeConnectInboxDialog();
+
+            const label = provider === 'google' ? 'Google' : 'Microsoft';
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay nexa-connect-inbox-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-connect-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-connect-inbox-oauth-title">
+                    <header>
+                        <div><p>Email</p><h2 id="nexa-connect-inbox-oauth-title">${this.escape(email)}</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-connect-inbox-close aria-label="Close">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <div class="nexa-connect-inbox-intro">
+                        <div data-nexa-connect-inbox-error></div>
+                        <p>This looks like a ${this.escape(label)} address. Connect it with one click — no password needed.</p>
+                        <button type="button" class="btn btn-primary btn-block" data-nexa-connect-inbox-oauth-continue>
+                            Continue with ${this.escape(label)}
+                        </button>
+                        <button type="button" class="btn btn-link btn-block" data-nexa-connect-inbox-manual-fallback>
+                            Use a different sign-in method
+                        </button>
+                    </div>
+                </section>`;
+
+            document.body.append(overlay);
+            this.connectInboxDialog = overlay;
+            this.wireConnectInboxDialogChrome(overlay);
+            overlay.querySelector('[data-nexa-connect-inbox-oauth-continue]')
+                .addEventListener('click', () => this.startMailOAuthConnect(provider, overlay));
+            overlay.querySelector('[data-nexa-connect-inbox-manual-fallback]')
+                .addEventListener('click', () => this.openConnectInboxManualForm(email));
+        }
+
+        async startMailOAuthConnect(provider, overlay) {
+            const errorBox = overlay.querySelector('[data-nexa-connect-inbox-error]');
+            const suppressGlobalError = {error: xhr => { xhr.errorIsHandled = true; }};
+            errorBox.innerHTML = '';
+
+            let authorizationUrl;
+            try {
+                const result = await Espo.Ajax.postRequest(`Nexa/mail/oauth/${provider}/start`, {}, suppressGlobalError);
+                authorizationUrl = result.authorizationUrl;
+            } catch (error) {
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Couldn't start the connection. Please try again.</p>`;
+                return;
+            }
+
+            const popup = window.open(authorizationUrl, 'nexa-mail-oauth', 'width=520,height=640');
+            if (!popup) {
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Your browser blocked the popup. Please allow popups for this site and try again.</p>`;
+                return;
+            }
+
+            const handleMessage = async event => {
+                if (event.origin !== window.location.origin) return;
+                if (!event.data || event.data.source !== 'nexa-mail-oauth') return;
+                window.removeEventListener('message', handleMessage);
+
+                if (!event.data.state) {
+                    errorBox.innerHTML = `<p class="nexa-interaction-error">Connection was cancelled.</p>`;
+                    return;
+                }
+
+                try {
+                    const finished = await Espo.Ajax.postRequest(`Nexa/mail/oauth/${provider}/finish`, {state: event.data.state}, suppressGlobalError);
+                    this.mailboxConnected = true;
+                    this.connectedMailboxAddress = finished?.emailAddress || null;
+                    Espo.Ui.success('Inbox connected.');
+                    this.closeConnectInboxDialog();
+                    this.openContactEmailComposer();
+                } catch (error) {
+                    errorBox.innerHTML = `<p class="nexa-interaction-error">Couldn't finish connecting your inbox. Please try again.</p>`;
+                }
+            };
+            window.addEventListener('message', handleMessage);
+        }
+
+        // The manual IMAP/SMTP form - used for any address that isn't a
+        // recognized/configured OAuth provider, or when the user opts out
+        // of one-click connect. Validates via the core EmailAccount "test
+        // connection" action before saving.
+        openConnectInboxManualForm(prefillEmail = '') {
+            this.closeConnectInboxDialog();
+
+            const currentUserEmail = prefillEmail || this.getUser().get('emailAddress') || '';
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-interaction-overlay nexa-connect-inbox-overlay';
+            overlay.innerHTML = `
+                <section class="nexa-interaction-dialog nexa-connect-inbox-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-connect-inbox-form-title">
+                    <header>
+                        <div><p>Email</p><h2 id="nexa-connect-inbox-form-title">Set up your email account</h2></div>
+                        <button type="button" class="nexa-dialog-close" data-nexa-connect-inbox-close aria-label="Close">
+                            <span class="fas fa-times" aria-hidden="true"></span>
+                        </button>
+                    </header>
+                    <form data-nexa-connect-inbox-form>
+                        <div data-nexa-connect-inbox-error></div>
+                        <label><span>Email address <small>(your profile email — change it in your profile to connect a different address)</small></span>
+                            <input type="email" class="form-control" name="emailAddress" value="${this.escape(currentUserEmail)}" readonly required>
+                        </label>
+                        <div class="nexa-interaction-grid">
+                            <label><span>Username <small>(optional — defaults to your email)</small></span>
+                                <input type="text" class="form-control" name="username">
+                            </label>
+                            <label><span>Password</span>
+                                <input type="password" class="form-control" name="password" required autocomplete="new-password">
+                            </label>
+                        </div>
+                        <h4 class="nexa-connect-inbox-section-title">Incoming mail (IMAP)</h4>
+                        <div class="nexa-interaction-grid">
+                            <label><span>Server</span>
+                                <input type="text" class="form-control" name="host" placeholder="imap.yourdomain.com" required>
+                            </label>
+                            <label><span>Port</span>
+                                <input type="number" class="form-control" name="port" value="993" required>
+                            </label>
+                        </div>
+                        <label><span>Security</span>
+                            <select class="form-control" name="security">
+                                <option value="SSL" selected>SSL</option>
+                                <option value="TLS">TLS</option>
+                                <option value="">None</option>
+                            </select>
+                        </label>
+                        <h4 class="nexa-connect-inbox-section-title">Outgoing mail (SMTP)</h4>
+                        <div class="nexa-interaction-grid">
+                            <label><span>Server</span>
+                                <input type="text" class="form-control" name="smtpHost" placeholder="smtp.yourdomain.com" required>
+                            </label>
+                            <label><span>Port</span>
+                                <input type="number" class="form-control" name="smtpPort" value="587" required>
+                            </label>
+                        </div>
+                        <label><span>Security</span>
+                            <select class="form-control" name="smtpSecurity">
+                                <option value="TLS" selected>TLS</option>
+                                <option value="SSL">SSL</option>
+                                <option value="">None</option>
+                            </select>
+                        </label>
+                        <footer>
+                            <button type="button" class="btn btn-default" data-nexa-connect-inbox-close>Cancel</button>
+                            <button type="submit" class="btn btn-primary" data-nexa-connect-inbox-submit>
+                                <span class="fas fa-plug" aria-hidden="true"></span> Connect inbox
+                            </button>
+                        </footer>
+                    </form>
+                </section>`;
+
+            document.body.append(overlay);
+            this.connectInboxDialog = overlay;
+            this.wireConnectInboxDialogChrome(overlay);
+
+            const form = overlay.querySelector('[data-nexa-connect-inbox-form]');
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                this.submitConnectInboxForm(form, overlay);
+            });
+        }
+
+        async submitConnectInboxForm(form, overlay) {
+            const errorBox = overlay.querySelector('[data-nexa-connect-inbox-error]');
+            const submitButton = overlay.querySelector('[data-nexa-connect-inbox-submit]');
+            const submitIcon = submitButton.querySelector('span');
+            errorBox.innerHTML = '';
+
+            const data = new FormData(form);
+            const emailAddress = String(data.get('emailAddress') || '').trim();
+            const password = String(data.get('password') || '');
+            const username = String(data.get('username') || '').trim() || emailAddress;
+            const host = String(data.get('host') || '').trim();
+            const port = Number(data.get('port')) || 993;
+            const security = String(data.get('security') || '');
+            const smtpHost = String(data.get('smtpHost') || '').trim();
+            const smtpPort = Number(data.get('smtpPort')) || 587;
+            const smtpSecurity = String(data.get('smtpSecurity') || '');
+
+            if (!emailAddress || !password || !host || !smtpHost) {
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Please fill in your email address, password, and both mail servers.</p>`;
+                return;
+            }
+
+            submitButton.disabled = true;
+            submitIcon.className = 'fas fa-circle-notch fa-spin';
+
+            const suppressGlobalError = {error: xhr => { xhr.errorIsHandled = true; }};
+
+            try {
+                await Espo.Ajax.postRequest('EmailAccount/action/testConnection', {
+                    emailAddress, username, password, host, port, security,
+                }, suppressGlobalError);
+            } catch (error) {
+                submitButton.disabled = false;
+                submitIcon.className = 'fas fa-plug';
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Couldn't connect with those settings. Double-check your password and server details, then try again.</p>`;
+                return;
+            }
+
+            try {
+                const created = await Espo.Ajax.postRequest('EmailAccount', {
+                    name: emailAddress,
+                    emailAddress,
+                    assignedUserId: this.getUser().id,
+                    status: 'Active',
+                    useImap: true,
+                    host, port, security, username, password,
+                    useSmtp: true,
+                    smtpHost, smtpPort, smtpSecurity,
+                    smtpUsername: username,
+                    smtpPassword: password,
+                    smtpAuth: true,
+                }, suppressGlobalError);
+                this.mailboxConnected = true;
+                this.connectedMailboxAddress = emailAddress;
+                Espo.Ui.success('Inbox connected.');
+                this.closeConnectInboxDialog();
+                if (created?.id) this.openContactEmailComposer();
+            } catch (error) {
+                submitButton.disabled = false;
+                submitIcon.className = 'fas fa-plug';
+                errorBox.innerHTML = `<p class="nexa-interaction-error">Connection looked good, but saving failed. Please try again.</p>`;
+            }
         }
 
         async openMeetingModal() {
@@ -2013,6 +2989,56 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             }
         }
 
+        // For a meeting that already happened outside a scheduled slot -
+        // same native Meeting form and relate-link plumbing as "Schedule a
+        // meeting", just defaulted to already-occurred (Held, now) instead
+        // of a future Planned slot. Mirrors openLogCallDialog().
+        async openLogMeetingModal() {
+            if (!this.getAcl().checkScope('Meeting', 'create')) {
+                Espo.Ui.error('You do not have permission to log meetings.');
+                return;
+            }
+
+            const contactName = this.model.get('name') || 'Contact';
+            const now = this.getDateTime().getNow(1);
+            const attributes = {
+                assignedUserId: this.getUser().id,
+                assignedUserName: this.getUser().get('name'),
+                status: 'Held',
+                dateStart: now,
+                dateEnd: now,
+            };
+            if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
+                attributes.parentType = 'Contact';
+                attributes.parentId = this.model.id;
+                attributes.parentName = contactName;
+            } else {
+                attributes.parentType = 'Account';
+                attributes.parentId = this.model.get('accountId');
+                attributes.parentName = this.model.get('accountName');
+            }
+
+            const meetingLink = this.model.defs?.links?.meetings;
+            const relate = meetingLink?.foreign ? {model: this.model, link: meetingLink.foreign} : null;
+
+            try {
+                const helper = new RecordModalHelper();
+                await helper.showCreate(this, {
+                    entityType: 'Meeting',
+                    relate,
+                    attributes,
+                    focusForCreate: true,
+                    afterSave: () => {
+                        this.model.trigger('update-related:meetings');
+                        this.model.trigger('after:relate');
+                        this.loadContactMeetings(this.element.querySelector('[data-nexa-contact-workspace]'));
+                    },
+                });
+            } catch (error) {
+                Espo.Ui.error(this.translate('Error occurred'));
+            }
+        }
+
         async openScheduleCallModal() {
             if (!this.getAcl().checkScope('Call', 'create')) {
                 Espo.Ui.error('You do not have permission to schedule calls.');
@@ -2025,6 +3051,57 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 assignedUserName: this.getUser().get('name'),
                 status: 'Planned',
                 direction: 'Outbound',
+            };
+            if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
+                attributes.parentType = 'Contact';
+                attributes.parentId = this.model.id;
+                attributes.parentName = contactName;
+            } else {
+                attributes.parentType = 'Account';
+                attributes.parentId = this.model.get('accountId');
+                attributes.parentName = this.model.get('accountName');
+            }
+
+            const callLink = this.model.defs?.links?.calls;
+            const relate = callLink?.foreign ? {model: this.model, link: callLink.foreign} : null;
+
+            try {
+                const helper = new RecordModalHelper();
+                await helper.showCreate(this, {
+                    entityType: 'Call',
+                    relate,
+                    attributes,
+                    focusForCreate: true,
+                    afterSave: () => {
+                        this.model.trigger('update-related:calls');
+                        this.model.trigger('after:relate');
+                        this.loadContactCalls(this.element.querySelector('[data-nexa-contact-workspace]'));
+                    },
+                });
+            } catch (error) {
+                Espo.Ui.error(this.translate('Error occurred'));
+            }
+        }
+
+        // For a call that already happened outside a live CRM dial (or
+        // before this integration existed) - same native Call form and
+        // relate-link plumbing as "Schedule a call", just defaulted to
+        // already-occurred (Held, now) instead of a future Planned slot.
+        async openLogCallDialog() {
+            if (!this.getAcl().checkScope('Call', 'create')) {
+                Espo.Ui.error('You do not have permission to log calls.');
+                return;
+            }
+
+            const contactName = this.model.get('name') || 'Contact';
+            const now = this.getDateTime().getNow(1);
+            const attributes = {
+                assignedUserId: this.getUser().id,
+                assignedUserName: this.getUser().get('name'),
+                status: 'Held',
+                direction: 'Outbound',
+                dateStart: now,
+                dateEnd: now,
             };
             if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
                 attributes.parentType = 'Contact';
@@ -2596,6 +3673,33 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 });
             });
 
+            (this.contactEmailRecords || []).forEach(email => {
+                const subjectLine = email.subject || email.name || 'No subject';
+                const {rawDate} = this.emailDisplayInfo(email);
+                activities.push({
+                    id: `email-${email.id}`,
+                    type: 'email',
+                    title: subjectLine,
+                    text: `${subjectLine} ${email.fromString || ''} ${email.to || ''}`,
+                    date: this.contactNoteDate(rawDate),
+                    href: '',
+                    emailRef: email,
+                });
+            });
+
+            (this.contactCallRecords || []).forEach(call => {
+                const text = [call.name, call.assignedUserName, call.status].filter(Boolean).join(' ');
+                activities.push({
+                    id: `call-${call.id}`,
+                    type: 'call',
+                    title: call.name,
+                    text,
+                    date: this.contactNoteDate(call.dateStart || call.createdAt),
+                    href: '',
+                    callRef: call,
+                });
+            });
+
             (this.contactNoteRecords || []).forEach(note => {
                 const preview = this.contactNotePreview(note.content);
                 activities.push({
@@ -2723,6 +3827,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     ${group.activities.map(activity => {
                         if (activity.type === 'task' && activity.taskRef) return this.contactTaskCard(activity.taskRef, false, 'activity');
                         if (activity.type === 'meeting' && activity.meetingRef) return this.contactMeetingCard(activity.meetingRef, false, 'activity');
+                        if (activity.type === 'email' && activity.emailRef) return this.contactEmailCard(activity.emailRef, false, 'activity');
+                        if (activity.type === 'call' && activity.callRef) return this.contactCallCard(activity.callRef, false, 'activity');
                         return this.contactActivityCard(activity);
                     }).join('')}
                 </section>`).join('');
@@ -2734,6 +3840,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const allCollapsed = activities.length > 0 && activities.every(activity => {
                 if (activity.type === 'task' && activity.taskRef) return this.collapsedContactTaskIds?.has(activity.taskRef.id);
                 if (activity.type === 'meeting' && activity.meetingRef) return this.collapsedContactMeetingIds?.has(activity.meetingRef.id);
+                if (activity.type === 'email' && activity.emailRef) return this.collapsedContactEmailIds?.has(activity.emailRef.id);
+                if (activity.type === 'call' && activity.callRef) return this.collapsedContactCallIds?.has(activity.callRef.id);
                 return this.collapsedContactActivityIds.has(activity.id);
             });
             if (count) count.textContent = `${activities.length} ${activities.length === 1 ? 'activity' : 'activities'}`;
@@ -2778,6 +3886,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             document.addEventListener('click', this.activityActionsDocumentHandler);
             this.bindContactTaskList(list, 'activity');
             this.bindContactMeetingList(list, 'activity');
+            this.bindContactEmailList(list, 'activity');
+            this.bindContactCallList(list, 'activity');
             this.bindContactActivityComments(list);
         }
 
@@ -5072,6 +6182,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.collapsedContactMeetingIds = this.collapsedContactMeetingIds || new Set();
 
             shell.querySelector('[data-nexa-create-meeting]')?.addEventListener('click', () => this.openMeetingModal());
+            shell.querySelector('[data-nexa-log-meeting]')?.addEventListener('click', () => this.openLogMeetingModal());
             shell.querySelector('[data-nexa-collapse-meetings]')?.addEventListener('click', () => {
                 const visible = this.filteredContactMeetings();
                 const allCollapsed = visible.length > 0 && visible.every(meeting => this.collapsedContactMeetingIds.has(meeting.id));
@@ -6033,6 +7144,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.collapsedContactCallIds = this.collapsedContactCallIds || new Set();
 
             shell.querySelector('[data-nexa-create-callrecord]')?.addEventListener('click', () => this.openScheduleCallModal());
+            shell.querySelector('[data-nexa-make-callrecord]')?.addEventListener('click', () => this.openClickToCall());
+            shell.querySelector('[data-nexa-log-callrecord]')?.addEventListener('click', () => this.openLogCallDialog());
             shell.querySelector('[data-nexa-collapse-callrecords]')?.addEventListener('click', () => {
                 const visible = this.filteredContactCalls();
                 const allCollapsed = visible.length > 0 && visible.every(call => this.collapsedContactCallIds.has(call.id));
@@ -6968,6 +8081,683 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 if (state.trigger) state.trigger.hidden = false;
             }
             this.callFieldEditState = null;
+        }
+
+        // ---- Email tab -----------------------------------------------
+        // Deliberately view-only (no inline-edit/pin/delete like Calls) -
+        // you can't edit content that's already sent, matching any real
+        // email client. Comments still work "like other" tabs, but as a
+        // flat list (no nested replies) to keep this scoped.
+
+        // There's no push channel for a fetched reply landing in the
+        // background (WebSocket is off in this install - useWebSocket is
+        // false in config - and IMAP fetch runs on cron's own schedule
+        // regardless), so a manual refresh was the only way to see one
+        // arrive. Poll instead, while this Contact's workspace is open.
+        startContactEmailPolling(shell) {
+            this.stopContactEmailPolling();
+            this.emailPollInterval = window.setInterval(() => this.pollContactEmails(shell), 20000);
+        }
+
+        stopContactEmailPolling() {
+            if (this.emailPollInterval) {
+                window.clearInterval(this.emailPollInterval);
+                this.emailPollInterval = null;
+            }
+        }
+
+        async pollContactEmails(shell) {
+            if (!shell || !this.isRendered() || !document.body.contains(shell) || document.hidden) return;
+            // Don't yank an in-progress comment away from someone mid-type.
+            if (shell.querySelector('[data-nexa-comment-form]:not([hidden])')) return;
+
+            const previousNewestId = this.contactEmailRecords?.[0]?.id || null;
+            await this.loadContactEmails(shell);
+            const currentNewestId = this.contactEmailRecords?.[0]?.id || null;
+            if (currentNewestId && currentNewestId !== previousNewestId) {
+                this.renderContactEmails(shell, currentNewestId);
+            }
+        }
+
+        async loadContactEmails(shell = null, newestId = null) {
+            const workspace = shell || this.element.querySelector('[data-nexa-contact-workspace]');
+            const list = workspace?.querySelector('[data-nexa-emailrecord-list]');
+            const count = workspace?.querySelector('[data-nexa-emailrecord-count]');
+            if (!list || !count) return;
+
+            try {
+                // openContactEmailComposer() deliberately parents a new Email
+                // to the contact's Account (not the Contact) whenever one
+                // exists (see its b2cMode/!accountId branch) - so a B2B
+                // contact's own sent emails never carry parentType=Contact at
+                // all. Match both shapes; for the Account-parented ones,
+                // keep only records that actually name this contact's own
+                // address (an Account can have several contacts, and their
+                // emails would otherwise all bleed into every contact's tab).
+                const accountId = this.model.get('accountId');
+                const orConditions = [
+                    {type: 'and', value: [
+                        {type: 'equals', attribute: 'parentType', value: 'Contact'},
+                        {type: 'equals', attribute: 'parentId', value: this.model.id},
+                    ]},
+                ];
+                if (accountId) {
+                    orConditions.push({type: 'and', value: [
+                        {type: 'equals', attribute: 'parentType', value: 'Account'},
+                        {type: 'equals', attribute: 'parentId', value: accountId},
+                    ]});
+                }
+
+                const payload = await Espo.Ajax.getRequest('Email', {
+                    where: [{type: 'or', value: orConditions}],
+                    select: 'id,name,subject,status,dateSent,sendAt,createdAt,fromString,fromName,to,cc,parentType,isRead,hasAttachment,bodyPlain,body,isPinned',
+                    maxSize: 200,
+                    orderBy: 'dateSent',
+                    order: 'desc',
+                });
+                const contactEmailAddress = String(this.model.get('emailAddress') || '').trim().toLowerCase();
+                this.contactEmailRecords = (Array.isArray(payload?.list) ? payload.list : []).filter(email => {
+                    if (email.parentType === 'Contact') return true;
+                    if (!contactEmailAddress) return false;
+                    // Covers both directions: the contact's address is in
+                    // to/cc for mail we sent them, but in from for a reply
+                    // they send back - an Account-parented reply otherwise
+                    // never matches, since its to/cc is our own mailbox.
+                    const addresses = `${email.to || ''} ${email.cc || ''} ${email.fromString || ''}`.toLowerCase();
+                    return addresses.includes(contactEmailAddress);
+                });
+                this.knownContactEmailIds = this.knownContactEmailIds || new Set();
+                this.collapsedContactEmailIds = this.collapsedContactEmailIds || new Set();
+                this.contactEmailRecords.forEach(email => {
+                    if (this.knownContactEmailIds.has(email.id)) return;
+                    this.knownContactEmailIds.add(email.id);
+                    this.collapsedContactEmailIds.add(email.id);
+                });
+                await Promise.all(this.contactEmailRecords.map(async email => {
+                    const model = await this.getModelFactory().create('Email');
+                    model.set(email);
+                    model.id = email.id;
+                    email.canPin = this.getAcl().checkModel(model, 'edit') === true;
+                    email.canDelete = this.getAcl().checkModel(model, 'delete') === true;
+                }));
+                this.renderContactEmails(workspace, newestId);
+                this.renderContactActivities(workspace);
+                this.loadContactEmailCommentCounts(workspace);
+            } catch (error) {
+                list.innerHTML = `<div class="nexa-note-empty is-error"><span class="fas fa-exclamation-circle" aria-hidden="true"></span><div><strong>Emails unavailable</strong><p>Refresh the page to try loading them again.</p></div></div>`;
+            }
+        }
+
+        async loadContactEmailCommentCounts(workspace) {
+            const ids = (this.contactEmailRecords || []).map(email => email.id);
+            this.contactEmailCommentCounts = new Map();
+            if (!ids.length) {
+                this.renderContactEmails(workspace);
+                return;
+            }
+            try {
+                const payload = await Espo.Ajax.getRequest('Note', {
+                    where: [
+                        {type: 'equals', attribute: 'parentType', value: 'Email'},
+                        {type: 'in', attribute: 'parentId', value: ids},
+                        {type: 'equals', attribute: 'type', value: 'Post'},
+                    ],
+                    select: 'id,parentId',
+                    maxSize: 200,
+                });
+                (payload?.list || []).forEach(note => {
+                    const current = this.contactEmailCommentCounts.get(note.parentId) || 0;
+                    this.contactEmailCommentCounts.set(note.parentId, current + 1);
+                });
+            } catch (error) {
+                // Comment counts are a display enhancement only; failures are non-blocking.
+            }
+            this.renderContactEmails(workspace);
+        }
+
+        // The fallback chain that guarantees an email is never shown
+        // undated: an actually-sent email always shows when it was sent; a
+        // still-pending one shows when it's scheduled to go out (if the user
+        // set one) or otherwise falls back to when the record was created -
+        // covers Draft, Sending, Sent, Archived and Failed alike.
+        emailDisplayInfo(email) {
+            if (email.dateSent) return {rawDate: email.dateSent, prefix: 'Sent'};
+            if (email.sendAt) return {rawDate: email.sendAt, prefix: 'Scheduled for'};
+            return {rawDate: email.createdAt, prefix: 'Created'};
+        }
+
+        // Splits a reply's body into the new text the sender actually wrote
+        // and the quoted original beneath it (e.g. "On <date>, X wrote: >
+        // ..."), which every mail client appends inline - without this, a
+        // one-line reply and its whole quoted thread render as one
+        // undifferentiated block. `body` is not reliably HTML - EspoCRM
+        // still populates it with raw text for plain-text mail (found the
+        // hard way: a real fetched reply had is_html=0 but a non-empty
+        // `body` identical to `bodyPlain`), so branch on what the content
+        // actually looks like, not on which field happens to be populated.
+        splitEmailBody(email) {
+            const empty = '<span class="nexa-record-empty">No content</span>';
+            const looksLikeHtml = value => /<[a-z][\s\S]*>/i.test(value || '');
+
+            if (email.body && looksLikeHtml(email.body)) {
+                try {
+                    const doc = new DOMParser().parseFromString(email.body, 'text/html');
+                    const container = doc.body;
+                    let boundary = container.querySelector(
+                        'blockquote, .gmail_quote, #divRplyFwdMsg, .moz-cite-prefix, .OutlookMessageHeader'
+                    );
+                    if (!boundary) {
+                        const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+                        let node;
+                        while ((node = walker.nextNode())) {
+                            if (/^\s*On .{0,150}wrote:\s*$/.test(node.textContent)) {
+                                boundary = node.parentElement;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (boundary) {
+                        const main = document.createElement('div');
+                        const quoted = document.createElement('div');
+                        let reached = false;
+                        let node = container.firstChild;
+                        while (node) {
+                            const next = node.nextSibling;
+                            if (!reached && (node === boundary || node.contains?.(boundary))) reached = true;
+                            (reached ? quoted : main).appendChild(node);
+                            node = next;
+                        }
+                        if (quoted.childNodes.length) {
+                            return {mainHtml: main.innerHTML.trim() || empty, quotedHtml: quoted.innerHTML.trim()};
+                        }
+                    }
+                } catch (error) {
+                    // Fall through to plain-text handling below.
+                }
+                return {mainHtml: email.body, quotedHtml: null};
+            }
+
+            const plainText = email.bodyPlain || email.body || '';
+            if (plainText) return this.splitPlainTextQuote(plainText);
+
+            return {mainHtml: empty, quotedHtml: null};
+        }
+
+        // Line-based quote stripping: a "> "-prefixed line is always quoted,
+        // regardless of whether the new text sits above or below it (real
+        // replies vary - found one where the new text came after the quote
+        // block with no blank-line separator, which a single split-point
+        // can't handle). The "On ... wrote:" header itself opens a quoted
+        // run; the first subsequent line that isn't ">"-prefixed closes it.
+        splitPlainTextQuote(text) {
+            const empty = '<span class="nexa-record-empty">No content</span>';
+            const lines = text.split(/\r\n|\r|\n/);
+            const mainLines = [];
+            const quotedLines = [];
+            let inQuote = false;
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!inQuote && /^On .{0,150}wrote:$/.test(trimmed)) {
+                    inQuote = true;
+                    quotedLines.push(line);
+                    continue;
+                }
+                if (inQuote && trimmed.startsWith('>')) {
+                    quotedLines.push(line);
+                    continue;
+                }
+                inQuote = false;
+                mainLines.push(line);
+            }
+
+            const quoted = quotedLines.join('\n').trim();
+            if (!quoted) return {mainHtml: this.escape(text).replace(/\n/g, '<br>'), quotedHtml: null};
+
+            const main = mainLines.join('\n').trim();
+            return {
+                mainHtml: main ? this.escape(main).replace(/\n/g, '<br>') : empty,
+                quotedHtml: this.escape(quoted).replace(/\n/g, '<br>'),
+            };
+        }
+
+        contactEmailStatusBadge(status) {
+            if (!status) return '<span class="nexa-record-empty">Not recorded</span>';
+            // Fetched/incoming mail carries EspoCRM's native "Archived"/
+            // "Received" status, which stock translates to "Imported" - a
+            // technical label that reads as noise here. In a Contact's own
+            // timeline any inbound message is their reply, so label and
+            // color it distinctly from what we sent.
+            const inbound = status === 'Archived' || status === 'Received';
+            const statusClasses = {
+                Draft: 'not-held', Sending: 'not-held', Sent: 'held', Archived: 'reply', Received: 'reply', Failed: 'danger',
+            };
+            const label = inbound ? 'Reply' : (this.getLanguage().translateOption(status, 'status', 'Email') || status);
+            return `<span class="nexa-meeting-status nexa-meeting-status--${statusClasses[status] || 'other'}">${this.escape(label)}</span>`;
+        }
+
+        filteredContactEmails() {
+            const filter = this.contactEmailFilter || {query: '', period: 'all', statuses: new Set()};
+            return (this.contactEmailRecords || []).filter(email => {
+                const subjectLine = email.subject || email.name || '';
+                const matchesQuery = !filter.query ||
+                    `${subjectLine} ${email.fromString || ''} ${email.to || ''}`.toLowerCase().includes(filter.query);
+                const {rawDate} = this.emailDisplayInfo(email);
+                const matchesPeriod = this.contactNoteMatchesPeriod(rawDate, filter.period);
+                const matchesStatus = !filter.statuses?.size || filter.statuses.has(email.status);
+                return matchesQuery && matchesPeriod && matchesStatus;
+            });
+        }
+
+        renderContactEmails(workspace = null, newestId = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            const list = workspace?.querySelector('[data-nexa-emailrecord-list]');
+            const count = workspace?.querySelector('[data-nexa-emailrecord-count]');
+            if (!list || !count) return;
+
+            const emails = this.filteredContactEmails();
+            const groups = new Map();
+            emails.forEach(email => {
+                const {rawDate} = this.emailDisplayInfo(email);
+                const date = this.contactNoteDate(rawDate);
+                const key = date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` : 'unknown';
+                const label = date
+                    ? new Intl.DateTimeFormat(undefined, {month: 'long', year: 'numeric'}).format(date)
+                    : 'No date';
+                if (!groups.has(key)) groups.set(key, {label, emails: []});
+                groups.get(key).emails.push(email);
+            });
+
+            count.textContent = `${emails.length} ${emails.length === 1 ? 'email' : 'emails'}`;
+            list.innerHTML = emails.length
+                ? [...groups.values()].map(group => `<section class="nexa-note-month"><h4>${this.escape(group.label)}</h4>${group.emails.map(email => this.contactEmailCard(email, email.id === newestId)).join('')}</section>`).join('')
+                : `<div class="nexa-note-empty"><span class="far fa-envelope" aria-hidden="true"></span><div><strong>No matching emails</strong><p>Try another search, or compose one to this contact.</p></div></div>`;
+
+            const collapse = workspace.querySelector('[data-nexa-collapse-emailrecords]');
+            const allCollapsed = emails.length > 0 && emails.every(email => this.collapsedContactEmailIds?.has(email.id));
+            if (collapse) collapse.firstChild.textContent = allCollapsed ? 'Expand all ' : 'Collapse all ';
+
+            this.bindContactEmailList(list);
+        }
+
+        contactEmailCard(email, isNewest = false, context = 'emails') {
+            const subjectLine = email.subject || email.name || 'No subject';
+            const {rawDate, prefix} = this.emailDisplayInfo(email);
+            const dateLabel = rawDate ? `${prefix} ${this.getDateTime().toDisplay(rawDate)}` : 'No date recorded';
+            const collapsed = this.collapsedContactEmailIds?.has(email.id);
+            const commentCount = this.contactEmailCommentCounts?.get(email.id) || 0;
+            const comments = this.contactEmailComments?.get(email.id) || [];
+            const commentsVisible = this.emailCommentsVisibleIds?.has(email.id) === true;
+            const editorHost = `${context}-${email.id}`;
+            const canComment = this.getAcl().checkScope('Note', 'create') === true;
+            const canReply = this.getAcl().checkScope('Email', 'create') === true;
+            const {mainHtml, quotedHtml} = this.splitEmailBody(email);
+            const inbound = email.status === 'Archived' || email.status === 'Received';
+            const canPin = email.canPin === true;
+            const canDelete = email.canDelete === true;
+            const deleteHelp = "You don't have permission to delete this email. Ask your admin to grant permission.";
+            const actionsHtml = `<div class="nexa-note-actions" data-nexa-emailrecord-actions${collapsed ? ' hidden' : ''}><button type="button" class="nexa-note-actions-toggle" data-nexa-emailrecord-actions-toggle aria-expanded="false">Actions <span class="fas fa-caret-down" aria-hidden="true"></span></button><div class="nexa-note-actions-menu" data-nexa-emailrecord-actions-menu hidden><button type="button" data-nexa-emailrecord-pin${canPin ? '' : ' disabled aria-disabled="true"'}><span class="fas fa-thumbtack" aria-hidden="true"></span>${email.isPinned ? 'Unpin' : 'Pin'}</button>${canDelete ? '<button type="button" class="is-danger" data-nexa-emailrecord-delete><span class="far fa-trash-alt" aria-hidden="true"></span>Delete</button>' : `<span class="nexa-note-action-disabled" data-tooltip="${this.escape(deleteHelp)}" tabindex="0"><button type="button" class="is-danger" disabled aria-disabled="true"><span class="far fa-trash-alt" aria-hidden="true"></span>Delete</button></span>`}</div></div>`;
+
+            return `<article class="nexa-note-card${isNewest ? ' is-new' : ''}${collapsed ? ' is-collapsed' : ''}${inbound ? ' is-inbound' : ''}${email.isPinned ? ' is-pinned' : ''}" data-nexa-emailrecord-id="${this.escape(email.id)}" data-nexa-emailrecord-context="${this.escape(context)}">
+                <header>
+                    <button class="nexa-note-toggle" type="button" data-nexa-emailrecord-toggle aria-expanded="${!collapsed}"><span class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></span>${email.isPinned ? '<span class="fas fa-thumbtack nexa-note-pinned-icon" aria-label="Pinned email"></span>' : ''}<span class="nexa-note-kind">Email</span><span>${this.escape(subjectLine)}</span>${commentCount ? `<span class="nexa-note-comment-count"><span class="far fa-comment" aria-hidden="true"></span>${commentCount}</span>` : ''}</button>
+                    <div class="nexa-note-header-meta">${actionsHtml}${this.contactEmailStatusBadge(email.status)}<time>${this.escape(dateLabel)}</time></div>
+                </header>
+                <p class="nexa-note-preview"${collapsed ? '' : ' hidden'}>${this.escape(subjectLine)} &middot; ${this.escape(dateLabel)}</p>
+                <div class="nexa-note-details" data-nexa-emailrecord-details${collapsed ? ' hidden' : ''}>
+                    <div class="nexa-task-fact-line">
+                        <span class="nexa-task-fact-item"><span class="nexa-task-fact-label">From</span><span class="nexa-task-fact-value-row"><strong>${this.escape(email.fromString || email.fromName || 'Unknown')}</strong></span></span>
+                        <span class="nexa-task-fact-item"><span class="nexa-task-fact-label">To</span><span class="nexa-task-fact-value-row"><strong>${this.escape(email.to || 'Unknown')}</strong></span></span>
+                    </div>
+                    <div class="nexa-task-notes-section">
+                        <h5 class="nexa-task-notes-heading">Message</h5>
+                        <div class="nexa-note-body">${mainHtml}</div>
+                        ${quotedHtml ? `<button type="button" class="nexa-email-quote-toggle" data-nexa-emailrecord-quote-toggle aria-expanded="false"><span class="fas fa-ellipsis-h" aria-hidden="true"></span><span>Show quoted text</span></button><div class="nexa-note-body nexa-email-quoted-body" data-nexa-emailrecord-quoted hidden>${quotedHtml}</div>` : ''}
+                    </div>
+                    <footer>
+                        ${canReply ? '<button type="button" data-nexa-emailrecord-reply><span class="fas fa-reply" aria-hidden="true"></span><span>Reply</span></button>' : ''}
+                        ${canComment ? '<button type="button" data-nexa-comment-toggle><span class="far fa-comment" aria-hidden="true"></span><span>Add comment</span></button>' : ''}
+                        ${commentCount ? `<button type="button" class="nexa-task-reply-toggle" data-nexa-emailrecord-comments-visibility-toggle>${commentsVisible ? 'Hide comments' : `Show comments (${commentCount})`}</button>` : '<span>0 comments</span>'}
+                    </footer>
+                    <div class="nexa-note-comments"${commentsVisible ? '' : ' hidden'}>${comments.map(comment => this.contactEmailComment(comment)).join('')}</div>
+                    <form class="nexa-note-comment-form" data-nexa-comment-form hidden>
+                        <div class="nexa-native-rich-editor nexa-comment-editor" data-nexa-comment-editor-host="${this.escape(editorHost)}" aria-label="Comment"><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading editor</span></div></div>
+                        <div><button type="button" class="btn btn-default btn-xs" data-nexa-comment-cancel>Cancel</button><button type="submit" class="btn btn-primary btn-xs">Comment</button></div>
+                        <p role="alert" data-nexa-comment-error hidden></p>
+                    </form>
+                </div>
+            </article>`;
+        }
+
+        contactEmailComment(comment) {
+            const author = comment.createdByName || 'Team member';
+            const createdAt = comment.createdAt ? this.getDateTime().toDisplay(comment.createdAt) : '';
+            return `<div class="nexa-note-comment" data-nexa-emailrecord-comment-id="${this.escape(comment.id)}">
+                <div><strong>${this.escape(author)}</strong><time>${this.escape(createdAt)}</time></div>
+                <p>${this.formatNoteContent(comment.content)}</p>
+            </div>`;
+        }
+
+        async loadEmailComments(emailId, {force = false} = {}) {
+            this.contactEmailComments = this.contactEmailComments || new Map();
+            if (!force && this.contactEmailComments.has(emailId)) return;
+
+            try {
+                const payload = await Espo.Ajax.getRequest('Note', {
+                    where: [
+                        {type: 'equals', attribute: 'parentType', value: 'Email'},
+                        {type: 'equals', attribute: 'parentId', value: emailId},
+                        {type: 'equals', attribute: 'type', value: 'Post'},
+                    ],
+                    select: 'id,post,createdAt,createdById,createdByName',
+                    orderBy: 'createdAt',
+                    order: 'asc',
+                    maxSize: 200,
+                });
+                const records = (payload?.list || []).map(record => ({...record, content: record.post}));
+                this.contactEmailComments.set(emailId, records);
+                this.contactEmailCommentCounts = this.contactEmailCommentCounts || new Map();
+                this.contactEmailCommentCounts.set(emailId, records.length);
+            } catch (error) {
+                this.contactEmailComments.set(emailId, []);
+            }
+        }
+
+        async createEmailStreamNote(emailId, post) {
+            const note = await this.getModelFactory().create('Note');
+            note.set({type: 'Post', post, parentType: 'Email', parentId: emailId});
+            await note.save(null);
+            return note;
+        }
+
+        async saveEmailComment(emailId, form) {
+            if (form.dataset.saving === 'true') return;
+            const context = form.closest('[data-nexa-emailrecord-context]')?.dataset.nexaEmailrecordContext || 'emails';
+            const editor = this.contactCommentEditors?.get(`${context}-${emailId}`);
+            if (!editor) return;
+            editor.view.fetchToModel();
+            const content = String(editor.model.get('post') || '').trim();
+            const error = form.querySelector('[data-nexa-comment-error]');
+            if (this.richTextIsEmpty(content)) {
+                error.textContent = 'Enter a comment before saving.';
+                error.hidden = false;
+                return;
+            }
+
+            form.dataset.saving = 'true';
+            form.querySelector('button[type="submit"]').disabled = true;
+            error.hidden = true;
+            try {
+                const note = await this.createEmailStreamNote(emailId, content);
+                this.contactEmailComments = this.contactEmailComments || new Map();
+                const comments = this.contactEmailComments.get(emailId) || [];
+                comments.push({
+                    id: note.id,
+                    content,
+                    createdAt: note.get('createdAt') || new Date().toISOString(),
+                    createdById: this.getUser().id,
+                    createdByName: this.getUser().get('name'),
+                });
+                this.contactEmailComments.set(emailId, comments);
+                this.contactEmailCommentCounts = this.contactEmailCommentCounts || new Map();
+                this.contactEmailCommentCounts.set(emailId, comments.length);
+                this.clearContactCommentEditor(emailId, context);
+                form.hidden = true;
+                this.emailCommentsVisibleIds = this.emailCommentsVisibleIds || new Set();
+                this.emailCommentsVisibleIds.add(emailId);
+                this.renderContactEmails();
+            } catch (saveError) {
+                error.textContent = 'The comment could not be saved.';
+                error.hidden = false;
+                form.dataset.saving = 'false';
+                form.querySelector('button[type="submit"]').disabled = false;
+            }
+        }
+
+        bindContactEmailList(list, context = 'emails') {
+            list.querySelectorAll('[data-nexa-emailrecord-quote-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const quoted = button.nextElementSibling;
+                    const expanded = button.getAttribute('aria-expanded') === 'true';
+                    button.setAttribute('aria-expanded', String(!expanded));
+                    button.querySelector('span:last-child').textContent = expanded ? 'Show quoted text' : 'Hide quoted text';
+                    if (quoted) quoted.hidden = expanded;
+                });
+            });
+            list.querySelectorAll('[data-nexa-emailrecord-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const card = button.closest('[data-nexa-emailrecord-id]');
+                    const id = card.dataset.nexaEmailrecordId;
+                    const expanding = this.collapsedContactEmailIds.has(id);
+                    if (expanding) this.collapsedContactEmailIds.delete(id);
+                    else this.collapsedContactEmailIds.add(id);
+                    if (expanding && !this.contactEmailComments?.has(id)) {
+                        this.loadEmailComments(id).then(() => this.renderContactEmails());
+                    }
+                    this.renderContactEmails();
+                });
+            });
+            list.querySelectorAll('[data-nexa-emailrecord-reply]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const id = button.closest('[data-nexa-emailrecord-id]').dataset.nexaEmailrecordId;
+                    const email = (this.contactEmailRecords || []).find(item => item.id === id);
+                    if (email) this.replyToContactEmail(email);
+                });
+            });
+            list.querySelectorAll('[data-nexa-comment-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const card = button.closest('[data-nexa-emailrecord-id]');
+                    const form = card.querySelector('[data-nexa-comment-form]');
+                    form.hidden = false;
+                    this.mountContactCommentEditor(card.dataset.nexaEmailrecordId, form, context);
+                });
+            });
+            list.querySelectorAll('[data-nexa-comment-cancel]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const form = button.closest('[data-nexa-comment-form]');
+                    this.clearContactCommentEditor(form.closest('[data-nexa-emailrecord-id]').dataset.nexaEmailrecordId, context);
+                    form.hidden = true;
+                });
+            });
+            list.querySelectorAll('[data-nexa-comment-form]').forEach(form => {
+                form.addEventListener('submit', event => {
+                    event.preventDefault();
+                    this.saveEmailComment(form.closest('[data-nexa-emailrecord-id]').dataset.nexaEmailrecordId, form);
+                });
+            });
+            list.querySelectorAll('[data-nexa-emailrecord-comments-visibility-toggle]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const emailId = button.closest('[data-nexa-emailrecord-id]').dataset.nexaEmailrecordId;
+                    this.emailCommentsVisibleIds = this.emailCommentsVisibleIds || new Set();
+                    if (this.emailCommentsVisibleIds.has(emailId)) this.emailCommentsVisibleIds.delete(emailId);
+                    else this.emailCommentsVisibleIds.add(emailId);
+                    this.renderContactEmails();
+                });
+            });
+            list.querySelectorAll('[data-nexa-emailrecord-actions-toggle]').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const menu = button.parentElement.querySelector('[data-nexa-emailrecord-actions-menu]');
+                    const opening = menu.hidden;
+                    list.querySelectorAll('[data-nexa-emailrecord-actions-menu]').forEach(item => item.hidden = true);
+                    list.querySelectorAll('[data-nexa-emailrecord-actions-toggle]').forEach(item => item.setAttribute('aria-expanded', 'false'));
+                    menu.hidden = !opening;
+                    button.setAttribute('aria-expanded', String(opening));
+                });
+            });
+            list.querySelectorAll('[data-nexa-emailrecord-pin]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const emailId = button.closest('[data-nexa-emailrecord-id]').dataset.nexaEmailrecordId;
+                    const email = (this.contactEmailRecords || []).find(item => item.id === emailId);
+                    this.toggleEmailPinned(emailId, !email?.isPinned, button);
+                });
+            });
+            list.querySelectorAll('[data-nexa-emailrecord-delete]').forEach(button => {
+                button.addEventListener('click', () => this.openEmailDeleteDialog(button.closest('[data-nexa-emailrecord-id]').dataset.nexaEmailrecordId));
+            });
+            if (this.emailActionsDocumentHandler) document.removeEventListener('click', this.emailActionsDocumentHandler);
+            this.emailActionsDocumentHandler = event => {
+                if (event.target.closest('[data-nexa-emailrecord-actions]')) return;
+                this.element.querySelectorAll('[data-nexa-emailrecord-actions-menu]').forEach(menu => menu.hidden = true);
+                this.element.querySelectorAll('[data-nexa-emailrecord-actions-toggle]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+            };
+            document.addEventListener('click', this.emailActionsDocumentHandler);
+        }
+
+        async toggleEmailPinned(emailId, pinned, button) {
+            if (!emailId || button?.disabled || button?.dataset.saving === 'true') return;
+            button.dataset.saving = 'true';
+            button.disabled = true;
+            try {
+                const model = await this.getModelFactory().create('Email');
+                model.id = emailId;
+                await model.save({isPinned: pinned}, {patch: true});
+                const email = (this.contactEmailRecords || []).find(item => item.id === emailId);
+                if (email) email.isPinned = pinned;
+                this.renderContactEmails();
+                this.renderContactActivities();
+                Espo.Ui.success(pinned ? 'Email pinned' : 'Email unpinned');
+            } catch (error) {
+                button.disabled = false;
+                button.dataset.saving = 'false';
+                Espo.Ui.error('The email could not be updated. Check your access and try again.');
+            }
+        }
+
+        openEmailDeleteDialog(emailId) {
+            const email = (this.contactEmailRecords || []).find(item => item.id === emailId);
+            if (!email?.canDelete) return;
+            this.closeEmailDeleteDialog();
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-note-delete-overlay';
+            overlay.dataset.nexaEmailDeleteDialog = 'true';
+            overlay.innerHTML = `<section class="nexa-note-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-email-delete-title"><header><div><p>Delete email</p><h2 id="nexa-email-delete-title">Delete this email?</h2></div><button type="button" class="nexa-dialog-close" data-nexa-email-delete-close aria-label="Close"><span class="fas fa-times" aria-hidden="true"></span></button></header><div class="nexa-note-delete-content"><p>This email will be removed from the contact timeline. This action cannot be undone from this page.</p><p class="nexa-note-delete-error" role="alert" hidden></p></div><footer><button type="button" class="btn btn-default" data-nexa-email-delete-cancel>Cancel</button><button type="button" class="btn btn-danger" data-nexa-email-delete-confirm><span class="far fa-trash-alt" aria-hidden="true"></span><span>Delete email</span></button></footer></section>`;
+            document.body.append(overlay);
+            this.emailDeleteDialog = overlay;
+            const close = () => this.closeEmailDeleteDialog();
+            overlay.querySelector('[data-nexa-email-delete-close]').addEventListener('click', close);
+            overlay.querySelector('[data-nexa-email-delete-cancel]').addEventListener('click', close);
+            overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+            overlay.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+            overlay.querySelector('[data-nexa-email-delete-confirm]').addEventListener('click', event => this.deleteContactEmail(emailId, event.currentTarget));
+            window.setTimeout(() => overlay.querySelector('[data-nexa-email-delete-cancel]')?.focus(), 0);
+        }
+
+        closeEmailDeleteDialog() {
+            this.emailDeleteDialog?.remove();
+            this.emailDeleteDialog = null;
+        }
+
+        async deleteContactEmail(emailId, button) {
+            if (!emailId || button.dataset.saving === 'true') return;
+            const error = this.emailDeleteDialog?.querySelector('.nexa-note-delete-error');
+            button.dataset.saving = 'true';
+            button.disabled = true;
+            button.classList.add('is-loading');
+            try {
+                await Espo.Ajax.deleteRequest(`Email/${encodeURIComponent(emailId)}`);
+                this.contactEmailRecords = (this.contactEmailRecords || []).filter(email => email.id !== emailId);
+                this.contactEmailComments?.delete(emailId);
+                this.collapsedContactEmailIds?.delete(emailId);
+                this.closeEmailDeleteDialog();
+                this.renderContactEmails();
+                this.renderContactActivities();
+                Espo.Ui.success('Email deleted');
+            } catch (deleteError) {
+                if (error) {
+                    error.textContent = 'The email could not be deleted. Check your permission and try again.';
+                    error.hidden = false;
+                }
+                button.dataset.saving = 'false';
+                button.disabled = false;
+                button.classList.remove('is-loading');
+            }
+        }
+
+        emailFilterTypes() {
+            return ['period', 'status'];
+        }
+
+        toggleEmailFilterMenu(shell, type) {
+            const ownMenu = shell.querySelector(`[data-nexa-emailrecord-${type}-menu]`);
+            const ownToggle = shell.querySelector(`[data-nexa-emailrecord-${type}-toggle]`);
+            if (!ownMenu || !ownToggle) return;
+            const opening = ownMenu.hidden;
+            this.emailFilterTypes().forEach(otherType => {
+                if (otherType === type) return;
+                shell.querySelector(`[data-nexa-emailrecord-${otherType}-menu]`)?.setAttribute('hidden', '');
+                shell.querySelector(`[data-nexa-emailrecord-${otherType}-toggle]`)?.setAttribute('aria-expanded', 'false');
+            });
+            ownMenu.hidden = !opening;
+            ownToggle.setAttribute('aria-expanded', String(opening));
+        }
+
+        closeEmailFilterMenus(shell) {
+            this.emailFilterTypes().forEach(type => {
+                shell.querySelector(`[data-nexa-emailrecord-${type}-menu]`)?.setAttribute('hidden', '');
+                shell.querySelector(`[data-nexa-emailrecord-${type}-toggle]`)?.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        bindContactEmailsWorkspace(shell) {
+            this.contactEmailFilter = this.contactEmailFilter || {query: '', period: 'all', statuses: new Set()};
+            this.collapsedContactEmailIds = this.collapsedContactEmailIds || new Set();
+
+            shell.querySelector('[data-nexa-create-emailrecord]')?.addEventListener('click', () => this.openContactEmailComposer());
+            shell.querySelector('[data-nexa-log-emailrecord]')?.addEventListener('click', () => this.openLogEmailDialog());
+            shell.querySelector('[data-nexa-manage-inbox]')?.addEventListener('click', () => this.openConnectInboxModal());
+            this.refreshInboxConnectionNotice(shell);
+            shell.querySelector('[data-nexa-collapse-emailrecords]')?.addEventListener('click', () => {
+                const visible = this.filteredContactEmails();
+                const allCollapsed = visible.length > 0 && visible.every(email => this.collapsedContactEmailIds.has(email.id));
+                if (allCollapsed) visible.forEach(email => this.collapsedContactEmailIds.delete(email.id));
+                else visible.forEach(email => this.collapsedContactEmailIds.add(email.id));
+                this.renderContactEmails(shell);
+            });
+            shell.querySelector('[data-nexa-emailrecords-search]')?.addEventListener('input', event => {
+                this.contactEmailFilter.query = event.currentTarget.value.trim().toLowerCase();
+                this.renderContactEmails(shell);
+            });
+            shell.querySelector('[data-nexa-emailrecords-filter-toggle]')?.addEventListener('click', event => {
+                const filters = shell.querySelector('[data-nexa-emailrecords-filters]');
+                filters.hidden = !filters.hidden;
+                event.currentTarget.setAttribute('aria-expanded', String(!filters.hidden));
+            });
+            shell.querySelector('[data-nexa-emailrecord-period-toggle]')?.addEventListener('click', event => {
+                event.stopPropagation();
+                this.toggleEmailFilterMenu(shell, 'period');
+            });
+            shell.querySelectorAll('[data-nexa-emailrecord-period]').forEach(button => {
+                button.addEventListener('click', () => {
+                    this.contactEmailFilter.period = button.dataset.nexaEmailrecordPeriod;
+                    shell.querySelector('[data-nexa-emailrecord-period-label]').textContent = button.textContent.trim();
+                    this.closeEmailFilterMenus(shell);
+                    this.renderContactEmails(shell);
+                });
+            });
+            shell.querySelector('[data-nexa-emailrecord-status-toggle]')?.addEventListener('click', event => {
+                event.stopPropagation();
+                this.toggleEmailFilterMenu(shell, 'status');
+            });
+            shell.querySelectorAll('[data-nexa-emailrecord-status-option]').forEach(checkbox => {
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) this.contactEmailFilter.statuses.add(checkbox.value);
+                    else this.contactEmailFilter.statuses.delete(checkbox.value);
+                    const labelEl = shell.querySelector('[data-nexa-emailrecord-status-label]');
+                    const count = this.contactEmailFilter.statuses.size;
+                    if (labelEl) labelEl.textContent = count > 0 ? `Email status (${count})` : 'Email status';
+                    this.renderContactEmails(shell);
+                });
+            });
+
+            if (this.emailsFilterDocumentHandler) document.removeEventListener('click', this.emailsFilterDocumentHandler);
+            this.emailsFilterDocumentHandler = event => {
+                if (!event.target.closest('[data-nexa-emailrecord-period-filter], [data-nexa-emailrecord-status-filter]')) {
+                    this.closeEmailFilterMenus(shell);
+                }
+            };
+            document.addEventListener('click', this.emailsFilterDocumentHandler);
         }
     };
 });

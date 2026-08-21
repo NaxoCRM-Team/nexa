@@ -340,6 +340,68 @@
     margin: 5px 0 0;
 }
 
+.nexa-contact-inline-email {
+    margin: 0;
+}
+
+.nexa-contact-inline-email .nexa-inline-detail-display {
+    display: inline-block;
+    min-height: 17px;
+}
+
+/* Reads as one normal, bold line ("Title at Company"), same as before
+   inline edit existed - the standalone inline-detail padding/margin
+   (reserved so the pencil has room) only makes sense once split, so it's
+   stripped out here and restored on hover/focus-within below. */
+.nexa-contact-title-company {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 5px 0 0;
+}
+
+.nexa-contact-title-company:hover,
+.nexa-contact-title-company:focus-within {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0;
+}
+
+.nexa-contact-title-company .nexa-contact-inline-title,
+.nexa-contact-title-company .nexa-contact-inline-account {
+    margin: 0;
+    padding: 0;
+}
+
+.nexa-contact-title-company:hover .nexa-contact-inline-title,
+.nexa-contact-title-company:hover .nexa-contact-inline-account,
+.nexa-contact-title-company:focus-within .nexa-contact-inline-title,
+.nexa-contact-title-company:focus-within .nexa-contact-inline-account {
+    padding: 5px 34px 5px 7px;
+}
+
+.nexa-contact-inline-title .nexa-inline-detail-display,
+.nexa-contact-inline-account .nexa-inline-detail-display {
+    color: #1e332e;
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+    min-height: 17px;
+}
+
+.nexa-contact-at {
+    color: #1e332e;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.nexa-contact-title-company:hover .nexa-contact-at,
+.nexa-contact-title-company:focus-within .nexa-contact-at {
+    display: none;
+}
+
 .nexa-contact-primary-email {
     background: transparent;
     border: 0;
@@ -759,6 +821,57 @@
 
 .nexa-call-picker-dialog {
     width: min(420px, 100%);
+}
+
+.nexa-connect-inbox-dialog {
+    width: min(480px, 100%);
+}
+
+.nexa-connect-inbox-intro {
+    padding: 4px 24px 24px;
+}
+
+.nexa-connect-inbox-intro > p {
+    color: #596c67;
+    line-height: 1.5;
+    margin: 0 0 16px;
+}
+
+.nexa-connect-inbox-benefits {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 0;
+}
+
+.nexa-connect-inbox-benefits li {
+    align-items: center;
+    color: #2b403b;
+    display: flex;
+    font-size: 13px;
+    gap: 12px;
+}
+
+.nexa-connect-inbox-benefits li > span {
+    align-items: center;
+    background: #e7f3f0;
+    border-radius: 999px;
+    color: #117668;
+    display: flex;
+    flex-shrink: 0;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+}
+
+.nexa-connect-inbox-section-title {
+    color: #172e29;
+    font-size: 12px;
+    font-weight: 700;
+    margin: 4px 0 12px;
+    text-transform: uppercase;
 }
 
 .nexa-call-picker-options {
@@ -1348,6 +1461,7 @@
 
 .nexa-notes-search {
     display: block;
+    flex-shrink: 0;
     position: relative;
     width: min(280px, 100%);
 }
@@ -1379,6 +1493,80 @@
     align-items: center;
     display: flex;
     gap: 18px;
+}
+
+/* Email/Calls/Meetings toolbars carry more buttons than Notes/Tasks ever
+   did. Search box, Filters toggle, and the filter panel stack in their own
+   left column (so Filters sits directly under search, and opening it drops
+   the panel immediately below the toggle instead of far down the page);
+   the action buttons form a separate stacked column on the right. Scoped
+   to just these tabs on purpose. */
+[data-nexa-tab-panel="email"] .nexa-notes-toolbar-primary,
+[data-nexa-tab-panel="calls"] .nexa-notes-toolbar-primary,
+[data-nexa-tab-panel="meetings"] .nexa-notes-toolbar-primary {
+    align-items: flex-start;
+}
+
+[data-nexa-tab-panel="email"] .nexa-notes-toolbar-search-column,
+[data-nexa-tab-panel="calls"] .nexa-notes-toolbar-search-column,
+[data-nexa-tab-panel="meetings"] .nexa-notes-toolbar-search-column {
+    display: flex;
+    flex-direction: column;
+}
+
+[data-nexa-tab-panel="email"] .nexa-notes-search,
+[data-nexa-tab-panel="calls"] .nexa-notes-search {
+    width: min(440px, 100%);
+}
+
+[data-nexa-tab-panel="email"] .nexa-notes-toolbar-actions,
+[data-nexa-tab-panel="calls"] .nexa-notes-toolbar-actions,
+[data-nexa-tab-panel="meetings"] .nexa-notes-toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+[data-nexa-tab-panel="email"] .nexa-notes-toolbar-actions .btn,
+[data-nexa-tab-panel="calls"] .nexa-notes-toolbar-actions .btn,
+[data-nexa-tab-panel="meetings"] .nexa-notes-toolbar-actions .btn {
+    font-size: 12px;
+    padding: 5px 10px;
+}
+
+.nexa-email-reconnect-btn {
+    align-items: center;
+    background: #fef6e7;
+    border: 1px solid #f0cf8a;
+    border-radius: 5px;
+    color: #8a5a00;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 7px;
+    justify-content: center;
+    padding: 5px 10px;
+}
+
+.nexa-email-reconnect-btn:hover,
+.nexa-email-reconnect-btn:focus-visible {
+    background: #fbecc9;
+    outline: 0;
+}
+
+.nexa-log-email-direction {
+    display: flex;
+    gap: 18px;
+    margin-top: 2px;
+}
+
+.nexa-log-email-direction label {
+    align-items: center;
+    display: flex;
+    font-weight: 400;
+    gap: 6px;
+    margin-bottom: 0;
 }
 
 .nexa-collapse-notes {
@@ -1589,6 +1777,18 @@
 
 .nexa-note-card.is-new {
     animation: nexa-note-highlight 1.8s ease-out;
+}
+
+/* Incoming mail (a contact's reply) gets a distinct tint and left accent so
+   it reads apart from what we sent, instead of blending into one long list. */
+.nexa-note-card.is-inbound {
+    background: #f7f8ff;
+    border-color: #d3d7f7;
+    border-left: 3px solid #7b80e0;
+}
+
+.nexa-note-card.is-inbound > .nexa-note-details {
+    border-top-color: #e2e4f9;
 }
 
 @keyframes nexa-note-highlight {
@@ -1829,6 +2029,35 @@
     line-height: 1.6;
     margin: 13px 0 5px;
     overflow-wrap: anywhere;
+}
+
+.nexa-email-quote-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #6b6fb0;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    gap: 6px;
+    margin: 0 0 5px;
+    padding: 0;
+}
+
+.nexa-email-quote-toggle:hover,
+.nexa-email-quote-toggle:focus-visible {
+    color: #4a4fc4;
+    outline: 0;
+    text-decoration: underline;
+}
+
+.nexa-email-quoted-body {
+    background: #f4f5fb;
+    border-left: 2px solid #c8cdf7;
+    border-radius: 4px;
+    color: #5a6570;
+    margin: 0 0 5px;
+    padding: 10px 12px;
 }
 
 .nexa-note-list-item {
@@ -2346,6 +2575,8 @@
 .nexa-meeting-status--held { background: #e4f5ea; border-color: #b7ddc5; color: #276b40; }
 .nexa-meeting-status--not-held { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
 .nexa-meeting-status--other { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
+.nexa-meeting-status--danger { background: #fdecea; border-color: #f3c2bd; color: #c0392b; }
+.nexa-meeting-status--reply { background: #eef0ff; border-color: #c8cdf7; color: #4a4fc4; }
 
 .nexa-task-title {
     align-items: center;
@@ -2499,6 +2730,53 @@
     height: 32px;
     padding: 5px 8px;
     width: 100%;
+}
+
+.nexa-inline-link-editor {
+    position: relative;
+}
+
+.nexa-inline-link-results {
+    background: #ffffff;
+    border: 1px solid #bdccc8;
+    border-radius: 5px;
+    box-shadow: 0 12px 30px rgba(25, 48, 42, 0.19);
+    left: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 30;
+}
+
+.nexa-inline-link-results[hidden] {
+    display: none;
+}
+
+.nexa-inline-link-results button {
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: #1e332e;
+    display: block;
+    font-size: 12px;
+    padding: 7px 9px;
+    text-align: left;
+    width: 100%;
+}
+
+.nexa-inline-link-results button:hover,
+.nexa-inline-link-results button:focus-visible {
+    background: #f2f8f6;
+    outline: 0;
+}
+
+.nexa-inline-link-empty {
+    color: #74847f;
+    font-size: 12px;
+    padding: 7px 9px;
 }
 
 .nexa-inline-address-editor {
@@ -2864,7 +3142,15 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     border: 1px solid var(--nexa-record-border);
     border-radius: 5px;
     box-shadow: none;
-    margin: 0 0 12px;
+    margin: 0 0 16px;
+}
+
+.nexa-association-stack .panel-heading {
+    padding: 14px 16px;
+}
+
+.nexa-association-stack .panel-body {
+    padding: 14px 16px;
 }
 
 .nexa-native-properties .panel-heading,
@@ -2976,6 +3262,15 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     margin: 0 0 3px;
 }
 
+.nexa-highlight.is-danger > span {
+    background: #fdecea;
+    color: #c0392b;
+}
+
+.nexa-highlight.is-danger strong {
+    color: #c0392b;
+}
+
 .nexa-highlight strong {
     color: var(--nexa-record-ink);
     display: block;
@@ -3007,7 +3302,7 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     margin-bottom: 0;
 }
 
-.nexa-activity-trend-card h4 {
+.nexa-mini-calendar-card h4 {
     align-items: baseline;
     border-bottom: 1px solid #e8eeec;
     display: flex;
@@ -3016,45 +3311,123 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     padding-bottom: 11px;
 }
 
-.nexa-activity-trend-card h4 span {
+.nexa-mini-calendar-card h4 span {
     color: var(--nexa-record-muted);
     font-size: 11px;
     font-weight: 400;
 }
 
-.nexa-activity-trend-svg {
-    display: block;
-    margin-top: 10px;
-    width: 100%;
+.nexa-mini-calendar-header {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
 }
 
-.nexa-activity-trend-svg g {
-    cursor: default;
+.nexa-mini-calendar-header strong {
+    color: var(--nexa-record-ink);
+    font-size: 13px;
 }
 
-.nexa-activity-trend-svg g:focus {
-    outline: 0;
-}
-
-.nexa-activity-trend-svg g:hover path,
-.nexa-activity-trend-svg g:focus-visible path {
-    opacity: 0.85;
-}
-
-.nexa-activity-trend-baseline {
-    stroke: var(--nexa-record-border);
-    stroke-width: 1;
-}
-
-.nexa-activity-trend-value {
-    fill: #117668;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.nexa-activity-trend-label {
-    fill: var(--nexa-record-muted);
+.nexa-mini-calendar-weekdays {
+    color: var(--nexa-record-muted);
+    display: grid;
     font-size: 10px;
+    font-weight: 700;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    margin-top: 10px;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.nexa-mini-calendar-grid {
+    border: 1px solid #e8eeec;
+    border-left: none;
+    border-top: none;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    margin-top: 4px;
+}
+
+.nexa-mini-calendar-cell {
+    background: none;
+    border-left: 1px solid #e8eeec;
+    border-top: 1px solid #e8eeec;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 68px;
+    padding: 4px;
+    position: relative;
+}
+
+.nexa-mini-calendar-cell.is-outside {
+    background: #fbfbfb;
+    visibility: hidden;
+}
+
+.nexa-mini-calendar-cell:nth-child(7n),
+.nexa-mini-calendar-cell:nth-child(7n-1) {
+    background: #fafbfb;
+}
+
+.nexa-mini-calendar-cell.is-today {
+    background: #eef7f5;
+}
+
+.nexa-mini-calendar-cell.is-today .nexa-mini-calendar-daynum {
+    background: #117668;
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    height: 18px;
+    justify-content: center;
+    width: 18px;
+}
+
+.nexa-mini-calendar-daynum {
+    align-items: center;
+    align-self: flex-start;
+    display: flex;
+    flex: 0 0 auto;
+    font-size: 11px;
+    justify-content: center;
+}
+
+.nexa-mini-calendar-pills {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nexa-mini-calendar-pill {
+    border-radius: 3px;
+    color: #fff;
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.5;
+    overflow: hidden;
+    padding: 1px 5px;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-mini-calendar-pill:hover {
+    filter: brightness(0.92);
+    color: #fff;
+}
+
+.nexa-mini-calendar-pill.is-overdue {
+    box-shadow: inset 0 0 0 1px #c0392b;
+}
+
+.nexa-mini-calendar-more {
+    color: var(--nexa-record-muted);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 0 5px;
 }
 
 .nexa-native-activity .panel {
@@ -3077,9 +3450,311 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     padding: 14px;
 }
 
-.nexa-association-stack .panel-body {
+/* Flexbox for the chevron's sake, but the actions-container's original
+   pull-right no longer does anything once its parent is flex - order
+   restores the original visual position (title left, actions pinned
+   right) without touching Espo's own DOM order, so the chevron can sit
+   ahead of everything on the left. */
+.nexa-association-stack .panel-heading {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+}
+
+.nexa-association-stack .panel-heading > .panel-title {
+    margin: 0;
+    order: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-association-stack .panel-heading > .panel-actions-container {
+    float: none;
+    flex-shrink: 0;
+    margin-left: auto;
+    order: 2;
+}
+
+.nexa-panel-collapse-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    color: #51655f;
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: 11px;
+    height: 22px;
+    justify-content: center;
+    order: 0;
+    width: 22px;
+}
+
+.nexa-panel-collapse-toggle:hover,
+.nexa-panel-collapse-toggle:focus-visible {
+    background: #edf4f2;
+    color: #163f36;
+    outline: 0;
+}
+
+.nexa-panel-collapse-toggle .fas {
+    transition: transform 150ms ease;
+}
+
+.nexa-association-stack .panel.is-collapsed .nexa-panel-collapse-toggle .fas {
+    transform: rotate(-90deg);
+}
+
+.nexa-association-stack .panel.is-collapsed > .panel-body {
+    display: none;
+}
+
+/* Accounts redesign: rather than fight a table's row width against a
+   narrow sidebar, each account renders as a small modern card - name bold
+   on its own line, country as a quiet caption underneath. Nothing to
+   truncate or scroll since nothing sits side-by-side; table semantics are
+   kept (still a real, sortable, clickable Espo list under the hood) by
+   only changing how the rows *display*, not the markup. Column order is
+   fixed by Account/listSmall.json (name, then billingAddressCountry), so
+   nth-child - not a field-name selector - is what's reliable here. */
+.nexa-association-stack .panel[data-name="accounts"] .panel-body,
+.nexa-association-stack .panel[data-name="accounts"] .list-container,
+.nexa-association-stack .panel[data-name="accounts"] .list.nexa-record-list {
+    overflow: visible !important;
+}
+
+/* Pull the account row up closer to the "Accounts" heading - the generic
+   14px panel-body top padding (sized for the collapsible panels' own
+   content) reads as a big gap here since there's no chevron/count row
+   above it like the others have. */
+.nexa-association-stack .panel[data-name="accounts"] .panel-body {
+    padding-top: 4px !important;
+}
+
+/* The visible line above the row: .list.nexa-record-list (from the same
+   pre-existing list-page styling system responsible for the min-width/
+   height issues above) carries its own top+bottom border and a negative
+   top margin that pulls it up into the panel-body's padding - confirmed
+   directly via computed styles. Plain, borderless card here instead. */
+.nexa-association-stack .panel[data-name="accounts"] .list.nexa-record-list {
+    border: 0 !important;
+    margin-top: 0 !important;
+}
+
+/* The whole table has to convert to block display, not just tbody/tr -
+   confirmed directly (computed styles) that leaving the <table> element
+   itself as display:table while its children are display:block produces
+   an oversized, unreliable height (the browser has no defined behavior for
+   that mismatch), which is what was leaving extra blank space in the
+   card even after the empty actions cell was hidden. */
+/* Found the actual, definitive cause of the scrolling here (confirmed via
+   a live-rendered DOM inspection, not guessed): this exact table also
+   carries .nexa-crm-list-workflow/.nexa-crm-table from the *separate*,
+   pre-existing list-page styling system (further down in this file), whose
+   `min-width: 720px` is meant for the full-width Contact list page - it
+   was silently winning this whole time because this sidebar table happens
+   to share those same class names, and nothing before now explicitly
+   fought it. Same block also fixes the per-cell `height: 52px` from that
+   same pre-existing system, which was the source of the leftover blank
+   space below the country line even after the empty actions cell was
+   hidden. */
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table {
+    display: block;
+    min-width: 0 !important;
+    table-layout: auto !important;
+    width: 100%;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table thead {
+    display: none;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table tbody,
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table tr {
+    display: block;
+    width: 100%;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table tr {
+    border-bottom: 1px solid #eef2f1;
+    padding: 12px 2px;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td {
+    border-top: 0 !important;
+    height: auto !important;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table tr:last-child {
+    border-bottom: 0;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td {
+    display: block;
+    overflow: visible !important;
+    padding: 0 !important;
+    white-space: normal !important;
+}
+
+/* Espo's row template reserves a third, dedicated actions cell (empty now
+   that the row's own kebab menu has been moved into the name cell above) -
+   confirmed directly against the real rendered DOM, it was rendering as an
+   empty block and adding dead space under the country line. */
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td[data-name="buttons"] {
+    display: none;
+}
+
+/* Name cell: avatar, name, and the (relocated) kebab menu on one flex row -
+   the kebab stays invisible until the row is hovered/focused, so the
+   default view reads clean and uncluttered. */
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(1) {
+    align-items: center;
+    display: flex;
+    gap: 9px;
+}
+
+.nexa-association-avatar {
+    align-items: center;
+    background: #e4f1ee;
+    border-radius: 50%;
+    color: #176f63;
+    display: inline-flex;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 700;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(1) a {
+    color: #163f36;
+    flex: 1 1 auto;
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-association-kebab {
+    flex-shrink: 0;
+}
+
+.nexa-association-kebab > .dropdown-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    color: #74847f;
+    display: inline-flex;
+    height: 22px;
+    justify-content: center;
+    width: 22px;
+}
+
+.nexa-association-kebab > .dropdown-toggle:hover,
+.nexa-association-kebab > .dropdown-toggle:focus-visible {
+    background: #edf4f2;
+    color: #163f36;
+    outline: 0;
+}
+
+/* Espo renders this toggle's content as a plain caret by default - restyle
+   it to read as a "..." kebab, which is what a hover-revealed per-row menu
+   conventionally looks like. */
+.nexa-association-kebab > .dropdown-toggle .caret {
+    border: 0;
+    display: inline-block;
+    font-size: 15px;
+    line-height: 1;
+    vertical-align: middle;
+    width: auto;
+}
+
+.nexa-association-kebab > .dropdown-toggle .caret::before {
+    content: '\2026';
+}
+
+/* Country: quiet caption on its own line, indented to align with the name
+   text rather than the avatar. */
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(2) {
+    color: #74847f;
+    font-size: 12px;
+    margin-top: 2px;
+    padding-left: 39px !important;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(2):empty::before {
+    content: 'No country recorded';
+    font-style: italic;
+}
+
+/* Country reads as plain, non-interactive text in this card - the app-wide
+   inline-cell-edit affordance (a hover pencil + inset border) is meant for
+   the full list-table context and reads as noise/clutter here. */
+.nexa-association-stack .panel[data-name="accounts"] .nexa-cell-edit-trigger {
+    display: none !important;
+}
+
+.nexa-association-stack .panel[data-name="accounts"] td.nexa-inline-editable-cell,
+.nexa-association-stack .panel[data-name="accounts"] td.nexa-inline-editable-cell:hover,
+.nexa-association-stack .panel[data-name="accounts"] td.nexa-inline-editable-cell:focus-visible {
+    background: transparent !important;
+    box-shadow: none !important;
+    cursor: default !important;
+}
+
+/* The panel-level "+"/Add action stays out of the way until the panel is
+   actually being interacted with, matching the same hover-to-reveal
+   treatment as the per-row kebab above. */
+.nexa-association-stack .panel[data-name="accounts"] .panel-heading > .panel-actions-container {
+    opacity: 0;
+    transition: opacity 120ms ease;
+}
+
+.nexa-association-stack .panel[data-name="accounts"]:hover .panel-heading > .panel-actions-container,
+.nexa-association-stack .panel[data-name="accounts"] .panel-heading > .panel-actions-container:focus-within {
+    opacity: 1;
+}
+
+/* Other relocated panels (Opportunities, Cases, ...) keep the standard
+   table look - just made to fit the sidebar width instead of overflowing
+   it, same as before. */
+.nexa-association-stack .panel:not([data-name="accounts"]) .panel-body,
+.nexa-association-stack .panel:not([data-name="accounts"]) .list-container,
+.nexa-association-stack .panel:not([data-name="accounts"]) .list-container > .list {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+}
+
+.nexa-association-stack .panel:not([data-name="accounts"]) .panel-body {
     max-height: 260px;
-    overflow: auto;
+    overflow-y: auto !important;
+}
+
+.nexa-association-stack .panel:not([data-name="accounts"]) .panel-body table.table {
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    width: 100% !important;
+}
+
+.nexa-association-stack .panel:not([data-name="accounts"]) .panel-body table.table td,
+.nexa-association-stack .panel:not([data-name="accounts"]) .panel-body table.table th {
+    height: auto !important;
+    overflow: hidden !important;
+    padding: 6px 5px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap !important;
+}
+
+/* The per-row "..." actions dropdown (unlink/view) floats inside the last
+   cell rather than living in its own column - give it room instead of
+   letting it get crushed under the ellipsis truncation above. */
+.nexa-association-stack .panel-body table.table .list-row-buttons {
+    flex-shrink: 0;
+    overflow: visible;
 }
 
 /* The desktop Contact workspace behaves like a three-pane application rather
@@ -4223,6 +4898,13 @@ td.nexa-inline-cell-error {
 
 .nexa-profile-image-field .attachment {
     order: -1;
+}
+
+.nexa-profile-image-hint {
+    display: block;
+    font-size: 11px;
+    margin-top: 6px;
+    text-align: center;
 }
 
 .nexa-profile-image-placeholder,

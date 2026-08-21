@@ -248,5 +248,26 @@
         "route": "/Nexa/tenant/company-name",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Tenant\\Api\\PostCompanyName"
+    },
+    {
+        "route": "/Nexa/mail/oauth/providers",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Mail\\Api\\GetOAuthProviders"
+    },
+    {
+        "route": "/Nexa/mail/oauth/:provider/start",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Mail\\Api\\PostOAuthStart"
+    },
+    {
+        "route": "/Nexa/mail/oauth/:provider/finish",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Mail\\Api\\PostOAuthFinish"
+    },
+    {
+        "route": "/Nexa/mail/oauth/:provider/callback",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Mail\\Api\\GetOAuthCallback",
+        "noAuth": true
     }
 ]

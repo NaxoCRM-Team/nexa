@@ -10,6 +10,10 @@
         "nexaTwilioApiKeySid": {"level": "internal"},
         "nexaTwilioApiKeySecret": {"level": "internal"},
         "nexaTwilioTwimlAppSid": {"level": "internal"},
-        "nexaTwilioPublicBaseUrl": {"level": "internal"}
+        "nexaTwilioPublicBaseUrl": {"level": "internal"},
+        "nexaMailGoogleClientId": {"level": "admin"},
+        "nexaMailGoogleClientSecret": {"level": "internal"},
+        "nexaMailGoogleRedirectUri": {"level": "admin"},
+        "nexaMailMicrosoftRedirectUri": {"level": "admin"}
     }
 }
