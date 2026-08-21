@@ -7,10 +7,12 @@ use Espo\Core\Exceptions\BadRequest;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\ORM\EntityManager;
+use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\ServiceEntitlementChecker;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Entities\Notification;
 use Espo\Entities\User;
+use Espo\Modules\Crm\Entities\Call;
 use PDO;
 use RuntimeException;
 
@@ -483,13 +485,28 @@ final class CallService
         }
 
         $select = $pdo->prepare(
-            'SELECT tenant_id, service_id, initiated_by_user_id, reserved_minutes, created_at ' .
+            'SELECT tenant_id, service_id, initiated_by_user_id, reserved_minutes, created_at, ' .
+            'contact_id, direction, from_number, to_number ' .
             'FROM nexa_call_session WHERE id = :id LIMIT 1'
         );
         $select->execute(['id' => $sessionId]);
         $session = $select->fetch(PDO::FETCH_ASSOC);
 
-        if (!$session || $session['reserved_minutes'] === null) {
+        if (!$session) {
+            return;
+        }
+
+        // Best-effort: a real completed/attempted call should show up on the
+        // Contact's timeline even if something below (billing edge cases,
+        // tenant lookup) goes sideways - never let this block or fail the
+        // Twilio webhook response.
+        try {
+            $this->logCallEntity($session, $status, $durationSeconds);
+        } catch (\Throwable $e) {
+            // Swallowed deliberately - see comment above.
+        }
+
+        if ($session['reserved_minutes'] === null) {
             return;
         }
 
@@ -537,6 +554,68 @@ final class CallService
                 );
             }
         }
+    }
+
+    /**
+     * Records a native Call entity for a completed/attempted click-to-call,
+     * so it shows on the Contact's Calls tab and Activities timeline the
+     * same way any other call would - this integration only ever wrote to
+     * nexa_call_session before, which nothing in the CRM's own timeline
+     * ever reads. Call.status only has three values (Planned/Held/Not
+     * Held), so a connected call maps to Held and anything else (no-answer,
+     * busy, failed, canceled) maps to Not Held. No live tenant context is
+     * available here (see class docblock), so one is built explicitly from
+     * the session's own tenant_id, same pattern as MailOAuthService::finish().
+     *
+     * @param array<string, mixed> $session
+     */
+    private function logCallEntity(array $session, string $status, ?int $durationSeconds): void
+    {
+        $contactId = $session['contact_id'] ?? null;
+        if (!is_string($contactId) || $contactId === '') {
+            return;
+        }
+
+        $tenantId = (string) $session['tenant_id'];
+        $tenantRow = $this->entityManager->getPDO()
+            ->prepare('SELECT slug, display_name FROM nexa_tenant WHERE id = :id LIMIT 1');
+        $tenantRow->execute(['id' => $tenantId]);
+        $tenant = $tenantRow->fetch(PDO::FETCH_ASSOC) ?: ['slug' => $tenantId, 'display_name' => ''];
+
+        // Call/Contact live under the CRM service - session['service_id'] is
+        // the voice service (billing/entitlements), a different service on
+        // the same tenant, and using it here would scope the Contact lookup
+        // to the wrong service and silently find nothing.
+        $context = new TenantContext(
+            $tenantId,
+            (string) $tenant['slug'],
+            'call-finalize',
+            (string) $tenant['display_name'],
+            TenantContext::CRM_SERVICE_ID
+        );
+
+        $this->tenantContextStore->runWith($context, function () use ($session, $status, $durationSeconds, $contactId): void {
+            $contact = $this->entityManager->getRDBRepository('Contact')->getById($contactId);
+            if (!$contact) {
+                return;
+            }
+
+            $dateStart = (string) $session['created_at'];
+            $dateEndTime = strtotime($dateStart) + ($status === 'completed' ? max(0, (int) ($durationSeconds ?? 0)) : 0);
+
+            $this->entityManager->createEntity(Call::ENTITY_TYPE, [
+                'name' => 'Call with ' . ($contact->get('name') ?: (string) $session['to_number']),
+                'status' => $status === 'completed' ? 'Held' : 'Not Held',
+                'direction' => $session['direction'] === 'inbound' ? 'Inbound' : 'Outbound',
+                'dateStart' => date('Y-m-d H:i:s', strtotime($dateStart)),
+                'dateEnd' => date('Y-m-d H:i:s', $dateEndTime),
+                'parentType' => 'Contact',
+                'parentId' => $contactId,
+                'contactsIds' => [$contactId],
+                'assignedUserId' => (string) $session['initiated_by_user_id'],
+                'description' => 'Placed via the CRM to ' . (string) $session['to_number'],
+            ]);
+        });
     }
 
     /**
