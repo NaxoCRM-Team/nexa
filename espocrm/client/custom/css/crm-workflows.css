@@ -1642,6 +1642,18 @@
     animation: nexa-note-highlight 1.8s ease-out;
 }
 
+/* Incoming mail (a contact's reply) gets a distinct tint and left accent so
+   it reads apart from what we sent, instead of blending into one long list. */
+.nexa-note-card.is-inbound {
+    background: #f7f8ff;
+    border-color: #d3d7f7;
+    border-left: 3px solid #7b80e0;
+}
+
+.nexa-note-card.is-inbound > .nexa-note-details {
+    border-top-color: #e2e4f9;
+}
+
 @keyframes nexa-note-highlight {
     from { background: #e5f5f1; }
     to { background: transparent; }
@@ -1880,6 +1892,35 @@
     line-height: 1.6;
     margin: 13px 0 5px;
     overflow-wrap: anywhere;
+}
+
+.nexa-email-quote-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: #6b6fb0;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    gap: 6px;
+    margin: 0 0 5px;
+    padding: 0;
+}
+
+.nexa-email-quote-toggle:hover,
+.nexa-email-quote-toggle:focus-visible {
+    color: #4a4fc4;
+    outline: 0;
+    text-decoration: underline;
+}
+
+.nexa-email-quoted-body {
+    background: #f4f5fb;
+    border-left: 2px solid #c8cdf7;
+    border-radius: 4px;
+    color: #5a6570;
+    margin: 0 0 5px;
+    padding: 10px 12px;
 }
 
 .nexa-note-list-item {
@@ -2397,6 +2438,8 @@
 .nexa-meeting-status--held { background: #e4f5ea; border-color: #b7ddc5; color: #276b40; }
 .nexa-meeting-status--not-held { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
 .nexa-meeting-status--other { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
+.nexa-meeting-status--danger { background: #fdecea; border-color: #f3c2bd; color: #c0392b; }
+.nexa-meeting-status--reply { background: #eef0ff; border-color: #c8cdf7; color: #4a4fc4; }
 
 .nexa-task-title {
     align-items: center;

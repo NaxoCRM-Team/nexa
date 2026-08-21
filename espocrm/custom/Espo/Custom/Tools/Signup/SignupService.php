@@ -8,6 +8,8 @@ use Espo\Core\Authentication\AuthToken\Manager as AuthTokenManager;
 use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Utils\Config;
+use Espo\Core\Utils\Log;
+use Espo\Custom\Tools\ScheduledJobs\ScheduledJobProvisioner;
 use Espo\ORM\EntityManager;
 use PDO;
 use PDOException;
@@ -26,6 +28,8 @@ final class SignupService
         private SignupMailer $mailer,
         private AuthTokenManager $authTokenManager,
         private TenantContextStore $tenantContextStore,
+        private ScheduledJobProvisioner $scheduledJobProvisioner,
+        private Log $log,
     ) {}
 
     /** @return array<string,mixed> */
@@ -183,6 +187,20 @@ final class SignupService
             if ($e instanceof PDOException && $e->getCode() === '23000') throw new SignupProblem(409, 'email_in_use', 'An account already uses this email address.');
             throw $e;
         }
+
+        // Best-effort: a new tenant needs its own scheduled-job rows to get
+        // background processing (mail fetch, reminders, notifications, ...)
+        // at all - see ScheduledJobProvisioner. Never fails signup itself;
+        // the next `rebuild` run is a safety net if this hiccups.
+        try {
+            $this->tenantContextStore->runWith(
+                new TenantContext($tenantId, $slug, 'signup-provisioning', $attempt['company_name']),
+                fn () => $this->scheduledJobProvisioner->syncForTenant($tenantId, $slug, $attempt['company_name'])
+            );
+        } catch (Throwable $e) {
+            $this->log->error('Scheduled-job provisioning failed for new tenant ' . $tenantId . ': ' . $e->getMessage());
+        }
+
         $identity=['tenant_id'=>$tenantId,'slug'=>$slug,'display_name'=>$attempt['company_name'],'user_id'=>$userId,'user_name'=>$attempt['normalized_email']];
         return ['status'=>'active','trialEndsAt'=>$trialEnd,'session'=>$this->sessionData($identity)];
     }

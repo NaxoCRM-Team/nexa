@@ -30,94 +30,28 @@
 namespace Espo\Core\Rebuild\Actions;
 
 use Espo\Core\Rebuild\RebuildAction;
-use Espo\Core\Utils\Metadata;
-use Espo\Entities\ScheduledJob;
-use Espo\ORM\EntityManager;
+use Espo\Custom\Tools\ScheduledJobs\ScheduledJobProvisioner;
 
 /**
  * Rebuilds scheduled jobs. Creates system jobs.
+ *
+ * Tenant-agnostic jobs get a single row (as before); jobs that touch
+ * tenant-owned data get one row per real tenant, since ScheduleProcessor
+ * runs each job's preparator inside that row's own tenant context - see
+ * ScheduledJobProvisioner for the classification and the reasoning.
  */
 class ScheduledJobs implements RebuildAction
 {
     public function __construct(
-        private Metadata $metadata,
-        private EntityManager $entityManager
+        private ScheduledJobProvisioner $provisioner
     ) {}
 
     public function process(): void
     {
-        $jobDefs = array_merge(
-            $this->metadata->get(['entityDefs', 'ScheduledJob', 'jobs'], []), // for bc
-            $this->metadata->get(['app', 'scheduledJobs'], [])
-        );
+        $this->provisioner->syncGlobal();
 
-        $systemJobNameList = [];
-
-        foreach ($jobDefs as $jobName => $defs) {
-            if (!$jobName) {
-                continue;
-            }
-
-            if (empty($defs['isSystem']) || empty($defs['scheduling'])) {
-                continue;
-            }
-
-            $systemJobNameList[] = $jobName;
-
-            $sj = $this->entityManager
-                ->getRDBRepository(ScheduledJob::ENTITY_TYPE)
-                ->where([
-                    'job' => $jobName,
-                    'status' => ScheduledJob::STATUS_ACTIVE,
-                    'scheduling' => $defs['scheduling'],
-                ])
-                ->findOne();
-
-            if ($sj) {
-                continue;
-            }
-
-            $existingJob = $this->entityManager
-                ->getRDBRepository(ScheduledJob::ENTITY_TYPE)
-                ->where([
-                    'job' => $jobName,
-                ])
-                ->findOne();
-
-            if ($existingJob) {
-                $this->entityManager->removeEntity($existingJob);
-            }
-
-            $name = $jobName;
-
-            if (!empty($defs['name'])) {
-                $name = $defs['name'];
-            }
-
-            $this->entityManager->createEntity(ScheduledJob::ENTITY_TYPE, [
-                'job' => $jobName,
-                'status' => ScheduledJob::STATUS_ACTIVE,
-                'scheduling' => $defs['scheduling'],
-                'isInternal' => true,
-                'name' => $name,
-            ]);
-        }
-
-        $internalScheduledJobList = $this->entityManager
-            ->getRDBRepository(ScheduledJob::ENTITY_TYPE)
-            ->where([
-                'isInternal' => true,
-            ])
-            ->find();
-
-        foreach ($internalScheduledJobList as $scheduledJob) {
-            $jobName = $scheduledJob->get('job');
-
-            if (!in_array($jobName, $systemJobNameList)) {
-                $this->entityManager
-                    ->getRDBRepository(ScheduledJob::ENTITY_TYPE)
-                    ->deleteFromDb($scheduledJob->getId());
-            }
+        foreach ($this->provisioner->listRealTenants() as $tenant) {
+            $this->provisioner->syncForTenant($tenant['id'], $tenant['slug'], $tenant['display_name']);
         }
     }
 }

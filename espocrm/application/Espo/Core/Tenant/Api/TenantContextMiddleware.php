@@ -101,7 +101,12 @@ final class TenantContextMiddleware implements MiddlewareInterface
 
         return $method === 'GET' && (
             str_ends_with($path, '/api/v1/Nexa/auth/providers') ||
-            preg_match('#/api/v1/Nexa/auth/provider/[a-z0-9_-]+/(start|callback)$#', $path) === 1
+            preg_match('#/api/v1/Nexa/auth/provider/[a-z0-9_-]+/(start|callback)$#', $path) === 1 ||
+            // Mail "connect inbox" OAuth callback: reached directly by
+            // Google/Microsoft with no EspoCRM session, same shape as the
+            // login provider callback above but a distinct flow - see
+            // Tools/Mail/MailOAuthService's docblock.
+            preg_match('#/api/v1/Nexa/mail/oauth/[a-z0-9_-]+/callback$#', $path) === 1
         );
     }
 
