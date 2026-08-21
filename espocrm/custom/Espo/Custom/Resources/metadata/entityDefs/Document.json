@@ -1,0 +1,9 @@
+{
+    "fields": {
+        "contacts": {
+            "type": "linkMultiple",
+            "view": "views/fields/link-multiple",
+            "orderBy": "name"
+        }
+    }
+}

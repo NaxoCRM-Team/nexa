@@ -8,5 +8,10 @@
         "list": "custom:views/contact/record/list-infinite-v2",
         "edit": "custom:views/contact/record/edit-v3",
         "detail": "custom:views/contact/record/detail-workspace"
+    },
+    "relationshipPanels": {
+        "documents": {
+            "createHandler": "custom:handlers/create-related/document-from-contact"
+        }
     }
 }
