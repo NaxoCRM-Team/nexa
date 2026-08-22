@@ -63,6 +63,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 this.closeTaskDeleteDialog();
                 this.closeActivityDeleteDialog();
                 this.closeEmailDeleteDialog();
+                this.closeRecordCreationDeleteDialog();
             });
         }
 
@@ -559,6 +560,31 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 if (event.target.closest('a, button')) setTimeout(close, 0);
             });
 
+            // views/record/detail binds 'click .button-container .action' as
+            // a jQuery delegated handler on its OWN root element at render
+            // time (confirmed directly in the bundled source). Moving this
+            // button-container out of that root via actions.append(nativeRecord)
+            // above takes it out of that root's DOM subtree, so those clicks
+            // stop bubbling to a listener still bound to the original root -
+            // every item in this menu (Remove, Duplicate, View Personal Data,
+            // View Followers, View User Access) silently does nothing. This
+            // replicates that exact same dispatch, scoped to the menu's new
+            // home instead - same actionItems selection logic, same
+            // Espo.Utils.handleAction() call shape.
+            menu.addEventListener('click', event => {
+                const target = event.target.closest('.action');
+                if (!target) return;
+
+                let actionItems;
+                if (target.classList.contains('detail-action-item')) {
+                    actionItems = [...(this.buttonList || []), ...(this.dropdownItemList || [])];
+                } else if (target.classList.contains('edit-action-item')) {
+                    actionItems = [...(this.buttonEditList || []), ...(this.dropdownEditItemList || [])];
+                }
+
+                Espo.Utils.handleAction(this, event, target, {actionItems});
+            });
+
             if (this.actionMenuDocumentHandler) {
                 document.removeEventListener('click', this.actionMenuDocumentHandler);
             }
@@ -566,6 +592,38 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 if (!group.contains(event.target)) close();
             };
             document.addEventListener('click', this.actionMenuDocumentHandler);
+        }
+
+        // Overrides the native "Remove" action's plain confirm() dialog with
+        // the same soft-delete confirmation modal + Nexa/contact/delete route
+        // already used on the Contact list page (list-infinite-v2.js), so the
+        // deletion behavior (and trash/recovery flow) is consistent everywhere.
+        // Note: views/record/detail's dropdown item is named 'delete' (label
+        // "Remove"), so the dispatched method is actionDelete(), not
+        // actionRemove() - confirmed directly in the bundled source.
+        actionDelete() {
+            if (!this.getAcl().checkModel(this.model, 'delete')) {
+                Espo.Ui.error(this.translate('Access denied'));
+                return;
+            }
+
+            const id = this.model.id;
+            this.createView('contactDeleteConfirmation', 'custom:views/contact/modals/delete-confirmation', {
+                count: 1,
+            }, view => {
+                view.render();
+                this.listenToOnce(view, 'confirm', async () => {
+                    Espo.Ui.notifyWait();
+                    try {
+                        await Espo.Ajax.postRequest('Nexa/contact/delete', {ids: [id]});
+                        document.dispatchEvent(new CustomEvent('nexa:contact-trash-changed'));
+                        Espo.Ui.success(this.translate('Removed'));
+                        this.getRouter().navigate('#Contact', {trigger: true});
+                    } catch (e) {
+                        Espo.Ui.notify(false);
+                    }
+                });
+            });
         }
 
         overviewPanel() {
@@ -810,10 +868,10 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     </div>
                     <button type="button" class="btn btn-default nexa-activity-filter-toggle" data-nexa-activity-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
                     <div class="nexa-activity-filters" data-nexa-activity-filters>
-                        <label><span>Activity type</span><select class="form-control" data-nexa-activity-type>
+                        <select class="form-control" data-nexa-activity-type aria-label="Activity type">
                             <option value="all">All activities</option><option value="call">Calls</option><option value="meeting">Meetings</option><option value="email">Emails</option><option value="task">Tasks</option><option value="note">Notes</option><option value="case">Cases created</option><option value="opportunity">Opportunities created</option><option value="document">Documents created</option><option value="preference">Communication preferences</option><option value="other">Other activity</option>
-                        </select></label>
-                        <label><span>Date range</span><select class="form-control" data-nexa-activity-period>${this.notePeriodOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></label>
+                        </select>
+                        <select class="form-control" data-nexa-activity-period aria-label="Date range">${this.notePeriodOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select>
                     </div>
                 </div>
                 <div class="nexa-activity-list" data-nexa-activity-list aria-live="polite"><div class="nexa-note-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading activities</span></div></div>
@@ -3690,7 +3748,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             if (!panels) return [];
             const activities = [
                 ...(this.contactCommunicationActivities || []),
-                ...(this.contactRecordCreationActivities || []),
+                ...(this.contactRecordCreationRecords || []).map(record => this.recordCreationActivity(record)),
             ];
 
             activities.forEach(activity => {
@@ -3883,12 +3941,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         // fetch of the three relationship lists, mirroring
         // loadContactCommunicationActivities()'s shape).
         async loadContactRecordCreationActivities(workspace = null) {
-            this.contactRecordCreationActivities = [];
+            this.contactRecordCreationRecords = [];
 
             const specs = [
-                {link: 'cases', type: 'case', route: 'Case', select: 'id,name,status,createdAt,createdByName,assignedUserName'},
-                {link: 'opportunities', type: 'opportunity', route: 'Opportunity', select: 'id,name,stage,createdAt,createdByName,assignedUserName'},
-                {link: 'documents', type: 'document', route: 'Document', select: 'id,name,status,createdAt,createdByName,assignedUserName'},
+                {link: 'cases', type: 'case', route: 'Case', select: 'id,name,status,createdAt,createdByName,assignedUsersIds,assignedUsersNames,isPinned'},
+                {link: 'opportunities', type: 'opportunity', route: 'Opportunity', select: 'id,name,stage,createdAt,createdByName,assignedUsersIds,assignedUsersNames,isPinned'},
+                {link: 'documents', type: 'document', route: 'Document', select: 'id,name,status,createdAt,createdByName,assignedUsersIds,assignedUsersNames,isPinned'},
             ];
 
             const results = await Promise.all(specs.map(async spec => {
@@ -3903,25 +3961,115 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 }
             }));
 
-            this.contactRecordCreationActivities = results.flat().map(record => {
-                const statusValue = record.status || record.stage || '';
-                const createdBy = record.createdByName || 'Someone';
-                const assignedTo = record.assignedUserName || 'Unassigned';
-                const typeLabel = {case: 'case', opportunity: 'opportunity', document: 'document'}[record.__specType];
+            const records = results.flat();
+            await Promise.all(records.map(async record => {
+                const model = await this.getModelFactory().create(record.__specRoute);
+                model.set(record);
+                model.id = record.id;
+                record.canPin = this.getAcl().checkModel(model, 'edit') === true;
+                record.canDelete = this.getAcl().checkModel(model, 'delete') === true;
+                record.isPinned = record.isPinned === true;
+            }));
 
-                return {
-                    id: `${record.__specType}-created-${record.id}`,
-                    type: record.__specType,
-                    title: `${createdBy} created ${typeLabel} assigned to ${assignedTo}`,
-                    text: [record.name, statusValue].filter(Boolean).join(' '),
-                    date: this.contactNoteDate(record.createdAt),
-                    href: `#${record.__specRoute}/view/${record.id}`,
-                    interactionFields: statusValue ? [['Status', statusValue]] : [],
-                    interactionSubject: record.name,
-                };
-            });
-
+            this.contactRecordCreationRecords = records;
             this.renderContactActivities(workspace);
+        }
+
+        findRecordCreationActivity(recordType, recordId) {
+            return (this.contactRecordCreationRecords || [])
+                .find(record => record.__specType === recordType && record.id === recordId);
+        }
+
+        recordCreationActivity(record) {
+            const statusValue = record.status || record.stage || '';
+            const createdBy = record.createdByName || 'Someone';
+            const assignedTo = Object.values(record.assignedUsersNames || {}).join(', ') || 'Unassigned';
+            const typeLabel = {case: 'case', opportunity: 'opportunity', document: 'document'}[record.__specType];
+
+            return {
+                id: `${record.__specType}-created-${record.id}`,
+                type: record.__specType,
+                title: `${createdBy} created ${typeLabel} assigned to ${assignedTo}`,
+                text: [record.name, statusValue].filter(Boolean).join(' '),
+                date: this.contactNoteDate(record.createdAt),
+                href: `#${record.__specRoute}/view/${record.id}`,
+                interactionFields: statusValue ? [['Status', statusValue]] : [],
+                interactionSubject: record.name,
+                recordType: record.__specType,
+                recordId: record.id,
+                isPinned: record.isPinned === true,
+                canPin: record.canPin === true,
+                canDelete: record.canDelete === true,
+            };
+        }
+
+        async toggleRecordCreationPinned(recordType, recordId, pinned, button) {
+            if (!recordType || !recordId || button?.disabled || button?.dataset.saving === 'true') return;
+            button.dataset.saving = 'true';
+            button.disabled = true;
+            try {
+                const record = this.findRecordCreationActivity(recordType, recordId);
+                const model = await this.getModelFactory().create(record?.__specRoute || recordType);
+                model.id = recordId;
+                await model.save({isPinned: pinned}, {patch: true});
+                if (record) record.isPinned = pinned;
+                this.renderContactActivities();
+                Espo.Ui.success(pinned ? 'Activity pinned' : 'Activity unpinned');
+            } catch (error) {
+                button.disabled = false;
+                button.dataset.saving = 'false';
+                Espo.Ui.error('The activity could not be updated. Check your access and try again.');
+            }
+        }
+
+        openRecordCreationDeleteDialog(recordType, recordId) {
+            const record = this.findRecordCreationActivity(recordType, recordId);
+            if (!record?.canDelete) return;
+            this.closeRecordCreationDeleteDialog();
+            const label = {case: 'case', opportunity: 'opportunity', document: 'document'}[recordType] || 'record';
+            const overlay = document.createElement('div');
+            overlay.className = 'nexa-note-delete-overlay';
+            overlay.dataset.nexaRecordDeleteDialog = 'true';
+            overlay.innerHTML = `<section class="nexa-note-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-record-delete-title"><header><div><p>Delete ${this.escape(label)}</p><h2 id="nexa-record-delete-title">Delete "${this.escape(record.name || '')}"?</h2></div><button type="button" class="nexa-dialog-close" data-nexa-record-delete-close aria-label="Close"><span class="fas fa-times" aria-hidden="true"></span></button></header><div class="nexa-note-delete-content"><p>This ${this.escape(label)} will be permanently deleted, not just removed from this timeline. This action cannot be undone from this page.</p><p class="nexa-note-delete-error" role="alert" hidden></p></div><footer><button type="button" class="btn btn-default" data-nexa-record-delete-cancel>Cancel</button><button type="button" class="btn btn-danger" data-nexa-record-delete-confirm><span class="far fa-trash-alt" aria-hidden="true"></span><span>Delete ${this.escape(label)}</span></button></footer></section>`;
+            document.body.append(overlay);
+            this.recordDeleteDialog = overlay;
+            const close = () => this.closeRecordCreationDeleteDialog();
+            overlay.querySelector('[data-nexa-record-delete-close]').addEventListener('click', close);
+            overlay.querySelector('[data-nexa-record-delete-cancel]').addEventListener('click', close);
+            overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+            overlay.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+            overlay.querySelector('[data-nexa-record-delete-confirm]').addEventListener('click', event => this.deleteContactRecordCreation(recordType, recordId, event.currentTarget));
+            window.setTimeout(() => overlay.querySelector('[data-nexa-record-delete-cancel]')?.focus(), 0);
+        }
+
+        closeRecordCreationDeleteDialog() {
+            this.recordDeleteDialog?.remove();
+            this.recordDeleteDialog = null;
+        }
+
+        async deleteContactRecordCreation(recordType, recordId, button) {
+            if (!recordId || button.dataset.saving === 'true') return;
+            const record = this.findRecordCreationActivity(recordType, recordId);
+            const error = this.recordDeleteDialog?.querySelector('.nexa-note-delete-error');
+            button.dataset.saving = 'true';
+            button.disabled = true;
+            button.classList.add('is-loading');
+            try {
+                await Espo.Ajax.deleteRequest(`${record?.__specRoute || recordType}/${encodeURIComponent(recordId)}`);
+                this.contactRecordCreationRecords = (this.contactRecordCreationRecords || [])
+                    .filter(item => !(item.__specType === recordType && item.id === recordId));
+                this.closeRecordCreationDeleteDialog();
+                this.renderContactActivities();
+                Espo.Ui.success('Deleted');
+            } catch (deleteError) {
+                if (error) {
+                    error.textContent = 'This could not be deleted. Check your permission and try again.';
+                    error.hidden = false;
+                }
+                button.dataset.saving = 'false';
+                button.disabled = false;
+                button.classList.remove('is-loading');
+            }
         }
 
         filteredContactActivities(workspace = null) {
@@ -4000,13 +4148,30 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             });
             list.querySelectorAll('[data-nexa-activity-pin]').forEach(button => {
                 button.addEventListener('click', () => {
-                    const noteId = button.closest('[data-nexa-activity-note-id]').dataset.nexaActivityNoteId;
+                    const card = button.closest('[data-nexa-activity-id]');
+                    const recordType = card.dataset.nexaActivityRecordType;
+                    const recordId = card.dataset.nexaActivityRecordId;
+                    if (recordType && recordId) {
+                        const record = this.findRecordCreationActivity(recordType, recordId);
+                        this.toggleRecordCreationPinned(recordType, recordId, !record?.isPinned, button);
+                        return;
+                    }
+                    const noteId = card.dataset.nexaActivityNoteId;
                     const record = this.findActivityNoteRecord(noteId);
                     this.toggleActivityNotePinned(noteId, !record?.isPinned, button);
                 });
             });
             list.querySelectorAll('[data-nexa-activity-delete]').forEach(button => {
-                button.addEventListener('click', () => this.openActivityDeleteDialog(button.closest('[data-nexa-activity-note-id]').dataset.nexaActivityNoteId));
+                button.addEventListener('click', () => {
+                    const card = button.closest('[data-nexa-activity-id]');
+                    const recordType = card.dataset.nexaActivityRecordType;
+                    const recordId = card.dataset.nexaActivityRecordId;
+                    if (recordType && recordId) {
+                        this.openRecordCreationDeleteDialog(recordType, recordId);
+                        return;
+                    }
+                    this.openActivityDeleteDialog(card.dataset.nexaActivityNoteId);
+                });
             });
             if (this.activityActionsDocumentHandler) document.removeEventListener('click', this.activityActionsDocumentHandler);
             this.activityActionsDocumentHandler = event => {
@@ -4261,12 +4426,16 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     </dl>`
                     : `<p>${this.escape(preview)}</p>`;
             const deleteHelp = "You don't have permission to delete this activity. Ask your admin to grant permission.";
-            const actionsHtml = activity.noteId
+            const hasActions = activity.noteId || activity.recordId;
+            const actionsHtml = hasActions
                 ? `<div class="nexa-note-actions" data-nexa-activity-actions${collapsed ? ' hidden' : ''}><button type="button" class="nexa-note-actions-toggle" data-nexa-activity-actions-toggle aria-expanded="false">Actions <span class="fas fa-caret-down" aria-hidden="true"></span></button><div class="nexa-note-actions-menu" data-nexa-activity-actions-menu hidden><button type="button" data-nexa-activity-pin${activity.canPin ? '' : ' disabled aria-disabled="true"'}><span class="fas fa-thumbtack" aria-hidden="true"></span>${activity.isPinned ? 'Unpin' : 'Pin'}</button>${activity.canDelete ? '<button type="button" class="is-danger" data-nexa-activity-delete><span class="far fa-trash-alt" aria-hidden="true"></span>Delete</button>' : `<span class="nexa-note-action-disabled" data-tooltip="${this.escape(deleteHelp)}" tabindex="0"><button type="button" class="is-danger" disabled aria-disabled="true"><span class="far fa-trash-alt" aria-hidden="true"></span>Delete</button></span>`}</div></div>`
                 : '';
             const commentsHtml = activity.noteId ? this.contactActivityCommentsSection(activity) : '';
+            const recordAttrs = activity.recordId
+                ? ` data-nexa-activity-record-type="${this.escape(activity.recordType)}" data-nexa-activity-record-id="${this.escape(activity.recordId)}"`
+                : '';
 
-            return `<article class="nexa-activity-card${collapsed ? ' is-collapsed' : ''}${activity.isPinned ? ' is-pinned' : ''}" data-nexa-activity-id="${this.escape(activity.id)}"${activity.noteId ? ` data-nexa-activity-note-id="${this.escape(activity.noteId)}"` : ''}>
+            return `<article class="nexa-activity-card${collapsed ? ' is-collapsed' : ''}${activity.isPinned ? ' is-pinned' : ''}" data-nexa-activity-id="${this.escape(activity.id)}"${activity.noteId ? ` data-nexa-activity-note-id="${this.escape(activity.noteId)}"` : ''}${recordAttrs}>
                 <header><button type="button" class="nexa-activity-toggle" data-nexa-activity-toggle aria-expanded="${!collapsed}"><span class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></span><span class="fas nexa-activity-icon ${icon}" aria-hidden="true"></span><span class="nexa-activity-heading"><strong>${activity.isPinned ? '<span class="fas fa-thumbtack nexa-note-pinned-icon" aria-label="Pinned activity"></span> ' : ''}${this.escape(activity.title)}</strong><span>${this.escape(subtitle)}</span></span></button><div class="nexa-note-header-meta">${actionsHtml}<time>${this.escape(timestamp)}</time></div></header>
                 <p class="nexa-activity-preview"${collapsed ? '' : ' hidden'}>${this.escape(preview)}</p>
                 <div class="nexa-activity-details"${collapsed ? ' hidden' : ''}>${details}${activity.href ? `<a href="${this.escape(activity.href)}">View record <span class="fas fa-arrow-right" aria-hidden="true"></span></a>` : ''}${commentsHtml}</div>

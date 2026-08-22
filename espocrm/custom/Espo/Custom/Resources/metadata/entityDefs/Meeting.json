@@ -3,7 +3,6 @@
         "isPinned": {
             "type": "bool",
             "default": false,
-            "readOnly": true,
             "layoutDetailDisabled": true,
             "layoutListDisabled": true,
             "layoutMassUpdateDisabled": true,

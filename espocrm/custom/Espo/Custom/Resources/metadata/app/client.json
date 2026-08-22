@@ -7,13 +7,16 @@
         "client/custom/css/tenant-search.css",
         "client/custom/css/crm-workflows.css",
         "client/custom/css/tenant-dashboard.css",
-        "client/custom/css/contact-import.css"
+        "client/custom/css/contact-import.css",
+        "client/custom/css/back-button.css"
     ],
     "scriptList": [
         "__APPEND__",
         "client/custom/login-patch.js",
         "client/custom/tenant-workspace.js",
         "client/custom/crm-workflows.js",
-        "client/custom/attachment-links.js"
+        "client/custom/attachment-links.js",
+        "client/custom/select-modal-fix.js",
+        "client/custom/back-button.js"
     ]
 }
