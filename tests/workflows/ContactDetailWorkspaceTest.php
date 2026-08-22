@@ -187,7 +187,10 @@ $mustContain('profiles.filter(Boolean)', $view, 'Empty social profiles must not 
 $mustContain('target="_blank" rel="noopener noreferrer" role="listitem"', $view, 'Social profile links must safely open in a new tab.');
 $mustContain('data-tooltip=', $view, 'Social profile icons must reveal their destination on hover and focus.');
 $mustContain("replace(/^www\\./i, '')", $view, 'External profile labels must omit the www prefix.');
-$mustContain("['accounts', 'opportunities', 'cases', 'documents', 'targetLists']", $view, 'CRM associations must remain available in the customer workspace.');
+// Target Lists was intentionally replaced by a Payments placeholder in the
+// same panel slot - see appendPaymentsPlaceholderPanel().
+$mustContain("['accounts', 'opportunities', 'cases', 'documents']", $view, 'CRM associations must remain available in the customer workspace.');
+$mustContain('appendPaymentsPlaceholderPanel', $view, 'The Payments placeholder must occupy the slot Target Lists used to.');
 
 // Sales/Marketing/Service were intentionally removed in favour of the
 // redesigned Overview "customer 360" hub - see renderContactOverviewInsights.

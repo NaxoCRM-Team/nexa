@@ -1,0 +1,12 @@
+[
+    "assignedUsers",
+    "teams",
+    "accounts",
+    "createdAt",
+    "createdBy",
+    "modifiedAt",
+    "expirationDate",
+    "type",
+    "status",
+    "publishDate"
+]

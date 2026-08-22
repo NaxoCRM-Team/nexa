@@ -1,0 +1,36 @@
+{
+    "fields": {
+        "contacts": {
+            "type": "linkMultiple",
+            "view": "views/fields/link-multiple",
+            "orderBy": "name"
+        },
+        "isPinned": {
+            "type": "bool",
+            "default": false,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        },
+        "assignedUsers": {
+            "type": "linkMultiple",
+            "view": "views/fields/assigned-users",
+            "maxCount": 10
+        },
+        "assignedUser": {
+            "disabled": true
+        }
+    },
+    "links": {
+        "assignedUsers": {
+            "type": "hasMany",
+            "entity": "User",
+            "relationName": "entityUser",
+            "layoutRelationshipsDisabled": true
+        },
+        "assignedUser": {
+            "disabled": true
+        }
+    }
+}

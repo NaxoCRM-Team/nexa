@@ -1113,7 +1113,7 @@
 .nexa-activity-search {
     display: block;
     position: relative;
-    width: min(320px, 100%);
+    width: min(440px, 100%);
 }
 
 .nexa-activity-search input {
@@ -1170,32 +1170,33 @@
 .nexa-activity-filter-toggle {
     align-items: center;
     display: inline-flex;
-    gap: 7px;
+    font-size: 12px;
+    gap: 5px;
     margin-top: 12px;
+    padding: 6px 10px;
 }
 
 .nexa-activity-filters {
-    display: grid;
-    gap: 13px;
-    grid-template-columns: repeat(2, minmax(180px, 240px));
-    margin-top: 12px;
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    margin-top: 11px;
 }
 
 .nexa-activity-filters[hidden] {
     display: none;
 }
 
-.nexa-activity-filters label > span {
-    color: #52645e;
-    display: block;
-    font-size: 11px;
-    font-weight: 700;
-    margin-bottom: 5px;
-}
-
 .nexa-activity-filters .form-control {
     border-color: #adbfba;
-    min-height: 38px;
+    height: 34px;
+    max-width: 160px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 5px 26px 5px 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: auto;
 }
 
 .nexa-native-activity-source {
@@ -1510,13 +1511,30 @@
 [data-nexa-tab-panel="email"] .nexa-notes-toolbar-search-column,
 [data-nexa-tab-panel="calls"] .nexa-notes-toolbar-search-column,
 [data-nexa-tab-panel="meetings"] .nexa-notes-toolbar-search-column {
+    align-items: flex-start;
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
+    min-width: 0;
 }
 
 [data-nexa-tab-panel="email"] .nexa-notes-search,
-[data-nexa-tab-panel="calls"] .nexa-notes-search {
+[data-nexa-tab-panel="calls"] .nexa-notes-search,
+[data-nexa-tab-panel="meetings"] .nexa-notes-search {
     width: min(440px, 100%);
+}
+
+/* The search-column is a column-direction flex container, whose default
+   align-items:stretch was forcing the Filters toggle to the column's full
+   width (identical to the search box's own width) instead of its own
+   compact content size - confirmed directly via computed-style measurement
+   showing both at an identical stretched width. */
+[data-nexa-tab-panel="email"] .nexa-notes-filter-toggle,
+[data-nexa-tab-panel="calls"] .nexa-notes-filter-toggle,
+[data-nexa-tab-panel="meetings"] .nexa-notes-filter-toggle {
+    align-self: flex-start;
+    font-size: 12px;
+    padding: 6px 10px;
 }
 
 [data-nexa-tab-panel="email"] .nexa-notes-toolbar-actions,
@@ -3146,11 +3164,11 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
 }
 
 .nexa-association-stack .panel-heading {
-    padding: 14px 16px;
+    padding: 10px 16px 8px;
 }
 
 .nexa-association-stack .panel-body {
-    padding: 14px 16px;
+    padding: 6px 16px 14px;
 }
 
 .nexa-native-properties .panel-heading,
@@ -3525,11 +3543,11 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
 }
 
 /* Pull the account row up closer to the "Accounts" heading - the generic
-   14px panel-body top padding (sized for the collapsible panels' own
-   content) reads as a big gap here since there's no chevron/count row
-   above it like the others have. */
+   panel-body top padding (sized for the collapsible panels' own content)
+   still read as a big gap here since there's no chevron/count row above it
+   like the others have. */
 .nexa-association-stack .panel[data-name="accounts"] .panel-body {
-    padding-top: 4px !important;
+    padding-top: 0 !important;
 }
 
 /* The visible line above the row: .list.nexa-record-list (from the same
@@ -3729,9 +3747,27 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     overflow-x: hidden !important;
 }
 
+/* Sized so ~5 rows are visible without scrolling once expanded (thead ~30px
+   + panel-body's own 14px top/bottom padding + 5 * ~35px rows). */
 .nexa-association-stack .panel:not([data-name="accounts"]) .panel-body {
-    max-height: 260px;
+    max-height: 320px;
     overflow-y: auto !important;
+}
+
+/* Same pre-existing list-page system as the Accounts fix above: .list.
+   nexa-record-list carries its own border plus a -14px top/bottom margin
+   that pulls it up into the panel-body's padding. That's harmless when the
+   panel-body grows freely, but once panel-body becomes a scroll container
+   (overflow-y: auto, right above) the negative margin pulls the row content
+   above the scroll viewport's own top edge - scrollTop can't go negative,
+   so that portion (the column headers, on first render) is permanently
+   clipped and unreachable. Confirmed via computed-style/geometry dump
+   showing the table's top edge sitting above the list-container's. Same
+   fix as Accounts: neutralize the negative margin so content starts inside
+   the visible scroll area instead of above it. */
+.nexa-association-stack .panel:not([data-name="accounts"]) .list.nexa-record-list {
+    border: 0 !important;
+    margin: 0 !important;
 }
 
 .nexa-association-stack .panel:not([data-name="accounts"]) .panel-body table.table {
@@ -3744,9 +3780,34 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
 .nexa-association-stack .panel:not([data-name="accounts"]) .panel-body table.table th {
     height: auto !important;
     overflow: hidden !important;
-    padding: 6px 5px !important;
+    padding: 6px 4px !important;
     text-overflow: ellipsis;
     white-space: nowrap !important;
+}
+
+/* The View/Edit/Unlink/Remove actions column isn't needed in this sidebar
+   context - a record's own name link is already the way in, and the
+   dropdown trigger (caret, then "...") was just eating width that the
+   Name/Stage/Status columns need. Remove the whole column. */
+.nexa-association-stack .panel:not([data-name="accounts"]) .panel-body table.table th[data-name="buttons"],
+.nexa-association-stack .panel:not([data-name="accounts"]) .panel-body table.table td[data-name="buttons"] {
+    display: none !important;
+}
+
+/* These panels render 4-5 raw table columns (whatever the underlying Espo
+   list layout defines) squeezed into a ~280px sidebar, which is what left
+   the Name column too narrow to read at all. Drop the one column per panel
+   that's least useful in a "this is already Contact X's record" context -
+   scoped to just this sidebar instance via nth-child, not the shared list
+   layout, so the full list/other embed points are untouched. */
+.nexa-association-stack .panel[data-name="opportunities"] .panel-body table.table th:nth-child(3),
+.nexa-association-stack .panel[data-name="opportunities"] .panel-body table.table td:nth-child(3) {
+    display: none !important;
+}
+
+.nexa-association-stack .panel[data-name="cases"] .panel-body table.table th:nth-child(2),
+.nexa-association-stack .panel[data-name="cases"] .panel-body table.table td:nth-child(2) {
+    display: none !important;
 }
 
 /* The per-row "..." actions dropdown (unlink/view) floats inside the last

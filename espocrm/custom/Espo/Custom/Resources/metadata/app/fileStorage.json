@@ -1,0 +1,5 @@
+{
+    "implementationClassNameMap": {
+        "CloudflareR2": "Espo\\Custom\\Core\\FileStorage\\Storages\\CloudflareR2"
+    }
+}

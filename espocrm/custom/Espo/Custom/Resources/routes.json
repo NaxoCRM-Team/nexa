@@ -87,6 +87,11 @@
         "actionClassName":  "Espo\\Custom\\Tools\\Contact\\Api\\GetProfileImage"
     },
     {
+        "route":  "/Nexa/attachment-file/:id",
+        "method":  "get",
+        "actionClassName":  "Espo\\Custom\\Tools\\Attachment\\Api\\GetFile"
+    },
+    {
         "route": "/Nexa/contact/:id/title",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostTitle"
