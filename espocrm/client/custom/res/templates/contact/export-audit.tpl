@@ -2,15 +2,15 @@
     <header class="nexa-export-page-header">
         <div>
             <h2>Import and Export</h2>
-            <p>Move contact data into or out of this workspace.</p>
+            <p>Move CRM data into or out of this workspace.</p>
         </div>
         <button class="btn btn-default" data-action="back"><span class="fas fa-arrow-left" aria-hidden="true"></span> Back to Contacts</button>
     </header>
 
     <section class="nexa-export-import-band" aria-labelledby="nexa-import-heading">
         <div>
-            <h4 id="nexa-import-heading">Import contact data</h4>
-            <p>Validate CSV or Excel files before tenant-scoped records are created.</p>
+            <h4 id="nexa-import-heading">Import customer data</h4>
+            <p>Validate CSV or Excel files before tenant-scoped Contact or Account records are created.</p>
         </div>
         <button class="btn btn-default" data-action="import"><span class="fas fa-file-import" aria-hidden="true"></span> Go to import</button>
     </section>

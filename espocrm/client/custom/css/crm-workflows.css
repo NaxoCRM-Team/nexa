@@ -3626,7 +3626,7 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
 /* Name cell: avatar, name, and the (relocated) kebab menu on one flex row -
    the kebab stays invisible until the row is hovered/focused, so the
    default view reads clean and uncluttered. */
-.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(1) {
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td[data-name="name"] {
     align-items: center;
     display: flex;
     gap: 9px;
@@ -3646,7 +3646,7 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
     width: 30px;
 }
 
-.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(1) a {
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td[data-name="name"] a {
     color: #163f36;
     flex: 1 1 auto;
     font-size: 13px;
@@ -3697,16 +3697,122 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
 
 /* Country: quiet caption on its own line, indented to align with the name
    text rather than the avatar. */
-.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(2) {
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td[data-name="billingAddressCountry"] {
     color: #74847f;
     font-size: 12px;
     margin-top: 2px;
     padding-left: 39px !important;
 }
 
-.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td:nth-child(2):empty::before {
+.nexa-association-stack .panel[data-name="accounts"] .panel-body table.table td[data-name="billingAddressCountry"]:empty::before {
     content: 'No country recorded';
     font-style: italic;
+}
+
+.nexa-marketing-membership-body {
+    display: grid;
+    gap: 14px;
+}
+
+.nexa-contact-relationship-summary {
+    margin-bottom: 10px;
+}
+
+.nexa-contact-relationship-card {
+    background: #fff;
+}
+
+.nexa-contact-relationship-record {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+}
+
+.nexa-contact-relationship-record > a {
+    min-width: 0;
+}
+
+.nexa-contact-account-country {
+    background: #f1f5f4;
+    border-radius: 8px;
+    color: #617571;
+    flex: 0 0 auto;
+    font-size: 9px;
+    font-weight: 650;
+    line-height: 1.4;
+    max-width: 92px;
+    overflow: hidden;
+    padding: 2px 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-native-association-source {
+    display: none !important;
+}
+
+.nexa-marketing-membership-loading,
+.nexa-marketing-membership-empty {
+    align-items: center;
+    color: #6d7d78;
+    display: flex;
+    font-size: 12px;
+    gap: 7px;
+    margin: 0;
+}
+
+.nexa-marketing-membership-empty.is-unavailable {
+    color: #9b3a35;
+}
+
+.nexa-marketing-membership-group > strong {
+    color: #314b44;
+    display: block;
+    font-size: 11px;
+    margin-bottom: 7px;
+    text-transform: uppercase;
+}
+
+.nexa-marketing-membership-group ul {
+    display: grid;
+    gap: 7px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nexa-marketing-membership-group li {
+    align-items: center;
+    display: flex;
+    gap: 7px;
+    min-width: 0;
+}
+
+.nexa-marketing-membership-group li a {
+    color: #176f63;
+    font-size: 13px;
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-membership-status {
+    background: #edf4f2;
+    border-radius: 3px;
+    color: #52665f;
+    flex-shrink: 0;
+    font-size: 10px;
+    padding: 2px 5px;
+}
+
+.nexa-membership-more {
+    color: #6d7d78;
+    display: block;
+    font-size: 11px;
+    margin-top: 7px;
 }
 
 /* Country reads as plain, non-interactive text in this card - the app-wide
@@ -4449,12 +4555,31 @@ button.nexa-task-complete-toggle.is-completed:focus-visible {
 }
 
 .nexa-contact-import-button,
+.nexa-account-import-button,
 .nexa-contact-export-audit-button {
     align-items: center;
     display: inline-flex;
     gap: 7px;
     min-height: 34px;
     text-decoration: none;
+}
+
+.nexa-account-header-action,
+.nexa-account-import-button {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+    min-height: 34px;
+}
+
+.nexa-account-header-action:hover,
+.nexa-account-header-action:focus-visible,
+.nexa-account-import-button:hover,
+.nexa-account-import-button:focus-visible {
+    background: #e7f2ef;
+    border-color: #91b8b0;
+    color: #125f54;
+    outline: 0;
 }
 
 .nexa-contact-list-page .nexa-list-toolbar .total-count {
@@ -6744,4 +6869,920 @@ td.nexa-inline-cell-error {
     .nexa-export-table {
         min-width: 720px;
     }
+}
+/* Account workspace mirrors the Contact list ergonomics while retaining
+   Account-specific fields, actions and persistence contracts. */
+.nexa-account-list-page {
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--nexa-header-height, 64px) - var(--vertical-gap, 16px) - var(--container-padding, 15px));
+    min-height: 0 !important;
+    overflow: hidden;
+}
+
+.nexa-account-list-page > .page-header,
+.nexa-account-list-page > .search-container,
+.nexa-account-list-page > .list-container > .nexa-list-toolbar {
+    flex: 0 0 auto;
+}
+
+.nexa-account-list-page > .list-container {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.nexa-account-list-page .nexa-account-scroll-list,
+.nexa-account-list-page .nexa-record-list {
+    flex: 1 1 auto;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.nexa-account-list-page .nexa-account-scroll-list .show-more,
+.nexa-account-list-page .pagination,
+.nexa-account-row-filtered {
+    display: none !important;
+}
+
+.nexa-account-list-page .nexa-crm-table {
+    min-width: 1360px;
+}
+
+.nexa-account-list-page .nexa-crm-table > tbody > tr > td[data-name="name"],
+.nexa-account-list-page .nexa-crm-table > tbody > tr > td[data-name="website"],
+.nexa-account-list-page .nexa-crm-table > tbody > tr > td[data-name="phoneNumber"],
+.nexa-account-list-page .nexa-crm-table > tbody > tr > td[data-name="name"] a,
+.nexa-account-list-page .nexa-crm-table > tbody > tr > td[data-name="website"] a,
+.nexa-account-list-page .nexa-crm-table > tbody > tr > td[data-name="phoneNumber"] a {
+    color: #174f46;
+    font-weight: 700;
+}
+
+.nexa-account-name-link,
+.nexa-account-location {
+    align-items: center;
+    display: inline-flex;
+    gap: 8px;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.nexa-account-list-avatar {
+    align-items: center;
+    background: #e4eeeb;
+    border: 1px solid #cadbd6;
+    border-radius: 50%;
+    color: #24564c;
+    display: inline-flex;
+    flex: 0 0 28px;
+    font-size: 11px;
+    font-weight: 800;
+    height: 28px;
+    justify-content: center;
+    line-height: 1;
+    width: 28px;
+}
+
+.nexa-account-list-name,
+.nexa-account-location-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-account-location-flag {
+    border-radius: 2px;
+    height: 13px;
+    object-fit: cover;
+    width: 18px;
+}
+
+.nexa-account-type {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+.nexa-account-type--customer { background: #e2f4ed; border-color: #acd8ca; color: #17604f; }
+.nexa-account-type--partner { background: #e8f0fb; border-color: #bdd0ec; color: #285b91; }
+.nexa-account-type--reseller { background: #fff2d6; border-color: #e8cf98; color: #76520d; }
+.nexa-account-type--investor { background: #eee9f8; border-color: #d1c4e9; color: #5a4388; }
+.nexa-account-type--other { background: #edf1f2; border-color: #d2dbde; color: #506168; }
+
+.nexa-account-contact-count {
+    align-items: center;
+    background: #e7f3ef;
+    border: 1px solid #b8d9cf;
+    border-radius: 4px;
+    color: #145d50;
+    display: inline-flex;
+    font-size: 10.5px;
+    font-weight: 650;
+    gap: 4px;
+    line-height: 1.2;
+    min-height: 22px;
+    padding: 3px 6px;
+    white-space: nowrap;
+}
+
+a.nexa-account-contact-count:hover,
+a.nexa-account-contact-count:focus-visible {
+    background: #d9ebe5;
+    border-color: #75ae9e;
+    color: #0d483e;
+    text-decoration: none;
+}
+
+.nexa-account-contact-count strong {
+    background: #fff;
+    border-radius: 8px;
+    color: #174c43;
+    font-size: 10px;
+    min-width: 17px;
+    padding: 1px 4px;
+    text-align: center;
+}
+
+.nexa-account-contact-count.is-loading,
+.nexa-account-contact-count.is-unavailable { color: #63747a; background: #f2f5f5; border-color: #d7dfe1; }
+
+.nexa-contact-account-filter {
+    align-items: center;
+    background: #f0f7f5;
+    border-bottom: 1px solid #d2e4df;
+    color: #28464e;
+    display: flex;
+    gap: 9px;
+    min-height: 44px;
+    padding: 7px 14px;
+}
+
+.nexa-contact-account-filter .btn { margin-left: auto; }
+
+/* Account detail: a company workspace built around native record and relationship views. */
+.nexa-account-detail-page #main,
+.nexa-account-detail-page #main > .content {
+    min-width: 0;
+}
+
+.nexa-account-detail-workspace {
+    background: #f4f7f6;
+    margin: -15px;
+    min-height: calc(100vh - var(--nexa-header-height, 58px));
+}
+
+.nexa-account-detail-workspace.nexa-company-workspace-loading > .detail > .record-grid,
+.nexa-account-detail-workspace.nexa-company-workspace-loading > .detail > .record-buttons {
+    visibility: hidden;
+}
+
+.nexa-company-record {
+    --company-border: #d9e2df;
+    --company-ink: #172a2d;
+    --company-muted: #627277;
+    background: #f4f7f6;
+    color: var(--company-ink);
+    min-height: calc(100vh - var(--nexa-header-height, 58px));
+}
+
+.nexa-company-toolbar {
+    align-items: center;
+    background: #fff;
+    border-bottom: 1px solid var(--company-border);
+    display: flex;
+    gap: 18px;
+    justify-content: space-between;
+    min-height: 72px;
+    padding: 10px 18px;
+    position: sticky;
+    top: var(--nexa-header-height, 58px);
+    z-index: 14;
+}
+
+.nexa-company-toolbar-identity {
+    align-items: center;
+    display: flex;
+    gap: 11px;
+    min-width: 0;
+}
+
+.nexa-company-back {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #50656b;
+    display: inline-flex;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+}
+
+.nexa-company-back:hover,
+.nexa-company-back:focus-visible { background: #edf3f1; border-color: #cbd9d5; color: #155c51; text-decoration: none; }
+
+.nexa-company-avatar {
+    align-items: center;
+    background: #187f70;
+    border-radius: 6px;
+    color: #fff;
+    display: inline-flex;
+    flex: 0 0 42px;
+    font-size: 18px;
+    font-weight: 750;
+    height: 42px;
+    justify-content: center;
+}
+
+.nexa-company-toolbar-identity p,
+.nexa-company-section-heading p,
+.nexa-company-panel-heading p {
+    color: #75848a;
+    font-size: 10px;
+    font-weight: 750;
+    letter-spacing: 0;
+    margin: 0 0 2px;
+    text-transform: uppercase;
+}
+
+.nexa-company-toolbar-identity h2 {
+    font-size: 18px;
+    font-weight: 720;
+    line-height: 1.2;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-company-toolbar-identity [data-nexa-company-subtitle] {
+    color: var(--company-muted);
+    display: block;
+    font-size: 11px;
+    margin-top: 2px;
+    max-width: 680px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-company-native-actions {
+    align-items: center;
+    display: flex;
+    flex: 0 0 auto;
+    min-height: 36px;
+}
+
+.nexa-company-native-actions .record-buttons,
+.nexa-company-native-actions .edit-buttons {
+    margin: 0;
+    padding: 0;
+}
+
+.nexa-company-native-actions .sub-container { align-items: center; display: flex; margin: 0 !important; padding: 0 !important; }
+.nexa-company-native-actions .actions-btn-group { display: flex; gap: 7px; }
+.nexa-company-native-actions .btn { min-height: 36px; }
+
+.nexa-company-grid {
+    display: grid;
+    grid-template-columns: minmax(0, .75fr) minmax(0, 1.7fr) minmax(0, .92fr);
+    height: calc(100vh - var(--nexa-header-height, 58px) - 72px);
+    min-height: 540px;
+    width: 100%;
+}
+
+.nexa-company-profile,
+.nexa-company-main,
+.nexa-company-associations {
+    min-width: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.nexa-company-profile {
+    background: #fff;
+    border-right: 1px solid var(--company-border);
+    padding: 18px;
+}
+
+.nexa-company-main { padding: 18px; }
+
+.nexa-company-associations {
+    background: #fff;
+    border-left: 1px solid var(--company-border);
+    padding: 18px 14px;
+}
+
+.nexa-company-section-heading,
+.nexa-company-panel-heading {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.nexa-company-section-heading h3,
+.nexa-company-panel-heading h3 { font-size: 14px; font-weight: 720; margin: 0; }
+.nexa-company-panel-heading > span { color: var(--company-muted); font-size: 11px; padding-top: 8px; }
+
+.nexa-company-facts { margin: 0; }
+.nexa-company-facts > div { border-bottom: 1px solid #e9eeee; padding: 11px 0; }
+.nexa-company-facts dt { color: #748287; font-size: 10px; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; }
+.nexa-company-facts dd { color: #20383d; font-size: 12px; line-height: 1.45; margin: 0; overflow-wrap: anywhere; }
+.nexa-company-facts dd a { color: #12685d; font-weight: 650; }
+.nexa-company-facts dd { align-items: center; display: flex; gap: 6px; justify-content: space-between; }
+.nexa-company-fact-edit { align-items: center; background: transparent; border: 0; border-radius: 3px; color: #6e8580; display: inline-flex; flex: 0 0 24px; height: 24px; justify-content: center; opacity: 0; padding: 0; }
+.nexa-company-facts > div:hover .nexa-company-fact-edit,
+.nexa-company-fact-edit:focus-visible { opacity: 1; }
+.nexa-company-fact-edit:hover,
+.nexa-company-fact-edit:focus-visible { background: #e7f1ee; color: #0d6e61; }
+.nexa-company-fact-editor { display: grid; gap: 6px; position: relative; width: 100%; }
+.nexa-company-fact-editor.is-address { grid-template-columns: 1fr; }
+.nexa-company-fact-editor select[multiple] { min-height: 92px; }
+.nexa-company-fact-editor .form-control { border-color: #3b8f81; box-shadow: 0 0 0 2px rgba(22, 130, 113, .12); font-size: 12px; height: 32px; padding: 5px 7px; }
+.nexa-company-fact-editor[data-saving="true"]::after { color: #187f70; content: '\f110'; font-family: 'Font Awesome 5 Free'; font-size: 11px; font-weight: 900; position: absolute; right: 8px; top: 9px; animation: fa-spin 1s infinite linear; }
+.nexa-company-fact-editor[data-saving="true"] .form-control { padding-right: 28px; }
+.nexa-company-inline-links { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.nexa-company-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.nexa-company-tags > span { background: #edf5f2; border: 1px solid #d3e5df; border-radius: 3px; color: #285d54; font-size: 10px; font-weight: 650; padding: 2px 6px; }
+.nexa-company-profile-copy,
+.nexa-company-custom-properties { border-top: 1px solid #dfe8e5; margin-top: 16px; padding-top: 15px; }
+.nexa-company-profile-copy h4,
+.nexa-company-custom-properties h4 { color: #20383d; font-size: 12px; font-weight: 750; margin: 0 0 8px; }
+.nexa-company-profile-copy p { color: #52676c; font-size: 11px; line-height: 1.55; margin: 0; white-space: pre-line; }
+.nexa-company-custom-properties dl { display: grid; gap: 8px; margin: 0; }
+.nexa-company-custom-properties dl > div { display: grid; gap: 3px; }
+.nexa-company-custom-properties dt { color: #748287; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.nexa-company-custom-properties dd { color: #20383d; font-size: 11px; margin: 0; overflow-wrap: anywhere; }
+.nexa-company-audit { display: grid; gap: 2px; }
+.nexa-company-audit-time { color: #20383d; font-weight: 650; }
+.nexa-company-audit-user { color: #66777b; font-size: 11px; }
+.nexa-company-hidden-association-section { display: none !important; }
+
+.nexa-company-contact-rail { border-bottom: 1px solid var(--company-border); margin: 0 0 18px; padding: 0 0 18px; }
+.nexa-company-contact-rail-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 12px; }
+.nexa-company-contact-rail-heading p { color: #748287; font-size: 10px; font-weight: 700; margin: 0 0 3px; text-transform: uppercase; }
+.nexa-company-contact-rail-heading h3 { color: #1e3034; font-size: 16px; font-weight: 720; margin: 0; }
+.nexa-company-contact-rail-heading h3 span { color: #607277; font-size: 12px; font-weight: 650; }
+.nexa-company-contact-add { align-items: center; color: #174e47; display: inline-flex; font-size: 12px; font-weight: 700; gap: 6px; }
+.nexa-company-contact-add:hover,
+.nexa-company-contact-add:focus-visible { color: #0d7465; text-decoration: none; }
+.nexa-company-contact-cards { display: grid; gap: 10px; }
+.nexa-company-contact-card { background: #fff; border: 1px solid #d7dfdd; border-radius: 6px; min-width: 0; padding: 12px; }
+.nexa-company-contact-card:hover { border-color: #9ebbb4; box-shadow: 0 2px 7px rgba(30, 72, 65, .08); }
+.nexa-company-contact-card-heading { align-items: center; display: grid; gap: 8px; grid-template-columns: 30px minmax(0, 1fr) 28px; }
+.nexa-company-contact-avatar { align-items: center; background: #e9f0ee; border-radius: 50%; color: #315a53; display: inline-flex; font-size: 11px; font-weight: 750; height: 30px; justify-content: center; width: 30px; }
+.nexa-company-contact-name { color: #08695e; font-size: 12px; font-weight: 750; overflow: hidden; text-decoration: underline; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-company-contact-open { align-items: center; border: 1px solid #d0d9d7; border-radius: 4px; color: #536b70; display: inline-flex; height: 28px; justify-content: center; width: 28px; }
+.nexa-company-contact-open:hover,
+.nexa-company-contact-open:focus-visible { border-color: #75a79e; color: #0d7465; text-decoration: none; }
+.nexa-company-contact-title { color: #68787c; font-size: 11px; margin: 8px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-company-contact-card dl { display: grid; gap: 5px; margin: 0; }
+.nexa-company-contact-card dl > div { display: grid; gap: 4px; grid-template-columns: 38px minmax(0, 1fr); }
+.nexa-company-contact-card dt { color: #748287; font-size: 10px; font-weight: 650; }
+.nexa-company-contact-card dd { font-size: 11px; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-company-contact-card dd a { color: #0c6b61; font-weight: 650; }
+.nexa-company-contact-empty { align-items: center; background: #f7f9f8; border: 1px dashed #ced9d6; color: #68797d; display: flex; font-size: 11px; gap: 7px; justify-content: center; min-height: 80px; padding: 12px; text-align: center; }
+.nexa-company-contact-view-all { align-items: center; border: 1px solid #c5d1ce; border-radius: 4px; color: #203e39; display: flex; font-size: 11px; gap: 7px; justify-content: center; margin-top: 12px; min-height: 34px; padding: 7px 9px; }
+.nexa-company-contact-view-all:hover,
+.nexa-company-contact-view-all:focus-visible { background: #f1f7f5; border-color: #7ca99f; color: #0d6e61; text-decoration: none; }
+.nexa-company-relationship-heading { margin-top: 4px; }
+.nexa-company-relationship-summary { display: grid; gap: 8px; }
+.nexa-company-relationship-card { border: 1px solid #dbe4e2; border-radius: 5px; padding: 10px; }
+.nexa-company-relationship-card > header { align-items: center; display: grid; gap: 6px; grid-template-columns: 20px 22px minmax(0, 1fr) auto auto; margin-bottom: 7px; position: relative; }
+.nexa-company-relationship-toggle { align-items: center; background: transparent; border: 0; border-radius: 3px; color: #526d67; display: inline-flex; font-size: 9px; height: 20px; justify-content: center; padding: 0; width: 20px; }
+.nexa-company-relationship-toggle:hover,
+.nexa-company-relationship-toggle:focus-visible { background: #e7f0ed; color: #0d6e61; }
+.nexa-company-relationship-card > header .fas { align-items: center; background: #edf5f2; border-radius: 3px; color: #176b5f; display: inline-flex; height: 22px; justify-content: center; width: 22px; }
+.nexa-company-relationship-card > header strong { color: #294146; font-size: 11px; }
+.nexa-company-relationship-count { background: #edf2f1; border-radius: 8px; color: #53696e; font-size: 9px; font-weight: 700; min-width: 18px; padding: 2px 5px; text-align: center; }
+.nexa-company-relationship-actions { align-items: center; display: flex; gap: 2px; }
+.nexa-company-relationship-actions > a,
+.nexa-company-relationship-actions > button { align-items: center; background: transparent; border: 0; border-radius: 3px; color: #42635d; display: inline-flex; height: 25px; justify-content: center; padding: 0; width: 25px; }
+.nexa-company-relationship-actions > a:hover,
+.nexa-company-relationship-actions > a:focus-visible,
+.nexa-company-relationship-actions > button:hover,
+.nexa-company-relationship-actions > button:focus-visible { background: #e5efec; color: #0d6e61; text-decoration: none; }
+.nexa-company-relationship-menu { background: #fff; border: 1px solid #ccd9d6; border-radius: 4px; box-shadow: 0 6px 16px rgba(25, 55, 49, .14); display: grid; min-width: 116px; padding: 4px; position: absolute; right: 0; top: 29px; z-index: 12; }
+.nexa-company-relationship-menu[hidden] { display: none; }
+.nexa-company-relationship-menu a { border-radius: 3px; color: #294c46; font-size: 10px; font-weight: 650; padding: 7px 8px; }
+.nexa-company-relationship-menu a:hover,
+.nexa-company-relationship-menu a:focus-visible { background: #edf5f2; color: #0b6b5e; text-decoration: none; }
+.nexa-company-relationship-card > div { display: grid; gap: 4px; padding-left: 48px; }
+.nexa-company-relationship-card > div[hidden] { display: none; }
+.nexa-company-relationship-card > div a { color: #0c6b61; font-size: 10px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-company-relationship-card .nexa-company-relationship-more { border-top: 1px solid #e2eae8; color: #315f57; margin-top: 4px; padding-top: 7px; }
+.nexa-company-relationship-empty { color: #748287; font-size: 10px; }
+
+.nexa-company-metrics {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 14px;
+}
+
+.nexa-company-metric {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--company-border);
+    border-radius: 6px;
+    color: var(--company-ink);
+    display: flex;
+    gap: 11px;
+    min-height: 76px;
+    padding: 12px;
+}
+
+.nexa-company-metric:hover,
+.nexa-company-metric:focus-visible { border-color: #75ab9f; box-shadow: 0 2px 8px rgba(23, 65, 58, .08); color: #145d52; text-decoration: none; }
+.nexa-company-metric > .fas { align-items: center; background: #e7f3ef; border-radius: 4px; color: #176b5f; display: inline-flex; height: 36px; justify-content: center; width: 36px; }
+.nexa-company-metric strong { display: block; font-size: 19px; line-height: 1; }
+.nexa-company-metric small { color: var(--company-muted); display: block; font-size: 10px; margin-top: 5px; }
+
+.nexa-company-tabs {
+    background: #fff;
+    border: 1px solid var(--company-border);
+    border-bottom: 0;
+    display: flex;
+    min-height: 42px;
+    overflow-x: auto;
+    padding: 0 12px;
+    scrollbar-width: thin;
+}
+
+.nexa-company-tabs button {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: #5d7075;
+    font-size: 12px;
+    font-weight: 650;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    min-width: 88px;
+    padding: 11px 12px 9px;
+}
+
+.nexa-company-tabs button[aria-selected="true"] { border-bottom-color: #168271; color: #174e46; }
+.nexa-company-tabs button:focus-visible { outline: 2px solid #4d9e91; outline-offset: -2px; }
+
+.nexa-company-tab-count {
+    align-items: center;
+    background: #edf2f1;
+    border-radius: 8px;
+    color: #55696e;
+    display: inline-flex;
+    font-size: 9px;
+    justify-content: center;
+    min-width: 17px;
+    padding: 1px 4px;
+}
+
+.nexa-company-tabs button[aria-selected="true"] .nexa-company-tab-count { background: #dceee9; color: #14594f; }
+
+.nexa-company-tab-panel {
+    background: #fff;
+    border: 1px solid var(--company-border);
+    min-height: 380px;
+    padding: 16px;
+}
+
+.nexa-company-edit-host {
+    background: #fff;
+    border: 1px solid var(--company-border);
+    display: none;
+    min-height: 380px;
+    padding: 16px;
+}
+
+.nexa-company-edit-host .middle,
+.nexa-company-edit-host .extra { float: none; margin: 0; padding: 0; width: 100%; }
+.nexa-company-edit-host .panel { border: 1px solid #e0e7e5; border-radius: 4px; box-shadow: none; margin-bottom: 12px; }
+.nexa-company-edit-host .panel-heading { background: #f8faf9; border-bottom-color: #e0e7e5; }
+
+/* Native inline editing remains available without keeping a duplicate Overview tab. */
+.nexa-company-record:has(.edit-buttons:not(.hidden)) .nexa-company-edit-host { display: block; }
+.nexa-company-record:has(.edit-buttons:not(.hidden)) .nexa-company-metrics,
+.nexa-company-record:has(.edit-buttons:not(.hidden)) .nexa-company-tabs,
+.nexa-company-record:has(.edit-buttons:not(.hidden)) .nexa-company-tab-panel { display: none !important; }
+
+.nexa-company-tab-panel[hidden] { display: none !important; }
+.nexa-company-tab-panel .middle,
+.nexa-company-tab-panel .extra,
+.nexa-company-tab-panel .side { float: none; margin: 0; padding: 0; width: 100%; }
+.nexa-company-tab-panel .panel { border: 1px solid #e0e7e5; border-radius: 4px; box-shadow: none; margin-bottom: 12px; }
+.nexa-company-tab-panel .panel-heading { background: #f8faf9; border-bottom-color: #e0e7e5; }
+
+.nexa-company-engagement-search {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #ccd8d5;
+    border-radius: 4px;
+    color: #617479;
+    display: flex;
+    gap: 8px;
+    margin: 0 0 12px;
+    max-width: 360px;
+    padding: 0 10px;
+}
+
+.nexa-company-engagement-search:focus-within { border-color: #579c90; box-shadow: 0 0 0 2px rgba(29, 126, 111, .12); }
+.nexa-company-engagement-search .form-control { border: 0; box-shadow: none; font-size: 12px; height: 36px; padding: 7px 0; }
+.nexa-company-engagement-toolbar { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
+.nexa-company-filter-toggle { align-items: center; display: inline-flex; font-size: 11px; gap: 6px; min-height: 36px; }
+.nexa-company-engagement-filters { align-items: end; background: #f6f9f8; border: 1px solid #dce6e3; display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(130px, 1fr)); margin: 0 0 12px; padding: 10px; }
+.nexa-company-engagement-filters[hidden] { display: none; }
+.nexa-company-engagement-filters label { color: #64777b; display: grid; font-size: 9px; font-weight: 700; gap: 4px; margin: 0; text-transform: uppercase; }
+.nexa-company-engagement-filters .form-control { font-size: 11px; height: 34px; text-transform: none; }
+.nexa-company-engagement-list { display: grid; gap: 8px; }
+
+.nexa-company-engagement-record {
+    background: #fff;
+    border: 1px solid #dde5e3;
+    border-radius: 5px;
+    display: block;
+    min-width: 0;
+    padding: 0;
+}
+
+.nexa-company-engagement-record:hover { border-color: #b6ccc6; }
+.nexa-company-engagement-icon { align-items: center; background: #e8f3f0; border-radius: 4px; color: #176b5f; display: inline-flex; flex: 0 0 30px; height: 30px; justify-content: center; }
+.nexa-company-engagement-body { min-width: 0; width: 100%; }
+.nexa-company-engagement-heading { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
+.nexa-company-engagement-heading a { color: #174e47; font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-company-engagement-type { background: #edf2f1; border-radius: 3px; color: #52676c; flex: 0 0 auto; font-size: 9px; font-weight: 700; padding: 2px 5px; text-transform: uppercase; }
+.nexa-company-engagement-meta { color: #6c7d82; display: flex; flex-wrap: wrap; font-size: 10px; gap: 0; margin: 4px 0 0; }
+.nexa-company-engagement-meta > *:not(:last-child)::after { content: '|'; margin: 0 6px; }
+.nexa-company-engagement-preview { color: #3f5156; font-size: 11px; line-height: 1.45; margin: 6px 0 0; overflow-wrap: anywhere; }
+.nexa-company-engagement-record .nexa-company-engagement-icon { background: #e8f3f0; color: #176b5f; }
+.nexa-company-engagement-record .nexa-activity-details > .nexa-company-engagement-preview { margin: 0 0 7px; }
+.nexa-company-engagement-record.is-pinned { background: #fff8df; border-color: #e4c86c; }
+.nexa-company-engagement-empty { align-items: center; background: #f7f9f8; border: 1px dashed #ced9d6; color: #67797e; display: flex; font-size: 11px; gap: 8px; justify-content: center; min-height: 92px; padding: 16px; text-align: center; }
+.nexa-company-engagement-more { display: block; font-size: 11px; margin: 12px auto 0; min-width: 110px; }
+.nexa-company-engagement-more[hidden] { display: none; }
+
+.nexa-company-associations .bottom { float: none; margin: 0; padding: 0; width: 100%; }
+.nexa-company-associations .tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 0 0 10px; }
+.nexa-company-associations .tabs .btn { font-size: 10px; padding: 6px 8px; }
+.nexa-company-associations .panel { border: 1px solid #e0e7e5; border-radius: 4px; box-shadow: none; margin-bottom: 10px; }
+.nexa-company-associations .panel-heading { background: #f8faf9; padding: 9px 10px; }
+.nexa-company-associations .panel-title { font-size: 12px; }
+.nexa-company-associations .panel-body { padding: 8px; }
+.nexa-company-associations table { font-size: 11px; }
+.nexa-company-native-grid-host { display: none !important; }
+
+/* Keep the Account workspace inside the application viewport. The page frame
+ * stays still while each company column owns its reading position. */
+@media (min-width: 761px) {
+    body.nexa-account-detail-page {
+        overflow-y: hidden;
+    }
+
+    .nexa-account-detail-page #main,
+    .nexa-account-detail-page #main > .content {
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .nexa-account-detail-workspace {
+        height: calc(
+            100dvh - var(--nexa-header-height, 64px) - var(--vertical-gap, 16px) -
+            var(--container-padding, 15px)
+        );
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .nexa-account-detail-workspace > .detail {
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .nexa-company-record {
+        display: grid;
+        grid-template-rows: 72px minmax(0, 1fr);
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .nexa-company-toolbar {
+        position: relative;
+        top: auto;
+    }
+
+    .nexa-company-grid {
+        align-items: stretch;
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: hidden;
+        overscroll-behavior: contain;
+    }
+
+    .nexa-company-profile,
+    .nexa-company-main,
+    .nexa-company-associations {
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: scroll;
+        overscroll-behavior-y: contain;
+        scrollbar-color: #8fa5a0 #edf2f0;
+        scrollbar-gutter: stable;
+        scrollbar-width: auto;
+    }
+
+    .nexa-company-associations {
+        position: relative;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar,
+    .nexa-company-main::-webkit-scrollbar,
+    .nexa-company-associations::-webkit-scrollbar {
+        width: 14px;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar-track,
+    .nexa-company-main::-webkit-scrollbar-track,
+    .nexa-company-associations::-webkit-scrollbar-track {
+        background: #e8efed;
+        border-left: 1px solid #dce5e2;
+        box-shadow: inset 0 0 0 1px #f5f8f7;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar-thumb,
+    .nexa-company-main::-webkit-scrollbar-thumb,
+    .nexa-company-associations::-webkit-scrollbar-thumb {
+        background: #7f9b95;
+        border: 3px solid #e8efed;
+        border-radius: 8px;
+        min-height: 44px;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar-thumb:hover,
+    .nexa-company-main::-webkit-scrollbar-thumb:hover,
+    .nexa-company-associations::-webkit-scrollbar-thumb:hover {
+        background: #557871;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar-button:single-button,
+    .nexa-company-main::-webkit-scrollbar-button:single-button,
+    .nexa-company-associations::-webkit-scrollbar-button:single-button {
+        background-color: #e8efed;
+        background-position: center;
+        background-repeat: no-repeat;
+        display: block;
+        height: 14px;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar-button:single-button:vertical:decrement,
+    .nexa-company-main::-webkit-scrollbar-button:single-button:vertical:decrement,
+    .nexa-company-associations::-webkit-scrollbar-button:single-button:vertical:decrement {
+        background-image: linear-gradient(135deg, transparent 50%, #617e78 50%), linear-gradient(45deg, #617e78 50%, transparent 50%);
+        background-position: calc(50% - 3px) 7px, calc(50% + 3px) 7px;
+        background-size: 6px 6px;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar-button:single-button:vertical:increment,
+    .nexa-company-main::-webkit-scrollbar-button:single-button:vertical:increment,
+    .nexa-company-associations::-webkit-scrollbar-button:single-button:vertical:increment {
+        background-image: linear-gradient(45deg, transparent 50%, #617e78 50%), linear-gradient(135deg, #617e78 50%, transparent 50%);
+        background-position: calc(50% - 3px) 2px, calc(50% + 3px) 2px;
+        background-size: 6px 6px;
+    }
+
+    .nexa-company-profile::-webkit-scrollbar-button:single-button:hover,
+    .nexa-company-main::-webkit-scrollbar-button:single-button:hover,
+    .nexa-company-associations::-webkit-scrollbar-button:single-button:hover {
+        background-color: #d5e1de;
+    }
+
+    .nexa-company-associations {
+        overflow: hidden;
+        padding: 0;
+    }
+
+    .nexa-company-associations-scroll {
+        height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        padding: 18px 28px 18px 14px;
+        scrollbar-width: none;
+    }
+
+    .nexa-company-associations-scroll::-webkit-scrollbar {
+        display: none;
+        width: 0;
+    }
+
+    .nexa-company-scrollbar {
+        background: #e8efed;
+        border-left: 1px solid #d7e2df;
+        bottom: 0;
+        display: grid;
+        grid-template-rows: 18px minmax(0, 1fr) 18px;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 17px;
+        z-index: 8;
+    }
+
+    .nexa-company-scrollbar > button {
+        align-items: center;
+        background: #dfe9e6;
+        border: 0;
+        color: #4d716a;
+        display: flex;
+        font-size: 11px;
+        justify-content: center;
+        padding: 0;
+    }
+
+    .nexa-company-scrollbar > button:hover,
+    .nexa-company-scrollbar > button:focus-visible {
+        background: #cbdcd7;
+        color: #264f47;
+    }
+
+    .nexa-company-scrollbar-track {
+        background: #edf3f1;
+        min-height: 0;
+        position: relative;
+    }
+
+    .nexa-company-scrollbar-thumb {
+        background: #789891;
+        border: 3px solid #edf3f1;
+        border-radius: 8px;
+        left: 0;
+        min-height: 36px;
+        padding: 0;
+        position: absolute;
+        top: 0;
+        touch-action: none;
+        width: 100%;
+    }
+
+    .nexa-company-scrollbar-thumb:hover,
+    .nexa-company-scrollbar-thumb:focus-visible { background: #4f756d; }
+    .nexa-company-scrollbar.is-static .nexa-company-scrollbar-thumb { background: #afc2bd; }
+}
+
+@media (max-width: 1180px) {
+    .nexa-company-grid {
+        grid-template-columns: minmax(0, .72fr) minmax(0, 1.45fr) minmax(0, .85fr);
+    }
+}
+
+@media (max-width: 760px) {
+    body.nexa-account-detail-page { overflow-y: auto; }
+    .nexa-account-detail-workspace { margin: -10px; }
+    .nexa-account-detail-workspace,
+    .nexa-account-detail-workspace > .detail,
+    .nexa-company-record { height: auto; min-height: 0; overflow: visible; }
+    .nexa-company-toolbar { align-items: flex-start; flex-direction: column; padding: 10px 12px; position: static; }
+    .nexa-company-toolbar-identity [data-nexa-company-subtitle] { max-width: calc(100vw - 100px); }
+    .nexa-company-native-actions { width: 100%; }
+    .nexa-company-grid { display: block; min-height: 0; }
+    .nexa-company-profile,
+    .nexa-company-main,
+    .nexa-company-associations { border: 0; border-bottom: 1px solid var(--company-border); height: auto; max-height: none; overflow: visible; padding: 14px 12px; }
+    .nexa-company-associations-scroll { height: auto; overflow: visible; padding: 0; }
+    .nexa-company-scrollbar { display: none; }
+    .nexa-company-metrics { grid-template-columns: 1fr; }
+    .nexa-company-metric { min-height: 60px; }
+    .nexa-company-panel-heading > span { display: none; }
+    .nexa-company-engagement-toolbar { align-items: stretch; flex-direction: column; }
+    .nexa-company-engagement-search { max-width: none; width: 100%; }
+    .nexa-company-engagement-filters { grid-template-columns: 1fr; }
+}
+
+.nexa-account-live-search {
+    margin-bottom: 12px;
+}
+
+.nexa-account-scope-tabs { border-bottom: 1px solid #d8e2df; display: flex; gap: 18px; margin-bottom: 10px; }
+.nexa-account-scope-tabs a { border-bottom: 2px solid transparent; color: #5f7377; font-size: 12px; font-weight: 700; padding: 8px 2px; }
+.nexa-account-scope-tabs a:hover,
+.nexa-account-scope-tabs a:focus-visible { color: #0d6e61; text-decoration: none; }
+.nexa-account-scope-tabs a[aria-current="page"] { border-bottom-color: #168271; color: #174e46; }
+
+.nexa-account-live-search .search-row {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.nexa-account-live-search .search-row > .form-group:first-child {
+    max-width: 780px;
+    padding-left: 0;
+    padding-right: 0;
+    width: 100%;
+}
+
+.nexa-account-live-search .input-group {
+    border: 1px solid #cbd7db;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(25, 48, 56, 0.05);
+    display: flex;
+    overflow: visible;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.nexa-account-live-search .input-group:focus-within {
+    border-color: #168579;
+    box-shadow: 0 0 0 3px rgba(22, 133, 121, 0.13);
+}
+
+.nexa-account-live-search .input-group > .form-control { flex: 1 1 auto; width: 1%; }
+.nexa-account-live-search .input-group > .input-group-btn { flex: 0 0 auto; width: auto; }
+.nexa-account-live-search .input-group .btn,
+.nexa-account-live-search .input-group .form-control { border: 0; box-shadow: none; height: 42px; }
+.nexa-account-live-search .input-group .filters-button { background: #f4f7f8; color: #314b54; min-width: 78px; }
+.nexa-account-live-search input[data-name="textFilter"] { background: #fff; color: #20383f; font-size: 14px; min-width: 0; padding: 9px 14px; }
+.nexa-account-live-search .add-filter-button { background: #fff; border-left: 1px solid #e0e7e9 !important; color: #52666e; }
+
+.nexa-account-list-page .nexa-list-toolbar {
+    border: 1px solid #dce4e8;
+    border-bottom-color: #d7e0e3;
+    border-radius: 6px 6px 0 0;
+    min-height: 58px;
+    padding: 9px 12px;
+}
+
+.nexa-account-list-page .nexa-list-toolbar .settings-container { margin-left: auto; }
+.nexa-account-list-page .nexa-list-toolbar .total-count {
+    align-items: center;
+    background: #f2f6f7;
+    border: 1px solid #dce5e7;
+    border-radius: 5px;
+    color: #52666e;
+    display: inline-flex;
+    font-size: 12px;
+    gap: 5px;
+    margin-left: 8px;
+    min-height: 34px;
+    padding: 6px 10px;
+}
+.nexa-account-list-page .total-count-span { color: #193038; font-weight: 700; }
+.nexa-account-list-page .nexa-column-selector {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #cbd7db;
+    border-radius: 5px;
+    color: #314b54;
+    display: inline-flex;
+    font-size: 13px;
+    gap: 7px;
+    min-height: 34px;
+    padding: 6px 10px;
+    text-decoration: none;
+}
+.nexa-account-list-page .nexa-column-selector:hover,
+.nexa-account-list-page .nexa-column-selector:focus { background: #f4f8f8; border-color: #9fb6bc; color: #173f47; }
+
+.nexa-account-list-page .nexa-crm-table > thead > tr > th,
+.nexa-account-list-page .nexa-crm-table > thead > tr > th > span,
+.nexa-account-list-page .nexa-crm-table > thead > tr > th > a,
+.nexa-account-list-page .nexa-crm-table > thead > tr > th .sort {
+    font-family: inherit;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.nexa-account-list-page .nexa-crm-table > thead > tr > th {
+    border-right: 1px solid #d7e0e3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+    .nexa-account-list-page {
+        height: calc(100dvh - var(--nexa-header-height, 56px) - 8px);
+    }
+
+    .nexa-account-live-search .search-row > .form-group:first-child { max-width: none; }
+    .nexa-account-list-page .nexa-crm-table { min-width: 1180px; }
 }

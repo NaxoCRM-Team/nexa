@@ -33,15 +33,17 @@ final class ContactExportAuditService
     /** @return array<string, mixed> */
     public function register(string $attachmentId, string $source, int $count, string $format, string $exportName): array
     {
-        $this->requireExportAccess();
+        $this->requireExportPermission();
 
         if (!preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $attachmentId) || $count < 0) {
             throw new BadRequest('Invalid export metadata.');
         }
 
-        if (!in_array($source, ['Selected contacts', 'Filtered contacts'], true)) {
+        if (!in_array($source, ['Selected contacts', 'Filtered contacts', 'Selected accounts', 'Filtered accounts'], true)) {
             throw new BadRequest('Invalid export source.');
         }
+
+        $this->requireSourceAccess($source);
 
         $normalizedFormat = strtolower(trim($format));
         $normalizedName = $this->normalizeExportName($exportName, $normalizedFormat);
@@ -70,7 +72,7 @@ final class ContactExportAuditService
     /** @return array{list: array<int, array<string, mixed>>, total: int} */
     public function list(): array
     {
-        $this->requireExportAccess();
+        $this->requireExportPermission();
         $tenant = $this->tenantContextStore->require();
         $parameters = [
             'tenantId' => $tenant->tenantId,
@@ -100,6 +102,10 @@ final class ContactExportAuditService
         $list = [];
 
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            if (!$this->canReadSource((string) $row['nexa_export_source'])) {
+                continue;
+            }
+
             $expiresAt = new DateTimeImmutable((string) $row['nexa_export_expires_at'], new DateTimeZone('UTC'));
             $userName = trim((string) $row['first_name'] . ' ' . (string) $row['last_name']);
             $list[] = [
@@ -122,7 +128,7 @@ final class ContactExportAuditService
     /** @return array{name: string, type: string, contents: string} */
     public function download(string $attachmentId): array
     {
-        $this->requireExportAccess();
+        $this->requireExportPermission();
 
         if (!preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $attachmentId)) {
             throw new NotFound('Export file not found.');
@@ -139,6 +145,8 @@ final class ContactExportAuditService
         ) {
             throw new Forbidden('The export file is not available to this user.');
         }
+
+        $this->requireSourceAccess((string) $attachment->get('nexaExportSource'));
 
         $expiresAt = $attachment->get('nexaExportExpiresAt');
 
@@ -150,7 +158,7 @@ final class ContactExportAuditService
         }
 
         return [
-            'name' => $attachment->getName() ?: 'contacts-export',
+            'name' => $attachment->getName() ?: 'crm-export',
             'type' => $attachment->getType() ?: 'application/octet-stream',
             'contents' => base64_encode($this->fileStorageManager->getContents($attachment)),
         ];
@@ -159,7 +167,7 @@ final class ContactExportAuditService
     /** @return array{id: string, deleted: true} */
     public function delete(string $attachmentId): array
     {
-        $this->requireExportAccess();
+        $this->requireExportPermission();
 
         if (!preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $attachmentId)) {
             throw new NotFound('Export file not found.');
@@ -177,6 +185,8 @@ final class ContactExportAuditService
             throw new Forbidden('The export file is not available to this user.');
         }
 
+        $this->requireSourceAccess((string) $attachment->get('nexaExportSource'));
+
         if ($this->fileStorageManager->exists($attachment)) {
             $this->fileStorageManager->unlink($attachment);
         }
@@ -186,16 +196,28 @@ final class ContactExportAuditService
         return ['id' => $attachmentId, 'deleted' => true];
     }
 
-    private function requireExportAccess(): void
+    private function requireExportPermission(): void
     {
         $this->tenantContextStore->require();
 
-        if (
-            $this->acl->getPermissionLevel(Permission::EXPORT) !== Table::LEVEL_YES ||
-            !$this->acl->check('Contact', Table::ACTION_READ)
-        ) {
-            throw new Forbidden('You do not have permission to export contacts.');
+        if ($this->acl->getPermissionLevel(Permission::EXPORT) !== Table::LEVEL_YES) {
+            throw new Forbidden('You do not have permission to export records.');
         }
+    }
+
+    private function requireSourceAccess(string $source): void
+    {
+        if (!$this->canReadSource($source)) {
+            throw new Forbidden('You do not have permission to export these records.');
+        }
+    }
+
+    private function canReadSource(string $source): bool
+    {
+        $scope = str_ends_with(strtolower($source), 'accounts') ? 'Account' :
+            (str_ends_with(strtolower($source), 'contacts') ? 'Contact' : null);
+
+        return $scope !== null && $this->acl->check($scope, Table::ACTION_READ);
     }
 
     private function expiresAt(): string

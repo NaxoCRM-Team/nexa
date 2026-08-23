@@ -17,7 +17,9 @@ $list = $read('espocrm/client/custom/src/views/contact/list-v2.js');
 $search = $read('espocrm/client/custom/src/views/contact/record/search-live-v2.js');
 $infinite = $read('espocrm/client/custom/src/views/contact/record/list-infinite-v2.js');
 $inlineEditor = $read('espocrm/client/custom/src/table-inline-editor.js');
-$accountInline = $read('espocrm/client/custom/src/views/account/record/list-inline.js');
+$accountList = $read('espocrm/client/custom/src/views/account/list-v2.js');
+$accountSearch = $read('espocrm/client/custom/src/views/account/record/search-live-v2.js');
+$accountInfinite = $read('espocrm/client/custom/src/views/account/record/list-infinite-v2.js');
 $accountClientDefs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/clientDefs/Account.json'), true, flags: JSON_THROW_ON_ERROR);
 $titleAction = $read('espocrm/custom/Espo/Custom/Tools/Contact/Api/PostTitle.php');
 $routes = json_decode($read('espocrm/custom/Espo/Custom/Resources/routes.json'), true, flags: JSON_THROW_ON_ERROR);
@@ -71,8 +73,8 @@ $mustContain("{patch: true}", $inlineEditor, 'Shared table editing must use part
 $mustContain("editor.addEventListener('blur'", $inlineEditor, 'Shared table editing must save when focus leaves the cell.');
 $mustContain("keyEvent.key === 'Escape'", $inlineEditor, 'Shared table editing must support keyboard cancellation.');
 $mustContain("cell.innerHTML = this.originalHtml", $inlineEditor, 'Failed updates must restore the original formatted cell.');
-$mustContain("'custom:table-inline-editor'", $accountInline, 'Account must use the shared lightweight table editor.');
-$mustContain("industry: {type: 'dropdown'", $accountInline, 'Account Industry must support compact dropdown editing.');
+$mustContain("'custom:table-inline-editor'", $accountInfinite, 'Account must use the shared lightweight table editor.');
+$mustContain("industry: {type: 'dropdown'", $accountInfinite, 'Account Industry must support compact dropdown editing.');
 $mustContain('if (config.save)', $inlineEditor, 'The shared editor must support secure field-specific persistence adapters.');
 $mustContain("settingsContainer.after(importButton)", $list, 'Contact Import must appear beside Columns and Total controls.');
 $mustContain("importButton.href = '#Contact/import'", $list, 'Contact Import must open the Nexa Contact import workspace.');
@@ -96,9 +98,16 @@ if (!array_filter($routes, static fn (array $route): bool =>
     empty($route['noAuth']))) {
     throw new RuntimeException('The authenticated Contact Title route must be registered.');
 }
-if (($accountClientDefs['recordViews']['list'] ?? '') !== 'custom:views/account/record/list-inline') {
-    throw new RuntimeException('Account must register the shared inline-edit record list.');
+if (($accountClientDefs['views']['list'] ?? '') !== 'custom:views/account/list-v2' ||
+    ($accountClientDefs['recordViews']['list'] ?? '') !== 'custom:views/account/record/list-infinite-v2') {
+    throw new RuntimeException('Account must register the modern list coordinator and incremental record list.');
 }
+$mustContain("searchView = 'custom:views/account/record/search-live-v2'", $accountList, 'Account must register live search.');
+$mustContain('options.pagination = false', $accountList, 'Account must use an internal scroll workspace instead of page navigation.');
+$mustContain("this.addHandler('input'", $accountSearch, 'Account search must respond as the user types.');
+$mustContain('this.collection.where = this.searchManager.getWhere()', $accountSearch, 'Account search must retain the centrally scoped query.');
+$mustContain('this.collection.hasMore()', $accountInfinite, 'Account incremental loading must stop at the final scoped page.');
+$mustContain('this.showMoreRecords({skipNotify: true}', $accountInfinite, 'Account incremental loading must use the native bounded-page loader.');
 $mustContain('100dvh - var(--nexa-header-height', $styles, 'The Contact workspace must fit between the application header and footer.');
 $mustContain('flex: 1 1 auto;', $styles, 'The Contact table must consume the remaining workspace height.');
 $mustContain('overflow: hidden;', $styles, 'The Contact page must keep scrolling inside the record list.');

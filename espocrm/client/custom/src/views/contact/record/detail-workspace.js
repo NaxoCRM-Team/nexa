@@ -1,4 +1,4 @@
-define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'custom:views/contact/record/twilio-call-controller', 'custom:views/call/caller-id-modal'], (Dep, RecordModalHelper, TwilioCallController, CallerIdVerifyModal) => {
+define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'helpers/record/create-related', 'custom:views/contact/record/twilio-call-controller', 'custom:views/call/caller-id-modal'], (Dep, RecordModalHelper, CreateRelatedHelper, TwilioCallController, CallerIdVerifyModal) => {
     return class extends Dep {
         setup() {
             super.setup();
@@ -122,6 +122,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const nativeRecord = root.querySelector(':scope > .detail');
             root.prepend(shell);
             this.placeNativePanels(nativeRecord, shell);
+            this.loadContactRelationshipOverview(shell);
             this.bindWorkspaceNavigation(shell);
             this.loadProfileImage(shell.querySelector('.nexa-contact-avatar'));
             this.loadContactNotes(shell);
@@ -131,6 +132,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.loadContactEmails(shell);
             this.startContactEmailPolling(shell);
             this.loadContactCommunicationActivities(shell);
+            this.loadContactMarketingContext(shell);
             this.loadContactRecordCreationActivities(shell);
             this.loadContactPipelineValue(shell);
             if (this.activateActivityAfterRender) {
@@ -234,12 +236,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 </main>
                 <aside class="nexa-customer-right" aria-label="Contact associations">
                     <div class="nexa-sidebar-title"><div><p class="nexa-contact-eyebrow">Context</p><h3>Associations</h3></div></div>
-                    <div class="nexa-association-stack" data-nexa-association-panels></div>
-                    ${this.contextCard('Marketing membership', [
-                        ['Segments and lists', 'No active membership recorded'],
-                        ['Campaigns', 'No campaign enrollment recorded'],
-                        ['Automation', 'No active journey enrollment'],
-                    ])}
+                    <div class="nexa-company-relationship-summary nexa-contact-relationship-summary" data-nexa-contact-relationship-summary aria-live="polite"></div>
+                    <div class="nexa-native-association-source" data-nexa-association-panels aria-hidden="true"></div>
+                    ${this.marketingMembershipCard()}
                 </aside>`;
 
             shell.querySelector('.nexa-contact-avatar').textContent = initials.toUpperCase();
@@ -291,10 +290,6 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             nativeRecord.classList.add('nexa-native-record-host');
             this.observeContactActivity(activity);
-            this.addAssociationPanelCollapseToggles(associations);
-            this.bindRelocatedPanelActions(associations);
-            this.observeAccountAssociationRows(associations);
-            this.observeAssociationPanelCounts(associations);
         }
 
         // Payments isn't a real relationship yet - there's no entity/table
@@ -346,11 +341,14 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             if (!panel) return;
 
             panel.querySelectorAll('.panel-body table.table tbody tr').forEach(row => {
-                const nameCell = row.querySelector('td:first-child');
+                const nameLink = row.querySelector('td[data-name="name"] a[href*="Account/view"], a[href*="#Account/view/"]');
+                const nameCell = nameLink?.closest('td[data-name="name"], td');
                 if (!nameCell || nameCell.dataset.nexaStyled === 'true') return;
                 nameCell.dataset.nexaStyled = 'true';
 
-                const name = (nameCell.querySelector('a')?.textContent || nameCell.textContent || '').trim();
+                const accountId = row.dataset.id || nameLink?.dataset.id || '';
+                const name = (nameLink?.textContent || nameLink?.title ||
+                    (accountId === this.model.get('accountId') ? this.model.get('accountName') : '') || '').trim();
                 const initials = name.split(/\s+/).filter(Boolean).slice(0, 2)
                     .map(word => word.charAt(0).toUpperCase()).join('') || '?';
 
@@ -364,6 +362,19 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 if (kebab) {
                     kebab.classList.add('nexa-association-kebab');
                     nameCell.append(kebab);
+                }
+
+                if (!name && accountId && nameCell.dataset.nexaNameLoading !== 'true') {
+                    nameCell.dataset.nexaNameLoading = 'true';
+                    Espo.Ajax.getRequest(`Account/${encodeURIComponent(accountId)}`, {select: 'id,name'})
+                        .then(record => {
+                            const resolved = String(record?.name || '').trim();
+                            if (!resolved || !nameLink?.isConnected) return;
+                            nameLink.textContent = resolved;
+                            avatar.textContent = resolved.split(/\s+/).filter(Boolean).slice(0, 2)
+                                .map(word => word.charAt(0).toUpperCase()).join('') || '?';
+                        })
+                        .catch(() => {});
                 }
             });
         }
@@ -381,6 +392,149 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 );
             });
             this.accountAssociationObserver.observe(panel, {childList: true, subtree: true});
+        }
+
+        async loadContactRelationshipOverview(workspace) {
+            const host = workspace?.querySelector('[data-nexa-contact-relationship-summary]');
+            if (!host) return;
+            host.innerHTML = '<div class="nexa-company-contact-empty"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading associations...</span></div>';
+
+            const definitions = [
+                {key: 'accounts', label: 'Accounts', entityType: 'Account', icon: 'fa-building'},
+                {key: 'opportunities', label: 'Opportunities', entityType: 'Opportunity', icon: 'fa-chart-line', createEnabled: true},
+                {key: 'cases', label: 'Cases', entityType: 'Case', icon: 'fa-headset', createEnabled: true},
+                {key: 'documents', label: 'Documents', entityType: 'Document', icon: 'fa-file-alt', createEnabled: true},
+            ];
+            const cards = await Promise.all(definitions.map(async definition => {
+                if (!this.getAcl().check(definition.entityType, 'read')) return null;
+                try {
+                    const result = await Espo.Ajax.getRequest(`Contact/${encodeURIComponent(this.model.id)}/${definition.key}`, {
+                        select: definition.key === 'accounts'
+                            ? 'id,name,billingAddressCountry,shippingAddressCountry,createdAt'
+                            : 'id,name,createdAt',
+                        maxSize: 6,
+                        orderBy: 'createdAt',
+                        order: 'desc',
+                    });
+                    return {
+                        ...definition,
+                        canCreate: definition.createEnabled && this.getAcl().check(definition.entityType, 'create'),
+                        total: Math.max(0, Number(result?.total) || 0),
+                        list: result?.list || [],
+                    };
+                } catch (error) {
+                    return null;
+                }
+            }));
+
+            host.replaceChildren();
+            cards.filter(Boolean).forEach(card => host.append(this.contactRelationshipCard(card)));
+            if (!host.children.length) {
+                host.innerHTML = '<div class="nexa-company-contact-empty"><span class="fas fa-link" aria-hidden="true"></span><span>No associations are visible yet.</span></div>';
+            }
+        }
+
+        contactRelationshipCard(definition) {
+            const card = document.createElement('section');
+            card.className = 'nexa-company-relationship-card nexa-contact-relationship-card';
+            const urls = this.contactRelationshipUrls(definition);
+            card.innerHTML = `<header>
+                <button type="button" class="nexa-company-relationship-toggle" data-relationship-toggle aria-label="Collapse ${this.escape(definition.label)}" aria-expanded="true"><span class="fas fa-chevron-down" aria-hidden="true"></span></button>
+                <span class="fas ${definition.icon}" aria-hidden="true"></span>
+                <strong>${this.escape(definition.label)}</strong>
+                <span class="nexa-company-relationship-count">${definition.total}</span>
+                <span class="nexa-company-relationship-actions">
+                    ${definition.canCreate ? `<button type="button" data-contact-relationship-create aria-label="Add ${this.escape(definition.label)}" title="Add ${this.escape(definition.label)}"><span class="fas fa-plus" aria-hidden="true"></span></button>` : ''}
+                    <button type="button" data-relationship-menu-toggle aria-label="${this.escape(definition.label)} actions" aria-expanded="false"><span class="fas fa-ellipsis-h" aria-hidden="true"></span></button>
+                    <span class="nexa-company-relationship-menu" data-relationship-menu hidden><a href="${this.escape(urls.view)}">${definition.direct ? 'View account' : 'View all'}</a></span>
+                </span>
+            </header><div data-relationship-list></div>`;
+
+            const list = card.querySelector('[data-relationship-list]');
+            definition.list.forEach(record => {
+                const row = document.createElement('span');
+                row.className = 'nexa-contact-relationship-record';
+                const link = document.createElement('a');
+                link.href = `#${definition.entityType}/view/${encodeURIComponent(record.id)}`;
+                link.textContent = record.name || 'Unnamed record';
+                row.append(link);
+                if (definition.key === 'accounts') {
+                    const country = record.billingAddressCountry || record.shippingAddressCountry;
+                    if (country) {
+                        const countryLabel = document.createElement('small');
+                        countryLabel.className = 'nexa-contact-account-country';
+                        countryLabel.textContent = country;
+                        row.append(countryLabel);
+                    }
+                }
+                list.append(row);
+            });
+            if (!definition.list.length) {
+                const empty = document.createElement('span');
+                empty.className = 'nexa-company-relationship-empty';
+                empty.textContent = 'None linked';
+                list.append(empty);
+            } else if (definition.total > definition.list.length) {
+                const more = document.createElement('a');
+                more.href = urls.view;
+                more.className = 'nexa-company-relationship-more';
+                more.textContent = `View all ${definition.total}`;
+                list.append(more);
+            }
+
+            const collapseToggle = card.querySelector('[data-relationship-toggle]');
+            collapseToggle.addEventListener('click', () => {
+                const expanded = collapseToggle.getAttribute('aria-expanded') === 'true';
+                collapseToggle.setAttribute('aria-expanded', String(!expanded));
+                collapseToggle.setAttribute('aria-label', `${expanded ? 'Expand' : 'Collapse'} ${definition.label}`);
+                collapseToggle.querySelector('.fas').className = `fas fa-chevron-${expanded ? 'right' : 'down'}`;
+                list.hidden = expanded;
+            });
+            card.querySelector('[data-contact-relationship-create]')?.addEventListener('click', async () => {
+                await this.createContactRelationship(definition);
+            });
+            const menuToggle = card.querySelector('[data-relationship-menu-toggle]');
+            const menu = card.querySelector('[data-relationship-menu]');
+            menuToggle.addEventListener('click', event => {
+                event.stopPropagation();
+                const opening = menu.hidden;
+                this.element.querySelectorAll('[data-relationship-menu]').forEach(other => other.hidden = true);
+                this.element.querySelectorAll('[data-relationship-menu-toggle]').forEach(other => other.setAttribute('aria-expanded', 'false'));
+                menu.hidden = !opening;
+                menuToggle.setAttribute('aria-expanded', String(opening));
+            });
+            card.addEventListener('focusout', event => {
+                if (event.relatedTarget && card.contains(event.relatedTarget)) return;
+                menu.hidden = true;
+                menuToggle.setAttribute('aria-expanded', 'false');
+            });
+            return card;
+        }
+
+        async createContactRelationship(definition) {
+            if (!definition.canCreate || this.contactRelationshipCreatePending) return;
+
+            this.contactRelationshipCreatePending = true;
+            try {
+                const helper = new CreateRelatedHelper(this);
+                await helper.process(this.model, definition.key, {
+                    afterSave: () => {
+                        const workspace = this.element?.querySelector('[data-nexa-contact-workspace]');
+                        this.loadContactRelationshipOverview(workspace);
+                    },
+                });
+            } catch (error) {
+                Espo.Ui.error('The related record form could not be opened.');
+            } finally {
+                this.contactRelationshipCreatePending = false;
+            }
+        }
+
+        contactRelationshipUrls(definition) {
+            if (definition.direct && definition.list[0]?.id) {
+                return {view: `#${definition.entityType}/view/${encodeURIComponent(definition.list[0].id)}`};
+            }
+            return {view: `#Contact/related/${encodeURIComponent(this.model.id)}/${definition.key}`};
         }
 
         // These native panels render permanently expanded (Espo has no
@@ -634,7 +788,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     ${this.highlight('Lifecycle', this.optionLabel('lifecycleStage', this.model.get('lifecycleStage')), 'fas fa-route')}
                     ${this.highlight('Lead score', this.model.get('leadScore'), 'fas fa-star')}
                     ${this.highlight('Marketing status', this.optionLabel('marketingStatus', this.model.get('marketingStatus')), 'fas fa-bullhorn')}
-                    ${this.highlight('Last activity', this.model.get('modifiedAt'), 'far fa-clock')}
+                </div>
+                <div class="nexa-highlight-grid nexa-customer-activity-summary" aria-label="Customer activity summary">
+                    ${this.activitySummaryHighlight('First activity', 'first', 'fas fa-hourglass-start')}
+                    ${this.activitySummaryHighlight('Last activity', 'last', 'far fa-clock')}
+                    ${this.activitySummaryHighlight('Last email interaction', 'email', 'far fa-envelope')}
+                    ${this.activitySummaryHighlight('Next activity', 'next', 'fas fa-forward')}
                 </div>
                 <div class="nexa-overview-insights" data-nexa-overview-insights>
                     <div class="nexa-note-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading insights</span></div>
@@ -869,7 +1028,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     <button type="button" class="btn btn-default nexa-activity-filter-toggle" data-nexa-activity-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
                     <div class="nexa-activity-filters" data-nexa-activity-filters>
                         <select class="form-control" data-nexa-activity-type aria-label="Activity type">
-                            <option value="all">All activities</option><option value="call">Calls</option><option value="meeting">Meetings</option><option value="email">Emails</option><option value="task">Tasks</option><option value="note">Notes</option><option value="case">Cases created</option><option value="opportunity">Opportunities created</option><option value="document">Documents created</option><option value="preference">Communication preferences</option><option value="other">Other activity</option>
+                            <option value="all">All activities</option><option value="call">Calls</option><option value="meeting">Meetings</option><option value="email">Emails</option><option value="task">Tasks</option><option value="note">Notes</option><option value="marketing">Marketing events</option><option value="website">Website visits</option><option value="case">Cases created</option><option value="opportunity">Opportunities created</option><option value="document">Documents created</option><option value="preference">Communication preferences</option><option value="other">Other activity</option>
                         </select>
                         <select class="form-control" data-nexa-activity-period aria-label="Date range">${this.notePeriodOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select>
                     </div>
@@ -2031,6 +2190,15 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return `<section class="nexa-context-card"><h4>${this.escape(title)}</h4><dl>${values.map(([label, value]) => this.fact(label, value)).join('')}</dl></section>`;
         }
 
+        marketingMembershipCard() {
+            return `<section class="nexa-context-card nexa-marketing-membership" data-nexa-marketing-membership>
+                <h4>Marketing membership</h4>
+                <div class="nexa-marketing-membership-body" data-nexa-marketing-membership-body aria-live="polite">
+                    <div class="nexa-marketing-membership-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading marketing membership</span></div>
+                </div>
+            </section>`;
+        }
+
         fact(label, value) {
             return `<div class="nexa-record-fact"><dt>${this.escape(label)}</dt><dd>${this.escape(this.displayValue(value))}</dd></div>`;
         }
@@ -2042,6 +2210,10 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         highlight(label, value, icon, state = null) {
             const stateClass = state ? ` is-${state}` : '';
             return `<article class="nexa-highlight${stateClass}"><span class="${icon}" aria-hidden="true"></span><div><p>${this.escape(label)}</p><strong>${this.escape(this.displayValue(value))}</strong></div></article>`;
+        }
+
+        activitySummaryHighlight(label, key, icon) {
+            return `<article class="nexa-highlight"><span class="${icon}" aria-hidden="true"></span><div><p>${this.escape(label)}</p><strong data-nexa-activity-summary="${key}">Loading...</strong></div></article>`;
         }
 
         openActivity(type) {
@@ -3748,8 +3920,21 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             if (!panels) return [];
             const activities = [
                 ...(this.contactCommunicationActivities || []),
+                ...(this.contactMarketingActivities || []),
                 ...(this.contactRecordCreationRecords || []).map(record => this.recordCreationActivity(record)),
             ];
+
+            const websiteVisit = this.contactNoteDate(this.model.get('lastWebsiteVisitAt'));
+            if (websiteVisit) {
+                activities.push({
+                    id: 'website-last-visit',
+                    type: 'website',
+                    title: 'Website visit recorded',
+                    text: 'Latest identified website visit',
+                    date: websiteVisit,
+                    href: '',
+                });
+            }
 
             activities.forEach(activity => {
                 if (!this.knownContactActivityIds.has(activity.id)) {
@@ -3932,6 +4117,109 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.renderContactActivities(workspace);
         }
 
+        campaignActionLabel(action) {
+            return {
+                Sent: 'Email sent', Opened: 'Email opened', Clicked: 'Link clicked',
+                Bounced: 'Email bounced', 'Opted Out': 'Marketing opt-out',
+                'Opted In': 'Marketing opt-in', 'Lead Created': 'Lead created',
+            }[action] || action || 'Campaign activity';
+        }
+
+        async loadContactMarketingContext(workspace = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            this.contactMarketingActivities = [];
+            let targetLists = [];
+            let campaignLogs = [];
+            let membershipAvailable = true;
+
+            const [targetListResult, campaignLogResult] = await Promise.allSettled([
+                Espo.Ajax.getRequest(`Contact/${encodeURIComponent(this.model.id)}/targetLists`, {
+                    select: 'id,name', maxSize: 100, orderBy: 'name', order: 'asc',
+                }),
+                Espo.Ajax.getRequest('CampaignLogRecord', {
+                    select: 'id,action,actionDate,createdAt,stringData,stringAdditionalData,campaignId,campaignName,parentId,parentType',
+                    where: [
+                        {type: 'equals', attribute: 'parentType', value: 'Contact'},
+                        {type: 'equals', attribute: 'parentId', value: this.model.id},
+                    ],
+                    maxSize: 200, orderBy: 'actionDate', order: 'desc',
+                }),
+            ]);
+
+            if (targetListResult.status === 'fulfilled') targetLists = targetListResult.value?.list || [];
+            else membershipAvailable = false;
+            if (campaignLogResult.status === 'fulfilled') campaignLogs = campaignLogResult.value?.list || [];
+
+            const campaignMap = new Map();
+            const relatedCampaigns = await Promise.all(targetLists.slice(0, 25).map(async targetList => {
+                try {
+                    const payload = await Espo.Ajax.getRequest(`TargetList/${encodeURIComponent(targetList.id)}/campaigns`, {
+                        select: 'id,name,status,type,startDate,endDate', maxSize: 100,
+                    });
+                    return payload?.list || [];
+                } catch (error) {
+                    return [];
+                }
+            }));
+            relatedCampaigns.flat().forEach(campaign => campaign?.id && campaignMap.set(campaign.id, campaign));
+
+            const directCampaignId = this.model.get('campaignId');
+            if (directCampaignId) {
+                campaignMap.set(directCampaignId, {
+                    id: directCampaignId,
+                    name: this.model.get('campaignName') || 'Campaign',
+                });
+            }
+            campaignLogs.forEach(log => {
+                if (!log.campaignId) return;
+                const existing = campaignMap.get(log.campaignId) || {};
+                campaignMap.set(log.campaignId, {
+                    ...existing, id: log.campaignId, name: existing.name || log.campaignName || 'Campaign',
+                });
+            });
+
+            this.contactMarketingActivities = campaignLogs.map(log => {
+                const campaign = campaignMap.get(log.campaignId);
+                const title = this.campaignActionLabel(log.action);
+                const campaignName = campaign?.name || log.campaignName || '';
+                const details = [campaignName, log.stringData, log.stringAdditionalData].filter(Boolean);
+                return {
+                    id: `campaign-${log.id}`,
+                    type: 'marketing',
+                    title,
+                    text: details.join(' ') || title,
+                    date: this.contactNoteDate(log.actionDate || log.createdAt),
+                    href: log.campaignId ? `#Campaign/view/${log.campaignId}` : '',
+                    interactionSubject: campaignName || 'Marketing campaign',
+                    interactionFields: [['Action', title]],
+                };
+            });
+
+            this.renderContactMarketingMembership(workspace, targetLists, [...campaignMap.values()], membershipAvailable);
+            this.renderContactActivities(workspace);
+        }
+
+        renderContactMarketingMembership(workspace, targetLists, campaigns, available = true) {
+            const body = workspace?.querySelector('[data-nexa-marketing-membership-body]');
+            if (!body) return;
+            if (!available) {
+                body.innerHTML = '<p class="nexa-marketing-membership-empty is-unavailable">Marketing membership is temporarily unavailable.</p>';
+                return;
+            }
+
+            const membershipGroup = (label, records, route, emptyLabel) => {
+                const visible = records.slice(0, 6);
+                const items = visible.map(record => `<li><a href="#${route}/view/${encodeURIComponent(record.id)}">${this.escape(record.name || 'Unnamed')}</a>${record.status ? `<span class="nexa-membership-status">${this.escape(record.status)}</span>` : ''}</li>`).join('');
+                const remainder = records.length - visible.length;
+                return `<div class="nexa-marketing-membership-group"><strong>${this.escape(label)}</strong>${records.length ? `<ul>${items}</ul>${remainder > 0 ? `<span class="nexa-membership-more">+${remainder} more</span>` : ''}` : `<p class="nexa-marketing-membership-empty">${this.escape(emptyLabel)}</p>`}</div>`;
+            };
+
+            body.innerHTML = [
+                membershipGroup('Segments and lists', targetLists, 'TargetList', 'No active list membership'),
+                membershipGroup('Campaigns', campaigns, 'Campaign', 'No campaign membership'),
+            ].join('');
+        }
+
         // Opportunity/Case/Document creation shows in each record's own
         // native Stream ("X created this case assigned to Y"), but that
         // never reached this Contact's own Activities timeline - the native
@@ -4088,6 +4376,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const list = workspace?.querySelector('[data-nexa-activity-list]');
             if (!list) return;
             this.cancelTaskFieldEdit();
+            this.renderContactActivitySummary(workspace, this.collectContactActivities(workspace));
             const activities = this.filteredContactActivities(workspace);
             const groups = new Map();
 
@@ -4185,6 +4474,45 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.bindContactEmailList(list, 'activity');
             this.bindContactCallList(list, 'activity');
             this.bindContactActivityComments(list);
+        }
+
+        renderContactActivitySummary(workspace, activities) {
+            const now = Date.now();
+            const dated = activities.filter(activity => activity.date instanceof Date && !Number.isNaN(activity.date.getTime()));
+            const historical = dated.filter(activity => activity.date.getTime() <= now);
+            const first = [...historical].sort((left, right) => left.date - right.date)[0];
+            const last = [...historical].sort((left, right) => right.date - left.date)[0];
+            const lastEmail = historical.filter(activity => activity.type === 'email' &&
+                !['Draft', 'Sending'].includes(activity.emailRef?.status))
+                .sort((left, right) => right.date - left.date)[0];
+            const next = dated.filter(activity => {
+                if (activity.date.getTime() <= now) return false;
+                if (activity.taskRef) return !['Completed', 'Canceled'].includes(activity.taskRef.status);
+                if (activity.meetingRef || activity.callRef) {
+                    const status = activity.meetingRef?.status || activity.callRef?.status;
+                    return !['Held', 'Not Held', 'Canceled'].includes(status);
+                }
+                return false;
+            }).sort((left, right) => left.date - right.date)[0];
+
+            const values = {
+                first: this.formatActivitySummaryValue(first),
+                last: this.formatActivitySummaryValue(last),
+                email: this.formatActivitySummaryValue(lastEmail),
+                next: this.formatActivitySummaryValue(next, true),
+            };
+            Object.entries(values).forEach(([key, value]) => {
+                const node = workspace?.querySelector(`[data-nexa-activity-summary="${key}"]`);
+                if (node) node.textContent = value;
+            });
+        }
+
+        formatActivitySummaryValue(activity, includeTitle = false) {
+            if (!activity?.date) return 'Not recorded';
+            const formatted = new Intl.DateTimeFormat(undefined, {
+                dateStyle: 'medium', timeStyle: 'short',
+            }).format(activity.date);
+            return includeTitle && activity.title ? `${activity.title} · ${formatted}` : formatted;
         }
 
         bindContactActivityComments(list) {
@@ -4502,11 +4830,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         contactActivityTypeLabel(type) {
-            return {call: 'Call', meeting: 'Meeting', email: 'Email', task: 'Task', note: 'Note', preference: 'Communication preference', case: 'Case created', opportunity: 'Opportunity created', document: 'Document created', other: 'CRM activity'}[type] || 'CRM activity';
+            return {call: 'Call', meeting: 'Meeting', email: 'Email', task: 'Task', note: 'Note', marketing: 'Marketing activity', website: 'Website activity', preference: 'Communication preference', case: 'Case created', opportunity: 'Opportunity created', document: 'Document created', other: 'CRM activity'}[type] || 'CRM activity';
         }
 
         contactActivityTypeIcon(type) {
-            return {call: 'fa-phone-alt', meeting: 'fa-calendar-check', email: 'fa-envelope', task: 'fa-check-square', note: 'fa-sticky-note', preference: 'fa-ban', case: 'fa-briefcase', opportunity: 'fa-dollar-sign', document: 'fa-file-alt', other: 'fa-history'}[type] || 'fa-history';
+            return {call: 'fa-phone-alt', meeting: 'fa-calendar-check', email: 'fa-envelope', task: 'fa-check-square', note: 'fa-sticky-note', marketing: 'fa-bullhorn', website: 'fa-globe', preference: 'fa-ban', case: 'fa-briefcase', opportunity: 'fa-dollar-sign', document: 'fa-file-alt', other: 'fa-history'}[type] || 'fa-history';
         }
 
         contactActivityRows(panel) {

@@ -4,10 +4,15 @@
         "numberOfEmployees": {"type": "int", "min": 0},
         "parentAccount": {"type": "link"},
         "subsidiaries": {"type": "linkMultiple", "readOnly": true},
-        "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true}
+        "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true},
+        "tags": {"type": "array", "allowCustomOptions": true, "displayAsList": true, "maxCount": 30, "maxItemLength": 80},
+        "contactCount": {"type": "int", "notStorable": true, "readOnly": true},
+        "deletedAt": {"type": "datetime", "readOnly": true, "disabled": true},
+        "deletedBy": {"type": "link", "readOnly": true, "disabled": true}
     },
     "links": {
         "parentAccount": {"type": "belongsTo", "entity": "Account", "foreign": "subsidiaries"},
-        "subsidiaries": {"type": "hasMany", "entity": "Account", "foreign": "parentAccount"}
+        "subsidiaries": {"type": "hasMany", "entity": "Account", "foreign": "parentAccount"},
+        "deletedBy": {"type": "belongsTo", "entity": "User", "foreign": null}
     }
 }

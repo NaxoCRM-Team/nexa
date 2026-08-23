@@ -48,6 +48,8 @@ $assert(str_contains($service, 'a.tenant_id = :tenantId') && str_contains($servi
 $assert(str_contains($service, "Attachment::ROLE_EXPORT_FILE"), 'Only native export attachments may be audited.');
 $assert(str_contains($service, 'fileStorageManager->getContents'), 'Export downloads must read an authorized audit attachment.');
 $assert(str_contains($service, 'normalizeExportName'), 'Export names must be validated and normalized on the server.');
+$assert(str_contains($service, "'Selected accounts'") && str_contains($service, "'Filtered accounts'"), 'Export Audit must support Account exports without weakening source validation.');
+$assert(str_contains($service, 'requireSourceAccess'), 'Every export registration, download and deletion must re-check its entity access.');
 $assert(str_contains($service, 'fileStorageManager->unlink'), 'Deleting an export must remove its generated file.');
 $assert(str_contains($service, 'removeEntity($attachment)'), 'Deleting an export must remove it from the audit list.');
 $assert(str_contains($list, 'exportName'), 'The selected export name must be sent to the audit service.');

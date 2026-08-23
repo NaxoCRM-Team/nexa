@@ -97,6 +97,36 @@
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostTitle"
     },
     {
+        "route": "/Nexa/account/delete",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\PostDelete"
+    },
+    {
+        "route": "/Nexa/account/contact-counts",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\PostContactCounts"
+    },
+    {
+        "route": "/Nexa/account/:id/timeline",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\GetTimeline"
+    },
+    {
+        "route": "/Nexa/account/trash",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\GetTrash"
+    },
+    {
+        "route": "/Nexa/account/trash/restore",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\PostRestore"
+    },
+    {
+        "route": "/Nexa/account/trash/purge",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\PostPurge"
+    },
+    {
         "route": "/Nexa/contact/delete",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostDelete"
