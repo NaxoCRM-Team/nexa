@@ -26,6 +26,9 @@ $accountLayout = json_decode($read('espocrm/custom/Espo/Custom/Resources/layouts
 $contactCountField = $read('espocrm/client/custom/src/views/account/fields/contact-count-list.js');
 $contactCountTemplate = $read('espocrm/client/custom/res/templates/account/fields/contact-count-list.tpl');
 $migration = $read('database/shared/migrations/0028_add_account_deletion_audit.sql');
+$brandMigration = $read('database/shared/migrations/0030_add_account_brand_assets.sql');
+$avatarService = $read('espocrm/custom/Espo/Custom/Tools/Account/AccountAvatarService.php');
+$avatarField = $read('espocrm/client/custom/src/views/account/fields/name-list.js');
 $defs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/entityDefs/Account.json'), true, flags: JSON_THROW_ON_ERROR);
 $scopeFilter = $read('espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php');
 $selectDefs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json'), true, flags: JSON_THROW_ON_ERROR);
@@ -35,6 +38,28 @@ foreach (['/Nexa/account/delete', '/Nexa/account/contact-counts', '/Nexa/account
         throw new RuntimeException("Authenticated Account lifecycle route {$path} is required.");
     }
 }
+
+if (!array_filter($routes, static fn (array $route): bool =>
+    ($route['route'] ?? '') === '/Nexa/account/:id/avatar' && empty($route['noAuth']))) {
+    throw new RuntimeException('The Account avatar endpoint must require an authenticated tenant session.');
+}
+
+$mustContain('company_logo_id', $brandMigration, 'Account brand migration must store uploaded company logos.');
+$mustContain('favicon_source_host', $brandMigration, 'Account brand migration must bind cached favicons to their website host.');
+if (($defs['fields']['companyLogo']['type'] ?? '') !== 'image') {
+    throw new RuntimeException('Account companyLogo must use the protected image attachment field type.');
+}
+$mustContain("getRDBRepository('Account')->getById(\$accountId)", $avatarService, 'Account avatars must load through the tenant-scoped ORM.');
+$mustContain('checkEntityRead($account)', $avatarService, 'Account avatar delivery must enforce record-level read access.');
+$mustContain('FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE', $avatarService, 'Favicon retrieval must reject internal and reserved network addresses.');
+$mustContain('CURLOPT_RESOLVE', $avatarService, 'Favicon retrieval must pin the validated public DNS address.');
+$mustContain('MAX_IMAGE_BYTES', $avatarService, 'Favicon downloads must enforce a strict file-size boundary.');
+$mustContain('MAX_REDIRECTS', $avatarService, 'Favicon downloads must enforce a redirect boundary.');
+$mustContain("->setRelated(\$account)", $avatarService, 'Cached favicons must remain related to the tenant-scoped Account.');
+$mustContain("->setTargetField('favicon')", $avatarService, 'Generated favicon attachments must be distinguishable from uploaded logos.');
+$mustContain("['website', 'companyLogoId']", $recordList, 'Account lists must request only the hidden brand attributes needed for avatar rendering.');
+$mustContain('Nexa/account/${encodeURIComponent(accountId)}/avatar', $avatarField, 'Account list avatars must use the protected Account endpoint.');
+$mustContain('URL.revokeObjectURL', $avatarField, 'Account list avatars must release temporary browser object URLs.');
 
 $mustContain("getRDBRepository('Account')->getById(\$id)", $service, 'Account delete must load through the scoped ORM.');
 $mustContain("check(\$account, Table::ACTION_DELETE)", $service, 'Account delete must enforce record ownership ACL.');

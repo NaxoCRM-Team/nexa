@@ -1,9 +1,11 @@
 [
     {"label": "", "rows": [
+        [{"name": "companyLogo", "fullWidth": true}],
         [{"name": "name", "fullWidth": true}], [{"name": "website", "fullWidth": true}],
         [{"name": "emailAddress", "fullWidth": true}], [{"name": "phoneNumber", "fullWidth": true}],
         [{"name": "type"}, {"name": "industry"}], [{"name": "parentAccount", "fullWidth": true}],
         [{"name": "annualRevenue"}, {"name": "numberOfEmployees"}],
+        [{"name": "lifecycleStage"}, {"name": "leadStatus"}],
         [{"name": "assignedUser"}, {"name": "teams"}], [{"name": "tags", "fullWidth": true}],
         [{"name": "billingAddressCity"}, {"name": "billingAddressCountry"}],
         [{"name": "description", "fullWidth": true}]

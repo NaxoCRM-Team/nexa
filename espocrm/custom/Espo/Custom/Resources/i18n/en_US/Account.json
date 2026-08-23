@@ -1,7 +1,13 @@
 {
     "fields": {
+        "companyLogo": "Company Logo",
         "annualRevenue": "Annual Revenue", "numberOfEmployees": "Number of Employees",
-        "parentAccount": "Parent Company", "subsidiaries": "Subsidiaries", "leadScore": "Lead Score", "tags": "Tags"
+        "parentAccount": "Parent Company", "subsidiaries": "Subsidiaries", "leadScore": "Lead Score",
+        "lifecycleStage": "Lifecycle Stage", "leadStatus": "Lead Status", "tags": "Tags"
+    },
+    "options": {
+        "lifecycleStage": {"Subscriber": "Subscriber", "Lead": "Lead", "MarketingQualifiedLead": "Marketing Qualified Lead", "SalesQualifiedLead": "Sales Qualified Lead", "Opportunity": "Opportunity", "Customer": "Customer", "Evangelist": "Evangelist", "Other": "Other"},
+        "leadStatus": {"New": "New", "Open": "Open", "InProgress": "In Progress", "OpenDeal": "Open Deal", "Unqualified": "Unqualified", "AttemptedToContact": "Attempted to Contact", "Connected": "Connected", "BadTiming": "Bad Timing"}
     },
     "links": {"parentAccount": "Parent Company", "subsidiaries": "Subsidiaries"},
     "presetFilters": {"createdByMe": "My Accounts"}

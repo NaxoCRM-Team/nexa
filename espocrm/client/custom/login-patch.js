@@ -58,6 +58,7 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
     };
     let activeRouter = null;
     let activeWorkspaceBaseUrl = null;
+    let activeTenantSlug = null;
     const showApplicationUrl = app => {
         const tenant = app.appParams.get('nexaTenant');
 
@@ -68,6 +69,7 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         const currentWorkspace = workspaceLocation() || requestedWorkspace;
         const legacyFragment = location.hash.replace(/^#/, '');
         const fragment = legacyFragment || currentWorkspace?.fragment || '';
+        activeTenantSlug = tenant.slug;
         activeWorkspaceBaseUrl = workspaceUrl(tenant.slug);
         replaceUrl(workspaceUrl(tenant.slug, fragment));
 
@@ -80,6 +82,7 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
 
         activeRouter = null;
         activeWorkspaceBaseUrl = null;
+        activeTenantSlug = null;
         const url = applicationUrl('login/');
         const parameters = new URLSearchParams(location.search);
         parameters.delete('login');
@@ -89,28 +92,51 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
         replaceUrl(url);
     };
 
-    // Espo still emits hash-shaped href values. Route them through Backbone's
-    // push-state navigator so the address bar stays tenant-qualified and clean.
+    const qualifyWorkspaceAnchor = anchor => {
+        if (!anchor || !activeTenantSlug) return null;
+
+        const existingRoute = anchor.dataset.nexaRoute;
+        if (existingRoute !== undefined) return existingRoute;
+
+        const href = anchor.getAttribute('href');
+        if (!href?.startsWith('#')) return null;
+
+        const route = href.slice(1);
+        const url = workspaceUrl(activeTenantSlug, route);
+        anchor.dataset.nexaRoute = route;
+        anchor.setAttribute('href', url.pathname + url.search + url.hash);
+
+        return route;
+    };
+
+    // Resolve hash links before the browser opens its context menu. This gives
+    // right-click, middle-click, copy-link and keyboard opening a complete,
+    // tenant-qualified URL instead of resolving the hash against the public root.
+    ['pointerover', 'focusin', 'mousedown', 'contextmenu'].forEach(type => {
+        document.addEventListener(type, event => {
+            qualifyWorkspaceAnchor(event.target.closest?.('a'));
+        }, true);
+    });
+
+    // Espo still creates hash-shaped links at runtime. Normal clicks remain
+    // client-side navigation after those links receive their portable URL.
     document.addEventListener('click', event => {
+        const anchor = event.target.closest?.('a');
+        const route = qualifyWorkspaceAnchor(anchor);
+
         if (!activeRouter || !activeWorkspaceBaseUrl ||
             !location.pathname.startsWith(activeWorkspaceBaseUrl.pathname) ||
-            event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
-            return;
-        }
-
-        const anchor = event.target.closest?.('a[href^="#"]');
-        const href = anchor?.getAttribute('href');
-
-        if (!href) {
+            route === null || event.button !== 0 || event.ctrlKey || event.metaKey ||
+            event.shiftKey || event.altKey) {
             return;
         }
 
         event.preventDefault();
-        if (href === '#') {
+        if (route === '') {
             activeRouter.navigate('', {trigger: true});
             return;
         }
-        activeRouter.navigate(href.slice(1), {trigger: true});
+        activeRouter.navigate(route, {trigger: true});
     }, true);
     const defaultOnAuth = App.prototype.onAuth;
     const defaultInitRouter = App.prototype.initRouter;

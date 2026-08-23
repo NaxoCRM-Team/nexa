@@ -36,6 +36,16 @@ define('custom:views/account/record/list-infinite-v2', [
         });
     }
 
+    getSelectAttributeList(callback) {
+        super.getSelectAttributeList(attributeList => {
+            ['website', 'companyLogoId'].forEach(attribute => {
+                if (attributeList && !attributeList.includes(attribute)) attributeList.push(attribute);
+            });
+
+            callback(attributeList);
+        });
+    }
+
     afterRender() {
         const result = super.afterRender();
         this.bindScrollContainer();
