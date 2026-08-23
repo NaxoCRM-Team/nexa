@@ -39,6 +39,16 @@ $mustContain('data-nexa-company-field="tags"', $view, 'Company profile must disp
 $mustContain('renderCustomProperties(shell)', $view, 'Readable custom Account fields must have a metadata-driven display surface.');
 $mustContain("checkField('Account', name, 'read')", $view, 'Custom Account properties must honor field-level read permission.');
 $mustContain('data-nexa-company-field="leadScore"', $view, 'Company profile must display lead score.');
+$mustContain('data-nexa-company-field="lifecycleStage"', $view, 'Company profile must display its lifecycle stage.');
+$mustContain('data-nexa-company-field="leadStatus"', $view, 'Company profile must display its lead status.');
+$mustContain('loadCompanyAvatar(shell)', $view, 'The company workspace must load the same protected Account avatar as the list.');
+$mustContain('Nexa/account/${encodeURIComponent(this.model.id)}/avatar', $view, 'Company profile avatars must use the protected Account endpoint.');
+$mustContain('renderCompanyAvatarFallback', $view, 'Company profile avatars must preserve an initial fallback.');
+$mustContain('URL.revokeObjectURL', $view, 'Company profile avatars must release temporary browser object URLs.');
+$mustContain("lifecycleStage: {type: 'enum'}", $view, 'Company lifecycle stage must support permission-aware inline editing.');
+$mustContain("leadStatus: {type: 'enum'}", $view, 'Company lead status must support permission-aware inline editing.');
+$mustContain('companyLifecycleBadge()', $view, 'Company lifecycle stage must use semantic badge presentation.');
+$mustContain('companyLeadStatusBadge()', $view, 'Company lead status must use semantic badge presentation.');
 $mustContain('data-nexa-company-field="industry"', $view, 'Company profile must display industry.');
 $mustContain('data-nexa-company-field="type"', $view, 'Company profile must display account type.');
 if (str_contains($view, 'data-nexa-company-native-activity')) {
@@ -122,6 +132,7 @@ $mustContain('::-webkit-scrollbar-button:single-button:vertical:increment', $sty
 $mustContain('data-nexa-company-scrollbar', $view, 'The right Account column must install an explicit visible scrollbar.');
 $mustContain('setPointerCapture', $view, 'The right Account scrollbar thumb must support mouse dragging.');
 $mustContain('.nexa-company-scrollbar-track', $styles, 'The right Account column must expose a persistent scrollbar track.');
+$mustContain('.nexa-lifecycle-stage--customer', $styles, 'Account lifecycle badges must expose stable semantic styles.');
 
 foreach (['tenant-a', 'tenant-b', 'isolation-alpha'] as $literal) {
     if (str_contains($view, $literal)) throw new RuntimeException("Account workspace must not hardcode {$literal}.");

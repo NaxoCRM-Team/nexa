@@ -1,10 +1,22 @@
 {
     "fields": {
+        "companyLogo": {
+            "type": "image",
+            "previewSize": "medium",
+            "showPreview": true,
+            "accept": ["image/jpeg", "image/png", "image/gif", "image/webp"],
+            "maxFileSize": 5
+        },
+        "favicon": {"type": "image", "readOnly": true, "disabled": true},
+        "faviconSourceHost": {"type": "varchar", "maxLength": 255, "readOnly": true, "disabled": true},
+        "faviconFetchedAt": {"type": "datetime", "readOnly": true, "disabled": true},
         "annualRevenue": {"type": "currency", "min": 0},
         "numberOfEmployees": {"type": "int", "min": 0},
         "parentAccount": {"type": "link"},
         "subsidiaries": {"type": "linkMultiple", "readOnly": true},
         "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true},
+        "lifecycleStage": {"type": "enum", "options": ["", "Subscriber", "Lead", "MarketingQualifiedLead", "SalesQualifiedLead", "Opportunity", "Customer", "Evangelist", "Other"]},
+        "leadStatus": {"type": "enum", "options": ["", "New", "Open", "InProgress", "OpenDeal", "Unqualified", "AttemptedToContact", "Connected", "BadTiming"]},
         "tags": {"type": "array", "allowCustomOptions": true, "displayAsList": true, "maxCount": 30, "maxItemLength": 80},
         "contactCount": {"type": "int", "notStorable": true, "readOnly": true},
         "deletedAt": {"type": "datetime", "readOnly": true, "disabled": true},

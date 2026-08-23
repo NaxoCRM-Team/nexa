@@ -107,6 +107,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\PostContactCounts"
     },
     {
+        "route": "/Nexa/account/:id/avatar",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\GetAvatar"
+    },
+    {
         "route": "/Nexa/account/:id/timeline",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\GetTimeline"

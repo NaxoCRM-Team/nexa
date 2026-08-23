@@ -157,7 +157,10 @@ $assert(
     str_contains($loginScript, "app.appParams.get('nexaTenant')") &&
     str_contains($loginScript, "root: workspaceBaseUrl.pathname + '/'") &&
     str_contains($loginScript, 'pushState: true') &&
-    str_contains($loginScript, 'activeRouter.navigate(href.slice(1), {trigger: true})'),
+    str_contains($loginScript, 'qualifyWorkspaceAnchor') &&
+    str_contains($loginScript, "anchor.dataset.nexaRoute = route") &&
+    str_contains($loginScript, "['pointerover', 'focusin', 'mousedown', 'contextmenu']") &&
+    str_contains($loginScript, 'activeRouter.navigate(route, {trigger: true})'),
     'Authenticated navigation must use the verified tenant slug and push-state workspace routes.'
 );
 

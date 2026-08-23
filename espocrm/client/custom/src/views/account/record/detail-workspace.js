@@ -8,6 +8,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail'], 
             this.companyWorkspaceObserver?.disconnect();
             this.companyAssociationResizeObserver?.disconnect();
             this.accountEngagementDeleteDialog?.remove();
+            this.releaseCompanyAvatar();
         });
     }
 
@@ -70,6 +71,8 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail'], 
                         <div><dt>Annual revenue</dt><dd data-nexa-company-field="annualRevenue"></dd></div>
                         <div><dt>Employees</dt><dd data-nexa-company-field="numberOfEmployees"></dd></div>
                         <div><dt>Lead score</dt><dd data-nexa-company-field="leadScore"></dd></div>
+                        <div><dt>Lifecycle stage</dt><dd data-nexa-company-field="lifecycleStage"></dd></div>
+                        <div><dt>Lead status</dt><dd data-nexa-company-field="leadStatus"></dd></div>
                         <div><dt>Parent company</dt><dd data-nexa-company-field="parentAccount"></dd></div>
                         <div><dt>Account owner</dt><dd data-nexa-company-field="assignedUser"></dd></div>
                         <div><dt>Teams</dt><dd data-nexa-company-field="teams"></dd></div>
@@ -355,8 +358,9 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail'], 
         const industry = this.model.get('industry') || 'Industry not recorded';
         const location = this.fullAddress();
         shell.querySelector('[data-nexa-company-name]').textContent = name;
-        shell.querySelector('.nexa-company-avatar').textContent = name.trim().charAt(0).toUpperCase() || '?';
+        this.renderCompanyAvatarFallback(shell, name);
         shell.querySelector('[data-nexa-company-subtitle]').textContent = `${industry} - ${location}`;
+        this.loadCompanyAvatar(shell);
 
         this.setFact(shell, 'website', this.linkValue(this.model.get('website')));
         this.setFact(shell, 'emailAddress', this.emailValue(this.model.get('emailAddress')));
@@ -366,6 +370,8 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail'], 
         this.setFact(shell, 'annualRevenue', this.formatAnnualRevenue());
         this.setFact(shell, 'numberOfEmployees', this.formatCount(this.model.get('numberOfEmployees')));
         this.setFact(shell, 'leadScore', this.formatLeadScore());
+        this.setFact(shell, 'lifecycleStage', this.companyLifecycleBadge());
+        this.setFact(shell, 'leadStatus', this.companyLeadStatusBadge());
         this.setFact(shell, 'parentAccount', this.recordLinkValue('Account', this.model.get('parentAccountId'), this.model.get('parentAccountName')));
         this.setFact(shell, 'assignedUser', this.ownerValue());
         this.setFact(shell, 'teams', this.linkListValue('Team', this.model.get('teamsIds'), this.model.get('teamsNames')));
@@ -375,6 +381,68 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail'], 
         this.setFact(shell, 'modifiedAt', this.modifiedAuditValue());
         this.renderCompanyDescription(shell);
         this.renderCustomProperties(shell);
+    }
+
+    renderCompanyAvatarFallback(shell, name) {
+        const avatar = shell.querySelector('.nexa-company-avatar');
+        if (!avatar) return;
+
+        if (this.companyAvatarUrl) {
+            this.renderCompanyAvatarImage(avatar, this.companyAvatarUrl);
+            return;
+        }
+
+        avatar.textContent = name.trim().charAt(0).toUpperCase() || '?';
+        avatar.classList.remove('nexa-company-avatar--image');
+    }
+
+    async loadCompanyAvatar(shell) {
+        if (!this.model.id || (!this.model.get('companyLogoId') && !this.model.get('website'))) return;
+
+        const signature = `${this.model.id}:${this.model.get('companyLogoId') || ''}:${this.model.get('website') || ''}`;
+        if (signature === this.companyAvatarSignature && (this.companyAvatarUrl || this.companyAvatarPending)) return;
+
+        this.companyAvatarSignature = signature;
+        this.companyAvatarPending = true;
+
+        try {
+            const payload = await Espo.Ajax.getRequest(`Nexa/account/${encodeURIComponent(this.model.id)}/avatar`);
+            if (this.companyAvatarSignature !== signature || !payload?.available || !payload.data || !payload.mimeType) return;
+
+            const binary = atob(payload.data);
+            const bytes = new Uint8Array(binary.length);
+            for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+            const url = URL.createObjectURL(new Blob([bytes], {type: payload.mimeType}));
+
+            if (this.companyAvatarSignature !== signature) {
+                URL.revokeObjectURL(url);
+                return;
+            }
+
+            this.releaseCompanyAvatar(false);
+            this.companyAvatarUrl = url;
+            const avatar = shell.querySelector('.nexa-company-avatar');
+            if (avatar) this.renderCompanyAvatarImage(avatar, url);
+        } catch (error) {
+            // The company initial remains the stable offline/error fallback.
+        } finally {
+            if (this.companyAvatarSignature === signature) this.companyAvatarPending = false;
+        }
+    }
+
+    renderCompanyAvatarImage(avatar, url) {
+        const image = document.createElement('img');
+        image.src = url;
+        image.alt = '';
+        image.className = 'nexa-company-avatar-image';
+        avatar.replaceChildren(image);
+        avatar.classList.add('nexa-company-avatar--image');
+    }
+
+    releaseCompanyAvatar(clearSignature = true) {
+        if (this.companyAvatarUrl) URL.revokeObjectURL(this.companyAvatarUrl);
+        this.companyAvatarUrl = null;
+        if (clearSignature) this.companyAvatarSignature = null;
     }
 
     setFact(shell, field, value) {
@@ -406,6 +474,8 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail'], 
             industry: {type: 'enum'},
             annualRevenue: {type: 'currency'},
             numberOfEmployees: {type: 'number'},
+            lifecycleStage: {type: 'enum'},
+            leadStatus: {type: 'enum'},
             parentAccount: {type: 'link', entityType: 'Account'},
             assignedUser: {type: 'link', entityType: 'User'},
             teams: {type: 'linkMultiple', entityType: 'Team'},
@@ -702,6 +772,36 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail'], 
     formatLeadScore() {
         const value = Number(this.model.get('leadScore'));
         return Number.isFinite(value) ? String(Math.max(0, value)) : 'Not scored';
+    }
+
+    companyLifecycleBadge() {
+        const value = this.model.get('lifecycleStage');
+        const classes = {
+            Subscriber: 'subscriber', Lead: 'lead', MarketingQualifiedLead: 'mql',
+            SalesQualifiedLead: 'sql', Opportunity: 'opportunity', Customer: 'customer',
+            Evangelist: 'evangelist', Other: 'other',
+        };
+
+        return this.companyEnumBadge('lifecycleStage', value, 'nexa-lifecycle-stage', classes[value] || 'other');
+    }
+
+    companyLeadStatusBadge() {
+        const value = this.model.get('leadStatus');
+        const classes = {
+            New: 'new', Open: 'open', InProgress: 'in-progress', OpenDeal: 'open-deal',
+            Unqualified: 'unqualified', AttemptedToContact: 'attempted',
+            Connected: 'connected', BadTiming: 'bad-timing',
+        };
+
+        return this.companyEnumBadge('leadStatus', value, 'nexa-lead-status', classes[value] || 'other');
+    }
+
+    companyEnumBadge(field, value, className, modifier) {
+        if (!value) return 'Not recorded';
+        const badge = document.createElement('span');
+        badge.className = `${className} ${className}--${modifier}`;
+        badge.textContent = this.getLanguage().translateOption(value, field, 'Account') || value;
+        return badge;
     }
 
     formatDate(value) {

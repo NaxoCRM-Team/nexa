@@ -318,6 +318,13 @@ $assert(
     'Email and password failures must use an accessible inline message that clears automatically or when credentials change.'
 );
 $assert(
+    str_contains($loginAdapterSource, 'qualifyWorkspaceAnchor') &&
+    str_contains($loginAdapterSource, 'anchor.dataset.nexaRoute = route') &&
+    str_contains($loginAdapterSource, "['pointerover', 'focusin', 'mousedown', 'contextmenu']") &&
+    str_contains($loginAdapterSource, 'activeRouter.navigate(route, {trigger: true})'),
+    'Authenticated links must expose tenant-qualified new-tab destinations while retaining SPA navigation.'
+);
+$assert(
     str_contains($progressiveMigration, 'CREATE TABLE IF NOT EXISTS nexa_signup_attempt') &&
     str_contains($progressiveMigration, 'public_token_hash') &&
     str_contains($signupSource, "!== 'ready'") &&

@@ -1,8 +1,10 @@
 [
     {"label": "Overview", "rows": [
+        [{"name": "companyLogo", "fullWidth": true}],
         [{"name": "name"}, {"name": "website"}], [{"name": "emailAddress"}, {"name": "phoneNumber"}],
         [{"name": "type"}, {"name": "industry"}], [{"name": "parentAccount"}, {"name": "numberOfEmployees"}],
-        [{"name": "annualRevenue"}, {"name": "leadScore"}]
+        [{"name": "annualRevenue"}, {"name": "leadScore"}],
+        [{"name": "lifecycleStage"}, {"name": "leadStatus"}]
     ]},
     {"label": "Address", "rows": [[{"name": "billingAddress"}, {"name": "shippingAddress"}]]},
     {"label": "Ownership", "rows": [[{"name": "assignedUser"}, {"name": "teams"}], [{"name": "tags", "fullWidth": true}]]},

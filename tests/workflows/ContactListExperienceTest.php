@@ -78,7 +78,7 @@ $mustContain("industry: {type: 'dropdown'", $accountInfinite, 'Account Industry 
 $mustContain('if (config.save)', $inlineEditor, 'The shared editor must support secure field-specific persistence adapters.');
 $mustContain("settingsContainer.after(importButton)", $list, 'Contact Import must appear beside Columns and Total controls.');
 $mustContain("importButton.href = '#Contact/import'", $list, 'Contact Import must open the Nexa Contact import workspace.');
-$mustContain("if (href === '#')", $routerPatch, 'The workspace router must handle the Home tab empty fragment.');
+$mustContain("if (route === '')", $routerPatch, 'The workspace router must handle the Home tab empty fragment.');
 $mustContain("activeRouter.navigate('', {trigger: true})", $routerPatch, 'Home must dispatch the authenticated workspace home route.');
 $mustContain("getRDBRepository('Contact')->getById(\$id)", $titleAction, 'Title updates must load Contact through the tenant-scoped ORM.');
 $mustContain("check(\$contact, Table::ACTION_EDIT)", $titleAction, 'Title updates must enforce record edit access.');

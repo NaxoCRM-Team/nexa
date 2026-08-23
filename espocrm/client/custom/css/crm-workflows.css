@@ -4704,6 +4704,29 @@ body.nexa-col-resizing {
 .nexa-lead-status--bad-timing { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
 .nexa-lead-status--other { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
 
+.nexa-lifecycle-stage {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 5px 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nexa-lifecycle-stage--subscriber { background: #eef2f3; border-color: #d3dcdf; color: #50646a; }
+.nexa-lifecycle-stage--lead { background: #e8f1ff; border-color: #bfd4f5; color: #245a9b; }
+.nexa-lifecycle-stage--mql { background: #e4f7f7; border-color: #b4dddd; color: #176a70; }
+.nexa-lifecycle-stage--sql { background: #fff4d6; border-color: #efd38b; color: #76520c; }
+.nexa-lifecycle-stage--opportunity { background: #f0ebff; border-color: #d4c5fa; color: #5d4095; }
+.nexa-lifecycle-stage--customer { background: #e4f5ea; border-color: #b7ddc5; color: #276b40; }
+.nexa-lifecycle-stage--evangelist { background: #fff0e2; border-color: #efc59f; color: #8a4b17; }
+.nexa-lifecycle-stage--other { background: #edf1f2; border-color: #cfd9dc; color: #52666e; }
+
 .nexa-contact-location {
     align-items: center;
     display: inline-flex;
@@ -6948,6 +6971,20 @@ td.nexa-inline-cell-error {
     width: 28px;
 }
 
+.nexa-account-list-avatar-image,
+.nexa-company-avatar-image {
+    display: block;
+    height: 100%;
+    object-fit: contain;
+    width: 100%;
+}
+
+.nexa-account-list-avatar--image,
+.nexa-company-avatar--image {
+    background: #fff;
+    overflow: hidden;
+}
+
 .nexa-account-list-name,
 .nexa-account-location-text {
     min-width: 0;
@@ -7102,6 +7139,7 @@ a.nexa-account-contact-count:focus-visible {
     font-weight: 750;
     height: 42px;
     justify-content: center;
+    width: 42px;
 }
 
 .nexa-company-toolbar-identity p,
