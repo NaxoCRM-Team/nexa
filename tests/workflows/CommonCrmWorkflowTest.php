@@ -15,6 +15,7 @@ $mustContain = static function (string $needle, string $content, string $message
 $workflow = $read('espocrm/client/custom/crm-workflows.js');
 $workspaceCss = $read('espocrm/client/custom/css/tenant-workspace.css');
 $workspace = $read('espocrm/client/custom/tenant-workspace.js');
+$appClientDefs = $read('espocrm/custom/Espo/Custom/Resources/metadata/clientDefs/App.json');
 $footerTemplate = $read('espocrm/client/res/templates/site/footer.tpl');
 $compiledTemplates = $read('espocrm/client/lib/templates.tpl');
 $mainHtml = $read('espocrm/html/main.html');
@@ -44,6 +45,13 @@ if (!preg_match('/body\.has-navbar\.nexa-side-navigation\s*>\s*#content\.contain
     throw new RuntimeException('Authenticated workspace pages must not inherit the fixed desktop container cap.');
 }
 $mustContain('body.nexa-side-navigation > footer', $workspaceCss, 'The authenticated body footer must be removed from the workspace canvas.');
+$mustContain('body.has-navbar:not(.nexa-shell-ready) #navbar', $workspaceCss, 'The native authenticated shell must remain hidden until Nexa navigation is ready.');
+$mustContain("define('client/custom/tenant-workspace'", $workspace, 'Tenant navigation must be a deterministic application navbar module.');
+$mustContain('document.body.classList.add(\'nexa-shell-ready\')', $workspace, 'The Nexa navbar must explicitly release the authenticated shell guard.');
+$mustContain('"navbarView": "client/custom/tenant-workspace"', $appClientDefs, 'The application must register the Nexa navbar before authenticated rendering.');
+if (str_contains($workspace, 'MutationObserver')) {
+    throw new RuntimeException('The eagerly loaded navbar module must not observe document-wide mutations before authentication renders.');
+}
 $mustContain('.nexa-sidebar-footer', $workspaceCss, 'The authenticated copyright must be positioned in the side navigation.');
 $mustContain('new Date().getFullYear()', $workspace, 'The workspace footer year must come from the browser clock.');
 $mustContain('ensureSidebarFooter(navigation)', $workspace, 'Navbar rendering must install the sidebar copyright.');

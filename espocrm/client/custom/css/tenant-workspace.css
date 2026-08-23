@@ -4,6 +4,39 @@
     background: #f6f8fa;
 }
 
+/* Authentication can add the native navbar before its configured view has
+ * finished rendering. Keep that intermediate frame private so users never
+ * see Espo's unbranded navigation while the Nexa shell is being composed. */
+body.has-navbar:not(.nexa-shell-ready) #navbar,
+body.has-navbar:not(.nexa-shell-ready) #main,
+body.has-navbar:not(.nexa-shell-ready) > footer {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+body.has-navbar:not(.nexa-shell-ready)::after {
+    background: #f4f7f6;
+    content: '';
+    inset: 0;
+    position: fixed;
+    z-index: 10050;
+}
+
+body.has-navbar.nexa-shell-ready #navbar,
+body.has-navbar.nexa-shell-ready #main {
+    opacity: 1;
+    transition: opacity 120ms ease-out;
+    visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.has-navbar.nexa-shell-ready #navbar,
+    body.has-navbar.nexa-shell-ready #main {
+        transition: none;
+    }
+}
+
 body.nexa-side-navigation #navbar {
     background: #17202a;
     border-color: #253341;

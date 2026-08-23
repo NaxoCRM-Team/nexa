@@ -61,6 +61,11 @@ $required = @(
     'tests/workflows/ContactExportWorkflowTest.php',
     'tests/workflows/ContactBulkAssignmentTest.php',
     'tests/workflows/ContactCommunicationPreferenceTest.php',
+    'tests/workflows/AccountLifecycleWorkflowTest.php',
+    'tests/workflows/AccountDetailWorkspaceTest.php',
+    'tests/workflows/AccountTimelineWorkflowTest.php',
+    'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
+    'espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json',
     'espocrm/client/custom/src/views/contact/fields/location-list.js',
     'espocrm/client/custom/res/templates/contact/fields/location-list.tpl',
     'espocrm/client/custom/src/views/contact/fields/lead-status-list.js',
@@ -186,6 +191,12 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactDeta
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactExportWorkflowTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactBulkAssignmentTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactCommunicationPreferenceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountLifecycleWorkflowTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountDetailWorkspaceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountTimelineWorkflowTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\Account\AccountTimelineService.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\Account\Api\GetTimeline.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Classes\Select\Account\PrimaryFilters\CreatedByMe.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -234,6 +245,12 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Contact bulk assignment contract suite' } else { Fail 'Contact bulk assignment contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\ContactCommunicationPreferenceTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Contact communication preference contract suite' } else { Fail 'Contact communication preference contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\AccountLifecycleWorkflowTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Account lifecycle workflow contract suite' } else { Fail 'Account lifecycle workflow contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\AccountDetailWorkspaceTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Account detail workspace contract suite' } else { Fail 'Account detail workspace contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\AccountTimelineWorkflowTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Account timeline workflow contract suite' } else { Fail 'Account timeline workflow contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')

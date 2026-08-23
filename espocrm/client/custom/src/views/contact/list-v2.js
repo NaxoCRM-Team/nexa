@@ -30,6 +30,7 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
 
     afterRender() {
         const result = super.afterRender();
+        this.decorateAccountFilter();
         this.contactListElement = this.element;
         this.contactListElement?.classList.add('nexa-contact-list-page');
         this.decorateContactControls();
@@ -39,11 +40,32 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
         return result;
     }
 
+    decorateAccountFilter() {
+        const accountId = this.options?.params?.accountId;
+        if (!accountId || !this.element || this.element.querySelector('.nexa-contact-account-filter')) return;
+
+        const accountName = this.options.params.accountName || 'Selected account';
+        const band = document.createElement('div');
+        band.className = 'nexa-contact-account-filter';
+        band.innerHTML = [
+            '<span class="fas fa-building" aria-hidden="true"></span>',
+            '<span>Showing contacts for <strong></strong></span>',
+            '<a class="btn btn-default btn-sm" href="#Contact">Clear account filter</a>',
+        ].join('');
+        band.querySelector('strong').textContent = accountName;
+
+        const search = this.element.querySelector('.search-container');
+        search ? search.after(band) : this.element.prepend(band);
+    }
+
     observeContactControls() {
         if (!this.element) return;
 
         this.contactControlsObserver?.disconnect();
-        this.contactControlsObserver = new MutationObserver(() => this.decorateContactControls());
+        this.contactControlsObserver = new MutationObserver(() => {
+            this.decorateContactControls();
+            this.decorateAccountFilter();
+        });
         this.contactControlsObserver.observe(this.element, {childList: true, subtree: true});
     }
 

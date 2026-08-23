@@ -1,7 +1,8 @@
 {
     "fields": {
         "annualRevenue": "Annual Revenue", "numberOfEmployees": "Number of Employees",
-        "parentAccount": "Parent Company", "subsidiaries": "Subsidiaries", "leadScore": "Lead Score"
+        "parentAccount": "Parent Company", "subsidiaries": "Subsidiaries", "leadScore": "Lead Score", "tags": "Tags"
     },
-    "links": {"parentAccount": "Parent Company", "subsidiaries": "Subsidiaries"}
+    "links": {"parentAccount": "Parent Company", "subsidiaries": "Subsidiaries"},
+    "presetFilters": {"createdByMe": "My Accounts"}
 }

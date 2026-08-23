@@ -1,4 +1,4 @@
-require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, productSurfaceRegistry) => {
+define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, productSurfaceRegistry) => {
     const defaultData = NavbarView.prototype.data;
     const defaultAfterRender = NavbarView.prototype.afterRender;
     const updateCurrentYear = () => {
@@ -37,8 +37,6 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
         updateCurrentYear();
     };
 
-    const footerObserver = new MutationObserver(updateCurrentYear);
-    footerObserver.observe(document.body, {childList: true, subtree: true});
     // Keep navigation organized around daily workspaces. Existing Espo screens are
     // reused by scope name; missing Nexa screens remain visibly disabled until their
     // routes and permission contracts are delivered.
@@ -470,6 +468,7 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
             const mobileHeader = this.element?.querySelector('.navbar-header');
 
             if (!tenant || !container || !rightList || !mobileHeader) {
+                document.body.classList.add('nexa-shell-ready');
                 return result;
             }
 
@@ -477,10 +476,14 @@ require(['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, p
             rightList.prepend(createTenantIdentity(tenant, 'nexa-tenant-identity nexa-header-tenant'));
             mobileHeader.append(createTenantIdentity(tenant, 'nexa-tenant-identity nexa-mobile-tenant'));
             document.body.dataset.tenantSlug = tenant.slug;
+            document.body.classList.add('nexa-shell-ready');
         } catch (error) {
             console.warn('Unable to enhance the tenant workspace navigation.', error);
+            document.body.classList.add('nexa-shell-ready');
         }
 
         return result;
     };
+
+    return NavbarView;
 });

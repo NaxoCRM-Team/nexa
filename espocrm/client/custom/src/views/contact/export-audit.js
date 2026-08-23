@@ -79,7 +79,7 @@ define('custom:views/contact/export-audit', ['view'], Dep => class extends Dep {
         body.replaceChildren();
 
         if (!rows.length) {
-            body.innerHTML = '<tr><td colspan="6" class="nexa-export-empty">No contact exports yet.</td></tr>';
+            body.innerHTML = '<tr><td colspan="6" class="nexa-export-empty">No exports yet.</td></tr>';
             return;
         }
 

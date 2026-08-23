@@ -5,6 +5,6 @@
         [{"name": "annualRevenue"}, {"name": "leadScore"}]
     ]},
     {"label": "Address", "rows": [[{"name": "billingAddress"}, {"name": "shippingAddress"}]]},
-    {"label": "Ownership", "rows": [[{"name": "assignedUser"}, {"name": "teams"}]]},
+    {"label": "Ownership", "rows": [[{"name": "assignedUser"}, {"name": "teams"}], [{"name": "tags", "fullWidth": true}]]},
     {"label": "Additional Information", "rows": [[{"name": "description", "fullWidth": true}]]}
 ]

@@ -90,6 +90,20 @@ $mustContain('data-nexa-activity-list', $view, 'Activities must render into a de
 $mustContain('data-nexa-collapse-activities', $view, 'Activities must support collapsing and expanding all visible records.');
 $mustContain('collectContactActivities', $view, 'Activities must be collected from the tenant-scoped native record sources.');
 $mustContain('renderContactActivities', $view, 'Activity search and filters must rerender the standalone card collection.');
+$mustContain('renderContactActivitySummary', $view, 'The Contact overview must calculate activity summaries from the unified timeline.');
+foreach (['first', 'last', 'email', 'next'] as $summaryKey) {
+    $mustContain("activitySummaryHighlight('", $view, 'The Contact activity summary helper is missing.');
+    $mustContain("'{$summaryKey}',", $view, "The Contact activity summary is missing {$summaryKey}.");
+}
+$mustContain("...(this.contactMarketingActivities || [])", $view, 'Campaign activity must participate in the unified Contact timeline.');
+$mustContain("type: 'website'", $view, 'An authoritative identified website visit must participate in the unified Contact timeline.');
+$mustContain('loadContactMarketingContext', $view, 'Contact marketing membership must load from authoritative relationships.');
+$mustContain('/targetLists`', $view, 'Contact segment and list membership must use the tenant-scoped relationship API.');
+$mustContain("Espo.Ajax.getRequest('CampaignLogRecord'", $view, 'Contact campaign history must use campaign log records.');
+$mustContain('/campaigns`', $view, 'Contact campaign membership must be resolved from related target lists.');
+$mustContain('Marketing events', $view, 'Unified activity filters must include marketing events.');
+$mustContain('Website visits', $view, 'Unified activity filters must include identified website visits.');
+$mustContain('nexa-marketing-membership', $styles, 'Live marketing membership must have a compact association presentation.');
 $mustContain("if (source === 'stream') return", $view, 'The legacy Stream must not leak generic posts into standalone Activities.');
 $mustContain('loadContactCommunicationActivities', $view, 'Communication preferences must load from their authoritative audit history.');
 $mustContain('/communication-preferences`', $view, 'Communication audit reads must use the protected Contact endpoint.');
@@ -190,6 +204,17 @@ $mustContain("replace(/^www\\./i, '')", $view, 'External profile labels must omi
 // Target Lists was intentionally replaced by a Payments placeholder in the
 // same panel slot - see appendPaymentsPlaceholderPanel().
 $mustContain("['accounts', 'opportunities', 'cases', 'documents']", $view, 'CRM associations must remain available in the customer workspace.');
+$mustContain('loadContactRelationshipOverview', $view, 'Contact associations must use the dedicated relationship overview.');
+$mustContain("{key: 'accounts', label: 'Accounts'", $view, 'Contact associations must load Account names from the authoritative relationship API.');
+$mustContain('Contact/${encodeURIComponent(this.model.id)}/${definition.key}', $view, 'Contact relationship cards must use tenant-scoped relationship endpoints.');
+$mustContain('maxSize: 6', $view, 'Contact relationship cards must keep a compact six-record preview.');
+$mustContain('contactRelationshipCard', $view, 'Contact associations must use the same structured relationship-card experience as Accounts.');
+$mustContain("'helpers/record/create-related'", $view, 'Contact association creation must use the native related-record helper.');
+$mustContain('data-contact-relationship-create', $view, 'Opportunity, Case and Document cards must expose accessible create controls.');
+$mustContain('await helper.process(this.model, definition.key', $view, 'New related records must be linked through the active Contact relationship.');
+$mustContain("billingAddressCountry,shippingAddressCountry", $view, 'Account associations must load a country beside the Account name.');
+$mustContain('nexa-contact-account-country', $styles, 'Account country labels must have a compact association-card presentation.');
+$mustContain('nexa-native-association-source', $styles, 'Legacy native association tables must remain hidden behind the redesigned relationship rail.');
 $mustContain('appendPaymentsPlaceholderPanel', $view, 'The Payments placeholder must occupy the slot Target Lists used to.');
 
 // Sales/Marketing/Service were intentionally removed in favour of the
@@ -202,7 +227,7 @@ $mustContain('Marketing status', $view, 'Contact detail must expose marketing co
 $mustContain('Preferences & activity', $view, 'Contact preferences, consent and website activity must share one concise card.');
 $mustContain("['Legal basis', this.optionLabel('legalBasis', this.model.get('legalBasis')), false, 'legalBasis']", $view, 'The combined card must retain the editable recorded legal basis.');
 $mustContain("['Last website visit', this.model.get('lastWebsiteVisitAt')]", $view, 'The combined card must retain identified website activity.');
-foreach (['Communication & consent', 'Website activity', 'Email opt-out', 'Marketing contact'] as $duplicateField) {
+foreach (['Communication & consent', 'Email opt-out', 'Marketing contact'] as $duplicateField) {
     if (str_contains($view, $duplicateField)) {
         throw new RuntimeException("Contact detail must not retain the duplicated {$duplicateField} summary.");
     }
