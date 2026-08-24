@@ -10,6 +10,15 @@
             "layoutListDisabled": true,
             "layoutMassUpdateDisabled": true,
             "layoutFiltersDisabled": true
+        },
+        "parent": {
+            "entityList": [
+                "Account",
+                "Lead",
+                "Contact",
+                "Opportunity",
+                "Case"
+            ]
         }
     }
 }

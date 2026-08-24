@@ -7967,11 +7967,16 @@ a.nexa-account-contact-count:focus-visible {
     margin-bottom: 12px;
 }
 
-.nexa-account-scope-tabs { border-bottom: 1px solid #d8e2df; display: flex; gap: 18px; margin-bottom: 10px; }
-.nexa-account-scope-tabs a { border-bottom: 2px solid transparent; color: #5f7377; font-size: 12px; font-weight: 700; padding: 8px 2px; }
+.nexa-account-scope-tabs,
+.nexa-contact-scope-tabs { border-bottom: 1px solid #d8e2df; display: flex; gap: 18px; margin-bottom: 10px; }
+.nexa-account-scope-tabs a,
+.nexa-contact-scope-tabs a { border-bottom: 2px solid transparent; color: #5f7377; font-size: 12px; font-weight: 700; padding: 8px 2px; }
 .nexa-account-scope-tabs a:hover,
-.nexa-account-scope-tabs a:focus-visible { color: #0d6e61; text-decoration: none; }
-.nexa-account-scope-tabs a[aria-current="page"] { border-bottom-color: #168271; color: #174e46; }
+.nexa-account-scope-tabs a:focus-visible,
+.nexa-contact-scope-tabs a:hover,
+.nexa-contact-scope-tabs a:focus-visible { color: #0d6e61; text-decoration: none; }
+.nexa-account-scope-tabs a[aria-current="page"],
+.nexa-contact-scope-tabs a[aria-current="page"] { border-bottom-color: #168271; color: #174e46; }
 
 .nexa-account-live-search .search-row {
     margin-left: 0;

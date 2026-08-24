@@ -1,9 +1,40 @@
 [
-    {"name": "name", "link": true, "width": 23, "view": "custom:views/account/fields/name-list"},
-    {"name": "phoneNumber", "label": "Phone", "width": 16},
-    {"name": "industry", "width": 17},
-    {"name": "billingAddress", "label": "Location", "width": 20, "view": "custom:views/account/fields/location-list"},
-    {"name": "contactCount", "label": "Contacts", "width": 14, "view": "custom:views/account/fields/contact-count-list"},
-    {"name": "assignedUser", "label": "Account Owner", "width": 17},
-    {"name": "createdAt", "label": "Create Date", "width": 18, "view": "custom:views/account/fields/created-at-list"}
+    {
+        "name": "name",
+        "width": 23,
+        "link": true,
+        "view": "custom:views\/account\/fields\/name-list"
+    },
+    {
+        "name": "phoneNumber",
+        "width": 16,
+        "label": "Phone"
+    },
+    {
+        "name": "industry",
+        "width": 17
+    },
+    {
+        "name": "billingAddress",
+        "width": 20,
+        "view": "custom:views\/account\/fields\/location-list",
+        "label": "Location"
+    },
+    {
+        "name": "contactCount",
+        "width": 14,
+        "view": "custom:views\/account\/fields\/contact-count-list",
+        "label": "Contacts"
+    },
+    {
+        "name": "assignedUser",
+        "width": 17,
+        "label": "Account Owner"
+    },
+    {
+        "name": "createdAt",
+        "width": 18,
+        "view": "custom:views\/account\/fields\/created-at-list",
+        "label": "Create Date"
+    }
 ]

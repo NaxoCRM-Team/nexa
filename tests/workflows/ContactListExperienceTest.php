@@ -36,6 +36,8 @@ $createdAt = $read('espocrm/client/custom/src/views/contact/fields/created-at-li
 $nameView = $read('espocrm/client/custom/src/views/contact/fields/name-v2.js');
 $nameListTemplate = $read('espocrm/client/custom/res/templates/contact/fields/name/list-link-v2.tpl');
 $addressData = $read('espocrm/custom/Espo/Custom/Classes/AppParams/AddressSubdivisionData.php');
+$contactSelectDefs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Contact.json'), true, flags: JSON_THROW_ON_ERROR);
+$createdByMeFilter = $read('espocrm/custom/Espo/Custom/Classes/Select/Contact/PrimaryFilters/CreatedByMe.php');
 
 if (($clientDefs['views']['list'] ?? '') !== 'custom:views/contact/list-v2') {
     throw new RuntimeException('Contact must use the live-search list coordinator.');
@@ -175,6 +177,14 @@ $mustContain("configuredFormat.includes('Y')", $createdAt, 'Contact Create Date 
 $mustContain("label.textContent = 'Total contacts:'", $list, 'Contact totals must have a visible label.');
 $mustContain("'<span>Columns</span>'", $list, 'The visible-column selector must have a clear label.');
 $mustContain("placeholder', 'Search contacts'", $list, 'Contact search must have a clear visible prompt.');
+$mustContain('renderContactScopeTabs', $list, 'Contact lists must expose My Contacts and All Contacts scopes.');
+$mustContain('My Contacts', $list, 'The authenticated-user Contact scope must have a visible label.');
+$mustContain('All Contacts', $list, 'The tenant-accessible Contact scope must have a visible label.');
+if (($contactSelectDefs['primaryFilterClassNameMap']['createdByMe'] ?? '') !== 'Espo\\Custom\\Classes\\Select\\Contact\\PrimaryFilters\\CreatedByMe') {
+    throw new RuntimeException('Contact createdByMe must map to the central authenticated-user primary filter.');
+}
+$mustContain("Cond::column('createdById')", $createdByMeFilter, 'My Contacts must filter centrally by the creator field.');
+$mustContain('$this->user->getId()', $createdByMeFilter, 'My Contacts must use the authenticated user identity.');
 $flagFiles = glob($root . '/espocrm/client/custom/img/flags/4x3/*.svg') ?: [];
 if (count($flagFiles) < 240 || !is_file($root . '/espocrm/client/custom/img/flags/LICENSE.flag-icons')) {
     throw new RuntimeException('The complete licensed local country-flag asset set is required.');

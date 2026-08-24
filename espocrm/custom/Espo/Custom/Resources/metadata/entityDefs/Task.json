@@ -4,15 +4,43 @@
             "view": "custom:views/fields/nexa-rich-text"
         },
         "status": {
-            "options": ["Not Started", "Started", "Waiting", "Completed", "Canceled", "Deferred"],
-            "style": {"Completed": "success", "Started": "primary", "Waiting": "warning", "Canceled": "info"}
+            "options": [
+                "Not Started",
+                "Started",
+                "Waiting",
+                "Completed",
+                "Canceled",
+                "Deferred"
+            ],
+            "style": {
+                "Completed": "success",
+                "Started": "primary",
+                "Waiting": "warning",
+                "Canceled": "info"
+            }
         },
         "priority": {
-            "options": ["", "Low", "Medium", "High"],
+            "options": [
+                "",
+                "Low",
+                "Medium",
+                "High"
+            ],
             "default": "",
-            "style": {"High": "danger", "Medium": "warning"}
+            "style": {
+                "High": "danger",
+                "Medium": "warning"
+            }
         },
-        "taskType": {"type": "enum", "options": ["To-Do", "Call", "Email"], "default": "To-Do"},
+        "taskType": {
+            "type": "enum",
+            "options": [
+                "To-Do",
+                "Call",
+                "Email"
+            ],
+            "default": "To-Do"
+        },
         "isPinned": {
             "type": "bool",
             "default": false,
@@ -20,6 +48,15 @@
             "layoutListDisabled": true,
             "layoutMassUpdateDisabled": true,
             "layoutFiltersDisabled": true
+        },
+        "parent": {
+            "entityList": [
+                "Account",
+                "Contact",
+                "Lead",
+                "Opportunity",
+                "Case"
+            ]
         }
     }
 }

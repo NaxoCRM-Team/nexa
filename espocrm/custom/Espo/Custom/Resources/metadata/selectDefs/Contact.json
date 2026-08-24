@@ -1,0 +1,5 @@
+{
+    "primaryFilterClassNameMap": {
+        "createdByMe": "Espo\\Custom\\Classes\\Select\\Contact\\PrimaryFilters\\CreatedByMe"
+    }
+}

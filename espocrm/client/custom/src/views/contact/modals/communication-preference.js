@@ -29,13 +29,14 @@ define('custom:views/contact/modals/communication-preference', ['views/modal'], 
 
     channelOptions() {
         const labels = {
-            all: 'All channels', email: 'Email', phone: 'Phone calls',
+            all: this.status === 'allowed' ? 'Remove all restricted channels' : 'All channels',
+            email: 'Email', phone: 'Phone calls',
             sms: 'SMS', whatsapp: 'WhatsApp', linkedin: 'LinkedIn',
             postal: 'Postal mail', live_chat: 'Live chat',
         };
         const channels = this.status === 'blocked'
             ? ['all', 'email', 'phone', 'sms', 'whatsapp', 'linkedin', 'postal', 'live_chat']
-            : this.activeChannels.filter(channel => labels[channel] && channel !== 'all');
+            : ['all', ...this.activeChannels.filter(channel => labels[channel] && channel !== 'all')];
 
         return [...new Set(channels)].map(value => ({value, label: labels[value]}));
     }
@@ -43,15 +44,20 @@ define('custom:views/contact/modals/communication-preference', ['views/modal'], 
     afterRender() {
         super.afterRender();
         this.disableButton('update');
-        this.element.querySelector('[data-name="reason"]')?.addEventListener('change', event => {
-            const hasReason = Boolean(event.currentTarget.value);
+        const reasonField = this.element.querySelector('[data-name="reason"]');
+        const rememberReason = event => {
+            this.selectedReason = String(event.currentTarget.value || '').trim();
+            const hasReason = Boolean(this.selectedReason);
             this.element.querySelector('[data-name="reasonError"]').hidden = true;
             hasReason ? this.enableButton('update') : this.disableButton('update');
-        });
+        };
+        reasonField?.addEventListener('input', rememberReason);
+        reasonField?.addEventListener('change', rememberReason);
     }
 
     actionUpdate() {
-        const reason = this.element.querySelector('[data-name="reason"]')?.value || '';
+        const reasonField = this.element.querySelector('[data-name="reason"]');
+        const reason = String(this.selectedReason || reasonField?.value || '').trim();
         if (!reason) {
             this.element.querySelector('[data-name="reasonError"]').hidden = false;
             this.element.querySelector('[data-name="reason"]')?.focus();

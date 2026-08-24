@@ -1,11 +1,5 @@
 {
     "actionClassNameList": [
-        "Espo\\Custom\\Rebuild\\Actions\\AddSystemUser",
-        "Espo\\Core\\Rebuild\\Actions\\AddSystemData",
-        "Espo\\Core\\Rebuild\\Actions\\CurrencyRates",
-        "Espo\\Core\\Rebuild\\Actions\\ScheduledJobs",
-        "Espo\\Core\\Rebuild\\Actions\\ConfigMetadataCheck",
-        "Espo\\Core\\Rebuild\\Actions\\GenerateInstanceId",
-        "Espo\\Core\\Rebuild\\Actions\\SetIntegrationDefaults"
+        "Espo\\Custom\\Rebuild\\Actions\\AddSystemUser"
     ]
 }
