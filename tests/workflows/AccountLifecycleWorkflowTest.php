@@ -93,8 +93,10 @@ $mustContain("? 'Account'", $exportService, 'Account export downloads must re-ch
 $mustContain("Espo.Ajax.getRequest('Nexa/account/trash'", $trash, 'Account recovery must load the scoped trash collection.');
 $mustContain("Espo.Ajax.postRequest('Nexa/account/trash/restore'", $trash, 'Account restore must use the protected endpoint.');
 $mustContain("Espo.Ajax.postRequest('Nexa/account/trash/purge'", $trash, 'Account permanent deletion must use the protected endpoint.');
-$mustContain("entityType: 'Account'", $controller, 'Account import must preselect the Account entity.');
-$mustContain("this.main('views/import/index'", $controller, 'Account import must use the audited import engine.');
+$mustContain("this.main('custom:views/account/import'", $controller, 'Account import must use the guided Nexa Account workflow.');
+if (str_contains($controller, "this.main('views/import/index'")) {
+    throw new RuntimeException('Account import must not fall back to the legacy generic importer.');
+}
 $mustContain("collection.url = `Account/\${encodeURIComponent(accountId)}/contacts`", $contactController, 'Account contact navigation must use the scoped relationship endpoint.');
 $mustContain("`#Contact/account?\${query.toString()}`", $contactCountField, 'Contact-count badges must open the filtered Contact route.');
 $mustContain('View contacts', $contactCountTemplate, 'Contact-count badges must clearly state their action.');

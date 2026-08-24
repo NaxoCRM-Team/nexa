@@ -30,6 +30,10 @@ $mustContain('recordServiceContainer->get($entityType)->find(', $service, 'Timel
 $mustContain("acl->check(\$entityType, Table::ACTION_READ)", $service, 'Timeline sources must enforce entity read permission.');
 $mustContain('CONTACT_LIMIT', $service, 'Timeline association traversal must have an explicit safety bound.');
 $mustContain("'hasMore' => \$hasMore", $service, 'Timeline responses must expose paging state.');
+$mustContain("'comments' =>", $service, 'Timeline responses must carry threaded discussion separately from activity records.');
+$mustContain('COMMENT_LIMIT', $service, 'Timeline discussion loading must have an explicit safety bound.');
+$mustContain("->get('Note')->find", $service, 'Timeline comments must be loaded through tenant and ACL-scoped Record Service.');
+$mustContain('nexa-engagement-(?:comment|reply)', $service, 'Only explicit Account timeline discussion markers may enter the comment payload.');
 $mustContain("getQueryParam('offset')", $api, 'Timeline API must accept an offset.');
 $mustContain("getQueryParam('limit')", $api, 'Timeline API must accept a page size.');
 $mustContain('Nexa/account/${encodeURIComponent(this.model.id)}/timeline', $view, 'The Account workspace must use the protected timeline endpoint.');
