@@ -30,10 +30,11 @@ define('custom:views/contact/modals/communication-preference', ['views/modal'], 
     channelOptions() {
         const labels = {
             all: 'All channels', email: 'Email', phone: 'Phone calls',
-            sms: 'SMS', whatsapp: 'WhatsApp', postal: 'Postal mail',
+            sms: 'SMS', whatsapp: 'WhatsApp', linkedin: 'LinkedIn',
+            postal: 'Postal mail', live_chat: 'Live chat',
         };
         const channels = this.status === 'blocked'
-            ? ['all', 'email', 'phone', 'sms', 'whatsapp', 'postal']
+            ? ['all', 'email', 'phone', 'sms', 'whatsapp', 'linkedin', 'postal', 'live_chat']
             : this.activeChannels.filter(channel => labels[channel] && channel !== 'all');
 
         return [...new Set(channels)].map(value => ({value, label: labels[value]}));

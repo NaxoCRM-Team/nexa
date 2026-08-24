@@ -24,6 +24,12 @@ $template = $read('espocrm/client/custom/res/templates/contact/modals/communicat
 $nameTemplate = $read('espocrm/client/custom/res/templates/contact/fields/name/list-link-v2.tpl');
 $detail = $read('espocrm/client/custom/src/views/contact/record/detail-workspace.js');
 $historyApi = $read('espocrm/custom/Espo/Custom/Tools/Contact/Api/GetCommunicationPreferenceHistory.php');
+$guard = $read('espocrm/custom/Espo/Custom/Tools/Contact/CommunicationRestrictionGuard.php');
+$emailHook = $read('espocrm/custom/Espo/Custom/Hooks/Email/CommunicationRestriction.php');
+$callHook = $read('espocrm/custom/Espo/Custom/Hooks/Call/CommunicationRestriction.php');
+$meetingHook = $read('espocrm/custom/Espo/Custom/Hooks/Meeting/CommunicationRestriction.php');
+$callService = $read('espocrm/custom/Espo/Custom/Tools/Call/CallService.php');
+$nameView = $read('espocrm/client/custom/src/views/contact/fields/name-v2.js');
 
 if (!array_filter($routes, static fn (array $route): bool =>
     ($route['route'] ?? '') === '/Nexa/contact/communication-preference' &&
@@ -53,7 +59,7 @@ foreach (['tenant_id', 'service_id', 'contact_id', 'channel', 'status', 'reason'
 }
 $mustContain('TenantContextStore', $service, 'Preference writes must use the trusted tenant context.');
 $mustContain("check(\$contact, Table::ACTION_EDIT)", $service, 'Every Contact must pass record edit ACL.');
-$mustContain("['email', 'phone', 'sms', 'whatsapp', 'postal']", $service, 'All supported channels must be explicit.');
+$mustContain("['email', 'phone', 'sms', 'whatsapp', 'linkedin', 'postal', 'live_chat']", $service, 'All supported channels must be explicit.');
 $mustContain('emailAddressIsOptedOut', $service, 'Email restrictions must synchronize the native delivery guard.');
 $mustContain('phoneNumberIsOptedOut', $service, 'Phone restrictions must synchronize the native delivery guard.');
 $mustContain('INSERT INTO nexa_communication_preference', $service, 'Each change must create compliance history.');
@@ -78,11 +84,25 @@ $mustContain('doNotContactTitle', $nameTemplate, 'The restriction icon must expo
 $mustContain('data-action="removeCommunicationRestriction"', $nameTemplate, 'The restriction icon must open its removal workflow.');
 if (str_contains($nameTemplate, 'fa-envelope')) throw new RuntimeException('The list restriction control must use one unambiguous icon.');
 $mustContain('this.options.channels', $modal, 'Removal choices must come from active Contact restrictions.');
+$mustContain("linkedin: 'LinkedIn'", $modal, 'LinkedIn must be available as a communication restriction scope.');
+$mustContain("live_chat: 'Live chat'", $modal, 'Live chat must be available as a communication restriction scope.');
 $mustContain('{{#each channelOptions}}', $template, 'The channel selector must render only channels supplied by the modal.');
 $mustContain('array_intersect($current, $channels)', $service, 'Removal must be limited to active restrictions.');
+$mustContain("\$status === 'allowed' && !\$this->user->isAdmin()", $service, 'Only tenant admins may restore outbound communication.');
 $mustContain('nexa-do-not-contact-badge--profile', $detail, 'Restricted contacts must be identified on their profile.');
 $mustContain('<span>Do not contact</span>', $detail, 'The Contact profile badge must pair its icon with a clear label.');
 $mustContain('nexa-communication-alert', $detail, 'The Overview must surface the active restriction context.');
+$mustContain('guardOutboundCommunication', $detail, 'Contact outbound forms must share one restriction gate.');
+$mustContain("channelMap = {email: 'email', call: 'phone', meeting: 'email'}", $detail, 'Every outbound Contact action must map to an explicit channel.');
+$mustContain('is-communication-restricted', $detail, 'Restricted Contact controls must expose a visible disabled state.');
+$mustContain("this.getUser().isAdmin()", $recordList . $nameView, 'Restriction removal controls must require a tenant admin.');
+$mustContain('assertEmailRecipientsAllowed', $emailHook . $guard, 'Email delivery must enforce restrictions on the server.');
+$mustContain("assertContactAllowed(\$contactId, 'phone')", $callService, 'Live voice calls must enforce phone restrictions on the server.');
+$mustContain("assertContactsAllowed(\$contactIds, 'phone')", $callHook, 'Scheduled calls must enforce phone restrictions on the server.');
+$mustContain("assertContactsAllowed(\$contactIds, 'email')", $meetingHook, 'Meeting invitations must enforce email restrictions on the server.');
+$mustContain('c.tenant_id = :tenantId', $guard, 'Email recipient lookup must remain tenant scoped.');
+$mustContain('c.service_id = :serviceId', $guard, 'Email recipient lookup must remain service scoped.');
+$mustContain("channelKey === 'call-log'", $detail, 'Historical call logging must remain separate from outbound call enforcement.');
 
 foreach (['tenant-a', 'tenant-b', 'isolation-alpha'] as $literal) {
     if (str_contains($service . $recordList . $modal, $literal)) {

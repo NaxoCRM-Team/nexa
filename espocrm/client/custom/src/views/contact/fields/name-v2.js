@@ -24,13 +24,15 @@ define('custom:views/contact/fields/name-v2', ['views/fields/person-name'], Dep 
             data.profileImageId = this.model.get('profileImageId');
             data.doNotContact = Boolean(this.model.get('doNotContact'));
             data.doNotContactTitle = this.communicationPreferenceTitle();
+            data.canRemoveDoNotContact = this.getUser().isAdmin();
 
             return data;
         }
 
         communicationPreferenceTitle() {
+            const labels = {email: 'email', phone: 'phone calls', sms: 'SMS', whatsapp: 'WhatsApp', linkedin: 'LinkedIn', postal: 'postal mail', live_chat: 'live chat'};
             const channels = String(this.model.get('doNotContactChannels') || '')
-                .split(',').filter(Boolean).map(channel => channel === 'postal' ? 'postal mail' : channel);
+                .split(',').filter(Boolean).map(channel => labels[channel] || channel);
 
             return channels.length
                 ? `Do not contact: ${channels.join(', ')}`
@@ -52,6 +54,10 @@ define('custom:views/contact/fields/name-v2', ['views/fields/person-name'], Dep 
             event.preventDefault();
             event.stopPropagation();
 
+            if (!this.getUser().isAdmin()) {
+                Espo.Ui.error('Only a tenant admin can remove a communication restriction.');
+                return;
+            }
             if (!this.getAcl().checkModel(this.model, 'edit')) {
                 Espo.Ui.error(this.translate('Access denied'));
                 return;

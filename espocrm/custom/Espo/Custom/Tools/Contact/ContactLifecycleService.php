@@ -263,6 +263,9 @@ final class ContactLifecycleService
         if (!in_array($status, ['blocked', 'allowed'], true)) {
             throw new BadRequest('Select a valid communication preference.');
         }
+        if ($status === 'allowed' && !$this->user->isAdmin()) {
+            throw new Forbidden('Only a tenant admin can remove a communication restriction.');
+        }
 
         $allowedReasons = [
             'contact_request', 'unsubscribed', 'invalid_details',
@@ -560,10 +563,10 @@ final class ContactLifecycleService
         )));
 
         if (in_array('all', $channels, true)) {
-            return ['email', 'phone', 'sms', 'whatsapp', 'postal'];
+            return ['email', 'phone', 'sms', 'whatsapp', 'linkedin', 'postal', 'live_chat'];
         }
 
-        $allowed = ['email', 'phone', 'sms', 'whatsapp', 'postal'];
+        $allowed = ['email', 'phone', 'sms', 'whatsapp', 'linkedin', 'postal', 'live_chat'];
         if ($channels === [] || array_diff($channels, $allowed) !== []) {
             throw new BadRequest('Select a valid communication channel.');
         }

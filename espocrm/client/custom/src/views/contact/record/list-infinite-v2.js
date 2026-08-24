@@ -40,7 +40,9 @@ define('custom:views/contact/record/list-infinite-v2', [
         ) {
             this.addMassAction({name: 'assign', groupIndex: 0}, false, true);
             this.addMassAction({name: 'setDoNotContact', groupIndex: 1}, false, true);
-            this.addMassAction({name: 'removeDoNotContact', groupIndex: 1}, false, true);
+            if (this.getUser().isAdmin()) {
+                this.addMassAction({name: 'removeDoNotContact', groupIndex: 1}, false, true);
+            }
         }
     }
 
@@ -320,6 +322,10 @@ define('custom:views/contact/record/list-infinite-v2', [
     }
 
     massActionRemoveDoNotContact() {
+        if (!this.getUser().isAdmin()) {
+            Espo.Ui.error('Only a tenant admin can remove a communication restriction.');
+            return false;
+        }
         return this.openCommunicationPreference('allowed');
     }
 

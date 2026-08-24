@@ -69,6 +69,11 @@ define('custom:views/fields/nexa-rich-text', ['views/fields/wysiwyg', 'custom:he
     }
 
     async insertTenantFile(attachment) {
+        if (this.model?.entityType === 'Email' && this.name === 'body') {
+            this.attachTenantFileToEmail(attachment);
+            return;
+        }
+
         this.$summernote.summernote('restoreRange');
         this.$summernote.summernote('focus');
         const link = document.createElement('a');
@@ -79,6 +84,22 @@ define('custom:views/fields/nexa-rich-text', ['views/fields/wysiwyg', 'custom:he
         link.innerHTML = `<span class="fas fa-paperclip" aria-hidden="true"></span><span>${this.escapeFileName(attachment.name || 'Attached file')}</span>`;
         this.$summernote.summernote('insertNode', link);
         this.$summernote.summernote('insertNode', document.createTextNode(' '));
+        this.trigger('change');
+    }
+
+    attachTenantFileToEmail(attachment) {
+        const attachmentIds = [...(this.model.get('attachmentsIds') || [])];
+        const attachmentNames = {...(this.model.get('attachmentsNames') || {})};
+
+        if (!attachmentIds.includes(attachment.id)) attachmentIds.push(attachment.id);
+        attachmentNames[attachment.id] = attachment.name || 'Attached file';
+
+        // Preserve Espo's composer lifecycle while sourcing files from the
+        // tenant library. The native attachment field reacts to these values.
+        this.model.set({
+            attachmentsIds: attachmentIds,
+            attachmentsNames: attachmentNames,
+        }, {ui: true});
         this.trigger('change');
     }
 

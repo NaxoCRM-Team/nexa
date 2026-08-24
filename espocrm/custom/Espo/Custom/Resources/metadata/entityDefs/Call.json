@@ -1,5 +1,8 @@
 {
     "fields": {
+        "description": {
+            "view": "custom:views/fields/nexa-rich-text"
+        },
         "isPinned": {
             "type": "bool",
             "default": false,

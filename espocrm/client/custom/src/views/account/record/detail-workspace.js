@@ -770,7 +770,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
             <div class="nexa-company-engagement-filters" data-nexa-engagement-filters="${key}" hidden>
                 <label><span>Date</span><select class="form-control" data-nexa-engagement-period="${key}">${this.engagementPeriodOptions()}</select></label>
                 <label><span>Activity assigned to</span><select class="form-control" data-nexa-engagement-owner="${key}"><option value="all">All owners</option><option value="me">Me</option></select></label>
-                ${key === 'activity' || key === 'notes' ? '' : `<label><span>Status</span><select class="form-control" data-nexa-engagement-status="${key}"><option value="all">All statuses</option></select></label>`}
+                ${this.engagementSpecificFilters(key)}
             </div>
             <div class="nexa-company-engagement-list" data-nexa-engagement-list="${key}" aria-live="polite">
                 <div class="nexa-company-engagement-empty"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading company activity...</span></div>
@@ -785,6 +785,47 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
             ['thisWeek', 'This week'], ['last7', 'Last 7 days'], ['thisMonth', 'This month'],
             ['last30', 'Last 30 days'], ['last90', 'Last 90 days'], ['thisYear', 'This year'],
         ].map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+    }
+
+    engagementSpecificFilters(key) {
+        if (key === 'tasks') {
+            return `<label><span>Status</span><select class="form-control" data-nexa-engagement-status="${key}"><option value="all">All statuses</option></select></label>`;
+        }
+        if (key === 'meetings') {
+            return this.engagementCheckboxFilter(key, 'meetingOutcome', 'Meeting outcome', [
+                'Scheduled', 'Completed', 'Rescheduled', 'No show', 'Canceled', 'Unassigned',
+            ]);
+        }
+        if (key === 'calls') {
+            return [
+                this.engagementCheckboxFilter(key, 'callOutcome', 'Call outcome', [
+                    'Busy', 'Connected', 'Left live message', 'Left voicemail', 'Meeting booked',
+                    'No answer', 'Wrong number', 'Unassigned',
+                ]),
+                this.engagementCheckboxFilter(key, 'callDirection', 'Call direction', [
+                    'Inbound', 'Outbound', 'Unassigned',
+                ]),
+            ].join('');
+        }
+        if (key === 'emails') {
+            return this.engagementCheckboxFilter(key, 'emailDirection', 'Email direction', [
+                'Forwarded', 'Incoming', 'Outgoing', 'Draft', 'Unassigned',
+            ]);
+        }
+        return '';
+    }
+
+    engagementCheckboxFilter(key, name, label, options) {
+        const id = `nexa-${key}-${name}-options`;
+        return `<div class="nexa-company-choice-filter" data-nexa-engagement-choice-filter="${key}:${name}">
+            <span class="nexa-company-choice-label">${label}</span>
+            <button type="button" class="nexa-company-choice-toggle" data-nexa-engagement-choice-toggle="${key}:${name}" aria-expanded="false" aria-controls="${id}">
+                <span data-nexa-engagement-choice-summary>All ${label.toLowerCase()}s</span><span class="fas fa-chevron-down" aria-hidden="true"></span>
+            </button>
+            <div class="nexa-company-choice-menu" id="${id}" data-nexa-engagement-choice-menu="${key}:${name}" role="group" aria-label="${label}" hidden>
+                ${options.map(value => `<label class="nexa-company-choice-option"><input type="checkbox" value="${value}" data-nexa-engagement-choice="${key}" data-nexa-engagement-choice-name="${name}"><span>${value}</span></label>`).join('')}
+            </div>
+        </div>`;
     }
 
     metricCard(key, label, icon) {
@@ -856,13 +897,41 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         shell.querySelectorAll('[data-nexa-engagement-period], [data-nexa-engagement-owner], [data-nexa-engagement-status]').forEach(select => {
             select.addEventListener('change', () => {
                 const key = select.dataset.nexaEngagementPeriod || select.dataset.nexaEngagementOwner || select.dataset.nexaEngagementStatus;
-                this.accountEngagementFilters[key] = {
-                    period: shell.querySelector(`[data-nexa-engagement-period="${key}"]`)?.value || 'all',
-                    owner: shell.querySelector(`[data-nexa-engagement-owner="${key}"]`)?.value || 'all',
-                    status: shell.querySelector(`[data-nexa-engagement-status="${key}"]`)?.value || 'all',
-                };
-                this.renderEngagementList(shell, key);
+                this.syncEngagementFilter(shell, key);
             });
+        });
+        shell.querySelectorAll('[data-nexa-engagement-choice-toggle]').forEach(button => {
+            button.addEventListener('click', event => {
+                event.stopPropagation();
+                const selector = button.dataset.nexaEngagementChoiceToggle;
+                const menu = shell.querySelector(`[data-nexa-engagement-choice-menu="${selector}"]`);
+                const willOpen = menu.hidden;
+                this.closeEngagementChoiceMenus(shell, willOpen ? selector : '');
+                menu.hidden = !willOpen;
+                button.setAttribute('aria-expanded', String(willOpen));
+                if (willOpen) menu.querySelector('input')?.focus();
+            });
+        });
+        shell.querySelectorAll('[data-nexa-engagement-choice]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                this.updateEngagementChoiceSummary(checkbox.closest('[data-nexa-engagement-choice-filter]'));
+                this.syncEngagementFilter(shell, checkbox.dataset.nexaEngagementChoice);
+            });
+        });
+        shell.querySelectorAll('[data-nexa-engagement-choice-menu]').forEach(menu => {
+            menu.addEventListener('click', event => event.stopPropagation());
+            menu.addEventListener('keydown', event => {
+                if (event.key !== 'Escape') return;
+                event.preventDefault();
+                const selector = menu.dataset.nexaEngagementChoiceMenu;
+                menu.hidden = true;
+                const toggle = shell.querySelector(`[data-nexa-engagement-choice-toggle="${selector}"]`);
+                toggle?.setAttribute('aria-expanded', 'false');
+                toggle?.focus();
+            });
+        });
+        shell.addEventListener('click', event => {
+            if (!event.target.closest('[data-nexa-engagement-choice-filter]')) this.closeEngagementChoiceMenus(shell);
         });
 
         shell.addEventListener('click', event => this.handleEngagementAction(event, shell));
@@ -870,6 +939,40 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         shell.querySelectorAll('[data-nexa-engagement-more]').forEach(button => {
             button.addEventListener('click', () => this.loadTimelinePage(shell, button.dataset.nexaEngagementMore, true));
         });
+    }
+
+    closeEngagementChoiceMenus(shell, except = '') {
+        shell.querySelectorAll('[data-nexa-engagement-choice-menu]').forEach(menu => {
+            if (menu.dataset.nexaEngagementChoiceMenu === except) return;
+            menu.hidden = true;
+            shell.querySelector(`[data-nexa-engagement-choice-toggle="${menu.dataset.nexaEngagementChoiceMenu}"]`)
+                ?.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    updateEngagementChoiceSummary(filter) {
+        if (!filter) return;
+        const checked = filter.querySelectorAll('[data-nexa-engagement-choice]:checked');
+        const label = filter.querySelector('.nexa-company-choice-label')?.textContent || 'Filter';
+        filter.querySelector('[data-nexa-engagement-choice-summary]').textContent = checked.length
+            ? `${label}: ${checked.length} selected`
+            : `All ${label.toLowerCase()}s`;
+    }
+
+    syncEngagementFilter(shell, key) {
+        const categories = {};
+        shell.querySelectorAll(`[data-nexa-engagement-choice="${key}"]:checked`).forEach(checkbox => {
+            const name = checkbox.dataset.nexaEngagementChoiceName;
+            categories[name] = categories[name] || [];
+            categories[name].push(checkbox.value);
+        });
+        this.accountEngagementFilters[key] = {
+            period: shell.querySelector(`[data-nexa-engagement-period="${key}"]`)?.value || 'all',
+            owner: shell.querySelector(`[data-nexa-engagement-owner="${key}"]`)?.value || 'all',
+            status: shell.querySelector(`[data-nexa-engagement-status="${key}"]`)?.value || 'all',
+            categories,
+        };
+        this.renderEngagementList(shell, key);
     }
 
     bindContactRail(shell) {
@@ -1847,13 +1950,16 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
 
         const allRecords = this.accountEngagement?.[key] || [];
         const query = this.accountEngagementSearch?.[key] || '';
-        const filter = this.accountEngagementFilters?.[key] || {period: 'all', owner: 'all', status: 'all'};
+        const filter = this.accountEngagementFilters?.[key] || {period: 'all', owner: 'all', status: 'all', categories: {}};
         const records = allRecords.filter(record => {
             const ownerId = record.assignedUserId || record.createdById || '';
             const matchesOwner = filter.owner === 'all' || ownerId === filter.owner ||
                 (filter.owner === 'me' && ownerId === this.getUser().id);
             const matchesStatus = filter.status === 'all' || record.status === filter.status;
-            return (!query || this.engagementSearchText(record).includes(query)) && matchesOwner && matchesStatus &&
+            const matchesCategories = Object.entries(filter.categories || {}).every(([name, selected]) =>
+                !selected.length || selected.includes(this.engagementCategoryValue(record, key, name))
+            );
+            return (!query || this.engagementSearchText(record).includes(query)) && matchesOwner && matchesStatus && matchesCategories &&
                 this.engagementMatchesPeriod(record, filter.period);
         });
         list.replaceChildren();
@@ -2275,6 +2381,62 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
     engagementSearchText(record) {
         return (`${this.engagementTitle(record)} ${this.engagementPreview(record)} ${record.status || ''} ` +
             `${record.assignedUserName || record.createdByName || ''} ${record._contact?.name || ''}`).toLowerCase();
+    }
+
+    engagementCategoryValue(record, key, name) {
+        if (key === 'meetings' && name === 'meetingOutcome') return this.meetingOutcomeValue(record);
+        if (key === 'calls' && name === 'callOutcome') return this.callOutcomeValue(record);
+        if (key === 'calls' && name === 'callDirection') return this.callDirectionValue(record);
+        if (key === 'emails' && name === 'emailDirection') return this.emailDirectionValue(record);
+        return 'Unassigned';
+    }
+
+    loggedInteractionField(record, label) {
+        if (!this.isLoggedInteraction(record)) return '';
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const match = String(record.post || '').match(new RegExp(`^${escaped}:\\s*(.+)$`, 'mi'));
+        return match?.[1]?.trim() || '';
+    }
+
+    meetingOutcomeValue(record) {
+        const value = String(this.loggedInteractionField(record, 'Meeting outcome') || record.meetingOutcome || record.status || '').toLowerCase();
+        const outcomes = {
+            scheduled: 'Scheduled', planned: 'Scheduled', completed: 'Completed', held: 'Completed',
+            rescheduled: 'Rescheduled', 'no show': 'No show', 'not held': 'No show',
+            canceled: 'Canceled', cancelled: 'Canceled',
+        };
+        return outcomes[value] || 'Unassigned';
+    }
+
+    callOutcomeValue(record) {
+        const value = String(this.loggedInteractionField(record, 'Call outcome') || record.callOutcome || record.status || '').toLowerCase();
+        const outcomes = {
+            busy: 'Busy', connected: 'Connected', held: 'Connected',
+            'left live message': 'Left live message', 'left voicemail': 'Left voicemail',
+            'meeting booked': 'Meeting booked', 'no answer': 'No answer', 'not held': 'No answer',
+            'wrong number': 'Wrong number',
+        };
+        return outcomes[value] || 'Unassigned';
+    }
+
+    callDirectionValue(record) {
+        const marker = String(record.post || '').match(/^\[[^\]]+ - (Inbound|Outbound)]/i)?.[1] || '';
+        const value = String(record.direction || marker).toLowerCase();
+        if (value === 'inbound') return 'Inbound';
+        if (value === 'outbound') return 'Outbound';
+        return 'Unassigned';
+    }
+
+    emailDirectionValue(record) {
+        const logged = this.loggedInteractionField(record, 'Email direction');
+        const subject = String(record.subject || record.name || '');
+        if (/^(?:fw|fwd):/i.test(subject)) return 'Forwarded';
+        const value = String(logged || record.emailDirection || record.status || '').toLowerCase();
+        if (value === 'forwarded') return 'Forwarded';
+        if (value === 'incoming' || value === 'archived') return 'Incoming';
+        if (['outgoing', 'sent', 'sending', 'failed'].includes(value)) return 'Outgoing';
+        if (value === 'draft') return 'Draft';
+        return 'Unassigned';
     }
 
     loggedInteractionDate(record) {

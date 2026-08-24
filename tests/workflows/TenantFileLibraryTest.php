@@ -64,6 +64,9 @@ $mustContain("name === 'espoImage' ? 'nexaTenantImage'", $field, 'The Nexa edito
 $mustContain("return 'nexaTenantFile'", $field, 'The Nexa editor must replace the stock paperclip with the tenant file library.');
 $mustContain("Espo.Ajax.postRequest('Nexa/files'", $field, 'New rich-editor files must use the protected tenant Files upload API.');
 $mustContain('data-nexa-file-id', $field . $fileHelper, 'Inserted files must retain a secure Attachment marker.');
+$mustContain("this.model?.entityType === 'Email' && this.name === 'body'", $field, 'Email body attachments must use the native composer attachment contract.');
+$mustContain('attachmentsIds: attachmentIds', $field, 'Tenant library files must be added to native Email attachments for external delivery.');
+$mustContain('attachmentsNames: attachmentNames', $field, 'Email attachment names must remain visible in the native composer.');
 $mustContain('Nexa/attachment-file/', $fileHelper, 'Attached file downloads must use authenticated byte retrieval.');
 $mustContain("Espo.Ajax.postRequest('Nexa/files/images'", $field, 'New rich-editor images must use the protected tenant Files upload API.');
 $mustContain("TenantImages.load(attachment.id)", $field, 'Inserted images must load through authenticated tenant file retrieval.');

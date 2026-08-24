@@ -1,5 +1,8 @@
 {
     "fields": {
+        "description": {
+            "view": "custom:views/fields/nexa-rich-text"
+        },
         "status": {
             "options": ["Not Started", "Started", "Waiting", "Completed", "Canceled", "Deferred"],
             "style": {"Completed": "success", "Started": "primary", "Waiting": "warning", "Canceled": "info"}

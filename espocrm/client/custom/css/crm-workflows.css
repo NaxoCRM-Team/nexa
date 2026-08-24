@@ -469,6 +469,23 @@
     outline-offset: -2px;
 }
 
+.nexa-customer-left .nexa-contact-quick-actions .is-communication-restricted,
+[data-nexa-contact-workspace] .is-communication-restricted {
+    color: #9b4a52;
+    cursor: not-allowed;
+    opacity: 0.62;
+}
+
+.nexa-customer-left .nexa-contact-quick-actions .is-communication-restricted:hover,
+.nexa-customer-left .nexa-contact-quick-actions .is-communication-restricted:focus-visible,
+[data-nexa-contact-workspace] .is-communication-restricted:hover,
+[data-nexa-contact-workspace] .is-communication-restricted:focus-visible {
+    background: #fff0f1;
+    color: #7f1d2d;
+    outline-color: #d99aa4;
+    text-decoration: none;
+}
+
 .nexa-customer-left .nexa-contact-quick-actions .btn > :first-child {
     font-size: 14px;
 }
@@ -7620,10 +7637,63 @@ a.nexa-account-contact-count:focus-visible {
 .nexa-company-engagement-search .form-control { border: 0; box-shadow: none; font-size: 12px; height: 36px; padding: 7px 0; }
 .nexa-company-engagement-toolbar { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
 .nexa-company-filter-toggle { align-items: center; display: inline-flex; font-size: 11px; gap: 6px; min-height: 36px; }
-.nexa-company-engagement-filters { align-items: end; background: #f6f9f8; border: 1px solid #dce6e3; display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(130px, 1fr)); margin: 0 0 12px; padding: 10px; }
+.nexa-company-engagement-filters { align-items: end; background: #f6f9f8; border: 1px solid #dce6e3; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 0 0 12px; padding: 10px; }
 .nexa-company-engagement-filters[hidden] { display: none; }
-.nexa-company-engagement-filters label { color: #64777b; display: grid; font-size: 9px; font-weight: 700; gap: 4px; margin: 0; text-transform: uppercase; }
+.nexa-company-engagement-filters > label,
+.nexa-company-choice-filter > .nexa-company-choice-label { color: #64777b; display: grid; font-size: 9px; font-weight: 700; gap: 4px; margin: 0; text-transform: uppercase; }
 .nexa-company-engagement-filters .form-control { font-size: 11px; height: 34px; text-transform: none; }
+.nexa-company-choice-filter { min-width: 0; position: relative; }
+.nexa-company-choice-label { margin-bottom: 4px !important; }
+.nexa-company-choice-toggle {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #c8d4d1;
+    color: #2f4641;
+    display: flex;
+    font-size: 11px;
+    gap: 8px;
+    height: 34px;
+    justify-content: space-between;
+    overflow: hidden;
+    padding: 6px 9px;
+    text-align: left;
+    width: 100%;
+}
+.nexa-company-choice-toggle > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-company-choice-toggle:hover { border-color: #6c9f96; }
+.nexa-company-choice-toggle:focus-visible { border-color: #367d70; box-shadow: 0 0 0 2px rgba(29, 126, 111, .14); outline: 0; }
+.nexa-company-choice-toggle[aria-expanded="true"] .fa-chevron-down { transform: rotate(180deg); }
+.nexa-company-choice-menu {
+    background: #fff;
+    border: 1px solid #bdccc8;
+    box-shadow: 0 12px 28px rgba(25, 48, 42, .18);
+    left: 0;
+    max-height: 250px;
+    min-width: 100%;
+    overflow-y: auto;
+    padding: 6px;
+    position: absolute;
+    top: calc(100% + 4px);
+    width: max-content;
+    z-index: 40;
+}
+.nexa-company-choice-menu[hidden] { display: none; }
+.nexa-company-choice-option {
+    align-items: center;
+    color: #2f4641;
+    cursor: pointer;
+    display: flex;
+    font-size: 11px;
+    font-weight: 500;
+    gap: 8px;
+    margin: 0;
+    min-height: 32px;
+    padding: 5px 7px;
+    text-transform: none;
+    white-space: nowrap;
+}
+.nexa-company-choice-option:hover { background: #edf6f3; color: #155f53; }
+.nexa-company-choice-option input { accent-color: #14786a; height: 15px; margin: 0; width: 15px; }
 .nexa-company-engagement-list { display: grid; gap: 8px; }
 
 .nexa-company-engagement-record {
