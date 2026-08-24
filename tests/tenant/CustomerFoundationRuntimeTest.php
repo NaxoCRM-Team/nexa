@@ -6,10 +6,12 @@ $root = dirname(__DIR__, 2);
 require $root . '/espocrm/bootstrap.php';
 
 use Espo\Core\Application;
+use Espo\Core\InjectableFactory;
 use Espo\Core\ORM\EntityManager;
 use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Tenant\PlatformExecutionGateway;
+use Espo\Custom\Tools\Customer\CustomerFoundationQueryService;
 
 $assert = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -26,6 +28,7 @@ $container = $application->getContainer();
 $entityManager = $container->getByClass(EntityManager::class);
 $contextStore = $container->getByClass(TenantContextStore::class);
 $platform = $container->getByClass(PlatformExecutionGateway::class);
+$queryService = $container->getByClass(InjectableFactory::class)->create(CustomerFoundationQueryService::class);
 $pdo = $entityManager->getPDO();
 $ids = [
     'accountA' => $id('nxfaccta'), 'accountB' => $id('nxfacctb'),
@@ -111,6 +114,16 @@ try {
         $assert((int) $counts[$key]['audit_count'] >= 2, "Tenant {$key} audit projection is incomplete.");
         $assert((int) $counts[$key]['outbox_count'] >= 2, "Tenant {$key} outbox projection is incomplete.");
     }
+
+    $snapshot = $contextStore->runWith(
+        $tenantA,
+        fn (): array => $queryService->getSnapshot('Contact', $ids['contactA'])
+    );
+    $assert($snapshot['tenantId'] === $tenantA->tenantId, 'The snapshot returned the wrong tenant identity.');
+    $assert(count($snapshot['identities']) >= 1, 'The snapshot omitted Contact identities.');
+    $assert(count($snapshot['relationships']) >= 1, 'The snapshot omitted visible relationships.');
+    $assert(count($snapshot['lifecycle']['transitions']) >= 2, 'The snapshot omitted lifecycle history.');
+    $assert(count($snapshot['timeline']) >= 3, 'The snapshot omitted timeline events.');
 
     $contextStore->runWith($tenantA, function () use ($entityManager, $ids, $assert): void {
         $assert($entityManager->getRDBRepository('Contact')->getById($ids['contactB']) === null, 'Tenant A can read tenant B customer data.');
