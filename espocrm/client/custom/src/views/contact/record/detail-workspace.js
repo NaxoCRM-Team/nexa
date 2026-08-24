@@ -4086,6 +4086,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             list.innerHTML = notes.length
                 ? [...groups.values()].map(group => `<section class="nexa-note-month${group.pinned ? ' is-pinned-group' : ''}"><h4>${group.pinned ? '<span class="fas fa-thumbtack" aria-hidden="true"></span>' : ''}${this.escape(group.label)}</h4>${group.notes.map(note => this.contactNoteCard(note, this.contactNoteComments?.get(note.id) || [], note.id === newestId)).join('')}</section>`).join('')
                 : `<div class="nexa-note-empty"><span class="far fa-sticky-note" aria-hidden="true"></span><div><strong>No matching notes</strong><p>Try another search, date range or owner.</p></div></div>`;
+            // Note HTML stores protected Attachment IDs. Resolve them through the
+            // authenticated tenant endpoint after each filter, expand or refresh render.
+            TenantImages.hydrate(list);
             const collapse = workspace.querySelector('[data-nexa-collapse-notes]');
             const allCollapsed = notes.length > 0 && notes.every(note => this.collapsedContactNoteIds?.has(note.id));
             if (collapse) collapse.firstChild.textContent = allCollapsed ? 'Expand all ' : 'Collapse all ';
@@ -4216,6 +4219,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     isPinned: note.isPinned === true,
                     canPin: note.canPin === true,
                     canDelete: note.canDelete === true,
+                    richContent: note.content,
                 });
             });
 
@@ -4921,7 +4925,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const subtitle = activity.actor
                 ? (activity.isLoggedInteraction ? `by ${activity.actor}` : `${this.contactActivityTypeLabel(activity.type)} by ${activity.actor}`)
                 : this.contactActivityTypeLabel(activity.type);
-            const details = activity.type === 'preference'
+            const details = activity.type === 'note' && activity.richContent
+                ? `<div class="nexa-rich-activity-content">${this.formatNoteContent(activity.richContent)}</div>`
+                : activity.type === 'preference'
                 ? `<dl class="nexa-activity-audit-details">
                     <div><dt>Changed by</dt><dd>${this.escape(activity.actor)}</dd></div>
                     <div><dt>Channels</dt><dd>${this.escape(activity.channels.join(', ') || 'Not recorded')}</dd></div>

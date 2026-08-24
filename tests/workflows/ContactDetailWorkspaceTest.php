@@ -124,6 +124,11 @@ $mustContain('data-nexa-activity-list', $view, 'Activities must render into a de
 $mustContain('data-nexa-collapse-activities', $view, 'Activities must support collapsing and expanding all visible records.');
 $mustContain('collectContactActivities', $view, 'Activities must be collected from the tenant-scoped native record sources.');
 $mustContain('renderContactActivities', $view, 'Activity search and filters must rerender the standalone card collection.');
+$mustContain('richContent: note.content', $view, 'Saved note HTML must be carried into the unified Activity timeline.');
+$mustContain("activity.type === 'note' && activity.richContent", $view, 'Expanded Activity notes must render their sanitized rich content.');
+if (substr_count($view, 'TenantImages.hydrate(list);') < 2) {
+    throw new RuntimeException('Both Notes and Activities must hydrate protected tenant images after rendering.');
+}
 $mustContain('renderContactActivitySummary', $view, 'The Contact overview must calculate activity summaries from the unified timeline.');
 foreach (['first', 'last', 'email', 'next'] as $summaryKey) {
     $mustContain("activitySummaryHighlight('", $view, 'The Contact activity summary helper is missing.');

@@ -1,0 +1,5 @@
+{
+    "additionalBuilderClassNameList": [
+        "Espo\\Custom\\Core\\Utils\\Metadata\\RebuildActionBuilder"
+    ]
+}

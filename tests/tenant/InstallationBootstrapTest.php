@@ -6,12 +6,16 @@ $root = dirname(__DIR__, 2);
 $application = file_get_contents($root . '/espocrm/application/Espo/Core/Application.php');
 $installer = file_get_contents($root . '/espocrm/install/core/Installer.php');
 $systemData = file_get_contents($root . '/espocrm/application/Espo/Core/Rebuild/Actions/AddSystemData.php');
+$systemUser = file_get_contents($root . '/espocrm/custom/Espo/Custom/Rebuild/Actions/AddSystemUser.php');
+$rebuildBuilder = file_get_contents($root . '/espocrm/custom/Espo/Custom/Core/Utils/Metadata/RebuildActionBuilder.php');
+$rebuildMetadata = file_get_contents($root . '/espocrm/custom/Espo/Custom/Resources/metadata/app/rebuild.json');
+$metadataBuilderConfig = file_get_contents($root . '/espocrm/custom/Espo/Custom/Resources/metadata/app/metadata.json');
 $migrationScript = file_get_contents($root . '/scripts/dev/apply-shared-schema.ps1');
 $nativeSetup = file_get_contents($root . '/scripts/dev/setup-native-windows.ps1');
 $nativeInstaller = file_get_contents($root . '/scripts/dev/install-native-application.php');
 $browserInstaller = file_get_contents($root . '/espocrm/install/entry.php');
 
-foreach ([$application, $installer, $systemData, $migrationScript, $nativeSetup, $nativeInstaller, $browserInstaller] as $source) {
+foreach ([$application, $installer, $systemData, $systemUser, $rebuildBuilder, $rebuildMetadata, $metadataBuilderConfig, $migrationScript, $nativeSetup, $nativeInstaller, $browserInstaller] as $source) {
     if (!is_string($source)) {
         throw new RuntimeException('Unable to read installation bootstrap sources.');
     }
@@ -42,6 +46,23 @@ foreach ($boundaries as $operation => $boundary) {
 
 if (!str_contains($systemData, "run('Rebuild global system data'")) {
     throw new RuntimeException('Global system data must use the audited platform gateway.');
+}
+
+if (!str_contains($systemUser, "'Rebuild global system user'")) {
+    throw new RuntimeException('Global system user rebuild must use the audited platform gateway.');
+}
+
+if (!str_contains($rebuildBuilder, 'CORE_ACTION') ||
+    !str_contains($rebuildBuilder, 'TENANT_SAFE_ACTION') ||
+    !str_contains($metadataBuilderConfig, 'RebuildActionBuilder')) {
+    throw new RuntimeException('Metadata must replace the tenant-scoped core system-user rebuild action.');
+}
+
+$customRebuild = json_decode($rebuildMetadata, true, flags: JSON_THROW_ON_ERROR);
+$customActionList = $customRebuild['actionClassNameList'] ?? [];
+
+if ($customActionList !== ['Espo\\Custom\\Rebuild\\Actions\\AddSystemUser']) {
+    throw new RuntimeException('Custom rebuild metadata must not duplicate the stock action list.');
 }
 
 if (!str_contains($migrationScript, '[switch] $InitializeBaseSchema') ||

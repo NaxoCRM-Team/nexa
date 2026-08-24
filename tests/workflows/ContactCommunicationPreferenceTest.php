@@ -18,6 +18,7 @@ $manifest = json_decode($read('database/shared/table-ownership-manifest.json'), 
 $service = $read('espocrm/custom/Espo/Custom/Tools/Contact/ContactLifecycleService.php');
 $migration = $read('database/shared/migrations/0019_add_contact_communication_preferences.sql');
 $summaryMigration = $read('database/shared/migrations/0020_add_contact_communication_summary.sql');
+$channelMigration = $read('database/shared/migrations/0031_expand_contact_communication_channels.sql');
 $recordList = $read('espocrm/client/custom/src/views/contact/record/list-infinite-v2.js');
 $modal = $read('espocrm/client/custom/src/views/contact/modals/communication-preference.js');
 $template = $read('espocrm/client/custom/res/templates/contact/modals/communication-preference.tpl');
@@ -86,6 +87,9 @@ if (str_contains($nameTemplate, 'fa-envelope')) throw new RuntimeException('The 
 $mustContain('this.options.channels', $modal, 'Removal choices must come from active Contact restrictions.');
 $mustContain("linkedin: 'LinkedIn'", $modal, 'LinkedIn must be available as a communication restriction scope.');
 $mustContain("live_chat: 'Live chat'", $modal, 'Live chat must be available as a communication restriction scope.');
+$mustContain("'Remove all restricted channels'", $modal, 'Tenant admins must be able to remove every active restriction in one operation.');
+$mustContain("this.selectedReason = String(event.currentTarget.value || '').trim()", $modal, 'The modal must retain the selected reason across button-state updates.');
+$mustContain("'linkedin', 'postal', 'live_chat'", $channelMigration, 'The audit-table constraint must accept every supported communication channel.');
 $mustContain('{{#each channelOptions}}', $template, 'The channel selector must render only channels supplied by the modal.');
 $mustContain('array_intersect($current, $channels)', $service, 'Removal must be limited to active restrictions.');
 $mustContain("\$status === 'allowed' && !\$this->user->isAdmin()", $service, 'Only tenant admins may restore outbound communication.');

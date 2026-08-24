@@ -1,6 +1,8 @@
 {
     "fields": {
-        "name": {"view": "custom:views/contact/fields/name-v2"},
+        "name": {
+            "view": "custom:views/contact/fields/name-v2"
+        },
         "title": {
             "type": "varchar",
             "maxLength": 100,
@@ -9,40 +11,192 @@
             "directUpdateDisabled": false,
             "select": null
         },
-        "address": {"view": "custom:views/contact/fields/address"},
+        "address": {
+            "view": "custom:views/contact/fields/address"
+        },
         "profileImage": {
             "type": "image",
             "view": "custom:views/contact/fields/profile-image",
             "previewSize": "medium",
             "showPreview": true,
-            "accept": ["image/jpeg", "image/png", "image/webp", "image/gif"],
+            "accept": [
+                "image/jpeg",
+                "image/png",
+                "image/webp",
+                "image/gif"
+            ],
             "maxFileSize": 5
         },
-        "targetLists": {"layoutDetailDisabled": false, "noLoad": false, "tooltip": true},
-        "department": {"type": "varchar", "maxLength": 120},
-        "website": {"type": "url"},
-        "facebookUrl": {"type": "url"},
-        "instagramUrl": {"type": "url"},
-        "skypeName": {"type": "varchar", "maxLength": 100},
-        "xUrl": {"type": "url"},
-        "linkedinUrl": {"type": "url"},
-        "tiktokUrl": {"type": "url"},
-        "tags": {"type": "array", "allowCustomOptions": true, "displayAsList": true, "maxCount": 30, "maxItemLength": 80},
-        "preferredTimeZone": {"type": "enum", "view": "custom:views/contact/fields/preferred-time-zone"},
-        "lastWebsiteVisitAt": {"type": "datetime", "readOnly": true, "tooltip": true},
-        "source": {"type": "enum", "options": ["", "Direct", "Organic Search", "Paid Search", "Email Marketing", "Social Media", "Referral", "Partner", "Event", "Import", "Other"]},
-        "lifecycleStage": {"type": "enum", "options": ["", "Subscriber", "Lead", "MarketingQualifiedLead", "SalesQualifiedLead", "Opportunity", "Customer", "Evangelist", "Other"]},
-        "leadStatus": {"type": "enum", "options": ["", "New", "Open", "InProgress", "OpenDeal", "Unqualified", "AttemptedToContact", "Connected", "BadTiming"]},
-        "marketingStatus": {"type": "enum", "options": ["Marketing", "Non-Marketing", "Unsubscribed"], "default": "Non-Marketing", "tooltip": true},
-        "leadScore": {"type": "int", "min": 0, "default": 0, "readOnly": true, "tooltip": true},
-        "legalBasis": {"type": "enum", "options": ["", "LegitimateInterestLead", "LegitimateInterestCustomer", "LegitimateInterestOther", "PerformanceOfContract", "FreelyGivenConsent", "NotApplicable"]},
-        "doNotContact": {"type": "bool", "default": false, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
-        "doNotContactChannels": {"type": "varchar", "maxLength": 160, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
-        "doNotContactReason": {"type": "varchar", "maxLength": 64, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
-        "doNotContactNote": {"type": "text", "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
-        "doNotContactChangedAt": {"type": "datetime", "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
-        "doNotContactChangedById": {"type": "varchar", "maxLength": 17, "readOnly": true, "layoutDetailDisabled": true, "layoutListDisabled": true},
-        "deletedAt": {"type": "datetime", "readOnly": true, "disabled": true},
-        "deletedById": {"type": "varchar", "maxLength": 17, "readOnly": true, "disabled": true}
+        "targetLists": {
+            "layoutDetailDisabled": false,
+            "noLoad": false,
+            "tooltip": true
+        },
+        "department": {
+            "type": "varchar",
+            "maxLength": 120
+        },
+        "website": {
+            "type": "url"
+        },
+        "facebookUrl": {
+            "type": "url"
+        },
+        "instagramUrl": {
+            "type": "url"
+        },
+        "skypeName": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "xUrl": {
+            "type": "url"
+        },
+        "linkedinUrl": {
+            "type": "url"
+        },
+        "tiktokUrl": {
+            "type": "url"
+        },
+        "tags": {
+            "type": "array",
+            "allowCustomOptions": true,
+            "displayAsList": true,
+            "maxCount": 30,
+            "maxItemLength": 80
+        },
+        "preferredTimeZone": {
+            "type": "enum",
+            "view": "custom:views/contact/fields/preferred-time-zone"
+        },
+        "lastWebsiteVisitAt": {
+            "type": "datetime",
+            "readOnly": true,
+            "tooltip": true
+        },
+        "source": {
+            "type": "enum",
+            "options": [
+                "",
+                "Direct",
+                "Organic Search",
+                "Paid Search",
+                "Email Marketing",
+                "Social Media",
+                "Referral",
+                "Partner",
+                "Event",
+                "Import",
+                "Other"
+            ]
+        },
+        "lifecycleStage": {
+            "type": "enum",
+            "options": [
+                "",
+                "Subscriber",
+                "Lead",
+                "MarketingQualifiedLead",
+                "SalesQualifiedLead",
+                "Opportunity",
+                "Customer",
+                "Evangelist",
+                "Other"
+            ]
+        },
+        "leadStatus": {
+            "type": "enum",
+            "options": [
+                "",
+                "New",
+                "Open",
+                "InProgress",
+                "OpenDeal",
+                "Unqualified",
+                "AttemptedToContact",
+                "Connected",
+                "BadTiming"
+            ]
+        },
+        "marketingStatus": {
+            "type": "enum",
+            "options": [
+                "Marketing",
+                "Non-Marketing",
+                "Unsubscribed"
+            ],
+            "default": "Non-Marketing",
+            "tooltip": true
+        },
+        "leadScore": {
+            "type": "int",
+            "min": 0,
+            "default": 0,
+            "readOnly": true,
+            "tooltip": true
+        },
+        "legalBasis": {
+            "type": "enum",
+            "options": [
+                "",
+                "LegitimateInterestLead",
+                "LegitimateInterestCustomer",
+                "LegitimateInterestOther",
+                "PerformanceOfContract",
+                "FreelyGivenConsent",
+                "NotApplicable"
+            ]
+        },
+        "doNotContact": {
+            "type": "bool",
+            "default": false,
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true
+        },
+        "doNotContactChannels": {
+            "type": "varchar",
+            "maxLength": 160,
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true
+        },
+        "doNotContactReason": {
+            "type": "varchar",
+            "maxLength": 64,
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true
+        },
+        "doNotContactNote": {
+            "type": "text",
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true
+        },
+        "doNotContactChangedAt": {
+            "type": "datetime",
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true
+        },
+        "doNotContactChangedById": {
+            "type": "varchar",
+            "maxLength": 17,
+            "readOnly": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true
+        },
+        "deletedAt": {
+            "type": "datetime",
+            "readOnly": true,
+            "disabled": true
+        },
+        "deletedById": {
+            "type": "varchar",
+            "maxLength": 17,
+            "readOnly": true,
+            "disabled": true
+        }
     }
 }

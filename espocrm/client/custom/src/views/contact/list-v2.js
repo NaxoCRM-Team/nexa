@@ -34,6 +34,7 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
         this.contactListElement = this.element;
         this.contactListElement?.classList.add('nexa-contact-list-page');
         this.decorateContactControls();
+        this.renderContactScopeTabs();
         this.observeContactControls();
         this.refreshRestoreRecordsButton();
 
@@ -65,6 +66,7 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
         this.contactControlsObserver = new MutationObserver(() => {
             this.decorateContactControls();
             this.decorateAccountFilter();
+            this.renderContactScopeTabs();
         });
         this.contactControlsObserver.observe(this.element, {childList: true, subtree: true});
     }
@@ -114,6 +116,23 @@ define('custom:views/contact/list-v2', ['views/list'], Dep => class extends Dep 
 
             total.setAttribute('aria-label', `Total contacts: ${total.querySelector('.total-count-span')?.textContent || 0}`);
         }
+    }
+
+    renderContactScopeTabs() {
+        const search = this.element?.parentElement?.querySelector('.nexa-contact-live-search') ||
+            this.element?.querySelector('.nexa-contact-live-search');
+        if (!search || search.previousElementSibling?.classList.contains('nexa-contact-scope-tabs')) return;
+
+        const active = this._primaryFilter === 'createdByMe' ||
+            this.options?.params?.primaryFilter === 'createdByMe' ||
+            decodeURIComponent(window.location.hash).includes('primaryFilter=createdByMe');
+        const tabs = document.createElement('nav');
+        tabs.className = 'nexa-contact-scope-tabs';
+        tabs.setAttribute('aria-label', 'Contact list scope');
+        tabs.innerHTML = `
+            <a href="#Contact/list/primaryFilter=createdByMe" ${active ? 'aria-current="page"' : ''}>My Contacts</a>
+            <a href="#Contact" ${active ? '' : 'aria-current="page"'}>All Contacts</a>`;
+        search.before(tabs);
     }
 
     async refreshRestoreRecordsButton() {
