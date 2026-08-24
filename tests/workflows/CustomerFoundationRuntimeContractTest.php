@@ -25,6 +25,8 @@ $routes = json_decode($read('espocrm/custom/Espo/Custom/Resources/routes.json'),
 $mustContain('implements AfterSave, AfterRemove, AfterRelate, AfterUnrelate', $hook, 'The customer foundation must cover native saves, removals and links.');
 $mustContain('private CustomerFoundationRecorder $recorder', $hook, 'The common hook must delegate to one coordination service.');
 $mustContain('tenantContextStore->current()', $recorder, 'Every projection must derive ownership from trusted TenantContext.');
+$mustContain('tenantContextStore->isPlatform()', $recorder, 'Only explicit platform execution may bypass customer projection.');
+$mustContain('tenantContextStore->require()', $recorder, 'Ordinary customer writes must fail without trusted TenantContext.');
 $mustContain('nexa_lifecycle_assignment', $recorder, 'Lifecycle assignments must be maintained centrally.');
 $mustContain('nexa_lifecycle_transition', $recorder, 'Lifecycle changes must retain transition history.');
 $mustContain('nexa_relationship_edge', $recorder, 'Native associations must project relationship history.');

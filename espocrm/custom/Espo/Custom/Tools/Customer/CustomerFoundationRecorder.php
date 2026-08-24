@@ -42,27 +42,32 @@ final class CustomerFoundationRecorder
 
     public function afterSave(Entity $entity): void
     {
-        $context = $this->tenantContextStore->current();
+        $type = $entity->getEntityType();
+        $isCustomer = in_array($type, self::CUSTOMER_TYPES, true);
+        $isActivity = in_array($type, self::ACTIVITY_TYPES, true);
+        if (!$isCustomer && !$isActivity) {
+            return;
+        }
+        $context = $this->writeContext();
         if (!$context) {
             return;
         }
 
-        $type = $entity->getEntityType();
-        if (in_array($type, self::CUSTOMER_TYPES, true)) {
+        if ($isCustomer) {
             $this->recordCustomerSave($entity, $context);
             return;
         }
-
-        if (in_array($type, self::ACTIVITY_TYPES, true)) {
-            $this->recordActivitySave($entity, $context);
-        }
+        $this->recordActivitySave($entity, $context);
     }
 
     public function afterRemove(Entity $entity): void
     {
-        $context = $this->tenantContextStore->current();
         $type = $entity->getEntityType();
-        if (!$context || !in_array($type, array_merge(self::CUSTOMER_TYPES, self::ACTIVITY_TYPES), true)) {
+        if (!in_array($type, array_merge(self::CUSTOMER_TYPES, self::ACTIVITY_TYPES), true)) {
+            return;
+        }
+        $context = $this->writeContext();
+        if (!$context) {
             return;
         }
 
@@ -82,8 +87,11 @@ final class CustomerFoundationRecorder
         Entity $relatedEntity,
         bool $related,
     ): void {
-        $context = $this->tenantContextStore->current();
-        if (!$context || !$this->involvesCustomer($entity, $relatedEntity)) {
+        if (!$this->involvesCustomer($entity, $relatedEntity)) {
+            return;
+        }
+        $context = $this->writeContext();
+        if (!$context) {
             return;
         }
 
@@ -522,6 +530,20 @@ final class CustomerFoundationRecorder
     {
         return in_array($left->getEntityType(), self::CUSTOMER_TYPES, true) ||
             in_array($right->getEntityType(), self::CUSTOMER_TYPES, true);
+    }
+
+    private function writeContext(): ?TenantContext
+    {
+        $context = $this->tenantContextStore->current();
+        if ($context) {
+            return $context;
+        }
+
+        // Explicit platform execution is reserved for audited migrations and
+        // repair work. Ordinary CRM writes without a trusted tenant fail.
+        return $this->tenantContextStore->isPlatform()
+            ? null
+            : $this->tenantContextStore->require();
     }
 
     /** @return string[] */
