@@ -82,6 +82,11 @@
         "actionClassName":  "Espo\\Custom\\Tools\\Dashboard\\Api\\GetSummary"
     },
     {
+        "route": "/Nexa/customer/:entityType/:id/foundation",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Customer\\Api\\GetFoundation"
+    },
+    {
         "route":  "/Nexa/contact-profile-image/:id",
         "method":  "get",
         "actionClassName":  "Espo\\Custom\\Tools\\Contact\\Api\\GetProfileImage"
