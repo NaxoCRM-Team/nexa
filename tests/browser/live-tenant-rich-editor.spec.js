@@ -362,3 +362,42 @@ test('Contact and Account logs and notes share the tenant rich editor', async ({
     await accountNote.locator('[data-close]').first().click();
     if (temporaryAccountId) await page.evaluate(id => Espo.Ajax.deleteRequest(`Account/${encodeURIComponent(id)}`), temporaryAccountId);
 });
+
+test('Contact email and activity forms expose the tenant file editor contract', async ({page}) => {
+    test.skip(!baseUrl || !userName || !password, 'Live Nexa credentials were not provided.');
+
+    await page.goto(`${baseUrl}/login/`);
+    await page.locator('#field-userName').fill(userName);
+    await page.locator('#field-password').fill(password);
+    await page.locator('#login-form').evaluate(form => form.noValidate = true);
+    await page.locator('#login-form button[type="submit"]').click();
+    await page.waitForURL(/\/w\/[^/]+(?:\/.*)?$/, {timeout: 30_000});
+    const tenantKey = new URL(page.url()).pathname.match(/\/w\/([^/]+)/)?.[1];
+
+    const contract = await page.evaluate(() => ({
+        email: Espo.Metadata.get(['entityDefs', 'Email', 'fields', 'body', 'view']),
+        task: Espo.Metadata.get(['entityDefs', 'Task', 'fields', 'description', 'view']),
+        meeting: Espo.Metadata.get(['entityDefs', 'Meeting', 'fields', 'description', 'view']),
+        call: Espo.Metadata.get(['entityDefs', 'Call', 'fields', 'description', 'view']),
+    }));
+    expect(contract).toEqual({
+        email: 'custom:views/fields/nexa-rich-text',
+        task: 'custom:views/fields/nexa-rich-text',
+        meeting: 'custom:views/fields/nexa-rich-text',
+        call: 'custom:views/fields/nexa-rich-text',
+    });
+
+    const contacts = await page.evaluate(() => Espo.Ajax.getRequest('Contact', {
+        select: 'id,name', maxSize: 1, orderBy: 'createdAt', order: 'desc',
+    }));
+    test.skip(!contacts?.list?.length, 'The tenant has no Contact fixture.');
+    await page.goto(`${baseUrl}/w/${tenantKey}/Contact/view/${contacts.list[0].id}`);
+    const workspace = page.locator('[data-nexa-contact-workspace]');
+    await expect(workspace).toBeVisible({timeout: 30_000});
+
+    await workspace.locator('[data-nexa-contact-action="task"]').click();
+    const taskDialog = page.locator('[data-nexa-task-dialog]');
+    await expect(taskDialog.getByRole('button', {name: 'Insert image'})).toBeVisible({timeout: 15_000});
+    await expect(taskDialog.getByRole('button', {name: 'Attach file'})).toBeVisible();
+    await taskDialog.locator('[data-nexa-task-close]').first().click();
+});

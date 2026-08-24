@@ -21,6 +21,24 @@ $view = $read('espocrm/client/custom/src/views/contact/record/detail-workspace.j
 $styles = $read('espocrm/client/custom/css/crm-workflows.css');
 $navigation = $read('espocrm/client/custom/tenant-workspace.js');
 $registry = $read('espocrm/client/custom/src/product-surface-registry.js');
+$richEditorView = 'custom:views/fields/nexa-rich-text';
+$richEditorFields = [
+    'Email' => 'body',
+    'Task' => 'description',
+    'Meeting' => 'description',
+    'Call' => 'description',
+];
+
+foreach ($richEditorFields as $entityType => $field) {
+    $entityDefs = json_decode(
+        $read("espocrm/custom/Espo/Custom/Resources/metadata/entityDefs/{$entityType}.json"),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    if (($entityDefs['fields'][$field]['view'] ?? '') !== $richEditorView) {
+        throw new RuntimeException("{$entityType}.{$field} must use the tenant-aware Nexa rich editor.");
+    }
+}
 
 if (($clientDefs['recordViews']['detail'] ?? '') !== 'custom:views/contact/record/detail-workspace') {
     throw new RuntimeException('Contact detail must use the customer workspace record view.');
@@ -51,7 +69,9 @@ $mustContain('data-nexa-compose-email', $view, 'The displayed Contact email must
 $mustContain('openContactEmailComposer', $view, 'The Contact Email action must have an explicit composer integration.');
 $mustContain("checkScope('Email', 'create')", $view, 'Email composition must enforce the current user Email-create permission.');
 $mustContain("checkField('Contact', 'emailAddress', 'read')", $view, 'Email composition must enforce Contact email field access.');
-$mustContain("blockedChannels.includes('email')", $view, 'Email composition must respect tenant communication restrictions.');
+$mustContain("guardOutboundCommunication('email')", $view, 'Email composition must respect tenant communication restrictions before opening.');
+$mustContain("guardOutboundCommunication('call')", $view, 'Live and scheduled calls must respect Contact phone restrictions.');
+$mustContain("guardOutboundCommunication('meeting')", $view, 'Meeting outreach must respect Contact email restrictions.');
 $mustContain("'views/modals/compose-email'", $view, 'Contact messages must use the native authenticated Espo email composer.');
 $mustContain('to: emailAddress', $view, 'The Contact email composer must pre-address the active Contact.');
 $mustContain('nameHash: {[emailAddress]: contactName}', $view, 'The composer must preserve the Contact display name for its recipient.');
@@ -75,6 +95,7 @@ $mustContain('data-nexa-duration-search', $view, 'Contact meeting duration must 
 $mustContain('for (let minutes = 15; minutes <= 480; minutes += 15)', $view, 'Contact meeting duration must cover 15 minutes through 8 hours.');
 $mustContain('data-nexa-interaction-notes-editor', $view, 'Every Contact log must provide a native rich-text notes editor.');
 $mustContain("'custom:views/fields/nexa-rich-text'", $view, 'Contact logs must use the reusable Nexa rich editor with tenant files and images.');
+$mustContain("this.taskNotesEditorView = await this.createView('nexaTaskNotesEditor', 'custom:views/fields/nexa-rich-text'", $view, 'Contact task notes must use the tenant file and image library.');
 $mustContain("formData.set('notes'", $view, 'Every Contact log must persist its rich-text notes.');
 $mustContain('`Contacted: ${contactedName}`', $view, 'Contact communication logs must record the contacted person in the activity audit.');
 if (str_contains($view, '<label><span>Subject</span><input class="form-control" type="text" name="subject"')) {

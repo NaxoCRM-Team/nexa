@@ -246,7 +246,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             shell.querySelector('.nexa-contact-heading h2').textContent = name;
             if (this.model.get('doNotContact')) {
                 const badge = document.createElement('span');
-                const channels = String(this.model.get('doNotContactChannels') || '').split(',').filter(Boolean);
+                const labels = {email: 'Email', phone: 'Phone calls', sms: 'SMS', whatsapp: 'WhatsApp', linkedin: 'LinkedIn', postal: 'Postal mail', live_chat: 'Live chat'};
+                const channels = String(this.model.get('doNotContactChannels') || '').split(',').filter(Boolean)
+                    .map(channel => labels[channel] || channel);
                 badge.className = 'nexa-do-not-contact-badge nexa-do-not-contact-badge--profile';
                 badge.setAttribute('role', 'img');
                 badge.setAttribute('aria-label', 'Do not contact');
@@ -257,6 +259,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             shell.querySelector('.nexa-contact-inline-title [data-nexa-inline-display]').innerHTML = this.inlineDetailDisplay('title');
             shell.querySelector('.nexa-contact-inline-account [data-nexa-inline-display]').innerHTML = this.inlineDetailDisplay('account');
             shell.querySelector('.nexa-contact-inline-email [data-nexa-inline-display]').innerHTML = this.inlineDetailDisplay('emailAddress');
+            this.applyCommunicationRestrictionState(shell);
 
             return shell;
         }
@@ -1001,7 +1004,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         communicationRestrictionAlert() {
             if (!this.model.get('doNotContact')) return '';
 
-            const channelLabels = {email: 'Email', phone: 'Phone calls', sms: 'SMS', whatsapp: 'WhatsApp', postal: 'Postal mail'};
+            const channelLabels = {email: 'Email', phone: 'Phone calls', sms: 'SMS', whatsapp: 'WhatsApp', linkedin: 'LinkedIn', postal: 'Postal mail', live_chat: 'Live chat'};
             const reasonLabels = {
                 contact_request: 'Contact requested no communication', unsubscribed: 'Unsubscribed',
                 invalid_details: 'Invalid contact details', legal_compliance: 'Legal or compliance requirement',
@@ -1492,7 +1495,65 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 meeting: 'Schedule a meeting',
             };
             const tooltip = tooltips[type] || label;
-            return `<button type="button" class="btn btn-link" data-nexa-contact-action="${type}" data-tooltip="${this.escape(tooltip)}"><span class="${icon}" aria-hidden="true"></span><span>${label}</span></button>`;
+            const restriction = this.outboundRestriction(type);
+            const className = restriction ? 'btn btn-link is-communication-restricted' : 'btn btn-link';
+            const title = restriction?.message || tooltip;
+            return `<button type="button" class="${className}" data-nexa-contact-action="${type}"
+                data-tooltip="${this.escape(title)}" title="${this.escape(title)}"
+                ${restriction ? 'aria-disabled="true"' : ''}><span class="${icon}" aria-hidden="true"></span><span>${label}</span></button>`;
+        }
+
+        communicationRestrictionChannels() {
+            return new Set(String(this.model.get('doNotContactChannels') || '')
+                .split(',').map(channel => channel.trim().toLowerCase()).filter(Boolean));
+        }
+
+        isCommunicationChannelRestricted(channel) {
+            if (!this.model.get('doNotContact')) return false;
+            const channels = this.communicationRestrictionChannels();
+
+            // Older records may only carry the summary flag. Treat them as
+            // fully restricted until an admin records an explicit scope.
+            return channels.size === 0 || channels.has('all') || channels.has(channel);
+        }
+
+        outboundRestriction(action) {
+            const channelMap = {email: 'email', call: 'phone', meeting: 'email'};
+            const channel = channelMap[action];
+            if (!channel || !this.isCommunicationChannelRestricted(channel)) return null;
+
+            const labels = {email: 'Email', call: 'Phone outreach', meeting: 'Meeting outreach'};
+            return {
+                channel,
+                message: `${labels[action]} is restricted for this contact. Ask a tenant admin to remove the ${channel === 'phone' ? 'phone' : 'email'} restriction.`,
+            };
+        }
+
+        guardOutboundCommunication(action) {
+            const restriction = this.outboundRestriction(action);
+            if (!restriction) return true;
+
+            Espo.Ui.error(restriction.message);
+            return false;
+        }
+
+        applyCommunicationRestrictionState(shell) {
+            const selectors = {
+                email: ['[data-nexa-contact-action="email"]', '[data-nexa-compose-email]', '[data-nexa-create-emailrecord]'],
+                call: ['[data-nexa-contact-action="call"]', '[data-nexa-make-callrecord]', '[data-nexa-create-callrecord]'],
+                meeting: ['[data-nexa-contact-action="meeting"]', '[data-nexa-create-meeting]'],
+            };
+
+            Object.entries(selectors).forEach(([action, actionSelectors]) => {
+                const restriction = this.outboundRestriction(action);
+                if (!restriction) return;
+                actionSelectors.forEach(selector => shell.querySelectorAll(selector).forEach(control => {
+                    control.classList.add('is-communication-restricted');
+                    control.setAttribute('aria-disabled', 'true');
+                    control.setAttribute('title', restriction.message);
+                    control.dataset.tooltip = restriction.message;
+                }));
+            });
         }
 
         moreActionButton() {
@@ -2260,8 +2321,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         inlineDetailDisplay(field) {
             if (field === 'emailAddress') {
                 const value = this.model.get('emailAddress');
+                const restriction = this.outboundRestriction('email');
                 return value
-                    ? `<button type="button" class="nexa-contact-primary-email" data-nexa-compose-email aria-label="Compose email to this contact">${this.escape(value)}</button>`
+                    ? `<button type="button" class="nexa-contact-primary-email${restriction ? ' is-communication-restricted' : ''}"
+                        data-nexa-compose-email aria-label="Compose email to this contact"
+                        ${restriction ? `aria-disabled="true" title="${this.escape(restriction.message)}" data-tooltip="${this.escape(restriction.message)}"` : ''}>${this.escape(value)}</button>`
                     : '<span class="nexa-record-empty">No email recorded</span>';
             }
             if (field === 'account') return this.escape(this.model.get('accountName') || 'No company associated');
@@ -2310,6 +2374,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         openActivity(type) {
+            if (['email', 'call', 'meeting'].includes(type) && !this.guardOutboundCommunication(type)) return;
             if (type === 'email') return this.openContactEmailComposer();
             if (type === 'note') {
                 return this.openNoteDialog();
@@ -2327,6 +2392,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         async openCallPicker() {
+            if (!this.guardOutboundCommunication('call')) return;
             const callerIdStatus = await this.getCallerIdStatus();
             if (callerIdStatus.status !== 'verified') {
                 return this.openCallerIdBlockedState();
@@ -2564,6 +2630,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         async openClickToCall() {
+            if (!this.guardOutboundCommunication('call')) return;
             const toNumber = this.normalizePhoneForCall(this.model.get('phoneNumber'));
             if (!toNumber) {
                 Espo.Ui.error('Add a valid phone number (with country code) to this contact before calling.');
@@ -2721,6 +2788,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         async openContactEmailComposer({subject = ''} = {}) {
+            if (!this.guardOutboundCommunication('email')) return;
             if (!this.getAcl().checkScope('Email', 'create')) {
                 Espo.Ui.error('You do not have permission to send email.');
                 return;
@@ -2731,14 +2799,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
             const emailAddress = String(this.model.get('emailAddress') || '').trim();
             const contactName = this.model.get('name') || emailAddress;
-            const blockedChannels = String(this.model.get('doNotContactChannels') || '')
-                .split(',').map(channel => channel.trim()).filter(Boolean);
-
             if (!this.getAcl().checkField('Contact', 'emailAddress', 'read') || !emailAddress) {
                 Espo.Ui.error('Add an email address to this contact before composing a message.');
                 return;
             }
-            if (blockedChannels.includes('email') || this.model.get('emailAddressIsOptedOut')) {
+            if (this.model.get('emailAddressIsOptedOut')) {
                 Espo.Ui.error('Email is restricted for this contact. Remove the communication restriction before sending.');
                 return;
             }
@@ -2747,6 +2812,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 status: 'Draft',
                 to: emailAddress,
                 nameHash: {[emailAddress]: contactName},
+                contactsIds: [this.model.id],
+                contactsNames: {[this.model.id]: contactName},
             };
             if (this.connectedMailboxAddress) {
                 attributes.from = this.connectedMailboxAddress;
@@ -3349,6 +3416,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         async openMeetingModal() {
+            if (!this.guardOutboundCommunication('meeting')) return;
             if (!this.getAcl().checkScope('Meeting', 'create')) {
                 Espo.Ui.error('You do not have permission to schedule meetings.');
                 return;
@@ -3358,6 +3426,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const attributes = {
                 assignedUserId: this.getUser().id,
                 assignedUserName: this.getUser().get('name'),
+                contactsIds: [this.model.id],
+                contactsNames: {[this.model.id]: contactName},
             };
             if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
                 attributes.parentType = 'Contact';
@@ -3441,6 +3511,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         async openScheduleCallModal() {
+            if (!this.guardOutboundCommunication('call')) return;
             if (!this.getAcl().checkScope('Call', 'create')) {
                 Espo.Ui.error('You do not have permission to schedule calls.');
                 return;
@@ -3452,6 +3523,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 assignedUserName: this.getUser().get('name'),
                 status: 'Planned',
                 direction: 'Outbound',
+                contactsIds: [this.model.id],
+                contactsNames: {[this.model.id]: contactName},
             };
             if (this.getConfig().get('b2cMode') || !this.model.get('accountId')) {
                 attributes.parentType = 'Contact';
@@ -4189,7 +4262,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     complaint: 'Complaint', consent_restored: 'Consent restored',
                     correction: 'Previous restriction was incorrect', other: 'Other',
                 };
-                const channelLabels = {email: 'Email', phone: 'Phone', sms: 'SMS', whatsapp: 'WhatsApp', postal: 'Postal mail'};
+                const channelLabels = {email: 'Email', phone: 'Phone', sms: 'SMS', whatsapp: 'WhatsApp', linkedin: 'LinkedIn', postal: 'Postal mail', live_chat: 'Live chat'};
 
                 this.contactCommunicationActivities = (payload.list || []).map(record => {
                     const createdAt = String(record.createdAt || '');
@@ -5665,7 +5738,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     mode: 'edit',
                     params: {required: true},
                 });
-                this.taskNotesEditorView = await this.createView('nexaTaskNotesEditor', 'views/fields/wysiwyg', {
+                // Keep task notes on the same tenant-aware editor used by interaction logs.
+                // Images and files are selected from, or uploaded into, the active tenant library.
+                this.taskNotesEditorView = await this.createView('nexaTaskNotesEditor', 'custom:views/fields/nexa-rich-text', {
                     fullSelector: '[data-nexa-task-notes-host]',
                     model: this.taskEditorModel,
                     name: 'description',

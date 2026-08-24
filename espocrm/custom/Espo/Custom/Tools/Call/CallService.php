@@ -10,6 +10,7 @@ use Espo\Core\ORM\EntityManager;
 use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\ServiceEntitlementChecker;
 use Espo\Core\Tenant\TenantContextStore;
+use Espo\Custom\Tools\Contact\CommunicationRestrictionGuard;
 use Espo\Entities\Notification;
 use Espo\Entities\User;
 use Espo\Modules\Crm\Entities\Call;
@@ -39,6 +40,7 @@ final class CallService
         private ServiceEntitlementChecker $entitlements,
         private TwilioClient $twilioClient,
         private CallMinutesLedger $ledger,
+        private CommunicationRestrictionGuard $communicationRestrictionGuard,
     ) {}
 
     /** @return array{token: string, identity: string, expiresAt: string} */
@@ -317,6 +319,10 @@ final class CallService
         if (!$contact || !$this->acl->checkEntityRead($contact)) {
             throw new NotFound('Contact not found.');
         }
+
+        // This is the final outbound boundary. A crafted API request cannot
+        // bypass the Contact workspace's disabled phone controls.
+        $this->communicationRestrictionGuard->assertContactAllowed($contactId, 'phone');
 
         $tenant = $this->tenantContextStore->require();
         $serviceId = $this->resolveServiceId($tenant->tenantId);
