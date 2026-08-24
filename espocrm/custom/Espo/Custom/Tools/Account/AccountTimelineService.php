@@ -23,6 +23,7 @@ final class AccountTimelineService
     private const PAGE_SIZE_MAX = 100;
     private const CONTACT_PAGE_SIZE = 200;
     private const CONTACT_LIMIT = 5000;
+    private const COMMENT_LIMIT = 500;
 
     /** @var array<string, string> */
     private const TAB_ENTITY_MAP = [
@@ -47,7 +48,7 @@ final class AccountTimelineService
         private Acl $acl,
     ) {}
 
-    /** @return array{list: stdClass[], hasMore: bool, nextOffset: int, limit: int} */
+    /** @return array{list: stdClass[], comments: stdClass[], hasMore: bool, nextOffset: int, limit: int} */
     public function getPage(string $accountId, string $tab, int $offset, int $limit): array
     {
         $tab = strtolower(trim($tab));
@@ -102,10 +103,40 @@ final class AccountTimelineService
 
         return [
             'list' => array_values($page),
+            'comments' => $tab === 'activity' && $offset === 0 ? $this->getTimelineComments($accountId) : [],
             'hasMore' => $hasMore,
             'nextOffset' => $offset + count($page),
             'limit' => $limit,
         ];
+    }
+
+    /** @return stdClass[] */
+    private function getTimelineComments(string $accountId): array
+    {
+        if (!$this->acl->check('Note', Table::ACTION_READ)) {
+            return [];
+        }
+
+        $collection = $this->recordServiceContainer->get('Note')->find(SearchParams::fromRaw([
+            'select' => self::SELECT_MAP['Note'],
+            'where' => [
+                ['type' => 'equals', 'attribute' => 'type', 'value' => 'Post'],
+                ['type' => 'equals', 'attribute' => 'parentType', 'value' => 'Account'],
+                ['type' => 'equals', 'attribute' => 'parentId', 'value' => $accountId],
+            ],
+            'orderBy' => 'createdAt',
+            'order' => SearchParams::ORDER_ASC,
+            'maxSize' => self::COMMENT_LIMIT,
+            'offset' => 0,
+        ]));
+
+        return array_values(array_filter(
+            $collection->getValueMapList(),
+            static fn (stdClass $record): bool => preg_match(
+                '/^<!-- nexa-engagement-(?:comment|reply):/i',
+                trim((string) ($record->post ?? ''))
+            ) === 1
+        ));
     }
 
     /** @return string[] */

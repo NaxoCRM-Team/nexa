@@ -62,8 +62,10 @@ $required = @(
     'tests/workflows/ContactBulkAssignmentTest.php',
     'tests/workflows/ContactCommunicationPreferenceTest.php',
     'tests/workflows/AccountLifecycleWorkflowTest.php',
+    'tests/workflows/AccountImportContractTest.php',
     'tests/workflows/AccountDetailWorkspaceTest.php',
     'tests/workflows/AccountTimelineWorkflowTest.php',
+    'tests/workflows/TenantFileLibraryTest.php',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
     'espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json',
     'espocrm/client/custom/src/views/contact/fields/location-list.js',
@@ -192,8 +194,13 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactExpo
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactBulkAssignmentTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ContactCommunicationPreferenceTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountLifecycleWorkflowTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountImportContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountDetailWorkspaceTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountTimelineWorkflowTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\TenantImageLibrary.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\Api\GetImages.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\Api\PostImage.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\Account\AccountTimelineService.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\Account\Api\GetTimeline.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Classes\Select\Account\PrimaryFilters\CreatedByMe.php')
@@ -247,10 +254,14 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Contact communication preference contract suite' } else { Fail 'Contact communication preference contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AccountLifecycleWorkflowTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Account lifecycle workflow contract suite' } else { Fail 'Account lifecycle workflow contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\AccountImportContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Account guided import contract suite' } else { Fail 'Account guided import contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AccountDetailWorkspaceTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Account detail workspace contract suite' } else { Fail 'Account detail workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AccountTimelineWorkflowTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Account timeline workflow contract suite' } else { Fail 'Account timeline workflow contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')

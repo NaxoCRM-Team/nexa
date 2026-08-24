@@ -1,7 +1,8 @@
-define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'helpers/record/create-related', 'custom:views/contact/record/twilio-call-controller', 'custom:views/call/caller-id-modal'], (Dep, RecordModalHelper, CreateRelatedHelper, TwilioCallController, CallerIdVerifyModal) => {
+define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'helpers/record/create-related', 'custom:views/contact/record/twilio-call-controller', 'custom:views/call/caller-id-modal', 'custom:helpers/tenant-images', 'custom:helpers/tenant-files'], (Dep, RecordModalHelper, CreateRelatedHelper, TwilioCallController, CallerIdVerifyModal, TenantImages, TenantFiles) => {
     return class extends Dep {
         setup() {
             super.setup();
+            TenantFiles.install();
             document.body.classList.add('nexa-contact-detail-page');
             this.once('remove', () => {
                 document.body.classList.remove('nexa-contact-detail-page');
@@ -1676,6 +1677,81 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return options;
         }
 
+        callOutcomeOptions() {
+            return ['Busy', 'Connected', 'Left live message', 'Left voicemail', 'Meeting booked', 'No answer', 'Wrong number'];
+        }
+
+        meetingOutcomeOptions() {
+            return ['Scheduled', 'Completed', 'Rescheduled', 'No show', 'Canceled'];
+        }
+
+        interactionContactField(label = 'Contacted') {
+            const name = this.model.get('name') || 'Unknown contact';
+            return `<label><span>${this.escape(label)}</span><div class="nexa-interaction-attendee"><span class="nexa-interaction-attendee-badge">${this.escape(name)}</span></div><input type="hidden" name="contactedContactId" value="${this.escape(this.model.id)}"><input type="hidden" name="contactedName" value="${this.escape(name)}"></label>`;
+        }
+
+        durationPickerHtml() {
+            return `<div class="nexa-duration-field"><label for="nexa-contact-duration-search">Duration</label>
+                <div class="nexa-duration-picker" data-nexa-duration-picker>
+                    <div class="nexa-duration-input"><span class="fas fa-search" aria-hidden="true"></span><input id="nexa-contact-duration-search" type="search" class="form-control" data-nexa-duration-search role="combobox" aria-autocomplete="list" aria-controls="nexa-contact-duration-options" aria-expanded="false" placeholder="Search duration" autocomplete="off"></div>
+                    <input type="hidden" name="duration">
+                    <div class="nexa-duration-options" id="nexa-contact-duration-options" role="listbox" data-nexa-duration-options hidden>${this.durationOptions().map(([minutes, label], index) => `<button id="nexa-contact-duration-option-${index}" type="button" role="option" aria-selected="false" data-nexa-duration-option data-value="${minutes}" data-label="${this.escape(label)}" data-search="${this.escape(label.toLowerCase())}">${this.escape(label)}</button>`).join('')}</div>
+                </div></div>`;
+        }
+
+        mountDurationPicker(overlay) {
+            const picker = overlay.querySelector('[data-nexa-duration-picker]');
+            if (!picker) return;
+            const input = picker.querySelector('[data-nexa-duration-search]');
+            const list = picker.querySelector('[data-nexa-duration-options]');
+            const options = [...picker.querySelectorAll('[data-nexa-duration-option]')];
+            let activeIndex = -1;
+            const visibleOptions = () => options.filter(option => !option.hidden);
+            const open = () => { list.hidden = false; input.setAttribute('aria-expanded', 'true'); };
+            const close = () => {
+                list.hidden = true;
+                input.setAttribute('aria-expanded', 'false');
+                activeIndex = -1;
+                options.forEach(option => option.classList.remove('is-active'));
+            };
+            const select = option => {
+                if (!option) return;
+                picker.querySelector('[name="duration"]').value = option.dataset.value;
+                input.value = option.dataset.label;
+                input.dataset.selectedValue = option.dataset.value;
+                options.forEach(item => item.setAttribute('aria-selected', String(item === option)));
+                close();
+            };
+            const filter = () => {
+                const term = input.value.trim().toLowerCase();
+                if (input.value !== options.find(option => option.dataset.value === input.dataset.selectedValue)?.dataset.label) {
+                    picker.querySelector('[name="duration"]').value = '';
+                    input.dataset.selectedValue = '';
+                }
+                options.forEach(option => option.hidden = Boolean(term) && !option.dataset.search.includes(term));
+                activeIndex = -1;
+                open();
+            };
+            input.addEventListener('focus', open);
+            input.addEventListener('input', filter);
+            input.addEventListener('keydown', event => {
+                const visible = visibleOptions();
+                if (event.key === 'Escape') { event.preventDefault(); close(); return; }
+                if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key) || !visible.length) return;
+                event.preventDefault();
+                if (event.key === 'Enter') { select(visible[activeIndex >= 0 ? activeIndex : 0]); return; }
+                const offset = event.key === 'ArrowDown' ? 1 : -1;
+                activeIndex = (activeIndex + offset + visible.length) % visible.length;
+                visible.forEach((option, index) => option.classList.toggle('is-active', index === activeIndex));
+                input.setAttribute('aria-activedescendant', visible[activeIndex].id);
+                visible[activeIndex].scrollIntoView({block: 'nearest'});
+            });
+            options.forEach(option => option.addEventListener('mousedown', event => { event.preventDefault(); select(option); }));
+            picker.addEventListener('focusout', () => window.setTimeout(() => {
+                if (!picker.contains(document.activeElement)) close();
+            }, 0));
+        }
+
         formatDurationMinutes(totalMinutes) {
             const minutes = Number(totalMinutes) || 0;
             if (!minutes) return '';
@@ -1687,30 +1763,27 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return parts.join(' ');
         }
 
-        openInteractionDialog(channelKey, returnFocus = null) {
+        async openInteractionDialog(channelKey, returnFocus = null) {
             this.closeInteractionDialog();
             const channel = this.interactionChannels()[channelKey] || 'Interaction';
             const isMeeting = channelKey === 'meeting-log';
+            const isCall = channelKey === 'call-log';
             const overlay = document.createElement('div');
             const now = new Date();
             const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
             overlay.className = 'nexa-interaction-overlay';
             overlay.dataset.nexaInteractionDialog = 'true';
             const topFieldsHtml = isMeeting
-                ? `<div class="nexa-interaction-grid">
-                    <label><span>Attendees</span><div class="nexa-interaction-attendee"><span class="nexa-interaction-attendee-badge">${this.escape(this.model.get('name') || 'Unknown contact')}</span></div><input type="hidden" name="attendees" value="${this.escape(this.model.get('name') || '')}"></label>
-                    <label><span>Meeting start time</span><input class="form-control" type="datetime-local" name="occurredAt" value="${localDate}" required></label>
-                </div>
-                <label><span>Duration</span><select class="form-control" name="duration">
-                    <option value="">Not specified</option>
-                    ${this.durationOptions().map(([minutes, label]) => `<option value="${minutes}">${this.escape(label)}</option>`).join('')}
-                </select></label>`
-                : `<div class="nexa-interaction-grid">
-                    <label><span>Direction</span><select class="form-control" name="direction">
-                        <option value="Outbound">Outbound</option><option value="Inbound">Inbound</option>
-                    </select></label>
-                    <label><span>Date and time</span><input class="form-control" type="datetime-local" name="occurredAt" value="${localDate}" required></label>
-                </div>`;
+                ? `${this.interactionContactField('Attendees')}
+                    <div class="nexa-interaction-grid"><label><span>Meeting outcome</span><select class="form-control" name="meetingOutcome"><option value="">Not specified</option>${this.meetingOutcomeOptions().map(value => `<option>${this.escape(value)}</option>`).join('')}</select></label>
+                    <label><span>Meeting start time</span><input class="form-control" type="datetime-local" name="occurredAt" value="${localDate}" required></label></div>
+                    ${this.durationPickerHtml()}`
+                : isCall
+                    ? `${this.interactionContactField()}
+                        <div class="nexa-interaction-grid"><label><span>Call outcome</span><select class="form-control" name="callOutcome"><option value="">Not specified</option>${this.callOutcomeOptions().map(value => `<option>${this.escape(value)}</option>`).join('')}</select></label>
+                        <label><span>Call direction</span><select class="form-control" name="direction"><option value="Inbound">Inbound</option><option value="Outbound">Outbound</option></select></label></div>
+                        <label><span>Activity date and time</span><input class="form-control" type="datetime-local" name="occurredAt" value="${localDate}" required></label>`
+                    : `${this.interactionContactField()}<label><span>Activity date and time</span><input class="form-control" type="datetime-local" name="occurredAt" value="${localDate}" required></label>`;
             overlay.innerHTML = `
                 <section class="nexa-interaction-dialog" role="dialog" aria-modal="true"
                     aria-labelledby="nexa-interaction-title" aria-describedby="nexa-interaction-help">
@@ -1723,12 +1796,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     <form data-nexa-interaction-form>
                         <p id="nexa-interaction-help" class="nexa-interaction-help">Record a completed interaction on this Contact's activity timeline.</p>
                         ${topFieldsHtml}
-                        <label><span>Subject</span><input class="form-control" type="text" name="subject" maxlength="160" placeholder="Short summary" required></label>
-                        <label><span>Outcome</span><select class="form-control" name="outcome">
-                            <option value="">Not specified</option><option>Connected</option><option>Completed</option>
-                            <option>No response</option><option>Left message</option><option>Follow-up required</option>
-                        </select></label>
-                        <label><span>Notes</span><textarea class="form-control" name="notes" rows="5" maxlength="5000" placeholder="Add useful context for the team"></textarea></label>
+                        <label><span>Notes</span><div class="nexa-native-rich-editor nexa-interaction-rich-editor" data-nexa-interaction-notes-editor><div class="nexa-note-editor-loading"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><span>Loading editor</span></div></div></label>
                         <p class="nexa-interaction-error" data-nexa-interaction-error role="alert" hidden></p>
                         <footer>
                             <button type="button" class="btn btn-default" data-nexa-dialog-close>Cancel</button>
@@ -1742,6 +1810,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             document.body.append(overlay);
             this.interactionDialog = overlay;
             this.interactionDialogReturnFocus = returnFocus;
+            if (isMeeting) this.mountDurationPicker(overlay);
             overlay.querySelectorAll('[data-nexa-dialog-close]').forEach(button => {
                 button.addEventListener('click', () => this.closeInteractionDialog());
             });
@@ -1751,9 +1820,27 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             overlay.addEventListener('keydown', event => this.handleInteractionDialogKeys(event));
             overlay.querySelector('[data-nexa-interaction-form]').addEventListener('submit', event => {
                 event.preventDefault();
-                this.saveInteraction(channelKey, channel, new FormData(event.currentTarget));
+                const formData = new FormData(event.currentTarget);
+                if (this.interactionNotesEditor) {
+                    this.interactionNotesEditor.fetchToModel();
+                    formData.set('notes', String(this.interactionNotesModel.get('post') || '').trim());
+                }
+                this.saveInteraction(channelKey, channel, formData);
             });
-            window.setTimeout(() => overlay.querySelector('[name="subject"]')?.focus(), 0);
+            try {
+                this.interactionNotesModel = await this.getModelFactory().create('Note');
+                if (!overlay.isConnected) return;
+                this.interactionNotesEditor = await this.createView('nexaInteractionNotesEditor', 'custom:views/fields/nexa-rich-text', {
+                    fullSelector: '[data-nexa-interaction-notes-editor]', model: this.interactionNotesModel,
+                    name: 'post', mode: 'edit', params: {height: 190, minHeight: 150},
+                });
+                await this.interactionNotesEditor.render();
+            } catch (error) {
+                const message = overlay.querySelector('[data-nexa-interaction-error]');
+                message.textContent = 'The rich-text notes editor could not be loaded.';
+                message.hidden = false;
+            }
+            window.setTimeout(() => overlay.querySelector('[name="occurredAt"]')?.focus(), 0);
         }
 
         handleInteractionDialogKeys(event) {
@@ -1782,38 +1869,41 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             if (!dialog || this.interactionSavePending) return;
 
             const isMeeting = channelKey === 'meeting-log';
-            const subject = String(formData.get('subject') || '').trim();
             const occurredAt = String(formData.get('occurredAt') || '').trim();
             const error = dialog.querySelector('[data-nexa-interaction-error]');
-            if (!subject || !occurredAt) {
-                error.textContent = isMeeting
-                    ? 'Enter a subject and the meeting start time.'
-                    : 'Enter a subject and the interaction date and time.';
+            if (!occurredAt) {
+                error.textContent = isMeeting ? 'Enter the meeting start time.' : 'Enter the interaction date and time.';
                 error.hidden = false;
                 return;
             }
 
-            const outcome = String(formData.get('outcome') || '').trim();
+            const isCall = channelKey === 'call-log';
             const notes = String(formData.get('notes') || '').trim();
+            const contactedName = String(formData.get('contactedName') || this.model.get('name') || 'Unknown contact').trim();
             const lines = isMeeting
                 ? [
-                    `[${channel}] ${subject}`,
-                    (() => {
-                        const attendees = String(formData.get('attendees') || '').trim();
-                        return attendees ? `Attendees: ${attendees}` : '';
-                    })(),
+                    `[${channel}]`,
+                    `Attendees: ${contactedName}`,
+                    formData.get('meetingOutcome') ? `Meeting outcome: ${formData.get('meetingOutcome')}` : '',
                     `Start: ${occurredAt.replace('T', ' ')}`,
                     (() => {
                         const durationLabel = this.formatDurationMinutes(formData.get('duration'));
                         return durationLabel ? `Duration: ${durationLabel}` : '';
                     })(),
-                    outcome ? `Outcome: ${outcome}` : '',
+                    notes ? `\n${notes}` : '',
+                ].filter(Boolean)
+                : isCall
+                ? [
+                    `[${channel} - ${String(formData.get('direction') || 'Outbound')}]`,
+                    `Contacted: ${contactedName}`,
+                    formData.get('callOutcome') ? `Call outcome: ${formData.get('callOutcome')}` : '',
+                    `Activity date: ${occurredAt.replace('T', ' ')}`,
                     notes ? `\n${notes}` : '',
                 ].filter(Boolean)
                 : [
-                    `[${channel} - ${String(formData.get('direction') || 'Outbound')}] ${subject}`,
+                    `[${channel}]`,
+                    `Contacted: ${contactedName}`,
                     `Occurred: ${occurredAt.replace('T', ' ')}`,
-                    outcome ? `Outcome: ${outcome}` : '',
                     notes ? `\n${notes}` : '',
                 ].filter(Boolean);
             const submit = dialog.querySelector('[data-nexa-log-interaction]');
@@ -1847,9 +1937,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
 
         closeInteractionDialog() {
             const returnFocus = this.interactionDialogReturnFocus;
+            if (this.getView('nexaInteractionNotesEditor')) this.clearView('nexaInteractionNotesEditor');
             this.interactionDialog?.remove();
             this.interactionDialog = null;
             this.interactionDialogReturnFocus = null;
+            this.interactionNotesEditor = null;
+            this.interactionNotesModel = null;
             this.interactionSavePending = false;
             returnFocus?.focus?.();
         }
@@ -3486,7 +3579,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             try {
                 this.noteEditorModel = await this.getModelFactory().create('Note');
                 if (!this.noteDialog?.isConnected) return;
-                this.noteEditorView = await this.createView('nexaNoteEditor', 'views/fields/wysiwyg', {
+                this.noteEditorView = await this.createView('nexaNoteEditor', 'custom:views/fields/nexa-rich-text', {
                     fullSelector: '[data-nexa-note-editor-host]',
                     model: this.noteEditorModel,
                     name: 'post',
@@ -3573,7 +3666,8 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         richTextIsEmpty(content) {
             const container = document.createElement('div');
             container.innerHTML = this.getHelper().sanitizeHtml(String(content || ''));
-            return !container.textContent.replace(/\u00a0/g, ' ').trim() && !container.querySelector('img, table, hr');
+            return !container.textContent.replace(/\u00a0/g, ' ').trim() &&
+                !container.querySelector('img, table, hr, a[data-nexa-file-id]');
         }
 
         async createContactStreamNote(post) {
@@ -3852,6 +3946,17 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             return Number.isNaN(date.getTime()) ? null : date;
         }
 
+        contactInteractionDate(interaction) {
+            const dateField = (interaction.fields || []).find(([label]) =>
+                ['Occurred', 'Activity date', 'Start'].includes(label)
+            );
+            if (!dateField?.[1]) return this.contactNoteDate(interaction.createdAt);
+
+            // Form values are local datetimes; API createdAt values are UTC timestamps.
+            const date = new Date(String(dateField[1]).replace(' ', 'T'));
+            return Number.isNaN(date.getTime()) ? this.contactNoteDate(interaction.createdAt) : date;
+        }
+
         contactNoteMatchesPeriod(value, period) {
             if (!period || period === 'all') return true;
             const date = this.contactNoteDate(value);
@@ -4051,11 +4156,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 activities.push({
                     id: `interaction-${interaction.id}`,
                     type,
-                    title: `${interaction.channelLabel} logged`,
+                    title: `Logged ${interaction.channelLabel}`,
                     text: interaction.subject || interaction.channelLabel,
-                    date: this.contactNoteDate(interaction.createdAt),
+                    date: this.contactInteractionDate(interaction),
                     href: '',
                     actor: interaction.createdByName || '',
+                    isLoggedInteraction: true,
                     noteId: interaction.id,
                     isPinned: interaction.isPinned === true,
                     canPin: interaction.canPin === true,
@@ -4400,6 +4506,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                         return this.contactActivityCard(activity);
                     }).join('')}
                 </section>`).join('');
+            // Saved rich activity content stores protected Attachment IDs rather
+            // than database-sized image data, so render it through the tenant API.
+            TenantImages.hydrate(list);
             list.hidden = activities.length === 0;
 
             const count = workspace.querySelector('[data-nexa-activity-count]');
@@ -4737,7 +4846,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 : 'Date not recorded';
             const preview = activity.text || activity.title;
             const subtitle = activity.actor
-                ? `${this.contactActivityTypeLabel(activity.type)} by ${activity.actor}`
+                ? (activity.isLoggedInteraction ? `by ${activity.actor}` : `${this.contactActivityTypeLabel(activity.type)} by ${activity.actor}`)
                 : this.contactActivityTypeLabel(activity.type);
             const details = activity.type === 'preference'
                 ? `<dl class="nexa-activity-audit-details">
@@ -4748,9 +4857,9 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 </dl>`
                 : activity.interactionFields
                     ? `<dl class="nexa-activity-audit-details">
-                        <div><dt>Subject</dt><dd>${this.escape(activity.interactionSubject || activity.title)}</dd></div>
+                        ${activity.interactionSubject ? `<div><dt>Subject</dt><dd>${this.escape(activity.interactionSubject)}</dd></div>` : ''}
                         ${activity.interactionFields.map(([label, value]) => `<div><dt>${this.escape(label)}</dt><dd>${this.escape(value)}</dd></div>`).join('')}
-                        ${activity.interactionNotes ? `<div class="is-note"><dt>Notes</dt><dd>${this.escape(activity.interactionNotes)}</dd></div>` : ''}
+                        ${activity.interactionNotes ? `<div class="is-note"><dt>Notes</dt><dd class="nexa-rich-activity-content">${this.getHelper().sanitizeHtml(activity.interactionNotes)}</dd></div>` : ''}
                     </dl>`
                     : `<p>${this.escape(preview)}</p>`;
             const deleteHelp = "You don't have permission to delete this activity. Ask your admin to grant permission.";
@@ -5178,7 +5287,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             try {
                 const model = await this.getModelFactory().create('Note');
                 if (!form.isConnected || form.hidden) return;
-                const view = await this.createView(key, 'views/fields/wysiwyg', {
+                const view = await this.createView(key, 'custom:views/fields/nexa-rich-text', {
                     fullSelector: `[data-nexa-comment-editor-host="${editorId}"]`,
                     model,
                     name: 'post',

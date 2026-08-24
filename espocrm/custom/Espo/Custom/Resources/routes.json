@@ -92,6 +92,26 @@
         "actionClassName":  "Espo\\Custom\\Tools\\Attachment\\Api\\GetFile"
     },
     {
+        "route": "/Nexa/files/images",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\TenantFile\\Api\\GetImages"
+    },
+    {
+        "route": "/Nexa/files/images",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\TenantFile\\Api\\PostImage"
+    },
+    {
+        "route": "/Nexa/files",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\TenantFile\\Api\\GetFiles"
+    },
+    {
+        "route": "/Nexa/files",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\TenantFile\\Api\\PostFile"
+    },
+    {
         "route": "/Nexa/contact/:id/title",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Contact\\Api\\PostTitle"
@@ -110,6 +130,26 @@
         "route": "/Nexa/account/:id/avatar",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Account\\Api\\GetAvatar"
+    },
+    {
+        "route": "/Nexa/account-import/template",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\AccountImport\\Api\\GetTemplate"
+    },
+    {
+        "route": "/Nexa/account-import/preview",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\AccountImport\\Api\\PostPreview"
+    },
+    {
+        "route": "/Nexa/account-import/preview-page",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\AccountImport\\Api\\PostPreviewPage"
+    },
+    {
+        "route": "/Nexa/account-import/confirm",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\AccountImport\\Api\\PostConfirm"
     },
     {
         "route": "/Nexa/account/:id/timeline",

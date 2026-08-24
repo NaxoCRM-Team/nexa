@@ -67,6 +67,19 @@ $mustContain('aria-label="More customer actions"', $view, 'The More control and 
 foreach (['Log SMS', 'Log WhatsApp message', 'Log LinkedIn message', 'Log call', 'Log meeting', 'Log email', 'Log postal mail'] as $actionLabel) {
     $mustContain($actionLabel, $view, "The Contact command palette is missing {$actionLabel}.");
 }
+$mustContain("interactionContactField(label = 'Contacted')", $view, 'Contact communication logs must display the current Contact as a fixed recipient.');
+$mustContain("callOutcomeOptions()", $view, 'Contact call logs must expose the approved outcome catalogue.');
+$mustContain("'Left voicemail'", $view, 'Contact call outcomes must include voicemail handling.');
+$mustContain("meetingOutcomeOptions()", $view, 'Contact meeting logs must expose dedicated meeting outcomes.');
+$mustContain('data-nexa-duration-search', $view, 'Contact meeting duration must provide live search.');
+$mustContain('for (let minutes = 15; minutes <= 480; minutes += 15)', $view, 'Contact meeting duration must cover 15 minutes through 8 hours.');
+$mustContain('data-nexa-interaction-notes-editor', $view, 'Every Contact log must provide a native rich-text notes editor.');
+$mustContain("'custom:views/fields/nexa-rich-text'", $view, 'Contact logs must use the reusable Nexa rich editor with tenant files and images.');
+$mustContain("formData.set('notes'", $view, 'Every Contact log must persist its rich-text notes.');
+$mustContain('`Contacted: ${contactedName}`', $view, 'Contact communication logs must record the contacted person in the activity audit.');
+if (str_contains($view, '<label><span>Subject</span><input class="form-control" type="text" name="subject"')) {
+    throw new RuntimeException('Contact interaction popups must not request a Subject.');
+}
 $mustContain("'whatsapp.svg'", $view, 'WhatsApp logging must use a reliable local brand asset.');
 $mustContain("'linkedin.svg'", $view, 'LinkedIn logging must use a reliable local brand asset.');
 $mustContain('nexa-command-brand-icon', $styles, 'Customer communication brand assets must fit the command controls.');
@@ -162,6 +175,7 @@ $mustContain('Espo.Ajax.deleteRequest(`Note/${encodeURIComponent(noteId)}`)', $v
 $mustContain('data-nexa-comment-form', $view, 'Saved notes must support team comments.');
 $mustContain('data-nexa-comment-editor-host=', $view, 'Comments must provide a native rich-text editor host.');
 $mustContain('mountContactCommentEditor', $view, 'Each expanded note must mount a managed native comment editor.');
+$mustContain("const view = await this.createView(key, 'custom:views/fields/nexa-rich-text'", $view, 'Contact comments and replies must use the aligned tenant-aware rich editor.');
 $mustContain('fetchToModel()', $view, 'Native rich-text values must be fetched into their Note model before saving.');
 $mustContain('richTextIsEmpty', $view, 'Native rich-text submissions must reject visually empty HTML.');
 $mustContain('this.getHelper().sanitizeHtml', $view, 'Stored rich-text note content must be sanitized before display.');
@@ -242,6 +256,13 @@ $mustContain('.nexa-inline-detail-trigger', $styles, 'Inline detail fields must 
 $mustContain('.nexa-inline-detail.is-error', $styles, 'Rejected inline updates must expose an error state.');
 $mustContain('.nexa-customer-command-menu', $styles, 'The customer-action palette must have a stable unclipped presentation.');
 $mustContain('.nexa-interaction-overlay', $styles, 'Manual interaction entry must use a centred modal surface.');
+$mustContain('data-nexa-interaction-notes-editor', $view, 'Every Contact interaction channel must provide the shared rich-text notes editor.');
+$mustContain("this.interactionNotesEditor = await this.createView('nexaInteractionNotesEditor', 'custom:views/fields/nexa-rich-text'", $view, 'Contact interaction notes must use the tenant-aware rich editor.');
+$mustContain("this.noteEditorView = await this.createView('nexaNoteEditor', 'custom:views/fields/nexa-rich-text'", $view, 'Contact create-note must use the tenant-aware rich editor.');
+$mustContain("a[data-nexa-file-id]", $view, 'Contact note validation must accept a securely attached file as content.');
+if (str_contains($view, 'data-nexa-sms-notes-editor') || str_contains($view, '<textarea class="form-control" name="notes"')) {
+    throw new RuntimeException('Contact interaction channels must not retain the SMS-only or plain-text notes editor.');
+}
 $mustContain('.nexa-note-dialog', $styles, 'The Contact Note action must use a responsive standalone popup.');
 $mustContain('.nexa-native-rich-editor', $styles, 'The Contact note editor must use a full-width native WYSIWYG surface.');
 $mustContain('.nexa-native-rich-editor .note-toolbar', $styles, 'The complete native formatting toolbar must remain visible and responsive.');
@@ -264,6 +285,8 @@ $mustContain('.nexa-note-action-disabled::after', $styles, 'Disabled Note deleti
 $mustContain('.nexa-note-delete-overlay', $styles, 'Note deletion confirmation must be centred over the application.');
 $mustContain('.nexa-comment-editor', $styles, 'Comment entry must use a full-width rich editor.');
 $mustContain('.nexa-comment-editor .note-editable', $styles, 'The native comment editing surface must fill the comment form.');
+$mustContain('.nexa-note-comment-form > div:not(.nexa-native-rich-editor)', $styles, 'Comment action-row layout must not turn the editor host into a flex row.');
+$mustContain('.nexa-comment-editor .note-toolbar > .note-btn-group', $styles, 'Comment toolbar controls must remain aligned in compact button groups.');
 $mustContain('min-height: 120px', $styles, 'The rich comment editor must retain a usable writing area.');
 $mustContain('.nexa-note-month > h4', $styles, 'Month groups must have a clear chronological heading.');
 $mustContain('position: fixed', $styles, 'Customer-action overlays must not be clipped by independently scrolling Contact columns.');

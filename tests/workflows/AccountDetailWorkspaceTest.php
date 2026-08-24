@@ -20,10 +20,48 @@ if (($clientDefs['recordViews']['detail'] ?? '') !== 'custom:views/account/recor
     throw new RuntimeException('Account detail must use the company workspace record view.');
 }
 
-$mustContain("['views/record/detail']", $view, 'The company workspace must extend the native Account record view.');
+$mustContain("'views/record/detail'", $view, 'The company workspace must extend the native Account record view.');
+$mustContain("'helpers/record-modal'", $view, 'The company workspace must use the standard related-record modal helper.');
+$mustContain("'custom:helpers/tenant-images'", $view, 'Company timeline rich content must use authenticated tenant image hydration.');
 $mustContain('super.afterRender()', $view, 'Native Account rendering must complete before the workspace is composed.');
 $mustContain('await this.model.fetch()', $view, 'The company summary must refresh before displaying saved values.');
 $mustContain('data-nexa-company-actions', $view, 'Native Account edit, save and action controls must be preserved.');
+$mustContain('data-nexa-company-action="note"', $view, 'Account profile must expose a direct note action.');
+$mustContain('data-nexa-company-action="task"', $view, 'Account profile must expose a direct task action.');
+$mustContain('data-nexa-company-action="meeting"', $view, 'Account profile must expose a direct meeting action.');
+$mustContain('data-nexa-company-more-actions', $view, 'Account profile must expose additional logged communication actions.');
+$mustContain("['whatsapp', null, 'Log WhatsApp message'", $view, 'Account communication actions must include WhatsApp logging.');
+$mustContain("['linkedin', null, 'Log LinkedIn message'", $view, 'Account communication actions must include LinkedIn logging.');
+$mustContain("['meeting', 'far fa-calendar-check', 'Log meeting']", $view, 'Account communication actions must include Meeting logging.');
+if (str_contains($view, "['live-chat'") || str_contains($view, "'live-chat': 'Live chat'")) {
+    throw new RuntimeException('Account communication actions must not include Live Chat.');
+}
+$mustContain('data-nexa-sms-contact-search', $view, 'Every Account interaction must expose a searchable associated-Contact picker.');
+$mustContain('role="combobox"', $view, 'Account Contact and duration searches must expose combobox semantics.');
+$mustContain('role="listbox"', $view, 'Account Contact and duration results must expose listbox semantics.');
+$mustContain('const interactionContacts = this.accountContacts || []', $view, 'Account interactions must offer all accessible associated Contacts.');
+$mustContain('accountCallOutcomeOptions()', $view, 'Account call logs must expose the approved outcome catalogue.');
+$mustContain('accountMeetingOutcomeOptions()', $view, 'Account meeting logs must expose dedicated outcomes.');
+$mustContain('data-nexa-duration-search', $view, 'Account meeting duration must provide live search.');
+$mustContain('for (let minutes = 15; minutes <= 480; minutes += 15)', $view, 'Account meeting duration must cover 15 minutes through 8 hours.');
+$mustContain('data-nexa-account-interaction-notes-editor', $view, 'Every Account interaction channel must provide a managed rich-text editor host.');
+$mustContain("'custom:views/fields/nexa-rich-text'", $view, 'Account interactions must use the reusable Nexa rich editor with tenant files and images.');
+$mustContain("this.accountNoteEditor = await this.createView('nexaAccountNoteEditor', 'custom:views/fields/nexa-rich-text'", $view, 'Account create-note must use the tenant-aware rich editor.');
+$mustContain("formData.set('notes'", $view, 'Every Account interaction must persist its rich-text notes.');
+$mustContain("a[data-nexa-file-id]", $view, 'Account note validation must accept a securely attached file as content.');
+if (str_contains($view, 'data-nexa-account-sms-notes-editor') || str_contains($view, '<textarea class="form-control" name="notes"')) {
+    throw new RuntimeException('Account interaction channels must not retain the SMS-only or plain-text notes editor.');
+}
+$mustContain('`Contacted: ${contacted}`', $view, 'Account communication logs must record the selected Contact in the activity audit.');
+if (str_contains($view, '<label><span>Subject</span><input class="form-control" name="subject"')) {
+    throw new RuntimeException('Account interaction popups must not request a Subject.');
+}
+$mustContain('escape(value)', $view, 'Dynamic Account SMS recipient values must use the workspace HTML-escaping helper.');
+$mustContain("checkScope(entityType, 'create')", $view, 'Account Task and Meeting creation must honor entity create permissions.');
+$mustContain("checkScope('Note', 'create')", $view, 'Account notes and logged interactions must honor Note create permissions.');
+$mustContain("parentType: 'Account', parentId: this.model.id", $view, 'Every Account quick action must link its record to the active Account.');
+$mustContain("this.loadTimelinePage(shell, key, false)", $view, 'Successful Account actions must refresh the protected timeline.');
+$mustContain('aria-label="Search company actions"', $view, 'The Account More menu must expose an accessible live search.');
 $mustContain("querySelectorAll(':scope > .record-buttons, :scope > .edit-buttons')", $view, 'View and edit controls must move together into the company toolbar.');
 $mustContain('data-nexa-company-edit-fields', $view, 'Native account properties must remain available during edit mode.');
 $mustContain("engagementTab('activity', 'Activity', true)", $view, 'Activity must be the first active company workspace tab.');
@@ -109,6 +147,14 @@ if (str_contains($view, 'nexa-company-fact-editor-controls')) {
 $mustContain('assignedUserName || record.createdByName', $view, 'Engagement rows must identify their responsible user.');
 $mustContain('isNoteComment(record)', $view, 'Note comments must not be counted as independent company notes.');
 $mustContain('isLoggedInteraction(record)', $view, 'Logged channel interactions must stay in Activity instead of the Notes tab.');
+$mustContain('return `Logged ${match?.[1]', $view, 'Logged interactions must use a concise channel-and-user timeline heading.');
+$mustContain('data-nexa-company-comment-toggle', $view, 'Every Account timeline record must expose threaded comments.');
+$mustContain("const view = await this.createView(key, 'custom:views/fields/nexa-rich-text'", $view, 'Account comments and replies must use the aligned tenant-aware rich editor.');
+$mustContain('.nexa-note-comment-form > div:not(.nexa-native-rich-editor)', $styles, 'Account comment action-row layout must not distort the rich editor toolbar.');
+$mustContain('data-nexa-company-reply-toggle', $view, 'Account timeline comments must support replies.');
+$mustContain('nexa-engagement-comment:', $view, 'Account timeline comments must persist with an explicit target marker.');
+$mustContain('nexa-engagement-reply:', $view, 'Account timeline replies must persist with an explicit parent marker.');
+$mustContain("parentType: 'Account', parentId: this.model.id", $view, 'Account timeline discussion must stay attached to the active tenant-scoped Account.');
 $mustContain('data-nexa-company-engagement-toggle', $view, 'Account engagement records must expand and collapse.');
 $mustContain('data-nexa-company-engagement-actions-toggle', $view, 'Expanded Account engagement records must expose an Actions menu.');
 $mustContain('data-nexa-company-engagement-pin', $view, 'Account engagement actions must support permission-checked pinning.');
@@ -120,6 +166,7 @@ $mustContain("document.body.classList.remove('nexa-account-detail-page')", $view
 foreach (['.nexa-company-grid', 'grid-template-columns:', '.nexa-company-metrics', '.nexa-company-native-actions', '.nexa-company-edit-host', ':has(.edit-buttons:not(.hidden))', '.nexa-company-engagement-record', '.nexa-company-tab-count', '.nexa-company-audit', '.nexa-company-contact-card', '.nexa-company-relationship-card', '.nexa-company-hidden-association-section', '@media (max-width: 760px)'] as $contract) {
     $mustContain($contract, $styles, "Account responsive workspace styling is missing {$contract}.");
 }
+$mustContain('.nexa-company-quick-actions', $styles, 'Account quick actions must have a stable responsive toolbar.');
 $mustContain('body.nexa-account-detail-page {', $styles, 'Desktop Account detail must lock document scrolling.');
 $mustContain('grid-template-rows: 72px minmax(0, 1fr)', $styles, 'Account toolbar and content grid must fit the application viewport.');
 $mustContain('max-height: 100%', $styles, 'The nested Account grid must not grow beyond its viewport row.');
