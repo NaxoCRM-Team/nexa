@@ -44,6 +44,12 @@ $pdo = $entityManager->getPDO();
 
 $cleanup = static function () use ($pdo, $testIds): void {
     $placeholders = implode(',', array_fill(0, count($testIds), '?'));
+    $pdo->prepare("DELETE t FROM nexa_lifecycle_transition t INNER JOIN nexa_lifecycle_assignment a ON a.id = t.lifecycle_assignment_id AND a.tenant_id = t.tenant_id WHERE a.entity_id IN ({$placeholders})")->execute($testIds);
+    $pdo->prepare("DELETE FROM nexa_lifecycle_assignment WHERE entity_id IN ({$placeholders})")->execute($testIds);
+    $pdo->prepare("DELETE FROM nexa_timeline_event WHERE source_entity_id IN ({$placeholders}) OR account_id IN ({$placeholders})")->execute([...$testIds, ...$testIds]);
+    $pdo->prepare("DELETE FROM nexa_relationship_edge WHERE source_entity_id IN ({$placeholders}) OR target_entity_id IN ({$placeholders})")->execute([...$testIds, ...$testIds]);
+    $pdo->prepare("DELETE FROM nexa_audit_event WHERE subject_id IN ({$placeholders})")->execute($testIds);
+    $pdo->prepare("DELETE FROM nexa_outbox_event WHERE aggregate_id IN ({$placeholders})")->execute($testIds);
     $pdo->prepare("DELETE FROM account WHERE id IN ({$placeholders})")->execute($testIds);
 };
 

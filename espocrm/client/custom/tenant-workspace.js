@@ -348,6 +348,48 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
         });
     };
 
+    const loadTenantCustomObjectNavigation = async navigation => {
+        const crmMenu = navigation.querySelector('li[data-name="nexa-crm"] .dropdown-menu');
+        if (!crmMenu || navigation.dataset.nexaCustomObjectsLoading === 'true') return;
+        navigation.dataset.nexaCustomObjectsLoading = 'true';
+
+        try {
+            const data = await Espo.Ajax.getRequest('Nexa/customization/definitions');
+            crmMenu.querySelectorAll('.nexa-custom-object-nav-item, .nexa-custom-object-nav-divider').forEach(item => item.remove());
+            const entities = data.entities || [];
+            if (!entities.length) return;
+
+            const divider = document.createElement('li');
+            divider.className = 'nexa-custom-object-nav-divider';
+            divider.setAttribute('role', 'presentation');
+            divider.innerHTML = '<span>Custom records</span>';
+            crmMenu.append(divider);
+
+            entities.forEach(entity => {
+                const item = document.createElement('li');
+                const link = document.createElement('a');
+                const icon = document.createElement('span');
+                const label = document.createElement('span');
+
+                item.className = 'in-group tab nexa-custom-object-nav-item';
+                item.dataset.name = `nexa-object-${entity.entity_key}`;
+                link.className = 'nav-link nexa-active-module-link';
+                link.href = `#NexaObject/index/entity=${encodeURIComponent(entity.entity_key)}`;
+                icon.className = `${entity.icon_class || 'fas fa-cubes'} nexa-custom-object-nav-icon`;
+                icon.setAttribute('aria-hidden', 'true');
+                label.className = 'full-label';
+                label.textContent = entity.plural_label;
+                link.append(icon, label);
+                item.append(link);
+                crmMenu.append(item);
+            });
+        } catch (error) {
+            // The native navigation remains usable if customization metadata is unavailable.
+        } finally {
+            navigation.dataset.nexaCustomObjectsLoading = 'false';
+        }
+    };
+
     NavbarView.prototype.data = function () {
         const data = defaultData.call(this);
 
@@ -418,6 +460,11 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
             if (navigation) {
                 enhanceWorkspaceNavigation(navigation);
                 ensureSidebarFooter(navigation);
+                loadTenantCustomObjectNavigation(navigation);
+                if (navigation.dataset.nexaCustomObjectListener !== 'true') {
+                    navigation.dataset.nexaCustomObjectListener = 'true';
+                    document.addEventListener('nexa:custom-objects-changed', () => loadTenantCustomObjectNavigation(navigation));
+                }
             }
 
             if (toggle && navigation) {

@@ -7,7 +7,6 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-customer-timeline', 'Customer Timeline'],
             ['nexa-lists-segments', 'Lists & Segments'],
             ['nexa-lifecycle', 'Lifecycle'],
-            ['nexa-custom-objects', 'Custom Objects'],
         ]},
         {name: 'nexa-sales', label: 'Sales', iconClass: 'fas fa-chart-line', items: [
             'Opportunity', 'Meeting', 'Call', 'Task', 'Calendar',

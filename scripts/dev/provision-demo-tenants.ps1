@@ -13,8 +13,10 @@ $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $environmentNames = @(
     'NEXA_TENANT_A_ADMIN_USERNAME',
     'NEXA_TENANT_A_ADMIN_PASSWORD',
+    'NEXA_TENANT_A_ADMIN_EMAIL',
     'NEXA_TENANT_B_ADMIN_USERNAME',
-    'NEXA_TENANT_B_ADMIN_PASSWORD'
+    'NEXA_TENANT_B_ADMIN_PASSWORD',
+    'NEXA_TENANT_B_ADMIN_EMAIL'
 )
 $previousEnvironment = @{}
 foreach ($name in $environmentNames) {
@@ -90,8 +92,10 @@ try {
 
     $env:NEXA_TENANT_A_ADMIN_USERNAME = $TenantAUserName
     $env:NEXA_TENANT_A_ADMIN_PASSWORD = $tenantAPassword
+    $env:NEXA_TENANT_A_ADMIN_EMAIL = if ($environment['DEMO_TENANT_A_ADMIN_EMAIL']) { $environment['DEMO_TENANT_A_ADMIN_EMAIL'] } else { 'demo-admin@isolation-alpha.nexa.test' }
     $env:NEXA_TENANT_B_ADMIN_USERNAME = $TenantBUserName
     $env:NEXA_TENANT_B_ADMIN_PASSWORD = $tenantBPassword
+    $env:NEXA_TENANT_B_ADMIN_EMAIL = if ($environment['DEMO_TENANT_B_ADMIN_EMAIL']) { $environment['DEMO_TENANT_B_ADMIN_EMAIL'] } else { 'demo-admin-b@isolation-beta.nexa.test' }
 
     & $PhpPath (Join-Path $root 'espocrm\bin\provision-demo-tenants.php')
 

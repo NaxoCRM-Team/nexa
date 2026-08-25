@@ -127,6 +127,8 @@ Delivery is split across Sprints 05-07: tenant lifecycle, entitlements and role 
 - Complete operational email, Cases, queues, SLA timers, escalation, Knowledge Base, Portal and customer-support workflows.
 - Deliver tenant-aware CRM APIs plus governed asynchronous import, export, merge and migration tooling.
 
+The tenant fields, layouts, custom objects and relationship sub-gate is recorded in [Phase 3 Customization Exit Gate](../development/phase-3-customization-exit-gate.md).
+
 **Exit gate:** A tenant can operate a connected customer, sales and service lifecycle in which conversion, relationships, activities and support history remain attached to the same governed customer identity.
 
 ### Phase 4 - Consent, Content, Segmentation and Campaign Foundation

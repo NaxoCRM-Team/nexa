@@ -1,8 +1,9 @@
-define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'helpers/record/create-related', 'custom:views/contact/record/twilio-call-controller', 'custom:views/call/caller-id-modal', 'custom:helpers/tenant-images', 'custom:helpers/tenant-files'], (Dep, RecordModalHelper, CreateRelatedHelper, TwilioCallController, CallerIdVerifyModal, TenantImages, TenantFiles) => {
+define('custom:views/contact/record/detail-workspace', ['crm:views/contact/record/detail', 'helpers/record-modal', 'helpers/record/create-related', 'custom:views/contact/record/twilio-call-controller', 'custom:views/call/caller-id-modal', 'custom:helpers/tenant-images', 'custom:helpers/tenant-files', 'custom:helpers/custom-properties'], (Dep, RecordModalHelper, CreateRelatedHelper, TwilioCallController, CallerIdVerifyModal, TenantImages, TenantFiles, CustomProperties) => {
     return class extends Dep {
         setup() {
             super.setup();
             TenantFiles.install();
+            this.nexaCustomProperties = new CustomProperties(this, 'Contact', 'detail');
             document.body.classList.add('nexa-contact-detail-page');
             this.once('remove', () => {
                 document.body.classList.remove('nexa-contact-detail-page');
@@ -136,6 +137,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.loadContactMarketingContext(shell);
             this.loadContactRecordCreationActivities(shell);
             this.loadContactPipelineValue(shell);
+            this.nexaCustomProperties.mount(shell.querySelector('[data-nexa-contact-custom-properties]'));
             if (this.activateActivityAfterRender) {
                 this.activateActivityAfterRender = false;
                 shell.querySelector('[data-nexa-tab="activity"]')?.click();
@@ -213,6 +215,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                             ['Last website visit', this.model.get('lastWebsiteVisitAt')],
                         ])}
                         ${this.socialProfilesCard()}
+                        <div data-nexa-contact-custom-properties></div>
                     </div>
                 </aside>
                 <main class="nexa-customer-centre">

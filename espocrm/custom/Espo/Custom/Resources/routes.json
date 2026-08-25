@@ -87,6 +87,66 @@
         "actionClassName": "Espo\\Custom\\Tools\\Customer\\Api\\GetFoundation"
     },
     {
+        "route": "/Nexa/customization/definitions",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\GetDefinitions"
+    },
+    {
+        "route": "/Nexa/customization/definitions/:kind",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\PostDefinition"
+    },
+    {
+        "route": "/Nexa/customization/definitions/:kind/:id",
+        "method": "delete",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\DeleteDefinition"
+    },
+    {
+        "route": "/Nexa/customization/values/:entityType/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\GetValues"
+    },
+    {
+        "route": "/Nexa/customization/values/:entityType/:id",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\PostValues"
+    },
+    {
+        "route": "/Nexa/customization/entities/:entityKey/records",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\GetRecords"
+    },
+    {
+        "route": "/Nexa/customization/entities/:entityKey/records",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\PostRecord"
+    },
+    {
+        "route": "/Nexa/customization/entities/:entityKey/records/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\GetRecord"
+    },
+    {
+        "route": "/Nexa/customization/entities/:entityKey/records/:id",
+        "method": "delete",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\DeleteRecord"
+    },
+    {
+        "route": "/Nexa/customization/relationships/link",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\PostLink"
+    },
+    {
+        "route": "/Nexa/customization/relationships/:definitionId/:entityType/:entityId",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\GetRelationshipWorkspace"
+    },
+    {
+        "route": "/Nexa/customization/relationships/link/:id",
+        "method": "delete",
+        "actionClassName": "Espo\\Custom\\Tools\\Customization\\Api\\DeleteLink"
+    },
+    {
         "route":  "/Nexa/contact-profile-image/:id",
         "method":  "get",
         "actionClassName":  "Espo\\Custom\\Tools\\Contact\\Api\\GetProfileImage"
