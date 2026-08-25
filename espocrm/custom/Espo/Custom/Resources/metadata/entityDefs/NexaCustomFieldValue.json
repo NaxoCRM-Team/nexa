@@ -1,0 +1,17 @@
+{
+    "skipRebuild": true,
+    "noDeletedAttribute": true,
+    "fields": {
+        "tenantId": {"type": "varchar", "maxLength": 36},
+        "serviceId": {"type": "varchar", "maxLength": 36},
+        "fieldDefinitionId": {"type": "varchar", "maxLength": 36},
+        "entityType": {"type": "varchar", "maxLength": 64},
+        "entityId": {"type": "varchar", "maxLength": 64},
+        "valueText": {"type": "text"},
+        "valueNumber": {"type": "float"},
+        "valueDate": {"type": "date"},
+        "valueDatetime": {"type": "datetime"},
+        "valueBoolean": {"type": "bool"},
+        "valueJson": {"type": "text"}
+    }
+}

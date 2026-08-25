@@ -372,6 +372,27 @@
     font-size: 12px;
     margin: 3px 0 0;
 }
+.nexa-property-source {
+    color: #65767a;
+    display: block;
+    font-size: 11px;
+    margin-top: 4px;
+}
+.nexa-property-table article.is-standard {
+    background: #f8fafb;
+}
+.nexa-property-action {
+    display: flex;
+    justify-content: center;
+    min-width: 34px;
+}
+.nexa-property-conflict {
+    background: #fff1f0;
+    border: 1px solid #e5a3a0;
+    color: #9d2722;
+    font-weight: 700;
+    padding: 10px 12px;
+}
 .nexa-property-type {
     color: var(--nexa-blue);
     font-size: 12px;

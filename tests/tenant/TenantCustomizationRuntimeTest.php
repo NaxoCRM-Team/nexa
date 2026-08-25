@@ -7,9 +7,12 @@ require $root . '/espocrm/bootstrap.php';
 
 use Espo\Core\Application;
 use Espo\Core\Exceptions\BadRequest;
+use Espo\Core\Exceptions\Conflict;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\InjectableFactory;
 use Espo\Core\ORM\EntityManager;
+use Espo\Core\Select\SelectBuilderFactory;
+use Espo\Core\Select\Where\Item;
 use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Custom\Tools\Customer\CustomerFoundationQueryService;
@@ -45,6 +48,7 @@ $container = $application->getContainer();
 $entityManager = $container->getByClass(EntityManager::class);
 $store = $container->getByClass(TenantContextStore::class);
 $factory = $container->getByClass(InjectableFactory::class);
+$selectBuilderFactory = $container->getByClass(SelectBuilderFactory::class);
 $service = $factory->create(CustomizationService::class);
 $customer = $factory->create(CustomerFoundationQueryService::class);
 $pdo = $entityManager->getPDO();
@@ -55,10 +59,16 @@ $pdo->beginTransaction();
 try {
     $store->runWith($tenantA, function () use ($entityManager,$service,$pdo,$shortId,$assert,$requiredValues,$suffix,$contactA,$fieldKey,$objectKey,$relationshipKey,&$recordA,&$relationship): void {
         $entityManager->createEntity('Contact',['id'=>$contactA,'firstName'=>'Tenant','lastName'=>'Alpha']);
-        $service->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$fieldKey,'label'=>'Membership','dataType'=>'text','isRequired'=>true]);
+        $service->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$fieldKey,'label'=>'Membership','dataType'=>'text','isRequired'=>true,'isSearchable'=>true,'isFilterable'=>true]);
+        $duplicateRejected = false;
+        try { $service->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$fieldKey,'label'=>'Membership duplicate','dataType'=>'text']); } catch (Conflict) { $duplicateRejected = true; }
+        $assert($duplicateRejected,'A duplicate tenant property internal name was accepted.');
+        $standardRejected = false;
+        try { $service->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>'first_name','label'=>'First Name','dataType'=>'text']); } catch (Conflict) { $standardRejected = true; }
+        $assert($standardRejected,'A custom property duplicated a standard Contact property.');
         $service->saveValues('Contact',$contactA,[...$requiredValues($service,'Contact','alpha-'.$suffix),$fieldKey=>'ALPHA-001']);
         $service->saveDefinition('entity',['entityKey'=>$objectKey,'label'=>'Asset','pluralLabel'=>'Assets']);
-        $service->saveDefinition('field',['entityType'=>$objectKey,'fieldKey'=>'serial_number','label'=>'Serial number','dataType'=>'text','isRequired'=>true,'isUnique'=>true]);
+        $service->saveDefinition('field',['entityType'=>$objectKey,'fieldKey'=>'serial_number','label'=>'Serial number','dataType'=>'text','isRequired'=>true,'isUnique'=>true,'isSearchable'=>true,'isFilterable'=>true]);
         $invalidId = $shortId('nxbad');
         $rejected = false;
         try {
@@ -92,6 +102,35 @@ try {
     $recordList = $store->runWith($tenantA, fn(): array => $service->records($objectKey, 0, 25, 'Alpha'));
     $assert($recordList['total'] === 1, 'The normal custom-object list did not find the tenant record.');
     $assert(($recordList['records'][0]['values']['serial_number'] ?? null) === 'ASSET-A', 'The normal list omitted configured custom values.');
+    $propertySearch = $store->runWith($tenantA, fn(): array => $service->records($objectKey, 0, 25, 'ASSET-A'));
+    $assert($propertySearch['total'] === 1, 'Custom-object keyword search ignored a searchable custom property value.');
+    $store->runWith($tenantA, function () use ($entityManager, $selectBuilderFactory, $contactA, $contactB, $fieldKey, $assert): void {
+        $keywordQuery = $selectBuilderFactory->create()
+            ->from('Contact')
+            ->withTextFilter('ALPHA-001')
+            ->build();
+        $keywordIds = array_map(
+            static fn ($entity): string => (string) $entity->getId(),
+            iterator_to_array($entityManager->getRDBRepository('Contact')->clone($keywordQuery)->find())
+        );
+        $assert(in_array($contactA, $keywordIds, true), 'Contact keyword search ignored a searchable tenant property.');
+        $assert(!in_array($contactB, $keywordIds, true), 'Contact keyword search returned another tenant record.');
+
+        $filter = Item::fromRaw([
+            'type' => 'nexaCustomProperty',
+            'attribute' => 'nexaCustomPropertyFilter',
+            'value' => json_encode(['fieldKey' => $fieldKey, 'operator' => 'equals', 'value' => 'ALPHA-001'], JSON_THROW_ON_ERROR),
+        ]);
+        $filterQuery = $selectBuilderFactory->create()
+            ->from('Contact')
+            ->withWhere($filter)
+            ->build();
+        $filterIds = array_map(
+            static fn ($entity): string => (string) $entity->getId(),
+            iterator_to_array($entityManager->getRDBRepository('Contact')->clone($filterQuery)->find())
+        );
+        $assert($filterIds === [$contactA], 'The advanced custom-property filter returned an incorrect Contact set.');
+    });
     $recordWorkspace = $store->runWith($tenantA, fn(): array => $service->recordWorkspace($objectKey, $recordA['id']));
     $assert($recordWorkspace['record']['display_name'] === 'Alpha asset', 'The normal detail workspace loaded the wrong record.');
     $assert(($recordWorkspace['values']['serial_number'] ?? null) === 'ASSET-A', 'The normal detail workspace omitted custom values.');

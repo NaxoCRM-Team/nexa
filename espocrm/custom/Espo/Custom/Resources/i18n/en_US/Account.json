@@ -1,5 +1,6 @@
 {
     "fields": {
+        "nexaCustomPropertyFilter": "Custom properties",
         "companyLogo": "Company Logo",
         "annualRevenue": "Annual Revenue", "numberOfEmployees": "Number of Employees",
         "parentAccount": "Parent Company", "subsidiaries": "Subsidiaries", "leadScore": "Lead Score",

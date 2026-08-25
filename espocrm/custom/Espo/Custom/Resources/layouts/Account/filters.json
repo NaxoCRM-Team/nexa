@@ -2,5 +2,5 @@
     "assignedUser", "teams", "createdAt", "createdBy", "modifiedAt", "streamUpdatedAt",
     "type", "industry", "annualRevenue", "numberOfEmployees", "parentAccount", "description",
     "emailAddress", "phoneNumber", "targetLists", "billingAddressCountry", "billingAddress",
-    "shippingAddress", "website", "campaign"
+    "shippingAddress", "website", "campaign", "nexaCustomPropertyFilter"
 ]

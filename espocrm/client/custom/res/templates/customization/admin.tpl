@@ -39,7 +39,7 @@
         </nav>
 
         <section id="properties-panel" class="nexa-object-panel" data-object-panel="properties" role="tabpanel" aria-labelledby="properties-tab">
-            <header class="nexa-panel-header"><div><h3>Properties</h3><p>Properties are the fields that store information on each record.</p></div><button type="button" class="btn btn-primary" data-action="open-property-dialog"><span class="fas fa-plus" aria-hidden="true"></span>Add property</button></header>
+            <header class="nexa-panel-header"><div><h3>Property catalogue</h3><p>Review standard and tenant-created properties before adding more information.</p></div><button type="button" class="btn btn-primary" data-action="open-property-dialog"><span class="fas fa-plus" aria-hidden="true"></span>Add property</button></header>
             <div class="nexa-list-toolbar"><label><span class="fas fa-search" aria-hidden="true"></span><span class="sr-only">Search properties</span><input type="search" data-property-search placeholder="Search properties"></label><span data-property-count></span></div>
             <div class="nexa-property-list" data-property-list></div>
         </section>
@@ -69,7 +69,8 @@
                 <label>Information type<select name="dataType" required></select></label>
                 <label class="nexa-property-options" hidden>Choices <span>Enter one choice per line.</span><textarea name="options" rows="5" placeholder="Standard&#10;Premium&#10;Enterprise"></textarea></label>
                 <label>Description <span>Optional</span><textarea name="description" rows="2" maxlength="500" placeholder="Help users understand what to enter."></textarea></label>
-                <fieldset class="nexa-rule-options"><legend>Rules</legend><label><input type="checkbox" name="isRequired">Require a value</label><label><input type="checkbox" name="isUnique">Do not allow duplicate values</label><label><input type="checkbox" name="isSearchable">Include in search</label></fieldset>
+                <div class="nexa-property-conflict" data-property-conflict role="alert" hidden></div>
+                <fieldset class="nexa-rule-options"><legend>Rules</legend><label><input type="checkbox" name="isRequired">Require a value</label><label><input type="checkbox" name="isUnique">Do not allow duplicate values</label><label><input type="checkbox" name="isSearchable">Include in keyword and global search</label><label><input type="checkbox" name="isFilterable" checked>Allow as a list filter</label></fieldset>
                 <fieldset class="nexa-placement-options"><legend>Show this property on</legend><label><input type="checkbox" name="showOn" value="create" checked>Create form</label><label><input type="checkbox" name="showOn" value="edit" checked>Edit form</label><label><input type="checkbox" name="showOn" value="detail" checked>Record details</label></fieldset>
                 <details class="nexa-advanced-settings"><summary>Advanced settings</summary><label>Internal name <span>Used by APIs and integrations. It cannot be changed later.</span><input name="fieldKey" pattern="[a-z][a-z0-9_]{1,63}" required data-generated-key></label></details>
             </div><footer><button type="button" class="btn btn-default" data-action="close-dialog">Cancel</button><button type="submit" class="btn btn-primary">Create property</button></footer></form>

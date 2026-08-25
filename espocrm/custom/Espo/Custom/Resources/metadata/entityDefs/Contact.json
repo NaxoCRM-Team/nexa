@@ -197,6 +197,13 @@
             "maxLength": 17,
             "readOnly": true,
             "disabled": true
+        },
+        "nexaCustomPropertyFilter": {
+            "type": "varchar",
+            "notStorable": true,
+            "readOnly": true,
+            "layoutListDisabled": true,
+            "view": "custom:views/fields/custom-property-filter"
         }
     }
 }

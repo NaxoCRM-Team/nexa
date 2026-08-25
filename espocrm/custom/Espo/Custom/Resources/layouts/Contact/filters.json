@@ -17,5 +17,6 @@
     "marketingStatus",
     "targetLists",
     "campaign",
-    "lifecycleStage"
+    "lifecycleStage",
+    "nexaCustomPropertyFilter"
 ]

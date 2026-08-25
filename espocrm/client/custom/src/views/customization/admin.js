@@ -7,6 +7,8 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         'click [data-action="back-to-objects"]': 'backToObjects',
         'input [data-object-search]': 'filterObjects',
         'input [data-property-search]': 'filterProperties',
+        'input [data-form="field"] [name="label"]': 'validatePropertyIdentity',
+        'input [data-form="field"] [name="fieldKey"]': 'validatePropertyIdentity',
         'click [data-object-tab]': 'selectObjectTab',
         'click [data-action="open-property-dialog"]': 'openPropertyDialog',
         'click [data-action="open-object-dialog"]': 'openObjectDialog',
@@ -169,6 +171,17 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         return (this.dataSet?.fields || []).filter(item => item.entity_type === entityType);
     }
 
+    standardFieldsFor(entityType) {
+        return (this.dataSet?.standardFields || []).filter(item => item.entity_type === entityType);
+    }
+
+    propertyCatalogueFor(entityType) {
+        return [
+            ...this.standardFieldsFor(entityType).map(item => ({...item, source: 'standard'})),
+            ...this.fieldsFor(entityType).map(item => ({...item, source: 'custom'})),
+        ];
+    }
+
     relationshipsFor(entityType) {
         return (this.dataSet?.relationships || []).filter(item => item.source_entity_type === entityType || item.target_entity_type === entityType);
     }
@@ -176,11 +189,14 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
     renderProperties(query = '') {
         const host = this.element.querySelector('[data-property-list]');
         if (!host || !this.selectedEntityType) return;
-        const fields = this.fieldsFor(this.selectedEntityType).filter(field => !query || `${field.label} ${field.field_key} ${field.data_type}`.toLowerCase().includes(query));
-        this.element.querySelector('[data-property-count]').textContent = `${this.fieldsFor(this.selectedEntityType).length} additional properties`;
+        const catalogue = this.propertyCatalogueFor(this.selectedEntityType);
+        const fields = catalogue.filter(field => !query || `${field.label} ${field.field_key} ${field.data_type} ${field.source}`.toLowerCase().includes(query));
+        const standardCount = this.standardFieldsFor(this.selectedEntityType).length;
+        const customCount = this.fieldsFor(this.selectedEntityType).length;
+        this.element.querySelector('[data-property-count]').textContent = `${standardCount} standard | ${customCount} custom`;
         host.replaceChildren();
         if (!fields.length) {
-            host.innerHTML = '<div class="nexa-empty-state"><span class="fas fa-list-alt" aria-hidden="true"></span><h4>No additional properties yet</h4><p>Add information your team needs that is not already available on this record.</p><button type="button" class="btn btn-primary" data-action="open-property-dialog">Add the first property</button></div>';
+            host.innerHTML = query ? '<div class="nexa-empty-state"><span class="fas fa-search" aria-hidden="true"></span><h4>No matching properties</h4><p>Try a different property name or internal name.</p></div>' : '<div class="nexa-empty-state"><span class="fas fa-list-alt" aria-hidden="true"></span><h4>No properties yet</h4><p>Add the first property needed by this object.</p><button type="button" class="btn btn-primary" data-action="open-property-dialog">Add the first property</button></div>';
             return;
         }
         const table = document.createElement('div');
@@ -188,12 +204,19 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         fields.forEach(field => {
             const row = document.createElement('article');
             row.dataset.propertySearch = `${field.label} ${field.field_key} ${field.data_type}`.toLowerCase();
-            row.innerHTML = '<div><strong></strong><p></p></div><span class="nexa-property-type"></span><span class="nexa-property-placement"></span><button type="button" class="btn btn-default btn-sm" data-action="archive" data-kind="field" title="Archive property"><span class="far fa-archive" aria-hidden="true"></span></button>';
+            row.classList.toggle('is-standard', field.source === 'standard');
+            row.innerHTML = '<div><strong></strong><p></p><small class="nexa-property-source"></small></div><span class="nexa-property-type"></span><span class="nexa-property-placement"></span><span class="nexa-property-action"></span>';
             row.querySelector('strong').textContent = field.label;
             row.querySelector('p').textContent = field.description || 'No description';
+            row.querySelector('.nexa-property-source').textContent = `${field.source === 'standard' ? 'Standard property' : 'Tenant property'} | ${field.field_key}`;
             row.querySelector('.nexa-property-type').textContent = this.typeLabel(field.data_type);
-            row.querySelector('.nexa-property-placement').textContent = this.propertyPlacement(field.field_key);
-            row.querySelector('[data-action="archive"]').dataset.id = field.id;
+            row.querySelector('.nexa-property-placement').textContent = field.source === 'standard' ? this.propertyCapabilities(field) : `${this.propertyPlacement(field.field_key)} | ${this.propertyCapabilities(field)}`;
+            if (field.source === 'custom') {
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = 'btn btn-default btn-sm'; button.dataset.action = 'archive'; button.dataset.kind = 'field'; button.dataset.id = field.id; button.title = 'Archive property';
+                button.innerHTML = '<span class="far fa-archive" aria-hidden="true"></span>';
+                row.querySelector('.nexa-property-action').append(button);
+            }
             table.append(row);
         });
         host.append(table);
@@ -207,6 +230,15 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         const labels = {create: 'Create', edit: 'Edit', detail: 'Details', list: 'List', search: 'Search'};
         const contexts = (this.dataSet?.layouts || []).filter(layout => layout.entity_type === this.selectedEntityType && layout.layout.includes(fieldKey)).map(layout => labels[layout.layout_context]);
         return contexts.length ? contexts.join(', ') : 'Uses default placement';
+    }
+
+    propertyCapabilities(field) {
+        const values = [];
+        if (field.is_searchable) values.push('Searchable');
+        if (field.is_filterable) values.push('Filterable');
+        if (field.is_required) values.push('Required');
+        if (field.is_unique) values.push('Unique');
+        return values.length ? values.join(', ') : 'Display only';
     }
 
     populateFieldTypes() {
@@ -224,6 +256,7 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         form.elements.fieldKey.dataset.userEdited = '';
         this.element.querySelector('[data-property-object-name]').textContent = entity.label;
         this.togglePropertyOptions({currentTarget: form.elements.dataType});
+        this.validatePropertyIdentity({currentTarget: form.elements.label});
         this.openDialog('property', form.elements.label);
     }
 
@@ -277,10 +310,27 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
             const plural = form.elements.pluralLabel;
             if (!plural.dataset.userEdited) plural.value = this.pluralize(event.currentTarget.value);
         }
+        if (form.dataset.form === 'field') this.validatePropertyIdentity({currentTarget: event.currentTarget});
     }
 
     markKeyAsEdited(event) {
         event.currentTarget.dataset.userEdited = event.currentTarget.value ? 'true' : '';
+        if (event.currentTarget.closest('form')?.dataset.form === 'field') this.validatePropertyIdentity(event);
+    }
+
+    validatePropertyIdentity(event) {
+        const form = event.currentTarget.closest('form');
+        if (!form || form.dataset.form !== 'field') return;
+        const label = String(form.elements.label.value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+        const key = String(form.elements.fieldKey.value || '').trim().toLowerCase();
+        const conflict = this.propertyCatalogueFor(this.selectedEntityType).find(field =>
+            field.field_key.toLowerCase() === key || String(field.label || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '') === label
+        );
+        const message = form.querySelector('[data-property-conflict]');
+        const submit = form.querySelector('[type="submit"]');
+        message.hidden = !conflict;
+        message.textContent = conflict ? `${conflict.label} already exists as a ${conflict.source === 'standard' ? 'standard' : 'tenant'} property. Use the existing property instead.` : '';
+        submit.disabled = Boolean(conflict);
     }
 
     keyFrom(value) {
@@ -315,6 +365,7 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         data.isRequired = form.elements.isRequired.checked;
         data.isUnique = form.elements.isUnique.checked;
         data.isSearchable = form.elements.isSearchable.checked;
+        data.isFilterable = form.elements.isFilterable.checked;
         data.position = this.fieldsFor(this.selectedEntityType).length;
         const contexts = [...form.querySelectorAll('[name="showOn"]:checked')].map(input => input.value);
         try {

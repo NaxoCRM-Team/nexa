@@ -21,7 +21,8 @@
         "title": "Account Title",
         "targetLists": "Segments",
         "address": "Location",
-        "createdAt": "Created Date and Time"
+        "createdAt": "Created Date and Time",
+        "nexaCustomPropertyFilter": "Custom properties"
     },
     "options": {
         "source": {

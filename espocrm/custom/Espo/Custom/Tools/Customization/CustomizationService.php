@@ -5,11 +5,13 @@ namespace Espo\Custom\Tools\Customization;
 use Espo\Core\Acl;
 use Espo\Core\Acl\Table as AclTable;
 use Espo\Core\Exceptions\BadRequest;
+use Espo\Core\Exceptions\Conflict;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\ORM\EntityManager;
 use Espo\Core\Select\SelectBuilderFactory;
 use Espo\Core\Tenant\TenantContextStore;
+use Espo\Core\Utils\Metadata;
 use Espo\Entities\User;
 use PDO;
 
@@ -25,6 +27,7 @@ final class CustomizationService
         private User $user,
         private Acl $acl,
         private SelectBuilderFactory $selectBuilderFactory,
+        private Metadata $metadata,
     ) {}
 
     /** @return array<string, mixed> */
@@ -55,11 +58,16 @@ final class CustomizationService
         }
         unset($layout);
 
+        $standardEntityTypes = $entityType
+            ? (in_array($entityType, self::NATIVE, true) ? [$entityType] : [])
+            : self::NATIVE;
+
         return [
             'nativeEntityTypes' => self::NATIVE,
             'fieldTypes' => self::TYPES,
             'entities' => $this->all('SELECT id,entity_key,label,plural_label,description,icon_class,status,created_at,updated_at FROM nexa_custom_entity_definition WHERE tenant_id=? AND service_id=? AND status=\'active\' ORDER BY label', $scope),
             'fields' => $fields,
+            'standardFields' => $standardEntityTypes === [] ? [] : array_merge(...array_map(fn (string $type): array => $this->standardProperties($type), $standardEntityTypes)),
             'layouts' => $layouts,
             'relationships' => $this->all('SELECT id,relationship_key,label,inverse_label,source_entity_type,target_entity_type,cardinality,is_required FROM nexa_custom_relationship_definition WHERE tenant_id=? AND service_id=? AND is_active=1 ORDER BY label', $scope),
         ];
@@ -162,14 +170,15 @@ final class CustomizationService
         $context = $this->tenantContextStore->require();
         $offset = max(0, $offset); $limit = min(200, max(1, $limit));
         $query = trim($query);
-        $where = 'tenant_id=? AND service_id=? AND custom_entity_id=? AND deleted_at IS NULL';
+        $where = 'r.tenant_id=? AND r.service_id=? AND r.custom_entity_id=? AND r.deleted_at IS NULL';
         $params = [$context->tenantId, $context->serviceId, $entity['id']];
         if ($query !== '') {
-            $where .= " AND display_name LIKE ? ESCAPE '\\\\'";
-            $params[] = '%' . addcslashes($query, '%_\\') . '%';
+            $pattern = '%' . addcslashes($query, '%_\\') . '%';
+            $where .= " AND (r.display_name LIKE ? ESCAPE '\\\\' OR EXISTS (SELECT 1 FROM nexa_custom_field_value v INNER JOIN nexa_custom_field_definition d ON d.id=v.field_definition_id AND d.tenant_id=v.tenant_id AND d.service_id=v.service_id WHERE v.tenant_id=r.tenant_id AND v.service_id=r.service_id AND v.entity_type=? AND v.entity_id=r.id AND d.is_active=1 AND d.is_searchable=1 AND CONCAT_WS(' ',v.value_text,v.value_number,v.value_date,v.value_datetime,v.value_json) LIKE ? ESCAPE '\\\\'))";
+            array_push($params, $pattern, $entity['entity_key'], $pattern);
         }
-        $count = $this->one("SELECT COUNT(*) AS total FROM nexa_custom_record WHERE {$where}", $params);
-        $statement = $this->entityManager->getPDO()->prepare("SELECT id,display_name,assigned_user_id,created_by_id,modified_by_id,created_at,updated_at FROM nexa_custom_record WHERE {$where} ORDER BY updated_at DESC LIMIT ? OFFSET ?");
+        $count = $this->one("SELECT COUNT(*) AS total FROM nexa_custom_record r WHERE {$where}", $params);
+        $statement = $this->entityManager->getPDO()->prepare("SELECT r.id,r.display_name,r.assigned_user_id,r.created_by_id,r.modified_by_id,r.created_at,r.updated_at FROM nexa_custom_record r WHERE {$where} ORDER BY r.updated_at DESC LIMIT ? OFFSET ?");
         foreach ($params as $index => $value) $statement->bindValue($index + 1, $value);
         $statement->bindValue(count($params) + 1, $limit, PDO::PARAM_INT);
         $statement->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
@@ -499,11 +508,43 @@ final class CustomizationService
         $context=$this->tenantContextStore->require(); $entityType=$this->entityType($data['entityType']??''); $this->entityExists($entityType); $key=$this->key($data['fieldKey']??'','Field key');
         $type=is_string($data['dataType']??null)?strtolower($data['dataType']):''; if(!in_array($type,self::TYPES,true)) throw new BadRequest('Unsupported custom field type.');
         $options=is_array($data['options']??null)?array_values(array_filter($data['options'],'is_string')):[]; if(in_array($type,['single_select','multi_select'],true)&&$options===[]) throw new BadRequest('Select properties need at least one option.');
-        $id=isset($data['id'])&&is_string($data['id'])?$this->id($data['id']):$this->uuid();
-        $statement=$this->entityManager->getPDO()->prepare('INSERT INTO nexa_custom_field_definition (id,tenant_id,service_id,entity_type,field_key,label,description,data_type,options_json,default_value_json,validation_json,is_required,is_unique,is_filterable,is_searchable,position,created_by_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE label=VALUES(label),description=VALUES(description),options_json=VALUES(options_json),default_value_json=VALUES(default_value_json),validation_json=VALUES(validation_json),is_required=VALUES(is_required),is_unique=VALUES(is_unique),is_filterable=VALUES(is_filterable),is_searchable=VALUES(is_searchable),position=VALUES(position),is_active=1,archived_at=NULL');
-        $statement->execute([$id,$context->tenantId,$context->serviceId,$entityType,$key,$this->label($data['label']??'','Label'),$this->optional($data['description']??null,500),$type,json_encode($options,JSON_THROW_ON_ERROR),json_encode($data['defaultValue']??null,JSON_THROW_ON_ERROR),json_encode(is_array($data['validation']??null)?$data['validation']:[],JSON_THROW_ON_ERROR),!empty($data['isRequired'])?1:0,!empty($data['isUnique'])?1:0,array_key_exists('isFilterable',$data)&&!$data['isFilterable']?0:1,!empty($data['isSearchable'])?1:0,max(0,(int)($data['position']??0)),$this->user->getId()]);
+        $id=isset($data['id'])&&is_string($data['id'])?$this->id($data['id']):$this->uuid(); $label=$this->label($data['label']??'','Label');
+        $editing=isset($data['id']);
+        $existing=$this->one('SELECT id,is_active FROM nexa_custom_field_definition WHERE tenant_id=? AND service_id=? AND entity_type=? AND (LOWER(field_key)=LOWER(?) OR LOWER(TRIM(label))=LOWER(TRIM(?))) LIMIT 1',[$context->tenantId,$context->serviceId,$entityType,$key,$label]);
+        if($existing&&(!$editing||$existing['id']!==$id)) throw new Conflict(!empty($existing['is_active'])?'A property with this name or internal name already exists. Use the existing property.':'An archived property with this name already exists. Restore it instead of creating a duplicate.');
+        foreach($this->standardProperties($entityType) as $standard) if(strcasecmp($standard['field_key'],$key)===0||$this->normalizedLabel($standard['label'])===$this->normalizedLabel($label)) throw new Conflict("{$standard['label']} is already a standard property. Use the existing property.");
+        $filterable=array_key_exists('isFilterable',$data)?!empty($data['isFilterable']):true;
+        $values=[$label,$this->optional($data['description']??null,500),$type,json_encode($options,JSON_THROW_ON_ERROR),json_encode($data['defaultValue']??null,JSON_THROW_ON_ERROR),json_encode(is_array($data['validation']??null)?$data['validation']:[],JSON_THROW_ON_ERROR),!empty($data['isRequired'])?1:0,!empty($data['isUnique'])?1:0,$filterable?1:0,!empty($data['isSearchable'])?1:0,max(0,(int)($data['position']??0))];
+        if($editing){
+            if(!$this->one('SELECT id FROM nexa_custom_field_definition WHERE id=? AND tenant_id=? AND service_id=? AND entity_type=?',[$id,$context->tenantId,$context->serviceId,$entityType])) throw new NotFound('Custom property was not found.');
+            $statement=$this->entityManager->getPDO()->prepare('UPDATE nexa_custom_field_definition SET label=?,description=?,data_type=?,options_json=?,default_value_json=?,validation_json=?,is_required=?,is_unique=?,is_filterable=?,is_searchable=?,position=?,is_active=1,archived_at=NULL WHERE id=? AND tenant_id=? AND service_id=? AND entity_type=?');
+            $statement->execute([...$values,$id,$context->tenantId,$context->serviceId,$entityType]);
+        }else{
+            $statement=$this->entityManager->getPDO()->prepare('INSERT INTO nexa_custom_field_definition (id,tenant_id,service_id,entity_type,field_key,label,description,data_type,options_json,default_value_json,validation_json,is_required,is_unique,is_filterable,is_searchable,position,created_by_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+            $statement->execute([$id,$context->tenantId,$context->serviceId,$entityType,$key,...$values,$this->user->getId()]);
+        }
         $this->audit('customization.field.saved','custom_field',$id,['entityType'=>$entityType,'fieldKey'=>$key]); return ['id'=>$id,'entityType'=>$entityType,'fieldKey'=>$key];
     }
+
+    /** @return array<int,array<string,mixed>> */
+    private function standardProperties(string $entityType): array
+    {
+        if(!in_array($entityType,self::NATIVE,true)) return [];
+        $definitions=$this->metadata->get(['entityDefs',$entityType,'fields'],[]); if(!is_array($definitions)) return [];
+        $searchable=$this->metadata->get(['entityDefs',$entityType,'collection','textFilterFields'],[]); if(!is_array($searchable)) $searchable=[];
+        $excluded=['id','deleted','tenantId','serviceId','deletedAt','deletedById']; $result=[];
+        foreach($definitions as $key=>$definition){
+            if(!is_string($key)||!is_array($definition)||in_array($key,$excluded,true)||!empty($definition['disabled'])||!empty($definition['utility'])) continue;
+            $type=(string)($definition['type']??'varchar');
+            if(in_array($type,['link','linkMultiple','image','file','attachmentMultiple'],true)) continue;
+            $label=$this->humanize($key);
+            $result[]=['entity_type'=>$entityType,'field_key'=>$key,'label'=>$label,'data_type'=>$type,'source'=>'standard','is_required'=>(bool)($definition['required']??false),'is_unique'=>(bool)($definition['unique']??false),'is_filterable'=>empty($definition['notStorable']),'is_searchable'=>in_array($key,$searchable,true),'read_only'=>(bool)($definition['readOnly']??false)];
+        }
+        usort($result,fn(array $a,array $b):int=>strcasecmp($a['label'],$b['label'])); return $result;
+    }
+
+    private function normalizedLabel(string $value): string { return mb_strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value))); }
+    private function humanize(string $value): string { return ucfirst(trim((string)preg_replace('/(?<!^)[A-Z]|[_-]+/',' $0',$value))); }
 
     /** @param array<string, mixed> $data */
     private function saveLayout(array $data): array
