@@ -326,6 +326,7 @@ $accounts = [
         'host' => 'tenant-a.localhost',
         'slug' => 'isolation-alpha',
         'userName' => getenv('NEXA_TENANT_A_ADMIN_USERNAME') ?: 'demo-admin',
+        'loginEmail' => getenv('NEXA_TENANT_A_ADMIN_EMAIL') ?: 'demo-admin@isolation-alpha.nexa.test',
         'password' => getenv('NEXA_TENANT_A_ADMIN_PASSWORD'),
         'firstName' => 'Tenant A',
     ],
@@ -333,6 +334,7 @@ $accounts = [
         'host' => 'tenant-b.localhost',
         'slug' => 'isolation-beta',
         'userName' => getenv('NEXA_TENANT_B_ADMIN_USERNAME') ?: 'demo-admin-b',
+        'loginEmail' => getenv('NEXA_TENANT_B_ADMIN_EMAIL') ?: 'demo-admin-b@isolation-beta.nexa.test',
         'password' => getenv('NEXA_TENANT_B_ADMIN_PASSWORD'),
         'firstName' => 'Tenant B',
     ],
@@ -369,11 +371,11 @@ $find = $pdo->prepare(
 );
 $insert = $pdo->prepare(
     'INSERT INTO user ' .
-    '(id, deleted, user_name, type, password, first_name, last_name, is_active, created_at, modified_at, delete_id, tenant_id, service_id) ' .
-    'VALUES (:id, 0, :userName, :type, :password, :firstName, :lastName, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP(), :deleteId, :tenantId, :serviceId)'
+    '(id, deleted, user_name, login_email, type, password, first_name, last_name, is_active, created_at, modified_at, delete_id, tenant_id, service_id) ' .
+    'VALUES (:id, 0, :userName, :loginEmail, :type, :password, :firstName, :lastName, 1, UTC_TIMESTAMP(), UTC_TIMESTAMP(), :deleteId, :tenantId, :serviceId)'
 );
 $update = $pdo->prepare(
-    'UPDATE user SET type = :type, password = :password, first_name = :firstName, ' .
+    'UPDATE user SET login_email = :loginEmail, type = :type, password = :password, first_name = :firstName, ' .
     'last_name = :lastName, is_active = 1, service_id = :serviceId, modified_at = UTC_TIMESTAMP() ' .
     'WHERE id = :id AND tenant_id = :tenantId AND service_id = :serviceId'
 );
@@ -407,6 +409,7 @@ try {
             $insert->execute([
                 'id' => $id,
                 'userName' => $account['userName'],
+                'loginEmail' => $account['loginEmail'],
                 'type' => 'admin',
                 'password' => password_hash($account['password'], PASSWORD_BCRYPT),
                 'firstName' => $account['firstName'],
@@ -418,6 +421,7 @@ try {
         } else {
             $update->execute([
                 'id' => $id,
+                'loginEmail' => $account['loginEmail'],
                 'type' => 'admin',
                 'password' => password_hash($account['password'], PASSWORD_BCRYPT),
                 'firstName' => $account['firstName'],

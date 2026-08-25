@@ -1,7 +1,8 @@
-define('custom:views/account/record/detail-workspace', ['views/record/detail', 'helpers/record-modal', 'custom:helpers/tenant-images', 'custom:helpers/tenant-files'], (Dep, RecordModalHelper, TenantImages, TenantFiles) => class extends Dep {
+define('custom:views/account/record/detail-workspace', ['views/record/detail', 'helpers/record-modal', 'custom:helpers/tenant-images', 'custom:helpers/tenant-files', 'custom:helpers/custom-properties'], (Dep, RecordModalHelper, TenantImages, TenantFiles, CustomProperties) => class extends Dep {
     setup() {
         super.setup();
         TenantFiles.install();
+        this.nexaCustomProperties = new CustomProperties(this, 'Account', 'detail');
         document.body.classList.add('nexa-account-detail-page');
         this.listenTo(this.model, 'sync change', () => this.refreshCompanySummary());
         this.once('remove', () => {
@@ -96,7 +97,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
                         <h4>About this company</h4><p></p>
                     </section>
                     <section class="nexa-company-custom-properties" data-nexa-company-custom-properties hidden>
-                        <h4>Additional properties</h4><dl></dl>
+                        <h4>Additional properties</h4><dl></dl><div data-nexa-tenant-company-properties></div>
                     </section>
                 </aside>
                 <main class="nexa-company-main">
@@ -1412,8 +1413,11 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
             term.textContent = this.translate(name, 'fields', 'Account');
             const raw = this.model.get(name);
             value.textContent = Array.isArray(raw) ? raw.join(', ') : String(raw);
-            row.append(term, value);
-            list.append(row);
+            row.append(term, value); list.append(row);
+        });
+        const tenantHost = section.querySelector('[data-nexa-tenant-company-properties]');
+        this.nexaCustomProperties.mount(tenantHost).then(() => {
+            section.hidden = entries.length === 0 && !tenantHost.querySelector('[data-nexa-custom-properties]');
         });
         section.hidden = entries.length === 0;
     }

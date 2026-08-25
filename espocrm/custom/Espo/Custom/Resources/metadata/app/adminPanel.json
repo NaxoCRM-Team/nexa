@@ -60,9 +60,9 @@
                 "description": "import"
             },
             {
-                "url": "#Admin/entityManager",
-                "label": "Data Model & Custom Objects",
-                "iconClass": "fas fa-tools",
+                "url": "#NexaCustomization",
+                "label": "Objects & Properties",
+                "iconClass": "fas fa-cubes",
                 "description": "entityManager",
                 "tabQuickSearch": true
             }

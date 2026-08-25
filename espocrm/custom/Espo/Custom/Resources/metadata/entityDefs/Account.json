@@ -20,7 +20,14 @@
         "tags": {"type": "array", "allowCustomOptions": true, "displayAsList": true, "maxCount": 30, "maxItemLength": 80},
         "contactCount": {"type": "int", "notStorable": true, "readOnly": true},
         "deletedAt": {"type": "datetime", "readOnly": true, "disabled": true},
-        "deletedBy": {"type": "link", "readOnly": true, "disabled": true}
+        "deletedBy": {"type": "link", "readOnly": true, "disabled": true},
+        "nexaCustomPropertyFilter": {
+            "type": "varchar",
+            "notStorable": true,
+            "readOnly": true,
+            "layoutListDisabled": true,
+            "view": "custom:views/fields/custom-property-filter"
+        }
     },
     "links": {
         "parentAccount": {"type": "belongsTo", "entity": "Account", "foreign": "subsidiaries"},

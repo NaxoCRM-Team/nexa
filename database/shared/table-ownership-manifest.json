@@ -192,6 +192,48 @@
                        "serviceScope":  "none"
                    },
                    {
+                       "name":  "nexa_custom_entity_definition",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_custom_field_definition",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_custom_layout_definition",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_custom_record",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_custom_field_value",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_custom_relationship_definition",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_custom_relationship_link",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
                        "name":  "nexa_communication_preference",
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",

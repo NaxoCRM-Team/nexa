@@ -5,6 +5,7 @@
     },
     "recordViews": {
         "list": "custom:views/account/record/list-infinite-v2",
+        "edit": "custom:views/account/record/edit",
         "detail": "custom:views/account/record/detail-workspace"
     }
 }

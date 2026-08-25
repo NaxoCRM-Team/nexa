@@ -46,7 +46,7 @@ final class CustomerFoundationQueryService
             'tenantId' => $context->tenantId,
             'serviceId' => $context->serviceId,
             'identities' => $contactId ? $this->identities($context->tenantId, $contactId) : [],
-            'relationships' => $this->relationships($context->tenantId, $entityType, $id),
+            'relationships' => $this->relationships($context->tenantId, $context->serviceId, $entityType, $id),
             'lifecycle' => $this->lifecycle($context->tenantId, $entityType, $id),
             'timeline' => $this->timeline($context->tenantId, $contactId, $accountId, $timelineLimit),
         ];
@@ -64,7 +64,7 @@ final class CustomerFoundationQueryService
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function relationships(string $tenantId, string $entityType, string $id): array
+    private function relationships(string $tenantId, string $serviceId, string $entityType, string $id): array
     {
         $statement = $this->entityManager->getPDO()->prepare(
             'SELECT e.id, t.type_key, t.label, t.inverse_label, e.source_entity_type, e.source_entity_id, ' .
@@ -98,6 +98,38 @@ final class CustomerFoundationQueryService
             $row['relatedEntityId'] = $relatedId;
             $row['metadata'] = $this->decode($row['metadata_json']);
             unset($row['metadata_json']);
+            $visible[] = $row;
+        }
+        $customStatement = $this->entityManager->getPDO()->prepare(
+            'SELECT l.id, d.relationship_key AS type_key, d.label, d.inverse_label, ' .
+            'l.source_entity_type, l.source_entity_id, l.target_entity_type, l.target_entity_id, l.created_at AS updated_at ' .
+            'FROM nexa_custom_relationship_link l INNER JOIN nexa_custom_relationship_definition d ' .
+            'ON d.id = l.relationship_definition_id AND d.tenant_id = l.tenant_id AND d.service_id = l.service_id ' .
+            'WHERE l.tenant_id = ? AND l.service_id = ? AND l.deleted_at IS NULL AND d.is_active = 1 AND ' .
+            '((l.source_entity_type = ? AND l.source_entity_id = ?) OR (l.target_entity_type = ? AND l.target_entity_id = ?)) ' .
+            'ORDER BY l.created_at DESC LIMIT 500'
+        );
+        $customStatement->execute([$tenantId, $serviceId, $entityType, $id, $entityType, $id]);
+        foreach ($customStatement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $relatedType = $row['source_entity_type'] === $entityType && $row['source_entity_id'] === $id
+                ? (string) $row['target_entity_type'] : (string) $row['source_entity_type'];
+            $relatedId = $row['source_entity_type'] === $entityType && $row['source_entity_id'] === $id
+                ? (string) $row['target_entity_id'] : (string) $row['source_entity_id'];
+            if ($this->entityManager->hasRepository($relatedType)) {
+                $related = $this->entityManager->getRDBRepository($relatedType)->getById($relatedId);
+                if (!$related || !$this->acl->checkEntityRead($related)) continue;
+            } else {
+                $record = $this->entityManager->getPDO()->prepare(
+                    'SELECT r.id FROM nexa_custom_record r INNER JOIN nexa_custom_entity_definition e ' .
+                    'ON e.id = r.custom_entity_id AND e.tenant_id = r.tenant_id AND e.service_id = r.service_id ' .
+                    'WHERE r.id = ? AND r.tenant_id = ? AND r.service_id = ? AND e.entity_key = ? AND r.deleted_at IS NULL AND e.status = \'active\''
+                );
+                $record->execute([$relatedId, $tenantId, $serviceId, $relatedType]);
+                if (!$record->fetchColumn()) continue;
+            }
+            $row['relatedEntityType'] = $relatedType;
+            $row['relatedEntityId'] = $relatedId;
+            $row['custom'] = true;
             $visible[] = $row;
         }
         return $visible;

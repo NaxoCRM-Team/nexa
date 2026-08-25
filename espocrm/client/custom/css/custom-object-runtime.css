@@ -1,0 +1,78 @@
+/* Normal tenant users manage custom-object records here; schema controls stay in Administration. */
+.nexa-object-runtime { min-height: 100%; padding: 20px 24px 28px; color: #172b2a; }
+.nexa-runtime-header, .nexa-runtime-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.nexa-runtime-header { padding-bottom: 18px; border-bottom: 1px solid #dce7e5; }
+.nexa-runtime-header h1, .nexa-runtime-detail-header h2 { margin: 0; font-weight: 700; letter-spacing: 0; }
+.nexa-runtime-header h1 { font-size: 25px; }
+.nexa-runtime-header p:not(.nexa-runtime-eyebrow) { margin: 6px 0 0; color: #61706f; }
+.nexa-runtime-eyebrow { margin: 0 0 4px; color: #19756d; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0; }
+.nexa-runtime-header-actions, .nexa-runtime-detail-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nexa-runtime-header-actions .btn, .nexa-runtime-detail-actions .btn, .nexa-runtime-form footer .btn { display: inline-flex; align-items: center; gap: 8px; }
+.nexa-runtime-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0 12px; }
+.nexa-runtime-search { position: relative; width: min(440px, 100%); margin: 0; }
+.nexa-runtime-search > span.fas { position: absolute; top: 50%; left: 13px; transform: translateY(-50%); color: #697b79; }
+.nexa-runtime-search input { width: 100%; min-height: 40px; padding: 8px 12px 8px 38px; border: 1px solid #b7c9c6; border-radius: 4px; background: #fff; }
+.nexa-runtime-search input:focus { border-color: #16877c; box-shadow: 0 0 0 3px rgba(22,135,124,.14); outline: 0; }
+.nexa-runtime-total { color: #536462; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.nexa-runtime-list { overflow: auto; border: 1px solid #d7e2e0; border-radius: 6px; background: #fff; }
+.nexa-runtime-table { min-width: 760px; }
+.nexa-runtime-table-row { display: grid; grid-template-columns: minmax(220px,1.5fr) repeat(var(--runtime-data-columns),minmax(150px,1fr)); align-items: center; width: 100%; min-height: 54px; padding: 0; border: 0; border-bottom: 1px solid #e5eceb; background: #fff; color: inherit; text-align: left; }
+.nexa-runtime-table-row:last-child { border-bottom: 0; }
+button.nexa-runtime-table-row:hover, button.nexa-runtime-table-row:focus-visible { background: #f2f8f7; outline: 0; }
+.nexa-runtime-table-row > span { min-width: 0; padding: 11px 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nexa-runtime-table-head { min-height: 42px; background: #f4f7f7; color: #405250; font-size: 12px; font-weight: 700; }
+.nexa-runtime-name { display: flex; align-items: center; gap: 10px; color: #096c65; }
+.nexa-runtime-list-avatar, .nexa-runtime-avatar { display: inline-grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: #dff1ee; color: #126e66; font-weight: 700; }
+.nexa-runtime-list-avatar { width: 30px; height: 30px; font-size: 12px; }
+.nexa-runtime-avatar { width: 52px; height: 52px; font-size: 19px; }
+.nexa-runtime-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 16px 0; }
+.nexa-runtime-pagination .btn { display: inline-flex; align-items: center; gap: 7px; }
+.nexa-runtime-form, .nexa-runtime-detail { margin-top: 20px; border: 1px solid #d7e2e0; border-radius: 6px; background: #fff; }
+.nexa-runtime-form > header, .nexa-runtime-form > footer { padding: 18px 22px; }
+.nexa-runtime-form > header { border-bottom: 1px solid #e1e9e8; }
+.nexa-runtime-form h2 { margin: 0; font-size: 21px; }
+.nexa-runtime-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; padding: 22px; }
+.nexa-runtime-field { display: grid; gap: 7px; margin: 0; color: #304240; font-weight: 600; }
+.nexa-runtime-field.is-wide { grid-column: 1 / -1; }
+.nexa-runtime-field input, .nexa-runtime-field select, .nexa-runtime-field textarea { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid #b9c9c7; border-radius: 4px; background: #fff; color: #172b2a; font-weight: 400; }
+.nexa-runtime-field input:focus, .nexa-runtime-field select:focus, .nexa-runtime-field textarea:focus { border-color: #16877c; box-shadow: 0 0 0 3px rgba(22,135,124,.14); outline: 0; }
+.nexa-runtime-form > footer { display: flex; gap: 9px; border-top: 1px solid #e1e9e8; }
+.nexa-runtime-detail-header { padding: 20px 22px; border-bottom: 1px solid #e1e9e8; }
+.nexa-runtime-detail-header > div:nth-child(2) { flex: 1; min-width: 0; }
+.nexa-runtime-detail-header h2 { font-size: 23px; }
+.nexa-runtime-detail-header p:last-child { margin: 5px 0 0; color: #6a7978; }
+.nexa-runtime-detail-grid { display: grid; grid-template-columns: minmax(0,2fr) minmax(280px,1fr); }
+.nexa-runtime-detail-grid > section, .nexa-runtime-detail-grid > aside { padding: 22px; }
+.nexa-runtime-detail-grid > aside { border-left: 1px solid #e1e9e8; background: #f8faf9; }
+.nexa-runtime-detail-grid h3 { margin: 0 0 16px; font-size: 16px; }
+.nexa-runtime-properties dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 24px; margin: 0; }
+.nexa-runtime-properties dl > div { min-width: 0; }
+.nexa-runtime-properties dt { margin-bottom: 5px; color: #667775; font-size: 12px; font-weight: 600; }
+.nexa-runtime-properties dd { margin: 0; overflow-wrap: anywhere; font-weight: 600; }
+.nexa-runtime-relationship-card { display: grid; grid-template-columns: 26px 1fr 16px; align-items: center; gap: 8px; width: 100%; margin-bottom: 9px; padding: 12px; border: 1px solid #d4dfdd; border-radius: 5px; background: #fff; color: #243735; text-align: left; }
+.nexa-runtime-relationship-card:hover, .nexa-runtime-relationship-card:focus-visible { border-color: #16877c; background: #eef8f6; outline: 0; }
+.nexa-runtime-relationship-card strong, .nexa-runtime-relationship-card small { display: block; }
+.nexa-runtime-relationship-card small, .nexa-runtime-muted { color: #6a7978; font-weight: 400; }
+.nexa-runtime-dialog[hidden] { display: none !important; }
+.nexa-runtime-dialog { position: fixed; z-index: 1080; inset: 0; display: grid; place-items: center; padding: 20px; }
+.nexa-runtime-dialog-backdrop { position: absolute; inset: 0; background: rgba(14,25,24,.58); }
+.nexa-runtime-dialog-panel { position: relative; width: min(680px,100%); max-height: min(760px,calc(100vh - 40px)); overflow: auto; border-radius: 7px; background: #fff; box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+.nexa-runtime-dialog-panel > header { display: flex; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid #dfe7e6; }
+.nexa-runtime-dialog-panel h2 { margin: 0; font-size: 20px; }
+.nexa-runtime-dialog-panel > div { padding: 20px; }
+.nexa-runtime-linked h3, .nexa-runtime-picker h3 { font-size: 14px; }
+.nexa-runtime-linked > div, .nexa-runtime-picker [data-candidate-list] > button { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; width: 100%; padding: 10px 0; border: 0; border-bottom: 1px solid #e3eae9; background: transparent; text-align: left; }
+.nexa-runtime-picker { margin-top: 22px; }
+.nexa-runtime-picker > label { position: relative; display: block; }
+.nexa-runtime-picker > label > .fas { position: absolute; top: 50%; left: 12px; transform: translateY(-50%); }
+.nexa-runtime-picker input { width: 100%; min-height: 40px; padding-left: 36px; border: 1px solid #b9c9c7; border-radius: 4px; }
+.nexa-custom-object-nav-divider { padding: 10px 16px 5px; color: #82908e; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.nexa-custom-object-nav-item .nexa-custom-object-nav-icon { width: 23px; color: #3d7772; text-align: center; }
+
+@media (max-width: 767px) {
+    .nexa-object-runtime { padding: 15px; }
+    .nexa-runtime-header, .nexa-runtime-detail-header, .nexa-runtime-toolbar { align-items: stretch; flex-direction: column; }
+    .nexa-runtime-form-grid, .nexa-runtime-detail-grid, .nexa-runtime-properties dl { grid-template-columns: 1fr; }
+    .nexa-runtime-detail-grid > aside { border-top: 1px solid #e1e9e8; border-left: 0; }
+    .nexa-runtime-field.is-wide { grid-column: auto; }
+}

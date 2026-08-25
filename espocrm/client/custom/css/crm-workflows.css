@@ -8459,3 +8459,19 @@ a.nexa-tenant-file-link[aria-busy="true"] {
     cursor: wait;
     opacity: .65;
 }
+.nexa-custom-property-filter {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(140px, 0.7fr) minmax(180px, 1fr);
+    gap: 8px;
+    width: 100%;
+}
+
+.nexa-custom-property-filter label,
+.nexa-custom-property-filter [data-custom-value-host] {
+    min-width: 0;
+    margin: 0;
+}
+
+@media (max-width: 767px) {
+    .nexa-custom-property-filter { grid-template-columns: 1fr; }
+}

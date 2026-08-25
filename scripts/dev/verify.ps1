@@ -93,6 +93,12 @@ $required = @(
     'tests/browser/shell.spec.js', 'tests/browser/fixtures/login.html', 'tests/browser/fixtures/shell.html',
     'tests/browser/fixtures/components.html',
     'tests/browser/fixtures/dialog.html',
+    'tests/browser/customization.spec.js',
+    'tests/browser/fixtures/customization.html',
+    'tests/browser/live-custom-object-workspace.spec.js',
+    'espocrm/client/custom/src/views/customization/runtime.js',
+    'espocrm/client/custom/res/templates/customization/runtime.tpl',
+    'espocrm/client/custom/css/custom-object-runtime.css',
     'espocrm/bootstrap.php', 'espocrm/application/Espo/Core/Application.php',
     'espocrm/client/lib/espo-main.js', 'espocrm/client/res/templates/login.tpl',
     'tests/signup/SignupValidatorTest.php', 'tests/signup/SmtpEnvironmentTest.php',
@@ -208,6 +214,9 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\Account\AccountTimelineService.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\Account\Api\GetTimeline.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Classes\Select\Account\PrimaryFilters\CreatedByMe.php')
+$phpFiles += Get-ChildItem -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\Customization') -Filter '*.php' -File -Recurse
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantCustomizationContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantCustomizationRuntimeTest.php')
 if ($php) {
     foreach ($file in $phpFiles) {
         & php -l $file.FullName *> $null
@@ -266,9 +275,13 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Account timeline workflow contract suite' } else { Fail 'Account timeline workflow contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\CustomerFoundationRuntimeContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation runtime contract suite' } else { Fail 'Customer foundation runtime contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\TenantCustomizationContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Tenant customization contract suite' } else { Fail 'Tenant customization contract suite failed.' }
     if (-not $Ci) {
         & php (Join-Path $root 'tests\tenant\CustomerFoundationRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation two-tenant runtime suite' } else { Fail 'Customer foundation two-tenant runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantCustomizationRuntimeTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Tenant customization two-tenant runtime suite' } else { Fail 'Tenant customization two-tenant runtime suite failed.' }
     }
     & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }
