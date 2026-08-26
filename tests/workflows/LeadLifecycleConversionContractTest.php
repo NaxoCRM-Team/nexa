@@ -21,6 +21,10 @@ $entity = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/entit
 $client = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/clientDefs/Lead.json'), true, flags: JSON_THROW_ON_ERROR);
 $detail = json_decode($read('espocrm/custom/Espo/Custom/Resources/layouts/Lead/detail.json'), true, flags: JSON_THROW_ON_ERROR);
 $list = json_decode($read('espocrm/custom/Espo/Custom/Resources/layouts/Lead/list.json'), true, flags: JSON_THROW_ON_ERROR);
+$listView = $read('espocrm/client/custom/src/views/lead/list-v2.js');
+$recordList = $read('espocrm/client/custom/src/views/lead/record/list-infinite.js');
+$liveSearch = $read('espocrm/client/custom/src/views/lead/record/search-live.js');
+$selectDefs = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Lead.json'), true, flags: JSON_THROW_ON_ERROR);
 
 foreach (['rating','lead_score','lifecycle_stage','marketing_status','legal_basis','converted_by_id'] as $column) {
     $assert(str_contains($migration, "`{$column}`"), "Lead migration is missing {$column}.");
@@ -44,5 +48,13 @@ $assert(str_contains($visibility, "['Contact', 'Account', 'Lead']"), 'Tenant pro
 $assert(($client['recordViews']['detail'] ?? null) === 'custom:views/lead/record/detail', 'Lead details must use the Nexa view.');
 $assert(count($detail) >= 4, 'Lead details need profile, qualification, engagement and ownership sections.');
 $assert(count($list) >= 8, 'Lead lists need the qualification and ownership columns.');
+$assert(str_contains($listView, 'options.pagination = false'), 'Lead lists must replace page controls with incremental scrolling.');
+$assert(str_contains($listView, 'My Leads') && str_contains($listView, 'All Leads'), 'Lead lists need user and tenant scope tabs.');
+$assert(str_contains($recordList, 'nexa-lead-scroll-list'), 'Lead records need a stable scrollable table viewport.');
+$assert(str_contains($recordList, 'showMoreRecords'), 'Lead lists must load additional scoped records incrementally.');
+$assert(!str_contains($recordList, "status: {type: 'dropdown'}"), 'Inline editing must not bypass governed Lead conversion status.');
+$assert(str_contains($liveSearch, "addHandler('input'"), 'Lead keyword search must run as the user types.');
+$assert(str_contains($liveSearch, 'searchManager.getWhere()'), 'Live search must preserve the central tenant, ACL and filter query.');
+$assert(isset($selectDefs['primaryFilterClassNameMap']['createdByMe']), 'My Leads needs a server-enforced primary filter.');
 
 echo "Lead lifecycle and conversion contracts passed.\n";

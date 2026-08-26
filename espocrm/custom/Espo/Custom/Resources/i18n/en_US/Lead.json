@@ -27,5 +27,6 @@
             "NotApplicable": "Not Applicable"
         }
     },
-    "labels": {"Create Lead": "New Lead"}
+    "labels": {"Create Lead": "New Lead"},
+    "presetFilters": {"createdByMe": "My Leads"}
 }

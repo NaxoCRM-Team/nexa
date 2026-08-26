@@ -1,11 +1,12 @@
 [
-    {"name": "name", "width": 20, "link": true},
-    {"name": "accountName", "width": 17},
-    {"name": "status", "width": 12},
-    {"name": "rating", "width": 9},
-    {"name": "leadScore", "width": 9},
-    {"name": "lifecycleStage", "width": 16},
-    {"name": "source", "width": 13},
-    {"name": "assignedUser", "width": 15},
-    {"name": "createdAt", "width": 15}
+    {"name": "name", "width": 18, "link": true},
+    {"name": "accountName", "width": 15},
+    {"name": "emailAddress", "width": 18},
+    {"name": "phoneNumber", "width": 13},
+    {"name": "status", "width": 11},
+    {"name": "rating", "width": 8},
+    {"name": "leadScore", "width": 8},
+    {"name": "lifecycleStage", "width": 15},
+    {"name": "assignedUser", "width": 14},
+    {"name": "createdAt", "width": 14}
 ]

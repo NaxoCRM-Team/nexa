@@ -2,9 +2,10 @@
     "controller": "crm:controllers/lead",
     "views": {
         "detail": "crm:views/lead/detail",
-        "list": "custom:views/lead/list"
+        "list": "custom:views/lead/list-v2"
     },
     "recordViews": {
+        "list": "custom:views/lead/record/list-infinite",
         "detail": "custom:views/lead/record/detail",
         "edit": "custom:views/lead/record/edit"
     }

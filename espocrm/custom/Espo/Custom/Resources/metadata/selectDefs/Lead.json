@@ -1,0 +1,9 @@
+{
+    "textFilterClassName": "Espo\\Custom\\Classes\\Select\\Common\\CustomPropertyTextFilter",
+    "whereItemConverterClassNameMap": {
+        "nexaCustomPropertyFilter_nexaCustomProperty": "Espo\\Custom\\Classes\\Select\\Common\\Where\\CustomProperty"
+    },
+    "primaryFilterClassNameMap": {
+        "createdByMe": "Espo\\Custom\\Classes\\Select\\Lead\\PrimaryFilters\\CreatedByMe"
+    }
+}
