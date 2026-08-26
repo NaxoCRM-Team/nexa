@@ -11,6 +11,7 @@ $read = static function (string $path) use ($root): string {
 $assert = static function (bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); };
 
 $migration = $read('database/shared/migrations/0032_add_tenant_customization_engine.sql');
+$preferenceMigration = $read('database/shared/migrations/0033_add_tenant_property_preferences.sql');
 $service = $read('espocrm/custom/Espo/Custom/Tools/Customization/CustomizationService.php');
 $helper = $read('espocrm/client/custom/src/helpers/custom-properties.js');
 $admin = $read('espocrm/client/custom/src/views/customization/admin.js');
@@ -21,6 +22,7 @@ $textFilter = $read('espocrm/custom/Espo/Custom/Classes/Select/Common/CustomProp
 $whereFilter = $read('espocrm/custom/Espo/Custom/Classes/Select/Common/Where/CustomProperty.php');
 $navigation = $read('espocrm/client/custom/tenant-workspace.js');
 $template = $read('espocrm/client/custom/res/templates/customization/admin.tpl');
+$visibility = $read('espocrm/client/custom/property-visibility.js');
 $routes = json_decode($read('espocrm/custom/Espo/Custom/Resources/routes.json'), true, flags: JSON_THROW_ON_ERROR);
 $account = json_decode($read('espocrm/custom/Espo/Custom/Resources/metadata/clientDefs/Account.json'), true, flags: JSON_THROW_ON_ERROR);
 
@@ -36,6 +38,10 @@ $assert(str_contains($service, 'acl->checkEntityRead'), 'Native custom-property 
 $assert(str_contains($service, 'acl->checkEntityEdit'), 'Native custom-property writes must retain record ACL.');
 $assert(str_contains($service, 'is_unique'), 'Tenant custom fields must enforce configured uniqueness.');
 $assert(str_contains($service, 'standardFields'), 'Property administration must include standard and tenant-created properties in one catalogue.');
+$assert(str_contains($preferenceMigration, 'CREATE TABLE IF NOT EXISTS nexa_property_preference'), 'Tenant property preferences need a scoped persistence table.');
+$assert(str_contains($service, "'propertyPreference' => \$this->savePropertyPreference"), 'The definition API must persist property visibility changes.');
+$assert(str_contains($service, 'This core property is required and cannot be disabled.'), 'Required core properties must remain enabled.');
+$assert(str_contains($service, "customization.property.visibility.updated"), 'Property visibility changes must be audited.');
 $assert(str_contains($service, 'throw new Conflict'), 'Duplicate custom and standard property identities must be rejected explicitly.');
 $assert(str_contains($service, "'layouts'=>\$definitionSet['layouts']"), 'Existing records must receive saved tenant layouts.');
 $assert(str_contains($service, 'enforceCardinality'), 'Custom links must enforce their declared relationship cardinality.');
@@ -52,6 +58,12 @@ $assert(str_contains($template, 'Advanced settings'), 'Technical internal names 
 $assert(str_contains($admin, 'keyFrom('), 'The visual builder must generate internal names from business labels.');
 $assert(str_contains($admin, 'addFieldToLayout'), 'Property creation must support immediate screen placement.');
 $assert(str_contains($admin, 'propertyCatalogueFor'), 'The visual builder must display a combined standard and custom property catalogue.');
+$assert(str_contains($admin, 'toggleProperty'), 'The property catalogue must expose tenant enable and disable controls.');
+$assert(str_contains($admin, "views/admin/entity-manager/modals/select-icon"), 'Custom-object creation must reuse the native searchable icon selector.');
+$assert(str_contains($template, 'data-action="select-object-icon"'), 'Custom-object creation must expose the native icon selector control.');
+$assert(str_contains($template, 'How customization works') && strpos($template, 'How customization works') < strpos($template, 'Choose an object'), 'The setup guide must appear before object selection.');
+$assert(str_contains($visibility, 'nexa-property-hidden-by-tenant'), 'Native Contact and Account screens must apply tenant property visibility.');
+$assert(str_contains($runtime, 'field.is_enabled !== false'), 'Custom-object screens must omit disabled properties.');
 $assert(str_contains($admin, 'isFilterable'), 'Searchability and filterability must be configured independently.');
 $assert(str_contains($template, 'Include in keyword and global search'), 'The property builder must explain the searchable rule precisely.');
 $assert(str_contains($template, 'Allow as a list filter'), 'The property builder must expose the list-filter rule.');

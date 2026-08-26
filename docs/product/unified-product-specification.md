@@ -1047,9 +1047,9 @@ Allow external systems to receive event notifications.
 ## 42. INTEGRATION ENGINE
 Design integration capability for:
 - Email
-- Google services
-- Microsoft services
-- Calendar systems
+- Google Calendar and Google Contacts
+- Microsoft Outlook Calendar and Outlook Contacts
+- Personal and team calendar systems
 - Marketing automation platforms
 - Payment systems
 - SMS systems
@@ -1059,6 +1059,8 @@ Design integration capability for:
 - E-commerce systems
 - Other CRMs
 - Custom applications
+
+Calendar and contact connectors must support user-authorized OAuth connections, encrypted credentials, configurable one-way or two-way synchronization, tenant-safe field mapping, duplicate protection, conflict resolution, webhooks or scheduled reconciliation, retry history and safe disconnect behavior.
 
 ## 43. DATA MANAGEMENT
 Implement:

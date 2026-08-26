@@ -13,7 +13,7 @@ define('custom:helpers/custom-properties', [], () => class {
             const response = this.view.model?.id
                 ? await Espo.Ajax.getRequest(`Nexa/customization/values/${encodeURIComponent(this.entityType)}/${encodeURIComponent(this.view.model.id)}`)
                 : await Espo.Ajax.getRequest('Nexa/customization/definitions', {entityType: this.entityType});
-            this.definitions = response.definitions || response.fields || [];
+            this.definitions = (response.definitions || response.fields || []).filter(field => field.is_enabled !== false);
             this.values = response.values || {};
             if (!this.definitions.length) return;
             const savedLayout = (response.layouts || []).find(item => item.layout_context === this.mode);

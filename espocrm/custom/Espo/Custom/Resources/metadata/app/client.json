@@ -16,6 +16,7 @@
         "__APPEND__",
         "client/custom/login-patch.js",
         "client/custom/tenant-workspace.js",
+        "client/custom/property-visibility.js",
         "client/custom/crm-workflows.js",
         "client/custom/attachment-links.js",
         "client/custom/select-modal-fix.js",

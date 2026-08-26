@@ -32,7 +32,7 @@ final class CustomProperty implements ItemConverter
         $context = $this->tenantContextStore->require();
 
         $statement = $this->entityManager->getPDO()->prepare(
-            'SELECT id,data_type FROM nexa_custom_field_definition WHERE tenant_id=? AND service_id=? AND entity_type=? AND field_key=? AND is_active=1 AND is_filterable=1 LIMIT 1'
+            'SELECT d.id,d.data_type FROM nexa_custom_field_definition d WHERE d.tenant_id=? AND d.service_id=? AND d.entity_type=? AND d.field_key=? AND d.is_active=1 AND d.is_filterable=1 AND NOT EXISTS (SELECT 1 FROM nexa_property_preference p WHERE p.tenant_id=d.tenant_id AND p.service_id=d.service_id AND p.entity_type=d.entity_type AND p.field_key=d.field_key AND p.is_enabled=0) LIMIT 1'
         );
         $statement->execute([$context->tenantId, $context->serviceId, $this->entityType, $fieldKey]);
         $definition = $statement->fetch(\PDO::FETCH_ASSOC);

@@ -12,12 +12,6 @@
     </header>
 
     <section class="nexa-object-overview" data-screen="overview">
-        <div class="nexa-object-intro"><div><span class="fas fa-database" aria-hidden="true"></span><div><strong>Start with the information you want to manage</strong><p>Contacts and Accounts are ready to customize. Create a custom object only when the information does not fit an existing record type.</p></div></div></div>
-        <div class="nexa-object-toolbar">
-            <div><h2>Choose an object</h2><p>Properties, record layout and associations are managed inside each object.</p></div>
-            <label class="nexa-object-search"><span class="fas fa-search" aria-hidden="true"></span><span class="sr-only">Search objects</span><input type="search" data-object-search placeholder="Search objects"></label>
-        </div>
-        <div class="nexa-object-grid" data-object-list></div>
         <div class="nexa-object-guide" aria-label="Recommended setup order">
             <h2>How customization works</h2>
             <ol>
@@ -26,6 +20,12 @@
                 <li><span>3</span><div><strong>Arrange and connect records</strong><p>Choose where properties appear and create associations when needed.</p></div></li>
             </ol>
         </div>
+        <div class="nexa-object-intro"><div><span class="fas fa-database" aria-hidden="true"></span><div><strong>Start with the information you want to manage</strong><p>Contacts and Accounts are ready to customize. Create a custom object only when the information does not fit an existing record type.</p></div></div></div>
+        <div class="nexa-object-toolbar">
+            <div><h2>Choose an object</h2><p>Properties, record layout and associations are managed inside each object.</p></div>
+            <label class="nexa-object-search"><span class="fas fa-search" aria-hidden="true"></span><span class="sr-only">Search objects</span><input type="search" data-object-search placeholder="Search objects"></label>
+        </div>
+        <div class="nexa-object-grid" data-object-list></div>
     </section>
 
     <section class="nexa-object-workspace" data-screen="workspace" hidden>
@@ -39,7 +39,7 @@
         </nav>
 
         <section id="properties-panel" class="nexa-object-panel" data-object-panel="properties" role="tabpanel" aria-labelledby="properties-tab">
-            <header class="nexa-panel-header"><div><h3>Property catalogue</h3><p>Review standard and tenant-created properties before adding more information.</p></div><button type="button" class="btn btn-primary" data-action="open-property-dialog"><span class="fas fa-plus" aria-hidden="true"></span>Add property</button></header>
+            <header class="nexa-panel-header"><div><h3>Property catalogue</h3><p>Enable only the properties this workspace needs. Disabled properties keep their existing data and can be enabled again.</p></div><button type="button" class="btn btn-primary" data-action="open-property-dialog"><span class="fas fa-plus" aria-hidden="true"></span>Add property</button></header>
             <div class="nexa-list-toolbar"><label><span class="fas fa-search" aria-hidden="true"></span><span class="sr-only">Search properties</span><input type="search" data-property-search placeholder="Search properties"></label><span data-property-count></span></div>
             <div class="nexa-property-list" data-property-list></div>
         </section>
@@ -80,7 +80,7 @@
     <div class="nexa-admin-dialog" data-dialog="object" role="dialog" aria-modal="true" aria-labelledby="object-dialog-title" hidden>
         <div class="nexa-admin-dialog-backdrop" data-action="close-dialog"></div>
         <section class="nexa-admin-dialog-panel"><header><div><p>Custom object</p><h2 id="object-dialog-title">Create a new record type</h2></div><button type="button" data-action="close-dialog" aria-label="Close"><span class="fas fa-times"></span></button></header>
-            <form data-form="entity"><div class="nexa-dialog-body"><div class="nexa-dialog-callout"><span class="fas fa-lightbulb"></span><p>Use a custom object when Contacts or Accounts cannot naturally store the information, such as Vehicles, Properties or Contracts.</p></div><label>What do you want to track?<input name="label" maxlength="120" placeholder="Vehicle" required data-key-source></label><label>Plural name<input name="pluralLabel" maxlength="120" placeholder="Vehicles" required></label><label>Description <span>Optional</span><textarea name="description" rows="3" maxlength="500" placeholder="Vehicles owned by customers"></textarea></label><details class="nexa-advanced-settings"><summary>Advanced settings</summary><label>Internal name <span>Used by APIs and integrations.</span><input name="entityKey" pattern="[a-z][a-z0-9_]{1,63}" required data-generated-key></label></details></div><footer><button type="button" class="btn btn-default" data-action="close-dialog">Cancel</button><button type="submit" class="btn btn-primary">Create object</button></footer></form>
+            <form data-form="entity"><div class="nexa-dialog-body"><div class="nexa-dialog-callout"><span class="fas fa-lightbulb"></span><p>Use a custom object when Contacts or Accounts cannot naturally store the information, such as Vehicles, Properties or Contracts.</p></div><label>What do you want to track?<input name="label" maxlength="120" placeholder="Vehicle" required data-key-source></label><label>Plural name<input name="pluralLabel" maxlength="120" placeholder="Vehicles" required></label><div class="nexa-object-icon-field"><label>Icon</label><input type="hidden" name="iconClass" value="fas fa-cubes"><button type="button" class="btn btn-default" data-action="select-object-icon" aria-label="Choose object icon"><span class="fas fa-cubes" data-selected-object-icon aria-hidden="true"></span><span data-selected-object-icon-label>cubes</span><span class="fas fa-angle-up" aria-hidden="true"></span></button><small>Open the searchable icon library or choose None.</small></div><label>Description <span>Optional</span><textarea name="description" rows="3" maxlength="500" placeholder="Vehicles owned by customers"></textarea></label><details class="nexa-advanced-settings"><summary>Advanced settings</summary><label>Internal name <span>Used by APIs and integrations.</span><input name="entityKey" pattern="[a-z][a-z0-9_]{1,63}" required data-generated-key></label></details></div><footer><button type="button" class="btn btn-default" data-action="close-dialog">Cancel</button><button type="submit" class="btn btn-primary">Create object</button></footer></form>
         </section>
     </div>
 

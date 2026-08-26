@@ -26,6 +26,8 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         'click [data-action="move-up"]': 'moveLayoutField',
         'click [data-action="move-down"]': 'moveLayoutField',
         'click [data-action="save-layout"]': 'saveLayout',
+        'click [data-action="toggle-property"]': 'toggleProperty',
+        'click [data-action="select-object-icon"]': 'selectObjectIcon',
         'click [data-action="archive"]': 'archive',
         'click [data-action="toggle-record-form"]': 'toggleRecordForm',
         'submit [data-form="custom-record"]': 'saveCustomRecord',
@@ -171,6 +173,10 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         return (this.dataSet?.fields || []).filter(item => item.entity_type === entityType);
     }
 
+    enabledFieldsFor(entityType) {
+        return this.fieldsFor(entityType).filter(item => item.is_enabled !== false);
+    }
+
     standardFieldsFor(entityType) {
         return (this.dataSet?.standardFields || []).filter(item => item.entity_type === entityType);
     }
@@ -193,7 +199,8 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         const fields = catalogue.filter(field => !query || `${field.label} ${field.field_key} ${field.data_type} ${field.source}`.toLowerCase().includes(query));
         const standardCount = this.standardFieldsFor(this.selectedEntityType).length;
         const customCount = this.fieldsFor(this.selectedEntityType).length;
-        this.element.querySelector('[data-property-count]').textContent = `${standardCount} standard | ${customCount} custom`;
+        const enabledCount = catalogue.filter(field => field.is_enabled !== false).length;
+        this.element.querySelector('[data-property-count]').textContent = `${enabledCount} enabled | ${standardCount} standard | ${customCount} custom`;
         host.replaceChildren();
         if (!fields.length) {
             host.innerHTML = query ? '<div class="nexa-empty-state"><span class="fas fa-search" aria-hidden="true"></span><h4>No matching properties</h4><p>Try a different property name or internal name.</p></div>' : '<div class="nexa-empty-state"><span class="fas fa-list-alt" aria-hidden="true"></span><h4>No properties yet</h4><p>Add the first property needed by this object.</p><button type="button" class="btn btn-primary" data-action="open-property-dialog">Add the first property</button></div>';
@@ -205,17 +212,32 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
             const row = document.createElement('article');
             row.dataset.propertySearch = `${field.label} ${field.field_key} ${field.data_type}`.toLowerCase();
             row.classList.toggle('is-standard', field.source === 'standard');
+            row.classList.toggle('is-disabled', field.is_enabled === false);
             row.innerHTML = '<div><strong></strong><p></p><small class="nexa-property-source"></small></div><span class="nexa-property-type"></span><span class="nexa-property-placement"></span><span class="nexa-property-action"></span>';
             row.querySelector('strong').textContent = field.label;
             row.querySelector('p').textContent = field.description || 'No description';
             row.querySelector('.nexa-property-source').textContent = `${field.source === 'standard' ? 'Standard property' : 'Tenant property'} | ${field.field_key}`;
             row.querySelector('.nexa-property-type').textContent = this.typeLabel(field.data_type);
             row.querySelector('.nexa-property-placement').textContent = field.source === 'standard' ? this.propertyCapabilities(field) : `${this.propertyPlacement(field.field_key)} | ${this.propertyCapabilities(field)}`;
+            const action = row.querySelector('.nexa-property-action');
+            const toggle = document.createElement('button');
+            const enabled = field.is_enabled !== false;
+            toggle.type = 'button';
+            toggle.className = 'nexa-property-toggle';
+            toggle.dataset.action = 'toggle-property';
+            toggle.dataset.fieldKey = field.field_key;
+            toggle.setAttribute('role', 'switch');
+            toggle.setAttribute('aria-checked', String(enabled));
+            toggle.setAttribute('aria-label', `${enabled ? 'Disable' : 'Enable'} ${field.label}`);
+            toggle.title = field.is_protected ? 'Required core property' : `${enabled ? 'Disable' : 'Enable'} property`;
+            toggle.disabled = Boolean(field.is_protected);
+            toggle.innerHTML = '<span aria-hidden="true"></span>';
+            action.append(toggle);
             if (field.source === 'custom') {
                 const button = document.createElement('button');
-                button.type = 'button'; button.className = 'btn btn-default btn-sm'; button.dataset.action = 'archive'; button.dataset.kind = 'field'; button.dataset.id = field.id; button.title = 'Archive property';
-                button.innerHTML = '<span class="far fa-archive" aria-hidden="true"></span>';
-                row.querySelector('.nexa-property-action').append(button);
+                button.type = 'button'; button.className = 'btn btn-default btn-sm nexa-property-archive'; button.dataset.action = 'archive'; button.dataset.kind = 'field'; button.dataset.id = field.id; button.title = 'Archive property';
+                button.innerHTML = '<span class="fas fa-archive" aria-hidden="true"></span><span>Archive</span>';
+                action.append(button);
             }
             table.append(row);
         });
@@ -263,9 +285,32 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
     openObjectDialog() {
         const form = this.element.querySelector('[data-form="entity"]');
         form.reset();
+        form.elements.iconClass.value = 'fas fa-cubes';
+        this.renderObjectIconSelection('fas fa-cubes');
         form.elements.entityKey.dataset.userEdited = '';
         form.elements.pluralLabel.dataset.userEdited = '';
         this.openDialog('object', form.elements.label);
+    }
+
+    selectObjectIcon() {
+        const form = this.element.querySelector('[data-form="entity"]');
+        this.createView('objectIconSelector', 'views/admin/entity-manager/modals/select-icon', {}, view => {
+            view.render();
+            this.listenToOnce(view, 'select', value => {
+                const iconClass = value || '';
+                form.elements.iconClass.value = iconClass;
+                this.renderObjectIconSelection(iconClass);
+                view.close();
+            });
+        });
+    }
+
+    renderObjectIconSelection(iconClass) {
+        const preview = this.element.querySelector('[data-selected-object-icon]');
+        const label = this.element.querySelector('[data-selected-object-icon-label]');
+        preview.className = iconClass;
+        preview.hidden = !iconClass;
+        label.textContent = iconClass ? iconClass.replace(/^(fas|far|fab|fal) fa-/, '').replaceAll('-', ' ') : 'None';
     }
 
     openAssociationDialog() {
@@ -411,6 +456,27 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         }
     }
 
+    async toggleProperty(event) {
+        const button = event.currentTarget;
+        const isEnabled = button.getAttribute('aria-checked') !== 'true';
+        button.disabled = true;
+        try {
+            await Espo.Ajax.postRequest('Nexa/customization/definitions/propertyPreference', {
+                entityType: this.selectedEntityType,
+                fieldKey: button.dataset.fieldKey,
+                isEnabled,
+            });
+            document.dispatchEvent(new CustomEvent('nexa:property-visibility-changed', {
+                detail: {entityType: this.selectedEntityType, fieldKey: button.dataset.fieldKey, isEnabled},
+            }));
+            Espo.Ui.success(`Property ${isEnabled ? 'enabled' : 'disabled'}. Existing data was preserved.`);
+            await this.load();
+        } catch (error) {
+            button.disabled = false;
+            Espo.Ui.error(error?.message || 'The property setting could not be updated.');
+        }
+    }
+
     updateAssociationLanguage(event) {
         const target = this.entityOptions().find(item => item.key === event.currentTarget.value);
         if (!target) return;
@@ -478,7 +544,7 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         const preview = this.element.querySelector('[data-layout-preview]');
         if (!host || !preview || !this.selectedEntityType) return;
         const context = this.element.querySelector('[data-layout-context]').value;
-        const fields = [...this.fieldsFor(this.selectedEntityType)];
+        const fields = [...this.enabledFieldsFor(this.selectedEntityType)];
         const savedLayout = (this.dataSet.layouts || []).find(item => item.entity_type === this.selectedEntityType && item.layout_context === context);
         const layout = savedLayout?.layout || [];
         const order = new Map(layout.map((key, index) => [key, index]));
@@ -555,7 +621,7 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         host.innerHTML = '<p class="nexa-loading-copy">Loading records...</p>';
         try {
             const result = await Espo.Ajax.getRequest(`Nexa/customization/entities/${encodeURIComponent(entity.key)}/records`);
-            host.replaceChildren(this.recordForm(entity.key, this.fieldsFor(entity.key)), this.recordList(result.records || [], entity.key));
+            host.replaceChildren(this.recordForm(entity.key, this.enabledFieldsFor(entity.key)), this.recordList(result.records || [], entity.key));
             host.querySelector('[data-form="custom-record"]').hidden = true;
         } catch (error) {
             host.innerHTML = '<div class="nexa-empty-state"><p>Records could not be loaded.</p></div>';

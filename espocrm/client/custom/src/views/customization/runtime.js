@@ -60,7 +60,7 @@ define('custom:views/customization/runtime', ['view'], Dep => class extends Dep 
     }
 
     fieldsFor(context) {
-        const definitions = this.dataSet?.fields || [];
+        const definitions = (this.dataSet?.fields || []).filter(field => field.is_enabled !== false);
         const layout = (this.dataSet?.layouts || []).find(item => item.layout_context === context)?.layout;
         if (!Array.isArray(layout) || !layout.length) return definitions;
         const byKey = new Map(definitions.map(field => [field.field_key, field]));

@@ -22,7 +22,7 @@ define('custom:views/fields/custom-property-filter', ['views/fields/base'], Dep 
 
     async loadDefinitions() {
         const result = await Espo.Ajax.getRequest('Nexa/customization/definitions', {entityType: this.entityType});
-        this.definitions = (result.fields || []).filter(field => field.is_filterable);
+        this.definitions = (result.fields || []).filter(field => field.is_filterable && field.is_enabled !== false);
     }
 
     data() {

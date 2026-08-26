@@ -36,7 +36,7 @@ A section is **aligned** when it has an explicit module and phase home. It is **
 | 7. Opportunities | SALES-001..030 | M05, M06, M12, M19 | 3, 6, 9 | Pipelines, stage rules, automation, forecasting and outcomes |
 | 8. Cases and support tickets | SERVICE-001..032 | M07, M12, M19 | 3, 6, 9 | Queues, SLA, escalation, portal and support analytics |
 | 9. Activity management | SALES-031..055 | M06, M07 | 3 | One activity model across CRM, service and custom records |
-| 10. Calendar | SALES-056..068 | M06, M20 | 3, 11 | Personal/team calendar first; provider synchronization through adapters |
+| 10. Calendar | SALES-056..068 | M06, M20 | 3, 11 | Personal/team calendar first; Google Calendar and Microsoft Outlook synchronization through user-authorized adapters |
 | 11. Email system | SERVICE-033..055, MKT-001..012 | M07, M10, M11 | 3, 5, 6 | Separate operational email from governed marketing delivery and tracking |
 | 12. Anonymous visitor tracking | EVENT-002..012 | M11 | 5 | Consent-aware anonymous identity and deterministic contact resolution |
 | 13. Event tracking | EVENT-013..026 | M11 | 5 | Versioned ingestion API and extensible event schema |
@@ -68,7 +68,7 @@ A section is **aligned** when it has an explicit module and phase home. It is **
 | 39. Dashboards | ANALYTICS-126..150 | M02, M19 | 1, 9 | M02 owns shell/widgets; M19 owns governed data and sharing scopes |
 | 40. API | EXT-001..040 | M01, domain modules, M20 | 0-11 | APIs ship with owning domains under common versioning and tenant contracts |
 | 41. Webhooks | EXT-041..060 | M01, M12, M20 | 0, 6, 11 | Signed subscriptions, delivery history, retries, replay protection and events |
-| 42. Integration engine | EXT-061..095 | M01, M15-M20 | 0, 8-11 | Provider contract begins in M01; channel/domain adapters ship incrementally |
+| 42. Integration engine | EXT-061..095 | M01, M15-M20 | 0, 8-11 | Provider contract begins in M01; Phase 11 completes Google/Microsoft calendar and contact sync with mapping, reconciliation and conflict handling |
 | 43. Data management | DATA-091..115 | M05, M20 | 3, 11 | Governed asynchronous import, export, transform, merge, history and sync |
 | 44. Compliance and consent | IAM-013..025, MKT-226..240 | M04, M08, M10, M22 | 2, 4, 6 | Consent evidence, preferences, suppression, privacy export and erasure |
 | 45. Security | IAM-026..050 | M01, M04, M22 | 2, 12 | Security controls are release gates, not optional feature work |

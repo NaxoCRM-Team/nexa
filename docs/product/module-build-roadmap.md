@@ -42,7 +42,7 @@ Module IDs are stable architecture and ownership identifiers. Delivery order is 
 | M17 | Advertising | Ad account connections, audiences, campaign visibility, retargeting and conversion events | F-017, F-023, F-064 |
 | M18 | SEO and Content Intelligence | SEO recommendations, page/search performance, Search Console data and YouTube analytics | F-019, F-058, F-062, F-086 |
 | M19 | Analytics, Reporting, Dashboards and Attribution | Governed reporting engine, custom reports, personal/team/department dashboards, filtered views, domain analytics, campaign/asset comparison, attribution, funnels and customer journeys | F-043, F-054, F-060, F-069, F-081 |
-| M20 | APIs and Enterprise Integrations | Connector framework, OAuth/credential lifecycle, domain REST APIs, signed webhooks, mapping, transformation, reconciliation, payment/accounting/ecommerce/calendar adapters and Salesforce synchronization | F-057, F-078 |
+| M20 | APIs and Enterprise Integrations | Connector framework, OAuth/credential lifecycle, domain REST APIs, signed webhooks, mapping, transformation, reconciliation, Google/Microsoft calendar and contact synchronization, payment/accounting/ecommerce adapters and Salesforce synchronization | F-057, F-078 |
 | M21 | AI Services | Provider-neutral AI gateway, Anthropic adapter, social agent and social-inbox insights with safety and usage controls | F-052, F-080, F-084 |
 | M22 | Administration and Support Operations | Tenant/operator settings, notifications, support console, audit access, health, usage, privacy operations and operational controls | F-076 |
 | M23 | Experimentation | Audience assignment, A/B variants, statistical results and winner selection for email and supported content | F-041 |
@@ -219,7 +219,10 @@ The tenant fields, layouts, custom objects and relationship sub-gate is recorded
 **Modules:** M20, M21
 
 - Complete the connector framework established in M01 with credential lifecycle, mapping, transformation, conflict resolution, reconciliation and failure queues.
-- Add prioritized Google, Microsoft, calendar, payment, accounting, ecommerce, marketing-platform and custom-application adapters.
+- Add user-authorized Google Calendar and Microsoft Outlook Calendar adapters for configurable one-way or two-way event synchronization with Nexa meetings and calendars.
+- Add Google Contacts and Microsoft Outlook Contacts adapters with tenant-scoped ownership, email-based matching, duplicate protection, configurable synchronization direction and field mapping.
+- Add provider webhooks where available, scheduled reconciliation, rate-limit handling, retry queues, sync history, conflict resolution, token refresh/revocation and safe disconnect workflows.
+- Add prioritized payment, accounting, ecommerce, marketing-platform and custom-application adapters.
 - Add Salesforce standard and custom-object synchronization.
 - Complete signed webhook subscription, delivery visibility, replay protection and recovery contracts; core domain APIs have already shipped incrementally.
 - Build a provider-neutral AI gateway with usage metering, redaction, prompt/version audit and human approval controls.
