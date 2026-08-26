@@ -1,0 +1,5 @@
+{
+    "merge": {
+        "implementationClassName": "Espo\\Custom\\Classes\\Action\\Merge"
+    }
+}

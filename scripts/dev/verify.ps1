@@ -67,6 +67,7 @@ $required = @(
     'tests/workflows/AccountTimelineWorkflowTest.php',
     'tests/workflows/CustomerFoundationRuntimeContractTest.php',
     'tests/tenant/CustomerFoundationRuntimeTest.php',
+    'tests/tenant/TenantNativeMergeTest.php',
     'tests/workflows/TenantFileLibraryTest.php',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
     'espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json',
@@ -207,6 +208,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountDeta
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AccountTimelineWorkflowTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CustomerFoundationRuntimeContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CustomerFoundationRuntimeTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantNativeMergeTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\TenantImageLibrary.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\Api\GetImages.php')
@@ -282,6 +284,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation two-tenant runtime suite' } else { Fail 'Customer foundation two-tenant runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantCustomizationRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Tenant customization two-tenant runtime suite' } else { Fail 'Tenant customization two-tenant runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantNativeMergeTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Tenant-safe native merge runtime suite' } else { Fail 'Tenant-safe native merge runtime suite failed.' }
     }
     & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }
