@@ -8475,3 +8475,36 @@ a.nexa-tenant-file-link[aria-busy="true"] {
 @media (max-width: 767px) {
     .nexa-custom-property-filter { grid-template-columns: 1fr; }
 }
+
+/* Lead qualification keeps native conversion behavior inside Nexa's CRM shell. */
+.nexa-lead-list-page .list-container,
+.nexa-lead-record-page .record {
+    border: 1px solid #d9e3e1;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(18, 51, 47, .06);
+}
+
+.nexa-lead-list-page .list-container th {
+    color: #304b47;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: none;
+}
+
+.nexa-lead-record-page .panel-heading {
+    color: #203c38;
+    font-weight: 700;
+}
+
+.nexa-lead-record-page .field[data-name="rating"] .label,
+.nexa-lead-record-page .field[data-name="lifecycleStage"] .label,
+.nexa-lead-record-page .field[data-name="marketingStatus"] .label {
+    border-radius: 999px;
+    padding: 4px 8px;
+}
+
+@media (max-width: 767px) {
+    .nexa-lead-list-page .list-container { overflow-x: auto; }
+    .nexa-lead-record-page .record { border-right: 0; border-left: 0; border-radius: 0; }
+}

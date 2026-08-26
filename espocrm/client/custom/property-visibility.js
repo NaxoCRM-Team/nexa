@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    const supported = new Set(['Contact', 'Account']);
+    const supported = new Set(['Contact', 'Account', 'Lead']);
     const cache = new Map();
     let activeEntity = null;
     let hiddenFields = new Set();

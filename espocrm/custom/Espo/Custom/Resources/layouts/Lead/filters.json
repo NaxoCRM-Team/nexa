@@ -1,0 +1,4 @@
+[
+    "name", "status", "rating", "leadScore", "lifecycleStage", "marketingStatus", "source",
+    "campaign", "assignedUser", "teams", "createdAt", "nexaCustomPropertyFilter"
+]

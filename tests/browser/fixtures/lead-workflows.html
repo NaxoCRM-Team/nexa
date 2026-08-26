@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nexa Lead workflows</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font:14px Arial,sans-serif;color:#203c38;background:#f4f7f6}button,input,select{font:inherit}
+    header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#fff;border-bottom:1px solid #d9e3e1}.brand{font-size:20px;font-weight:700;color:#087b73}
+    main{max-width:1440px;margin:auto;padding:20px}.toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:14px}.toolbar div{display:flex;gap:8px}.search{min-width:280px;padding:10px;border:1px solid #b8c9c6;border-radius:5px}.primary{padding:10px 14px;border:0;border-radius:5px;background:#087b73;color:#fff;font-weight:700}
+    .surface{background:#fff;border:1px solid #d9e3e1;border-radius:6px;box-shadow:0 1px 3px #12332f12;overflow:hidden}table{width:100%;border-collapse:collapse}th,td{padding:13px;text-align:left;border-bottom:1px solid #e4ecea}th{font-size:12px;color:#435d59}.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#e8f4f2;color:#086e68;font-weight:700}.hot{background:#fde7e7;color:#a52525}
+    .record{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:16px}.panel{padding:18px}.panel h2,.panel h3{margin-top:0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field{padding:12px;border:1px solid #e0e9e7;border-radius:5px}.field small{display:block;color:#60736f;margin-bottom:5px}.actions{display:flex;gap:8px}
+    form{padding:20px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}label{display:grid;gap:6px;font-weight:700}label input,label select{padding:10px;border:1px solid #adbfbc;border-radius:5px}.full{grid-column:1/-1}.status{min-height:20px;margin-top:12px}
+    [hidden]{display:none!important}@media(max-width:760px){header{padding:0 14px}main{padding:12px}.toolbar{align-items:stretch;flex-direction:column}.toolbar div{justify-content:space-between}.search{min-width:0;width:100%}.surface{overflow-x:auto}.record,.grid,.form-grid{grid-template-columns:1fr}.full{grid-column:auto}th,td{white-space:nowrap}}
+  </style>
+</head>
+<body>
+<header><span class="brand">Nexa CRM</span><span>Isolation Alpha</span></header>
+<main>
+  <section data-view="list" hidden>
+    <h1>Leads</h1>
+    <div class="toolbar"><div><input class="search" aria-label="Search leads" placeholder="Search leads by name, company, email or phone"><button>Filters</button></div><button class="primary">New Lead</button></div>
+    <div class="surface" tabindex="0" aria-label="Lead records"><table><thead><tr><th>Lead</th><th>Company</th><th>Status</th><th>Rating</th><th>Score</th><th>Lifecycle</th><th>Owner</th></tr></thead><tbody><tr><td>Ada Williams</td><td>Northstar</td><td><span class="badge">In Process</span></td><td><span class="badge hot">Hot</span></td><td>82</td><td>Marketing Qualified Lead</td><td>Jamie Cole</td></tr></tbody></table></div>
+  </section>
+  <section data-view="record" hidden>
+    <div class="toolbar"><div><h1>Ada Williams</h1></div><div class="actions"><button>Edit</button><button class="primary">Convert Lead</button></div></div>
+    <div class="record"><article class="surface panel" aria-label="Lead qualification"><h2>Lead profile</h2><div class="grid"><div class="field"><small>Company</small>Northstar</div><div class="field"><small>Email</small>ada@example.test</div><div class="field"><small>Status</small>In Process</div><div class="field"><small>Rating</small><span class="badge hot">Hot</span></div></div><h3>Engagement</h3><div class="grid"><div class="field"><small>Last activity</small>Today, 10:30</div><div class="field"><small>Next activity</small>Tomorrow, 09:00</div></div></article><aside class="surface panel" role="region" aria-label="Conversion readiness"><h2>Conversion readiness</h2><p><strong>Score:</strong> 82</p><p><strong>Lifecycle:</strong> Marketing Qualified Lead</p><p><strong>Consent:</strong> Freely given consent</p></aside></div>
+  </section>
+  <section data-view="edit" hidden><div class="toolbar"><h1>New Lead</h1></div><form class="surface"><div class="form-grid"><label>First name<input required value="Ada"></label><label>Last name<input required value="Williams"></label><label>Email<input type="email" value="ada@example.test"></label><label>Company<input value="Northstar"></label><label>Rating<select><option>Hot</option><option>Warm</option><option>Cold</option></select></label><label>Lifecycle stage<select><option>Lead</option><option>Marketing Qualified Lead</option></select></label><label class="full">Legal basis<select><option>Freely Given Consent</option></select></label></div><div class="actions" style="margin-top:18px"><button class="primary" type="submit">Save</button><button type="button">Cancel</button></div><div class="status" role="status"></div></form></section>
+</main>
+<script>const view=new URLSearchParams(location.search).get('view')||'list';document.querySelector(`[data-view="${view}"]`).hidden=false;document.querySelector('form')?.addEventListener('submit',e=>{e.preventDefault();document.querySelector('.status').textContent='Lead saved successfully.'});</script>
+</body></html>

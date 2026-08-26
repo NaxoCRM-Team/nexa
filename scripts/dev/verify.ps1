@@ -40,6 +40,7 @@ $required = @(
     'database/shared/migrations/0012_extend_contact_profile_experience.sql',
     'database/shared/migrations/0013_add_contact_profile_image.sql',
     'database/shared/migrations/0014_extend_contact_lifecycle_compliance.sql',
+    'database/shared/migrations/0034_extend_lead_lifecycle_conversion.sql',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
     'database/shared/migrations/0020_add_contact_communication_summary.sql',
     'database/shared/migrations/0017_add_global_login_email.sql',
@@ -279,6 +280,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation runtime contract suite' } else { Fail 'Customer foundation runtime contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\TenantCustomizationContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant customization contract suite' } else { Fail 'Tenant customization contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\LeadLifecycleConversionContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Lead lifecycle and conversion contract suite' } else { Fail 'Lead lifecycle and conversion contract suite failed.' }
     if (-not $Ci) {
         & php (Join-Path $root 'tests\tenant\CustomerFoundationRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation two-tenant runtime suite' } else { Fail 'Customer foundation two-tenant runtime suite failed.' }
@@ -286,6 +289,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Tenant customization two-tenant runtime suite' } else { Fail 'Tenant customization two-tenant runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantNativeMergeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Tenant-safe native merge runtime suite' } else { Fail 'Tenant-safe native merge runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantLeadConversionTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Lead conversion runtime suite' } else { Fail 'Two-tenant Lead conversion runtime suite failed.' }
     }
     & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }

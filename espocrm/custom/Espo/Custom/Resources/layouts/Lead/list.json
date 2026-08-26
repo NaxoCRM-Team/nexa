@@ -1,0 +1,11 @@
+[
+    {"name": "name", "width": 20, "link": true},
+    {"name": "accountName", "width": 17},
+    {"name": "status", "width": 12},
+    {"name": "rating", "width": 9},
+    {"name": "leadScore", "width": 9},
+    {"name": "lifecycleStage", "width": 16},
+    {"name": "source", "width": 13},
+    {"name": "assignedUser", "width": 15},
+    {"name": "createdAt", "width": 15}
+]

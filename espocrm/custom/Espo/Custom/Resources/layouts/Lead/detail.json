@@ -1,0 +1,25 @@
+[
+    {"label": "Lead profile", "rows": [
+        [{"name": "name"}, {"name": "accountName"}],
+        [{"name": "emailAddress"}, {"name": "phoneNumber"}],
+        [{"name": "title"}, {"name": "website"}],
+        [{"name": "address", "fullWidth": true}]
+    ]},
+    {"label": "Qualification", "rows": [
+        [{"name": "status"}, {"name": "source"}],
+        [{"name": "rating"}, {"name": "leadScore"}],
+        [{"name": "lifecycleStage"}, {"name": "marketingStatus"}],
+        [{"name": "legalBasis", "fullWidth": true}],
+        [{"name": "campaign"}, {"name": "targetLists"}]
+    ]},
+    {"label": "Engagement", "rows": [
+        [{"name": "firstActivityAt"}, {"name": "lastActivityAt"}],
+        [{"name": "lastEmailInteractionAt"}, {"name": "lastWebsiteVisitAt"}],
+        [{"name": "nextActivityAt"}, {"name": "convertedAt"}],
+        [{"name": "convertedBy"}, {"name": "assignedUser"}]
+    ]},
+    {"label": "Ownership and notes", "rows": [
+        [{"name": "teams", "fullWidth": true}],
+        [{"name": "description", "fullWidth": true}]
+    ]}
+]

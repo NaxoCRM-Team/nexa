@@ -19,6 +19,7 @@ use PDO;
 final class CustomerFoundationRecorder
 {
     private const CUSTOMER_TYPES = ['Contact', 'Account'];
+    private const LEAD_TYPES = ['Lead'];
     private const ACTIVITY_TYPES = ['Note', 'Task', 'Meeting', 'Call', 'Email', 'Document'];
 
     /** @var array<string, array{name: string, category: string, position: int}> */
@@ -44,8 +45,9 @@ final class CustomerFoundationRecorder
     {
         $type = $entity->getEntityType();
         $isCustomer = in_array($type, self::CUSTOMER_TYPES, true);
+        $isLead = in_array($type, self::LEAD_TYPES, true);
         $isActivity = in_array($type, self::ACTIVITY_TYPES, true);
-        if (!$isCustomer && !$isActivity) {
+        if (!$isCustomer && !$isLead && !$isActivity) {
             return;
         }
         $context = $this->writeContext();
@@ -57,13 +59,17 @@ final class CustomerFoundationRecorder
             $this->recordCustomerSave($entity, $context);
             return;
         }
+        if ($isLead) {
+            $this->recordLeadSave($entity, $context);
+            return;
+        }
         $this->recordActivitySave($entity, $context);
     }
 
     public function afterRemove(Entity $entity): void
     {
         $type = $entity->getEntityType();
-        if (!in_array($type, array_merge(self::CUSTOMER_TYPES, self::ACTIVITY_TYPES), true)) {
+        if (!in_array($type, array_merge(self::CUSTOMER_TYPES, self::LEAD_TYPES, self::ACTIVITY_TYPES), true)) {
             return;
         }
         $context = $this->writeContext();
@@ -136,6 +142,18 @@ final class CustomerFoundationRecorder
                 $type . ' created'
             );
         }
+    }
+
+    /** Keep Lead qualification history durable without treating a prospect as a customer record. */
+    private function recordLeadSave(Entity $entity, TenantContext $context): void
+    {
+        $action = 'lead' . ($entity->isNew() ? '.created' : '.updated');
+        $correlationId = $this->uuid();
+        $metadata = ['changedFields' => $this->changedFields($entity)];
+
+        $this->syncLifecycle($entity, $context, $correlationId);
+        $this->audit($context, $action, 'Lead', $entity->getId(), $correlationId, $metadata);
+        $this->outbox($context, $action, 'Lead', $entity->getId(), $correlationId, $metadata);
     }
 
     private function recordActivitySave(Entity $entity, TenantContext $context): void

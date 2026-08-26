@@ -18,7 +18,7 @@ use PDO;
 /** Tenant boundary for fields, layouts, objects and relationships. */
 final class CustomizationService
 {
-    private const NATIVE = ['Contact', 'Account'];
+    private const NATIVE = ['Contact', 'Account', 'Lead'];
     private const TYPES = ['text','long_text','number','currency','date','datetime','boolean','single_select','multi_select','url','email','phone','user','relationship'];
 
     public function __construct(
