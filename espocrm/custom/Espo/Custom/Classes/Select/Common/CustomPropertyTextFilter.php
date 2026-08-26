@@ -26,7 +26,7 @@ final class CustomPropertyTextFilter implements Filter
     {
         $context = $this->tenantContextStore->require();
         $statement = $this->entityManager->getPDO()->prepare(
-            'SELECT id,data_type FROM nexa_custom_field_definition WHERE tenant_id=? AND service_id=? AND entity_type=? AND is_active=1 AND is_searchable=1'
+            'SELECT d.id,d.data_type FROM nexa_custom_field_definition d WHERE d.tenant_id=? AND d.service_id=? AND d.entity_type=? AND d.is_active=1 AND d.is_searchable=1 AND NOT EXISTS (SELECT 1 FROM nexa_property_preference p WHERE p.tenant_id=d.tenant_id AND p.service_id=d.service_id AND p.entity_type=d.entity_type AND p.field_key=d.field_key AND p.is_enabled=0)'
         );
         $statement->execute([$context->tenantId, $context->serviceId, $this->entityType]);
         $definitions = $statement->fetchAll(\PDO::FETCH_ASSOC);

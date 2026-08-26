@@ -99,6 +99,22 @@ try {
     $assert(count($store->runWith($tenantA,fn():array=>$service->definitions('Contact'))['fields'])>=1,'Tenant A field definition is missing.');
     $assert(count($store->runWith($tenantB,fn():array=>$service->definitions('Contact'))['fields'])>=1,'Tenant B field definition is missing.');
 
+    $store->runWith($tenantA, fn(): array => $service->saveDefinition('propertyPreference', ['entityType'=>'Contact','fieldKey'=>$fieldKey,'isEnabled'=>false]));
+    $alphaDisabled = $store->runWith($tenantA, fn(): array => $service->definitions('Contact'));
+    $betaEnabled = $store->runWith($tenantB, fn(): array => $service->definitions('Contact'));
+    $alphaField = array_values(array_filter($alphaDisabled['fields'], static fn(array $field): bool => $field['field_key'] === $fieldKey))[0] ?? null;
+    $betaField = array_values(array_filter($betaEnabled['fields'], static fn(array $field): bool => $field['field_key'] === $fieldKey))[0] ?? null;
+    $assert($alphaField !== null && $alphaField['is_enabled'] === false, 'Tenant A property preference was not applied.');
+    $assert($betaField !== null && $betaField['is_enabled'] === true, 'Tenant A property preference leaked into Tenant B.');
+    $alphaHiddenValues = $store->runWith($tenantA, fn(): array => $service->values('Contact',$contactA));
+    $assert(!array_key_exists($fieldKey, $alphaHiddenValues['values']), 'A disabled property remained in the tenant runtime form contract.');
+    $store->runWith($tenantA, fn(): array => $service->saveDefinition('propertyPreference', ['entityType'=>'Contact','fieldKey'=>$fieldKey,'isEnabled'=>true]));
+    $alphaRestored = $store->runWith($tenantA, fn(): array => $service->values('Contact',$contactA));
+    $assert(($alphaRestored['values'][$fieldKey] ?? null) === 'ALPHA-001', 'Re-enabling a property did not restore its retained value.');
+    $protectedRejected = false;
+    try { $store->runWith($tenantA, fn(): array => $service->saveDefinition('propertyPreference', ['entityType'=>'Contact','fieldKey'=>'lastName','isEnabled'=>false])); } catch (BadRequest) { $protectedRejected = true; }
+    $assert($protectedRejected, 'A required Contact identity property was disabled.');
+
     $recordList = $store->runWith($tenantA, fn(): array => $service->records($objectKey, 0, 25, 'Alpha'));
     $assert($recordList['total'] === 1, 'The normal custom-object list did not find the tenant record.');
     $assert(($recordList['records'][0]['values']['serial_number'] ?? null) === 'ASSET-A', 'The normal list omitted configured custom values.');

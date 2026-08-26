@@ -73,11 +73,11 @@ jobs:
           done
       - name: Verify expected baseline
         run: |
-          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = "nexa_shared_test"')" = "182"
+          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = "nexa_shared_test"')" = "183"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test --execute='SELECT COUNT(*) FROM nexa_plan_definition')" = "3"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test --execute='SELECT COUNT(*) FROM nexa_service_definition')" = "6"
-          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND column_name = "tenant_id"')" = "171"
-          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND column_name = "service_id"')" = "153"
+          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND column_name = "tenant_id"')" = "172"
+          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND column_name = "service_id"')" = "154"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND table_name IN ("address_country", "extension", "system_data") AND column_name IN ("tenant_id", "service_id")')" = "0"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND column_name = "tenant_id" AND is_nullable = "YES"')" = "0"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND column_name = "tenant_id" AND column_default IS NOT NULL')" = "0"

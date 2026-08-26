@@ -36,6 +36,7 @@ final class CustomizationService
         $context = $this->tenantContextStore->require();
         $scope = [$context->tenantId, $context->serviceId];
         $entityType = $entityType ? $this->entityType($entityType) : null;
+        $preferences = $this->propertyPreferenceMap($entityType);
         $fields = $this->all(
             'SELECT id,entity_type,field_key,label,description,data_type,options_json,default_value_json,validation_json,is_required,is_unique,is_filterable,is_searchable,position FROM nexa_custom_field_definition WHERE tenant_id=? AND service_id=? AND is_active=1' . ($entityType ? ' AND entity_type=?' : '') . ' ORDER BY entity_type,position,label',
             $entityType ? [...$scope, $entityType] : $scope,
@@ -45,6 +46,9 @@ final class CustomizationService
             $field['defaultValue'] = $this->jsonValue($field['default_value_json']);
             $field['validation'] = $this->jsonArray($field['validation_json']);
             foreach (['is_required','is_unique','is_filterable','is_searchable'] as $key) $field[$key] = (bool) $field[$key];
+            $preferenceKey = $field['entity_type'] . ':' . $field['field_key'];
+            $field['is_enabled'] = $preferences[$preferenceKey] ?? true;
+            $field['is_protected'] = false;
             unset($field['options_json'], $field['default_value_json'], $field['validation_json']);
         }
         unset($field);
@@ -67,7 +71,7 @@ final class CustomizationService
             'fieldTypes' => self::TYPES,
             'entities' => $this->all('SELECT id,entity_key,label,plural_label,description,icon_class,status,created_at,updated_at FROM nexa_custom_entity_definition WHERE tenant_id=? AND service_id=? AND status=\'active\' ORDER BY label', $scope),
             'fields' => $fields,
-            'standardFields' => $standardEntityTypes === [] ? [] : array_merge(...array_map(fn (string $type): array => $this->standardProperties($type), $standardEntityTypes)),
+            'standardFields' => $standardEntityTypes === [] ? [] : array_merge(...array_map(fn (string $type): array => $this->standardProperties($type, $preferences), $standardEntityTypes)),
             'layouts' => $layouts,
             'relationships' => $this->all('SELECT id,relationship_key,label,inverse_label,source_entity_type,target_entity_type,cardinality,is_required FROM nexa_custom_relationship_definition WHERE tenant_id=? AND service_id=? AND is_active=1 ORDER BY label', $scope),
         ];
@@ -82,6 +86,7 @@ final class CustomizationService
             'field' => $this->saveField($data),
             'layout' => $this->saveLayout($data),
             'relationship' => $this->saveRelationship($data),
+            'propertyPreference' => $this->savePropertyPreference($data),
             default => throw new BadRequest('Unknown customization definition type.'),
         };
     }
@@ -109,7 +114,7 @@ final class CustomizationService
         [$entityType, $entityId] = $this->record($entityType, $entityId, false);
         $context = $this->tenantContextStore->require();
         $definitionSet = $this->definitions($entityType);
-        $definitions = $definitionSet['fields'];
+        $definitions = array_values(array_filter($definitionSet['fields'], fn (array $field): bool => $field['is_enabled']));
         $stored = [];
         foreach ($this->all('SELECT * FROM nexa_custom_field_value WHERE tenant_id=? AND service_id=? AND entity_type=? AND entity_id=?', [$context->tenantId,$context->serviceId,$entityType,$entityId]) as $row) $stored[$row['field_definition_id']] = $row;
         $values = [];
@@ -128,7 +133,7 @@ final class CustomizationService
     {
         [$entityType, $entityId] = $this->record($entityType, $entityId, true);
         $context = $this->tenantContextStore->require();
-        $definitions = $this->definitions($entityType)['fields'];
+        $definitions = array_values(array_filter($this->definitions($entityType)['fields'], fn (array $field): bool => $field['is_enabled']));
         $byKey = [];
         foreach ($definitions as $definition) $byKey[$definition['field_key']] = $definition;
         foreach ($values as $key => $value) {
@@ -174,7 +179,7 @@ final class CustomizationService
         $params = [$context->tenantId, $context->serviceId, $entity['id']];
         if ($query !== '') {
             $pattern = '%' . addcslashes($query, '%_\\') . '%';
-            $where .= " AND (r.display_name LIKE ? ESCAPE '\\\\' OR EXISTS (SELECT 1 FROM nexa_custom_field_value v INNER JOIN nexa_custom_field_definition d ON d.id=v.field_definition_id AND d.tenant_id=v.tenant_id AND d.service_id=v.service_id WHERE v.tenant_id=r.tenant_id AND v.service_id=r.service_id AND v.entity_type=? AND v.entity_id=r.id AND d.is_active=1 AND d.is_searchable=1 AND CONCAT_WS(' ',v.value_text,v.value_number,v.value_date,v.value_datetime,v.value_json) LIKE ? ESCAPE '\\\\'))";
+            $where .= " AND (r.display_name LIKE ? ESCAPE '\\\\' OR EXISTS (SELECT 1 FROM nexa_custom_field_value v INNER JOIN nexa_custom_field_definition d ON d.id=v.field_definition_id AND d.tenant_id=v.tenant_id AND d.service_id=v.service_id WHERE v.tenant_id=r.tenant_id AND v.service_id=r.service_id AND v.entity_type=? AND v.entity_id=r.id AND d.is_active=1 AND d.is_searchable=1 AND NOT EXISTS (SELECT 1 FROM nexa_property_preference p WHERE p.tenant_id=d.tenant_id AND p.service_id=d.service_id AND p.entity_type=d.entity_type AND p.field_key=d.field_key AND p.is_enabled=0) AND CONCAT_WS(' ',v.value_text,v.value_number,v.value_date,v.value_datetime,v.value_json) LIKE ? ESCAPE '\\\\'))";
             array_push($params, $pattern, $entity['entity_key'], $pattern);
         }
         $count = $this->one("SELECT COUNT(*) AS total FROM nexa_custom_record r WHERE {$where}", $params);
@@ -495,11 +500,12 @@ final class CustomizationService
     private function saveEntity(array $data): array
     {
         $context=$this->tenantContextStore->require(); $key=$this->key($data['entityKey']??'','Entity key');
+        $icon=$this->iconClass($data['iconClass']??null);
         if (in_array(strtolower($key),array_map('strtolower',self::NATIVE),true)) throw new BadRequest('Native entity names are reserved.');
         $id=isset($data['id'])&&is_string($data['id'])?$this->id($data['id']):$this->uuid(); $label=$this->label($data['label']??'','Label'); $plural=$this->label($data['pluralLabel']??'','Plural label');
         $statement=$this->entityManager->getPDO()->prepare("INSERT INTO nexa_custom_entity_definition (id,tenant_id,service_id,entity_key,label,plural_label,description,icon_class,created_by_id) VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE label=VALUES(label),plural_label=VALUES(plural_label),description=VALUES(description),icon_class=VALUES(icon_class),status='active',archived_at=NULL");
-        $statement->execute([$id,$context->tenantId,$context->serviceId,$key,$label,$plural,$this->optional($data['description']??null,500),$this->optional($data['iconClass']??null,80),$this->user->getId()]);
-        $this->audit('customization.entity.saved','custom_entity',$id,['entityKey'=>$key]); return ['id'=>$id,'entityKey'=>$key,'label'=>$label,'pluralLabel'=>$plural];
+        $statement->execute([$id,$context->tenantId,$context->serviceId,$key,$label,$plural,$this->optional($data['description']??null,500),$icon,$this->user->getId()]);
+        $this->audit('customization.entity.saved','custom_entity',$id,['entityKey'=>$key]); return ['id'=>$id,'entityKey'=>$key,'label'=>$label,'pluralLabel'=>$plural,'iconClass'=>$icon];
     }
 
     /** @param array<string, mixed> $data */
@@ -526,8 +532,26 @@ final class CustomizationService
         $this->audit('customization.field.saved','custom_field',$id,['entityType'=>$entityType,'fieldKey'=>$key]); return ['id'=>$id,'entityType'=>$entityType,'fieldKey'=>$key];
     }
 
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function savePropertyPreference(array $data): array
+    {
+        $context=$this->tenantContextStore->require();
+        $entityType=$this->entityType($data['entityType']??''); $this->entityExists($entityType);
+        $fieldKey=$this->propertyKey($data['fieldKey']??'');
+        $enabled=!array_key_exists('isEnabled',$data)||!empty($data['isEnabled']);
+        $standard=null;
+        foreach($this->standardProperties($entityType) as $candidate) if($candidate['field_key']===$fieldKey) {$standard=$candidate; break;}
+        $custom=$this->one('SELECT id FROM nexa_custom_field_definition WHERE tenant_id=? AND service_id=? AND entity_type=? AND field_key=? AND is_active=1',[$context->tenantId,$context->serviceId,$entityType,$fieldKey]);
+        if(!$standard&&!$custom) throw new NotFound('Property was not found.');
+        if(!$enabled&&$standard&&!empty($standard['is_protected'])) throw new BadRequest('This core property is required and cannot be disabled.');
+        $statement=$this->entityManager->getPDO()->prepare('INSERT INTO nexa_property_preference (tenant_id,service_id,entity_type,field_key,is_enabled,updated_by_id) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE is_enabled=VALUES(is_enabled),updated_by_id=VALUES(updated_by_id),updated_at=CURRENT_TIMESTAMP(6)');
+        $statement->execute([$context->tenantId,$context->serviceId,$entityType,$fieldKey,$enabled?1:0,$this->user->getId()]);
+        $this->audit('customization.property.visibility.updated',$entityType,$fieldKey,['isEnabled'=>$enabled]);
+        return ['entityType'=>$entityType,'fieldKey'=>$fieldKey,'isEnabled'=>$enabled];
+    }
+
     /** @return array<int,array<string,mixed>> */
-    private function standardProperties(string $entityType): array
+    private function standardProperties(string $entityType, array $preferences=[]): array
     {
         if(!in_array($entityType,self::NATIVE,true)) return [];
         $definitions=$this->metadata->get(['entityDefs',$entityType,'fields'],[]); if(!is_array($definitions)) return [];
@@ -538,9 +562,21 @@ final class CustomizationService
             $type=(string)($definition['type']??'varchar');
             if(in_array($type,['link','linkMultiple','image','file','attachmentMultiple'],true)) continue;
             $label=$this->humanize($key);
-            $result[]=['entity_type'=>$entityType,'field_key'=>$key,'label'=>$label,'data_type'=>$type,'source'=>'standard','is_required'=>(bool)($definition['required']??false),'is_unique'=>(bool)($definition['unique']??false),'is_filterable'=>empty($definition['notStorable']),'is_searchable'=>in_array($key,$searchable,true),'read_only'=>(bool)($definition['readOnly']??false)];
+            $protected=(bool)($definition['required']??false)||($entityType==='Account'&&$key==='name')||($entityType==='Contact'&&$key==='lastName');
+            $preferenceKey=$entityType.':'.$key;
+            $result[]=['entity_type'=>$entityType,'field_key'=>$key,'label'=>$label,'data_type'=>$type,'source'=>'standard','is_required'=>(bool)($definition['required']??false),'is_unique'=>(bool)($definition['unique']??false),'is_filterable'=>empty($definition['notStorable']),'is_searchable'=>in_array($key,$searchable,true),'read_only'=>(bool)($definition['readOnly']??false),'is_enabled'=>$protected||($preferences[$preferenceKey]??true),'is_protected'=>$protected];
         }
         usort($result,fn(array $a,array $b):int=>strcasecmp($a['label'],$b['label'])); return $result;
+    }
+
+    /** @return array<string,bool> */
+    private function propertyPreferenceMap(?string $entityType=null): array
+    {
+        $context=$this->tenantContextStore->require();
+        $sql='SELECT entity_type,field_key,is_enabled FROM nexa_property_preference WHERE tenant_id=? AND service_id=?'.($entityType?' AND entity_type=?':'');
+        $params=[$context->tenantId,$context->serviceId]; if($entityType) $params[]=$entityType;
+        $result=[]; foreach($this->all($sql,$params) as $row) $result[$row['entity_type'].':'.$row['field_key']]=(bool)$row['is_enabled'];
+        return $result;
     }
 
     private function normalizedLabel(string $value): string { return mb_strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value))); }
@@ -603,6 +639,8 @@ final class CustomizationService
     private function readValue(array $definition,?array $row): mixed { if(!$row)return $definition['defaultValue']; return match($definition['data_type']){'number','currency'=>$row['value_number']!==null?(float)$row['value_number']:null,'date'=>$row['value_date'],'datetime'=>$row['value_datetime'],'boolean'=>$row['value_boolean']!==null?(bool)$row['value_boolean']:null,'multi_select'=>$this->jsonArray($row['value_json']),default=>$row['value_text']}; }
     private function admin(): void { if(!$this->user->isAdmin())throw new Forbidden('Only a tenant administrator can manage customization.'); }
     private function entityType(mixed $value): string { if(!is_string($value)||!preg_match('/^[A-Za-z][A-Za-z0-9_]{1,63}$/',trim($value)))throw new BadRequest('Invalid entity type.'); foreach(self::NATIVE as $native)if(strcasecmp($native,trim($value))===0)return $native; return strtolower(trim($value)); }
+    private function propertyKey(mixed $value): string { if(!is_string($value)||!preg_match('/^[A-Za-z][A-Za-z0-9_]{1,63}$/',trim($value)))throw new BadRequest('Invalid property key.'); return trim($value); }
+    private function iconClass(mixed $value): ?string { if($value===null||$value==='')return null; if(!is_string($value)||!preg_match('/^(?:fas|far|fab|fal) fa-[a-z0-9-]+$/',trim($value)))throw new BadRequest('Choose an icon from the available icon library.'); return trim($value); }
     private function key(mixed $value,string $name): string { if(!is_string($value)||!preg_match('/^[a-z][a-z0-9_]{1,63}$/',strtolower(trim($value))))throw new BadRequest("{$name} must use lowercase letters, numbers and underscores."); return strtolower(trim($value)); }
     private function id(mixed $value): string { if(!is_string($value)||!preg_match('/^[A-Za-z0-9_-]{1,64}$/',trim($value)))throw new BadRequest('Invalid identifier.'); return trim($value); }
     private function label(mixed $value,string $name,int $max=120): string { if(!is_string($value)||trim($value)===''||mb_strlen(trim($value))>$max)throw new BadRequest("{$name} is required and must be at most {$max} characters."); return trim($value); }

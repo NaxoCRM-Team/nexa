@@ -234,6 +234,12 @@
                        "serviceScope":  "required"
                    },
                    {
+                       "name":  "nexa_property_preference",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
                        "name":  "nexa_communication_preference",
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",
