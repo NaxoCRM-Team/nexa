@@ -1,0 +1,13 @@
+[
+    {"label": "Lead profile", "rows": [
+        [{"name": "name", "fullWidth": true}],
+        [{"name": "accountName", "fullWidth": true}],
+        [{"name": "emailAddress", "fullWidth": true}],
+        [{"name": "phoneNumber", "fullWidth": true}],
+        [{"name": "status"}, {"name": "rating"}],
+        [{"name": "lifecycleStage"}, {"name": "leadScore"}],
+        [{"name": "marketingStatus", "fullWidth": true}],
+        [{"name": "assignedUser", "fullWidth": true}],
+        [{"name": "description", "fullWidth": true}]
+    ]}
+]

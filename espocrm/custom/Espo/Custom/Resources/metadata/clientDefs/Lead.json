@@ -1,0 +1,11 @@
+{
+    "controller": "crm:controllers/lead",
+    "views": {
+        "detail": "crm:views/lead/detail",
+        "list": "custom:views/lead/list"
+    },
+    "recordViews": {
+        "detail": "custom:views/lead/record/detail",
+        "edit": "custom:views/lead/record/edit"
+    }
+}

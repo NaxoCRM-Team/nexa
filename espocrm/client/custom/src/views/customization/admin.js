@@ -75,6 +75,7 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         const native = {
             Contact: {label: 'Contacts', singular: 'Contact', description: 'People, customers and individual relationships.', icon: 'fas fa-address-card'},
             Account: {label: 'Accounts', singular: 'Account', description: 'Companies, organizations and business relationships.', icon: 'fas fa-building'},
+            Lead: {label: 'Leads', singular: 'Lead', description: 'Prospects moving through qualification and conversion.', icon: 'fas fa-user-plus'},
         };
         return [
             ...(this.dataSet?.nativeEntityTypes || []).map(key => ({key, ...native[key], native: true})),

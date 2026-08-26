@@ -1,0 +1,55 @@
+{
+    "fields": {
+        "rating": {
+            "type": "enum",
+            "options": ["", "Hot", "Warm", "Cold"],
+            "style": {"Hot": "danger", "Warm": "warning", "Cold": "info"},
+            "displayAsLabel": true,
+            "audited": true
+        },
+        "leadScore": {
+            "type": "int",
+            "default": 0,
+            "min": 0,
+            "audited": true
+        },
+        "lifecycleStage": {
+            "type": "enum",
+            "options": ["Subscriber", "Lead", "MarketingQualifiedLead", "SalesQualifiedLead", "Opportunity", "Customer", "Evangelist", "Other"],
+            "default": "Lead",
+            "displayAsLabel": true,
+            "audited": true
+        },
+        "marketingStatus": {
+            "type": "enum",
+            "options": ["Marketing", "Non-Marketing", "Unsubscribed"],
+            "default": "Non-Marketing",
+            "displayAsLabel": true,
+            "audited": true
+        },
+        "legalBasis": {
+            "type": "enum",
+            "options": ["", "LegitimateInterestLead", "LegitimateInterestCustomer", "LegitimateInterestOther", "PerformanceOfContract", "FreelyGivenConsent", "NotApplicable"],
+            "audited": true
+        },
+        "lastWebsiteVisitAt": {"type": "datetime", "readOnly": true},
+        "firstActivityAt": {"type": "datetime", "readOnly": true},
+        "lastActivityAt": {"type": "datetime", "readOnly": true},
+        "lastEmailInteractionAt": {"type": "datetime", "readOnly": true},
+        "nextActivityAt": {"type": "datetime", "readOnly": true},
+        "convertedBy": {"type": "link", "readOnly": true, "view": "views/fields/user"},
+        "nexaCustomPropertyFilter": {
+            "type": "varchar",
+            "notStorable": true,
+            "orderDisabled": true,
+            "exportDisabled": true,
+            "view": "custom:views/fields/custom-property-filter"
+        }
+    },
+    "links": {
+        "convertedBy": {"type": "belongsTo", "entity": "User"}
+    },
+    "collection": {
+        "textFilterFields": ["name", "accountName", "emailAddress", "phoneNumber"]
+    }
+}

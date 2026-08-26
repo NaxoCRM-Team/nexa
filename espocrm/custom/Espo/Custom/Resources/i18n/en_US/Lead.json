@@ -1,0 +1,31 @@
+{
+    "fields": {
+        "rating": "Rating",
+        "leadScore": "Lead Score",
+        "lifecycleStage": "Lifecycle Stage",
+        "marketingStatus": "Marketing Status",
+        "legalBasis": "Legal Basis",
+        "lastWebsiteVisitAt": "Last Website Visit",
+        "firstActivityAt": "First Activity",
+        "lastActivityAt": "Last Activity",
+        "lastEmailInteractionAt": "Last Email Interaction",
+        "nextActivityAt": "Next Activity",
+        "convertedBy": "Converted By",
+        "nexaCustomPropertyFilter": "Custom properties"
+    },
+    "options": {
+        "lifecycleStage": {
+            "MarketingQualifiedLead": "Marketing Qualified Lead",
+            "SalesQualifiedLead": "Sales Qualified Lead"
+        },
+        "legalBasis": {
+            "LegitimateInterestLead": "Legitimate Interest - Lead",
+            "LegitimateInterestCustomer": "Legitimate Interest - Customer",
+            "LegitimateInterestOther": "Legitimate Interest - Other",
+            "PerformanceOfContract": "Performance of a Contract",
+            "FreelyGivenConsent": "Freely Given Consent",
+            "NotApplicable": "Not Applicable"
+        }
+    },
+    "labels": {"Create Lead": "New Lead"}
+}
