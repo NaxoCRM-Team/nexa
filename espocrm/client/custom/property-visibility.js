@@ -6,10 +6,15 @@
     let activeEntity = null;
     let hiddenFields = new Set();
     let applyTimer = null;
+    let readinessTimer = null;
+
+    function applicationReady() {
+        return document.body.classList.contains('nexa-shell-ready');
+    }
 
     function routeEntity() {
         const value = `${window.location.pathname}/${window.location.hash}`;
-        const match = value.match(/(?:^|\/|#)(Contact|Account)(?:\/|$|\?|#)/);
+        const match = value.match(/(?:^|\/|#)(Contact|Account|Lead)(?:\/|$|\?|#)/);
         return match && supported.has(match[1]) ? match[1] : null;
     }
 
@@ -45,7 +50,9 @@
         activeEntity = entityType;
         hiddenFields = new Set();
         restore();
-        if (!entityType || !window.Espo?.Ajax) return;
+        // Espo.Ajax exists before its API base URL and authentication headers are
+        // configured. The completed shell is the stable signal that requests are safe.
+        if (!entityType || !window.Espo?.Ajax || !applicationReady()) return;
         try {
             if (force || !cache.has(entityType)) {
                 cache.set(entityType, await Espo.Ajax.getRequest('Nexa/customization/definitions', {entityType}));
@@ -81,7 +88,15 @@
             handleRoute(true);
         });
         window.setInterval(() => handleRoute(), 750);
-        handleRoute(true);
+        const loadWhenReady = () => {
+            if (applicationReady()) {
+                handleRoute(true);
+                return;
+            }
+            readinessTimer = window.setTimeout(loadWhenReady, 100);
+        };
+        window.addEventListener('beforeunload', () => window.clearTimeout(readinessTimer), {once: true});
+        loadWhenReady();
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true});

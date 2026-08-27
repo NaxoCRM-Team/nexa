@@ -154,12 +154,27 @@
         box-shadow 0.15s,
         transform 0.15s;
 }
+.nexa-object-card[hidden] {
+    display: none;
+}
 .nexa-object-card:hover,
 .nexa-object-card:focus-visible {
     border-color: #8abbb7;
     box-shadow: 0 5px 16px rgba(23, 37, 42, 0.08);
     transform: translateY(-1px);
     outline: 0;
+}
+.nexa-object-card.is-planned {
+    background: #f8fafb;
+}
+.nexa-object-card.is-planned .nexa-object-card-icon {
+    background: #eceff1;
+    color: #667579;
+}
+.nexa-object-card.is-planned .nexa-object-card-title small {
+    border-color: #d5dcde;
+    background: #f1f3f4;
+    color: #58676b;
 }
 .nexa-object-card-icon {
     display: grid;
@@ -321,6 +336,54 @@
 }
 .nexa-object-panel {
     padding: 22px 0;
+}
+.nexa-object-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.nexa-object-settings-grid article {
+    min-height: 82px;
+    padding: 14px;
+    border: 1px solid var(--nexa-line);
+    border-radius: 6px;
+    background: #fff;
+}
+.nexa-object-settings-grid article > span,
+.nexa-object-settings-grid article > strong {
+    display: block;
+}
+.nexa-object-settings-grid article > span {
+    margin-bottom: 7px;
+    color: var(--nexa-muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.nexa-object-status {
+    width: fit-content;
+    border-radius: 999px;
+    background: #e3f1f0;
+    color: var(--nexa-green-dark);
+    padding: 4px 9px;
+    font-size: 12px;
+}
+.nexa-object-status.is-planned {
+    background: #f2eee2;
+    color: #735d20;
+}
+.nexa-object-capability {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 14px;
+    border-left: 3px solid var(--nexa-blue);
+    background: #f3f7fb;
+    color: #344b54;
+}
+.nexa-object-capability p {
+    margin: 0;
 }
 .nexa-panel-header {
     display: flex;
@@ -1114,6 +1177,9 @@
     color: #6c7d80;
 }
 @media (max-width: 900px) {
+    .nexa-object-settings-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .nexa-object-grid {
         grid-template-columns: 1fr;
     }
@@ -1171,6 +1237,9 @@
         align-items: flex-start;
         flex-direction: column;
         gap: 5px;
+    }
+    .nexa-object-settings-grid {
+        grid-template-columns: 1fr;
     }
     .nexa-object-heading {
         align-items: flex-start;

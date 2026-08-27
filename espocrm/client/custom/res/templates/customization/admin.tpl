@@ -3,7 +3,7 @@
         <div>
             <p class="nexa-admin-eyebrow">Administration / Data management</p>
             <h1>Objects &amp; properties</h1>
-            <p class="nexa-admin-summary">Choose a record type, then manage the information it stores and how records connect.</p>
+            <p class="nexa-admin-summary">Manage tenant-safe business data without exposing platform schema or infrastructure controls.</p>
         </div>
         <div class="nexa-admin-header-actions">
             <button type="button" class="btn btn-default" data-action="refresh" title="Refresh"><span class="fas fa-sync-alt" aria-hidden="true"></span></button>
@@ -15,12 +15,12 @@
         <div class="nexa-object-guide" aria-label="Recommended setup order">
             <h2>How customization works</h2>
             <ol>
-                <li><span>1</span><div><strong>Choose an object</strong><p>Select Contacts, Accounts or a custom object.</p></div></li>
+                <li><span>1</span><div><strong>Choose an object</strong><p>Select an available Nexa object or a custom object created for this workspace.</p></div></li>
                 <li><span>2</span><div><strong>Add the information you need</strong><p>Create properties such as Membership number or Customer category.</p></div></li>
                 <li><span>3</span><div><strong>Arrange and connect records</strong><p>Choose where properties appear and create associations when needed.</p></div></li>
             </ol>
         </div>
-        <div class="nexa-object-intro"><div><span class="fas fa-database" aria-hidden="true"></span><div><strong>Start with the information you want to manage</strong><p>Contacts and Accounts are ready to customize. Create a custom object only when the information does not fit an existing record type.</p></div></div></div>
+        <div class="nexa-object-intro"><div><span class="fas fa-database" aria-hidden="true"></span><div><strong>Start with an existing business object</strong><p>Use a custom object only when the information does not belong in Contacts, Accounts, Leads or another planned Nexa module.</p></div></div></div>
         <div class="nexa-object-toolbar">
             <div><h2>Choose an object</h2><p>Properties, record layout and associations are managed inside each object.</p></div>
             <label class="nexa-object-search"><span class="fas fa-search" aria-hidden="true"></span><span class="sr-only">Search objects</span><input type="search" data-object-search placeholder="Search objects"></label>
@@ -32,9 +32,10 @@
         <button type="button" class="nexa-object-back" data-action="back-to-objects"><span class="fas fa-arrow-left" aria-hidden="true"></span>All objects</button>
         <div class="nexa-object-heading"><div class="nexa-object-heading-icon" data-object-icon aria-hidden="true"></div><div><div class="nexa-object-heading-label"><h2 data-object-title></h2><span data-object-kind></span></div><p data-object-description></p></div></div>
         <nav class="nexa-object-tabs" role="tablist" aria-label="Object settings">
-            <button type="button" id="properties-tab" data-object-tab="properties" role="tab" aria-controls="properties-panel" aria-selected="true" class="is-active">Properties</button>
-            <button type="button" id="layout-tab" data-object-tab="layout" role="tab" aria-controls="layout-panel" aria-selected="false">Record layout</button>
-            <button type="button" id="associations-tab" data-object-tab="associations" role="tab" aria-controls="associations-panel" aria-selected="false">Associations</button>
+            <button type="button" id="properties-tab" data-object-tab="properties" role="tab" aria-controls="properties-panel" aria-selected="true" class="is-active" data-requires-customization>Properties</button>
+            <button type="button" id="layout-tab" data-object-tab="layout" role="tab" aria-controls="layout-panel" aria-selected="false" data-requires-customization>Record layout</button>
+            <button type="button" id="associations-tab" data-object-tab="associations" role="tab" aria-controls="associations-panel" aria-selected="false" data-requires-customization>Associations</button>
+            <button type="button" id="settings-tab" data-object-tab="settings" role="tab" aria-controls="settings-panel" aria-selected="false">Object settings</button>
             <button type="button" id="records-tab" data-object-tab="records" role="tab" aria-controls="records-panel" aria-selected="false" data-custom-only>Records</button>
         </nav>
 
@@ -53,6 +54,17 @@
         <section id="associations-panel" class="nexa-object-panel" data-object-panel="associations" role="tabpanel" aria-labelledby="associations-tab" hidden>
             <header class="nexa-panel-header"><div><h3>Associations</h3><p>Associations describe how this object connects to other records.</p></div><button type="button" class="btn btn-primary" data-action="open-association-dialog"><span class="fas fa-plus" aria-hidden="true"></span>Create association</button></header>
             <div class="nexa-association-list" data-association-list></div>
+        </section>
+
+        <section id="settings-panel" class="nexa-object-panel" data-object-panel="settings" role="tabpanel" aria-labelledby="settings-tab" hidden>
+            <header class="nexa-panel-header"><div><h3>Object settings</h3><p>Review ownership and availability before changing how this object is used.</p></div></header>
+            <div class="nexa-object-settings-grid">
+                <article><span>Display name</span><strong data-setting-label></strong></article>
+                <article><span>Internal name</span><strong data-setting-key></strong></article>
+                <article><span>Ownership</span><strong data-setting-kind></strong></article>
+                <article><span>Status</span><strong class="nexa-object-status" data-setting-status></strong></article>
+            </div>
+            <div class="nexa-object-capability"><span class="fas fa-info-circle" aria-hidden="true"></span><p data-setting-capability></p></div>
         </section>
 
         <section id="records-panel" class="nexa-object-panel" data-object-panel="records" role="tabpanel" aria-labelledby="records-tab" hidden>
