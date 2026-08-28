@@ -129,6 +129,8 @@ Delivery is split across Sprints 05-07: tenant lifecycle, entitlements and role 
 
 The tenant fields, layouts, custom objects and relationship sub-gate is recorded in [Phase 3 Customization Exit Gate](../development/phase-3-customization-exit-gate.md).
 
+The opportunity, pipeline, forecasting, product and quote sub-gate is recorded in [Phase 3 Sales Exit Gate](../development/phase-3-sales-exit-gate.md).
+
 **Exit gate:** A tenant can operate a connected customer, sales and service lifecycle in which conversion, relationships, activities and support history remain attached to the same governed customer identity.
 
 ### Phase 4 - Consent, Content, Segmentation and Campaign Foundation

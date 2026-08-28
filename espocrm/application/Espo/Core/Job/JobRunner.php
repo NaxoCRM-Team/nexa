@@ -32,6 +32,7 @@ namespace Espo\Core\Job;
 use Espo\Core\ORM\EntityManager;
 use Espo\Core\ServiceFactory;
 use Espo\Core\Tenant\TenantContext;
+use Espo\Core\Tenant\TenantCurrencyConfigOverlay;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Utils\Log;
 use Espo\Core\Utils\System;
@@ -53,6 +54,7 @@ class JobRunner
         private ServiceFactory $serviceFactory,
         private Log $log,
         private TenantContextStore $tenantContextStore,
+        private TenantCurrencyConfigOverlay $tenantCurrencyConfigOverlay,
     ) {}
 
     /**
@@ -87,9 +89,11 @@ class JobRunner
             throw new RuntimeException('A job without tenant and service ownership cannot run.');
         }
 
+        $context = new TenantContext($tenantId, 'background-job', 'job-record', serviceId: $serviceId);
+
         return $this->tenantContextStore->runWith(
-            new TenantContext($tenantId, 'background-job', 'job-record', serviceId: $serviceId),
-            $callback,
+            $context,
+            fn () => $this->tenantCurrencyConfigOverlay->run($context, $callback),
         );
     }
 

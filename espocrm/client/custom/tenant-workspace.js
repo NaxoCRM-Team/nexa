@@ -161,11 +161,12 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
     ];
     const workspaceNavigation = productSurfaceRegistry.navigation || legacyWorkspaceNavigation;
 
-    const createPlannedModule = ([name, label, link = null]) => ({
+    const createPlannedModule = ([name, label, link = null, iconClass = null]) => ({
         name,
         label,
         shortLabel: label.substring(0, 2),
         link,
+        iconClass,
         isGroup: false,
         isDivider: false,
         isInMore: false,

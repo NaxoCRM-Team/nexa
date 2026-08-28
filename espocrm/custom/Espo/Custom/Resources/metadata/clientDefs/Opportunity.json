@@ -1,0 +1,11 @@
+{
+    "controller": "controllers/record",
+    "views": {
+        "list": "custom:views/opportunity/list-v2"
+    },
+    "recordViews": {
+        "list": "custom:views/opportunity/record/list-infinite",
+        "detail": "custom:views/opportunity/record/detail-workspace",
+        "edit": "custom:views/opportunity/record/edit"
+    }
+}

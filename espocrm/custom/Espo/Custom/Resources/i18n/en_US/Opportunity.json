@@ -1,0 +1,12 @@
+{
+    "fields": {
+        "pipelineId": "Pipeline",
+        "forecastCategory": "Forecast Category",
+        "expectedRevenue": "Weighted Revenue",
+        "nextStep": "Next Step",
+        "lossReason": "Loss Reason"
+    },
+    "labels": {
+        "Create Opportunity": "New Opportunity"
+    }
+}

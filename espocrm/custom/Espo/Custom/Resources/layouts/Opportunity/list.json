@@ -1,9 +1,10 @@
 [
-    {"name": "name","link":true},
-    {"name": "account","width": 22},
-    {"name": "stage", "width": 15},
-    {"name": "assignedUsers", "width": 12},
-    {"name": "createdAt", "width": 12},
-    {"name": "closeDate", "width": 9, "hidden": true},
-    {"name": "amount", "align": "right", "width": 10}
+    {"name": "name", "link": true, "width": 22},
+    {"name": "account", "width": 18},
+    {"name": "stage", "width": 13},
+    {"name": "forecastCategory", "width": 12},
+    {"name": "amount", "align": "right", "width": 12},
+    {"name": "expectedRevenue", "align": "right", "width": 12},
+    {"name": "closeDate", "width": 11},
+    {"name": "assignedUser", "width": 12}
 ]

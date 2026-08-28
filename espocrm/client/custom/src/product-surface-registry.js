@@ -10,9 +10,9 @@ define('custom:product-surface-registry', [], () => {
         ]},
         {name: 'nexa-sales', label: 'Sales', iconClass: 'fas fa-chart-line', items: [
             'Opportunity', 'Meeting', 'Call', 'Task', 'Calendar',
-            ['nexa-sales-pipelines', 'Pipelines'],
-            ['nexa-sales-forecasts', 'Forecasts'],
-            ['nexa-products-quotes', 'Products & Quotes'],
+            ['nexa-sales-pipelines', 'Pipelines', '#NexaSales/pipelines', 'fas fa-project-diagram'],
+            ['nexa-sales-forecasts', 'Forecasts', '#NexaSales/forecasts', 'fas fa-chart-bar'],
+            ['nexa-products-quotes', 'Products & Quotes', '#NexaSales/products', 'fas fa-box-open'],
             'Document', 'Template',
         ]},
         {name: 'nexa-marketing', label: 'Marketing', iconClass: 'fas fa-bullhorn', items: [

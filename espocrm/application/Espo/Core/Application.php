@@ -36,6 +36,8 @@ use Espo\Core\Application\RunnerRunner;
 use Espo\Core\Application\Runner\Params as RunnerParams;
 use Espo\Core\Application\Exceptions\RunnerException;
 use Espo\Core\Tenant\PlatformExecutionGateway;
+use Espo\Core\Tenant\TenantContext;
+use Espo\Core\Tenant\TenantCurrencyConfigOverlay;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Tenant\TenantResolver;
 use Espo\Core\Utils\Autoload;
@@ -104,7 +106,7 @@ class Application
                     throw new \RuntimeException('The local maintenance tenant is not configured.');
                 }
 
-                $this->container->getByClass(TenantContextStore::class)->runWith($maintenanceTenant, $run);
+                $this->runForTenant($maintenanceTenant, $run);
 
                 return;
             }
@@ -147,10 +149,19 @@ class Application
                 throw new \RuntimeException('The request host is not assigned to an active tenant.');
             }
 
-            $this->container->getByClass(TenantContextStore::class)->runWith($tenant, $run);
+            $this->runForTenant($tenant, $run);
         } catch (RunnerException $e) {
             die($e->getMessage());
         }
+    }
+
+    private function runForTenant(TenantContext $tenant, callable $callback): mixed
+    {
+        return $this->container->getByClass(TenantContextStore::class)->runWith(
+            $tenant,
+            fn () => $this->getInjectableFactory()->create(TenantCurrencyConfigOverlay::class)
+                ->run($tenant, $callback),
+        );
     }
 
     /**

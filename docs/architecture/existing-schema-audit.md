@@ -15,7 +15,7 @@ The audit compared:
 - the local MariaDB schema; and
 - all 47 sections of the unified product specification.
 
-The current verified local database contains 167 tables, 156 `tenant_id` columns, 139 `service_id` columns, and all 20 migrations through `0020`. The original fixture defines 136 Espo tables. The additional Nexa tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup, identity-security, unified-customer and communication-preference foundations.
+The current verified clean-install database contains 197 tables, 184 `tenant_id` columns, 166 `service_id` columns, and all 40 migrations through `0040`. The original fixture defines 136 application tables. The additional Nexa tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup, identity security, unified-customer, communication, customization, lead-conversion, sales-pipeline, product, quote, forecasting and tenant-owned currency foundations.
 
 ## Decisions
 
@@ -104,7 +104,7 @@ Migration `0009_unified_customer_foundation.sql` creates:
 3. lifecycle definitions, ordered stages, current assignments and immutable transitions; and
 4. the chronological customer timeline projection.
 
-The migration intentionally does not create behavior events, consent, product catalog, SLA, automation or analytics tables. Those require their own approved data contracts and forward migrations in later phases.
+The implemented migrations now include the tenant product catalogue and sales commercial lifecycle. Behavior events, broader consent automation, SLA, workflow automation and analytics projections remain governed by their later module contracts.
 
 Polymorphic Contact/Account/entity references are tenant-validated in application services because the referenced Espo tables do not expose composite `(id, tenant_id)` keys. Every read and write must therefore bind the active `TenantContext`; raw unscoped access remains denied.
 

@@ -30,11 +30,11 @@
                 "description": "scheduledJob"
             },
             {
-                "url": "#Admin/currency",
+                "url": "#NexaCurrency",
                 "label": "Currency",
                 "iconClass": "fas fa-euro-sign",
                 "description": "currency",
-                "recordView": "views/admin/currency"
+                "recordView": "custom:views/currency/admin"
             },
             {
                 "url": "#Admin/notifications",

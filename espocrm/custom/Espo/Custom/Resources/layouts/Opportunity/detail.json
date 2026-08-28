@@ -1,0 +1,17 @@
+[
+    {"label": "Deal", "rows": [
+        [{"name": "name"}, {"name": "account"}],
+        [{"name": "pipelineId"}, {"name": "stage"}],
+        [{"name": "amount"}, {"name": "expectedRevenue"}],
+        [{"name": "probability"}, {"name": "forecastCategory"}],
+        [{"name": "closeDate"}, {"name": "nextStep"}],
+        [{"name": "contacts", "fullWidth": true}]
+    ]},
+    {"label": "Context", "rows": [
+        [{"name": "leadSource"}, {"name": "campaign"}],
+        [{"name": "assignedUser"}, {"name": "teams"}],
+        [{"name": "assignedUsers", "fullWidth": true}],
+        [{"name": "lossReason", "fullWidth": true}],
+        [{"name": "description", "fullWidth": true}]
+    ]}
+]
