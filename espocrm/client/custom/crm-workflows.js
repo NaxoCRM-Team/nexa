@@ -6,13 +6,118 @@ require([
     'views/record/list-expanded',
     'views/record/detail',
     'views/record/edit',
-], (ListView, DetailView, EditView, RecordListView, ExpandedListView, RecordDetailView, RecordEditView) => {
+    'helpers/mass-action',
+], (ListView, DetailView, EditView, RecordListView, ExpandedListView, RecordDetailView, RecordEditView, MassActionHelper) => {
     const viewTypes = [ListView, DetailView, EditView, RecordListView, ExpandedListView, RecordDetailView, RecordEditView];
 
     const visible = element => element && !element.classList.contains('hidden') && element.offsetParent !== null;
     const scopeLabel = view => {
         const scope = view.scope || view.entityType || view.collection?.name || view.model?.entityType || 'CRM';
         return view.translate?.(scope, 'scopeNamesPlural') || scope;
+    };
+
+    const openDeleteConfirmation = (view, count, onConfirm) => {
+        if (!count) return false;
+
+        view.createView('nexaDeleteConfirmation', 'custom:views/modals/delete-confirmation', {
+            count,
+            entityLabel: scopeLabel(view),
+        }, modal => {
+            modal.render();
+            view.listenToOnce(modal, 'confirm', onConfirm);
+        });
+
+        return true;
+    };
+
+    /** Preserve Espo's ACL-aware mass-action endpoint behind the Nexa confirmation UI. */
+    const removeSelectedRecords = async view => {
+        Espo.Ui.notifyWait();
+        const params = view.getMassActionSelectionPostData();
+        const helper = new MassActionHelper(view);
+        const idle = Boolean(params.searchParams) && helper.checkIsIdle(view.collection.total);
+
+        try {
+            const result = await Espo.Ajax.postRequest('MassAction', {
+                entityType: view.entityType,
+                action: 'delete',
+                params,
+                idle,
+            }) || {};
+
+            const finish = count => {
+                Espo.Ui.notify(false);
+                if (!count) {
+                    Espo.Ui.warning(view.translate('noRecordsRemoved', 'messages'));
+                    return;
+                }
+
+                if (view.allResultIsChecked) {
+                    view.unselectAllResult();
+                    view.collection.fetch();
+                } else {
+                    (result.ids || []).forEach(id => {
+                        view.collection.trigger('model-removing', id);
+                        view.removeRecordFromList(id);
+                        view.uncheckRecord(id, null, true);
+                    });
+                }
+
+                view.collection.trigger('after:mass-remove');
+                const key = count === 1 ? 'massRemoveResultSingle' : 'massRemoveResult';
+                Espo.Ui.success(view.translate(key, 'messages').replace('{count}', count));
+            };
+
+            if (result.id) {
+                const progress = await helper.process(result.id, 'delete');
+                view.listenToOnce(progress, 'close:success', response => finish(response.count));
+                return;
+            }
+
+            finish(Number(result.count) || 0);
+        } catch (error) {
+            Espo.Ui.notify(false);
+            Espo.Ui.error('The selected records could not be deleted.');
+        }
+    };
+
+    // Contact and Account record lists provide stricter lifecycle-specific
+    // implementations. Every other CRM list inherits this consistent dialog.
+    RecordListView.prototype.massActionRemove = function () {
+        if (!this.getAcl().check(this.entityType, 'delete')) {
+            Espo.Ui.error(this.translate('Access denied'));
+            return false;
+        }
+
+        const count = this.allResultIsChecked ? Number(this.collection.total) : this.checkedList.length;
+        return openDeleteConfirmation(this, count, () => removeSelectedRecords(this));
+    };
+
+    RecordListView.prototype.actionQuickRemove = async function (data = {}) {
+        const id = data.id;
+        const model = id ? this.collection.get(id) : null;
+        if (!model || !this.getAcl().checkModel(model, 'delete')) {
+            Espo.Ui.error(this.translate('Access denied'));
+            return;
+        }
+
+        return openDeleteConfirmation(this, 1, async () => {
+            const index = this.collection.indexOf(model);
+            this.collection.trigger('model-removing', id);
+            this.collection.remove(model);
+            Espo.Ui.notifyWait();
+            try {
+                await model.destroy({wait: true, fromList: true});
+                this.removeRecordFromList(id);
+                this.trigger('after:delete', model);
+                Espo.Ui.success(this.translate('Removed'));
+            } catch (error) {
+                if (!this.collection.models.includes(model)) this.collection.add(model, {at: index});
+                Espo.Ui.error('The record could not be deleted.');
+            } finally {
+                Espo.Ui.notify(false);
+            }
+        });
     };
 
     const ensureLiveStatus = (root, className) => {

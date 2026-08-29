@@ -38,6 +38,14 @@ $assert(str_contains($service, 'acl->checkEntityRead'), 'Native custom-property 
 $assert(str_contains($service, 'acl->checkEntityEdit'), 'Native custom-property writes must retain record ACL.');
 $assert(str_contains($service, 'is_unique'), 'Tenant custom fields must enforce configured uniqueness.');
 $assert(str_contains($service, 'standardFields'), 'Property administration must include standard and tenant-created properties in one catalogue.');
+$assert(str_contains($service, 'SYSTEM_OBJECTS'), 'Customization must expose a curated business-object registry rather than the full framework entity list.');
+$assert(str_contains($service, "'systemObjects' =>"), 'The definition API must return business-object availability metadata.');
+foreach (['Contact','Account','Lead','Opportunity','Case','Campaign','TargetList','Task','Meeting','Call','Document','KnowledgeBaseArticle'] as $businessObject) {
+    $assert(str_contains($service, "'{$businessObject}' =>"), "The business-object catalogue is missing {$businessObject}.");
+}
+foreach (['AuthToken','AppLogRecord','EmailQueueItem','PasswordChangeRequest','WebhookQueueItem'] as $internalObject) {
+    $assert(!str_contains($service, "'{$internalObject}' =>"), "Platform-internal object {$internalObject} must not appear in tenant customization.");
+}
 $assert(str_contains($preferenceMigration, 'CREATE TABLE IF NOT EXISTS nexa_property_preference'), 'Tenant property preferences need a scoped persistence table.');
 $assert(str_contains($service, "'propertyPreference' => \$this->savePropertyPreference"), 'The definition API must persist property visibility changes.');
 $assert(str_contains($service, 'This core property is required and cannot be disabled.'), 'Required core properties must remain enabled.');
@@ -51,18 +59,24 @@ $assert(str_contains($service, 'customization.relationship.unlinked'), 'Custom r
 $assert(str_contains($service, 'ROLLBACK TO SAVEPOINT'), 'Failed custom value and record writes must roll back atomically.');
 $assert(str_contains($helper, 'Nexa/customization/values/'), 'Contact and Account forms must persist tenant custom values through the API.');
 $assert(($account['recordViews']['edit'] ?? null) === 'custom:views/account/record/edit', 'Account edits must mount tenant custom properties.');
-foreach (['Objects &amp; properties','Properties','Record layout','Associations','Create custom object'] as $label) $assert(str_contains($template, $label), "Visual administration is missing {$label}.");
-$assert(substr_count($template, 'role="tabpanel"') === 4, 'Every visual builder tab must expose an accessible tab panel.');
-$assert(substr_count($template, 'aria-controls=') === 4, 'Every visual builder tab must identify its controlled panel.');
+foreach (['Objects &amp; properties','Properties','Record layout','Associations','Object settings','Create custom object'] as $label) $assert(str_contains($template, $label), "Visual administration is missing {$label}.");
+$assert(substr_count($template, 'role="tabpanel"') === 5, 'Every object workspace tab must expose an accessible tab panel.');
+$assert(substr_count($template, 'aria-controls=') === 5, 'Every object workspace tab must identify its controlled panel.');
+$assert(!str_contains($template, 'Related administration'), 'Objects and Properties must not duplicate the main Administration catalogue.');
 $assert(str_contains($template, 'Advanced settings'), 'Technical internal names must be hidden behind advanced settings.');
 $assert(str_contains($admin, 'keyFrom('), 'The visual builder must generate internal names from business labels.');
 $assert(str_contains($admin, 'addFieldToLayout'), 'Property creation must support immediate screen placement.');
 $assert(str_contains($admin, 'propertyCatalogueFor'), 'The visual builder must display a combined standard and custom property catalogue.');
 $assert(str_contains($admin, 'toggleProperty'), 'The property catalogue must expose tenant enable and disable controls.');
+$assert(str_contains($admin, 'customizationEnabled === true'), 'Planned system objects must not expose unfinished customization controls.');
+$assert(str_contains($admin, 'renderObjectSettings'), 'Each object must expose clear ownership and availability settings.');
+$assert(!str_contains($template, 'Delivery module'), 'Tenant-facing object settings must not expose internal roadmap module terminology.');
+$assert(str_contains($read('espocrm/client/custom/css/customization.css'), '.nexa-object-card[hidden]'), 'Object live search must visually hide non-matching grid cards.');
 $assert(str_contains($admin, "views/admin/entity-manager/modals/select-icon"), 'Custom-object creation must reuse the native searchable icon selector.');
 $assert(str_contains($template, 'data-action="select-object-icon"'), 'Custom-object creation must expose the native icon selector control.');
 $assert(str_contains($template, 'How customization works') && strpos($template, 'How customization works') < strpos($template, 'Choose an object'), 'The setup guide must appear before object selection.');
 $assert(str_contains($visibility, 'nexa-property-hidden-by-tenant'), 'Native Contact and Account screens must apply tenant property visibility.');
+$assert(str_contains($visibility, "classList.contains('nexa-shell-ready')"), 'Property visibility must wait until the authenticated API client is configured.');
 $assert(str_contains($runtime, 'field.is_enabled !== false'), 'Custom-object screens must omit disabled properties.');
 $assert(str_contains($admin, 'isFilterable'), 'Searchability and filterability must be configured independently.');
 $assert(str_contains($template, 'Include in keyword and global search'), 'The property builder must explain the searchable rule precisely.');

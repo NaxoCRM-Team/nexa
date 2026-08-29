@@ -72,13 +72,12 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
     }
 
     entityOptions() {
-        const native = {
-            Contact: {label: 'Contacts', singular: 'Contact', description: 'People, customers and individual relationships.', icon: 'fas fa-address-card'},
-            Account: {label: 'Accounts', singular: 'Account', description: 'Companies, organizations and business relationships.', icon: 'fas fa-building'},
-            Lead: {label: 'Leads', singular: 'Lead', description: 'Prospects moving through qualification and conversion.', icon: 'fas fa-user-plus'},
-        };
         return [
-            ...(this.dataSet?.nativeEntityTypes || []).map(key => ({key, ...native[key], native: true})),
+            ...(this.dataSet?.systemObjects || []).map(item => ({
+                ...item,
+                native: true,
+                available: item.customizationEnabled === true,
+            })),
             ...(this.dataSet?.entities || []).map(item => ({
                 key: item.entity_key,
                 label: item.plural_label,
@@ -86,6 +85,8 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
                 description: item.description || `Custom ${item.plural_label.toLowerCase()} managed by this workspace.`,
                 icon: item.icon_class || 'fas fa-cubes',
                 native: false,
+                available: true,
+                module: 'Tenant custom object',
             })),
         ];
     }
@@ -106,12 +107,17 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
             card.className = 'nexa-object-card';
             card.dataset.action = 'select-object';
             card.dataset.entityType = entity.key;
+            card.classList.toggle('is-planned', !entity.available);
             card.innerHTML = '<span class="nexa-object-card-icon" aria-hidden="true"></span><span class="nexa-object-card-copy"><span class="nexa-object-card-title"><strong></strong><small></small></span><span class="nexa-object-card-description"></span><span class="nexa-object-card-meta"></span></span><span class="fas fa-chevron-right nexa-object-card-arrow" aria-hidden="true"></span>';
             card.querySelector('.nexa-object-card-icon').innerHTML = `<span class="${entity.icon}"></span>`;
             card.querySelector('strong').textContent = entity.label;
-            card.querySelector('small').textContent = entity.native ? 'Nexa object' : 'Custom object';
+            card.querySelector('small').textContent = entity.native
+                ? (entity.available ? 'Available' : 'Coming later')
+                : 'Custom object';
             card.querySelector('.nexa-object-card-description').textContent = entity.description;
-            card.querySelector('.nexa-object-card-meta').textContent = `${fieldCount} additional ${fieldCount === 1 ? 'property' : 'properties'} | ${associationCount} ${associationCount === 1 ? 'association' : 'associations'}`;
+            card.querySelector('.nexa-object-card-meta').textContent = entity.available
+                ? `${fieldCount} additional ${fieldCount === 1 ? 'property' : 'properties'} | ${associationCount} ${associationCount === 1 ? 'association' : 'associations'}`
+                : 'Configuration will be enabled when this product area is released.';
             host.append(card);
         });
     }
@@ -125,7 +131,7 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
 
     selectObject(event) {
         this.selectedEntityType = event.currentTarget.dataset.entityType;
-        this.activeTab = 'properties';
+        this.activeTab = this.currentEntity()?.available ? 'properties' : 'settings';
         this.renderObjectWorkspace();
     }
 
@@ -142,15 +148,22 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         this.element.querySelector('[data-screen="overview"]').hidden = true;
         this.element.querySelector('[data-screen="workspace"]').hidden = false;
         this.element.querySelector('[data-object-title]').textContent = entity.label;
-        this.element.querySelector('[data-object-kind]').textContent = entity.native ? 'Nexa object' : 'Custom object';
+        this.element.querySelector('[data-object-kind]').textContent = entity.native
+            ? (entity.available ? 'Nexa object' : 'Coming later')
+            : 'Custom object';
         this.element.querySelector('[data-object-description]').textContent = entity.description;
         this.element.querySelector('[data-object-icon]').innerHTML = `<span class="${entity.icon}"></span>`;
         this.element.querySelectorAll('[data-custom-only]').forEach(element => element.hidden = entity.native);
+        this.element.querySelectorAll('[data-requires-customization]').forEach(element => element.hidden = !entity.available);
         if (entity.native && this.activeTab === 'records') this.activeTab = 'properties';
+        if (!entity.available) this.activeTab = 'settings';
         this.activateObjectTab(this.activeTab);
-        this.renderProperties();
-        this.renderLayoutBuilder();
-        this.renderAssociations();
+        if (entity.available) {
+            this.renderProperties();
+            this.renderLayoutBuilder();
+            this.renderAssociations();
+        }
+        this.renderObjectSettings();
     }
 
     selectObjectTab(event) {
@@ -191,6 +204,24 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
 
     relationshipsFor(entityType) {
         return (this.dataSet?.relationships || []).filter(item => item.source_entity_type === entityType || item.target_entity_type === entityType);
+    }
+
+    renderObjectSettings() {
+        const entity = this.currentEntity();
+        if (!entity) return;
+        const set = (selector, value) => {
+            const element = this.element.querySelector(selector);
+            if (element) element.textContent = value;
+        };
+        set('[data-setting-label]', entity.label);
+        set('[data-setting-key]', entity.key);
+        set('[data-setting-kind]', entity.native ? 'Nexa system object' : 'Tenant custom object');
+        set('[data-setting-status]', entity.available ? 'Available' : 'Coming later');
+        set('[data-setting-capability]', entity.available
+            ? 'Properties, layouts and approved associations are available for this workspace.'
+            : 'This object is reserved for a future product area. Configuration will become available when that workspace is released.');
+        const status = this.element.querySelector('[data-setting-status]');
+        status?.classList.toggle('is-planned', !entity.available);
     }
 
     renderProperties(query = '') {
@@ -323,7 +354,7 @@ define('custom:views/customization/admin', ['view'], Dep => class extends Dep {
         form.elements.relationshipKey.dataset.userEdited = '';
         const target = form.elements.targetEntityType;
         target.replaceChildren(new Option('Select an object', ''));
-        this.entityOptions().filter(item => item.key !== source.key).forEach(item => target.append(new Option(item.label, item.key)));
+        this.entityOptions().filter(item => item.available && item.key !== source.key).forEach(item => target.append(new Option(item.label, item.key)));
         this.element.querySelector('[data-association-source-name]').textContent = source.label;
         this.element.querySelector('[data-source-singular]').textContent = source.singular;
         this.element.querySelector('[data-source-plural]').textContent = source.label;

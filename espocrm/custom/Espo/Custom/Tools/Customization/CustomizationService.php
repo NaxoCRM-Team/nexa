@@ -19,6 +19,20 @@ use PDO;
 final class CustomizationService
 {
     private const NATIVE = ['Contact', 'Account', 'Lead'];
+    private const SYSTEM_OBJECTS = [
+        'Contact' => ['label' => 'Contacts', 'singular' => 'Contact', 'description' => 'People, customers and individual relationships.', 'icon' => 'fas fa-address-card', 'module' => 'M05', 'customizationEnabled' => true],
+        'Account' => ['label' => 'Accounts', 'singular' => 'Account', 'description' => 'Companies, organizations and business relationships.', 'icon' => 'fas fa-building', 'module' => 'M05', 'customizationEnabled' => true],
+        'Lead' => ['label' => 'Leads', 'singular' => 'Lead', 'description' => 'Prospects moving through qualification and conversion.', 'icon' => 'fas fa-user-plus', 'module' => 'M05', 'customizationEnabled' => true],
+        'Opportunity' => ['label' => 'Opportunities', 'singular' => 'Opportunity', 'description' => 'Deals, pipeline stages, value and forecast context.', 'icon' => 'fas fa-funnel-dollar', 'module' => 'M06', 'customizationEnabled' => false],
+        'Task' => ['label' => 'Tasks', 'singular' => 'Task', 'description' => 'Assigned work, priorities, due dates and completion.', 'icon' => 'fas fa-tasks', 'module' => 'M06', 'customizationEnabled' => false],
+        'Meeting' => ['label' => 'Meetings', 'singular' => 'Meeting', 'description' => 'Scheduled meetings, attendees and outcomes.', 'icon' => 'fas fa-calendar-alt', 'module' => 'M06', 'customizationEnabled' => false],
+        'Call' => ['label' => 'Calls', 'singular' => 'Call', 'description' => 'Inbound and outbound calls with outcomes and follow-up.', 'icon' => 'fas fa-phone', 'module' => 'M06', 'customizationEnabled' => false],
+        'Document' => ['label' => 'Documents', 'singular' => 'Document', 'description' => 'Governed files and documents associated with CRM records.', 'icon' => 'fas fa-file-alt', 'module' => 'M06', 'customizationEnabled' => false],
+        'Case' => ['label' => 'Cases', 'singular' => 'Case', 'description' => 'Customer support requests, ownership, status and service history.', 'icon' => 'fas fa-briefcase', 'module' => 'M07', 'customizationEnabled' => false],
+        'KnowledgeBaseArticle' => ['label' => 'Knowledge Base Articles', 'singular' => 'Knowledge Base Article', 'description' => 'Reusable support guidance and customer-facing answers.', 'icon' => 'fas fa-book-open', 'module' => 'M07', 'customizationEnabled' => false],
+        'Campaign' => ['label' => 'Campaigns', 'singular' => 'Campaign', 'description' => 'Marketing initiatives, audiences, assets and performance.', 'icon' => 'fas fa-bullhorn', 'module' => 'M09', 'customizationEnabled' => false],
+        'TargetList' => ['label' => 'Target Lists', 'singular' => 'Target List', 'description' => 'Static and dynamic audiences used by campaigns.', 'icon' => 'fas fa-users-cog', 'module' => 'M09', 'customizationEnabled' => false],
+    ];
     private const TYPES = ['text','long_text','number','currency','date','datetime','boolean','single_select','multi_select','url','email','phone','user','relationship'];
 
     public function __construct(
@@ -68,6 +82,11 @@ final class CustomizationService
 
         return [
             'nativeEntityTypes' => self::NATIVE,
+            'systemObjects' => array_map(
+                static fn (string $key, array $definition): array => ['key' => $key, ...$definition],
+                array_keys(self::SYSTEM_OBJECTS),
+                array_values(self::SYSTEM_OBJECTS),
+            ),
             'fieldTypes' => self::TYPES,
             'entities' => $this->all('SELECT id,entity_key,label,plural_label,description,icon_class,status,created_at,updated_at FROM nexa_custom_entity_definition WHERE tenant_id=? AND service_id=? AND status=\'active\' ORDER BY label', $scope),
             'fields' => $fields,
@@ -465,11 +484,9 @@ final class CustomizationService
 
     private function entityDisplayLabel(string $entityType): string
     {
-        return match ($entityType) {
-            'Contact' => 'Contacts',
-            'Account' => 'Accounts',
-            default => (string) $this->customEntity($entityType)['plural_label'],
-        };
+        return isset(self::SYSTEM_OBJECTS[$entityType])
+            ? self::SYSTEM_OBJECTS[$entityType]['label']
+            : (string) $this->customEntity($entityType)['plural_label'];
     }
 
     /** @param array<string, mixed> $definition */
@@ -501,7 +518,7 @@ final class CustomizationService
     {
         $context=$this->tenantContextStore->require(); $key=$this->key($data['entityKey']??'','Entity key');
         $icon=$this->iconClass($data['iconClass']??null);
-        if (in_array(strtolower($key),array_map('strtolower',self::NATIVE),true)) throw new BadRequest('Native entity names are reserved.');
+        if (in_array(strtolower($key),array_map('strtolower',array_keys(self::SYSTEM_OBJECTS)),true)) throw new BadRequest('System object names are reserved.');
         $id=isset($data['id'])&&is_string($data['id'])?$this->id($data['id']):$this->uuid(); $label=$this->label($data['label']??'','Label'); $plural=$this->label($data['pluralLabel']??'','Plural label');
         $statement=$this->entityManager->getPDO()->prepare("INSERT INTO nexa_custom_entity_definition (id,tenant_id,service_id,entity_key,label,plural_label,description,icon_class,created_by_id) VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE label=VALUES(label),plural_label=VALUES(plural_label),description=VALUES(description),icon_class=VALUES(icon_class),status='active',archived_at=NULL");
         $statement->execute([$id,$context->tenantId,$context->serviceId,$key,$label,$plural,$this->optional($data['description']??null,500),$icon,$this->user->getId()]);

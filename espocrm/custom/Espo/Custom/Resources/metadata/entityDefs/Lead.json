@@ -1,5 +1,8 @@
 {
     "fields": {
+        "name": {
+            "view": "custom:views/lead/fields/name"
+        },
         "rating": {
             "type": "enum",
             "options": ["", "Hot", "Warm", "Cold"],

@@ -3,6 +3,7 @@
 !.env.example
 downloads/*.zip
 downloads/*.part
+nexarule.md
 *.sql.gz
 *.dump
 *.bak

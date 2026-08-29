@@ -10,6 +10,8 @@
         "client/custom/css/contact-import.css",
         "client/custom/css/customization.css",
         "client/custom/css/custom-object-runtime.css",
+        "client/custom/css/sales-workspace.css",
+        "client/custom/css/currency-admin.css",
         "client/custom/css/back-button.css"
     ],
     "scriptList": [

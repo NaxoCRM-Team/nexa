@@ -1,0 +1,8 @@
+[
+    {"label": "Deal", "rows": [
+        [{"name": "name"}, {"name": "account"}],
+        [{"name": "pipelineId"}, {"name": "stage"}],
+        [{"name": "amount"}, {"name": "closeDate"}],
+        [{"name": "assignedUser"}, {"name": "nextStep"}]
+    ]}
+]

@@ -246,6 +246,72 @@
                        "serviceScope":  "required"
                    },
                    {
+                       "name":  "nexa_sales_pipeline",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_sales_stage",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_product",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_opportunity_line_item",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_quote",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_quote_line_item",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                     {
+                         "name":  "nexa_quote_status_history",
+                         "classification":  "serviceOwned",
+                         "tenantColumn":  "tenant_id",
+                         "serviceScope":  "required"
+                     },
+                     {
+                         "name":  "nexa_tenant_currency_profile",
+                         "classification":  "serviceOwned",
+                         "tenantColumn":  "tenant_id",
+                         "serviceScope":  "required"
+                     },
+                     {
+                         "name":  "nexa_tenant_currency_rate",
+                         "classification":  "serviceOwned",
+                         "tenantColumn":  "tenant_id",
+                         "serviceScope":  "required"
+                     },
+                     {
+                         "name":  "nexa_tenant_currency_history",
+                         "classification":  "serviceOwned",
+                         "tenantColumn":  "tenant_id",
+                         "serviceScope":  "required"
+                     },
+                     {
+                         "name":  "nexa_opportunity_revenue_history",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
                        "name":  "nexa_communication_preference",
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",

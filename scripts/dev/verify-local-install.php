@@ -39,9 +39,9 @@ $pdo = new PDO(
 
 $scalar = static fn (string $sql): int => (int) $pdo->query($sql)->fetchColumn();
 $minimums = [
-    'tables' => [$scalar('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()'), 166],
-    'tenant columns' => [$scalar("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND column_name = 'tenant_id'"), 155],
-    'service columns' => [$scalar("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND column_name = 'service_id'"), 138],
+    'tables' => [$scalar('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()'), 195],
+    'tenant columns' => [$scalar("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND column_name = 'tenant_id'"), 184],
+    'service columns' => [$scalar("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND column_name = 'service_id'"), 166],
 ];
 
 foreach ($minimums as $label => [$actual, $minimum]) {

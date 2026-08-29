@@ -1,5 +1,8 @@
 {
     "fields": {
+        "stage": {
+            "view": "custom:views/opportunity/fields/stage"
+        },
         "isPinned": {
             "type": "bool",
             "default": false,
@@ -8,13 +11,38 @@
             "layoutMassUpdateDisabled": true,
             "layoutFiltersDisabled": true
         },
+        "pipelineId": {
+            "type": "varchar",
+            "maxLength": 36,
+            "view": "custom:views/opportunity/fields/pipeline",
+            "audited": true
+        },
+        "forecastCategory": {
+            "type": "enum",
+            "options": ["Pipeline", "Best Case", "Commit", "Closed", "Omitted"],
+            "default": "Pipeline",
+            "displayAsLabel": true,
+            "audited": true
+        },
+        "expectedRevenue": {
+            "type": "float",
+            "readOnly": true,
+            "min": 0
+        },
+        "nextStep": {
+            "type": "varchar",
+            "maxLength": 255,
+            "audited": true
+        },
+        "lossReason": {
+            "type": "text",
+            "audited": true
+        },
         "assignedUsers": {
             "type": "linkMultiple",
             "view": "views/fields/assigned-users",
-            "maxCount": 10
-        },
-        "assignedUser": {
-            "disabled": true
+            "maxCount": 10,
+            "tooltip": true
         }
     },
     "links": {
@@ -23,9 +51,9 @@
             "entity": "User",
             "relationName": "entityUser",
             "layoutRelationshipsDisabled": true
-        },
-        "assignedUser": {
-            "disabled": true
         }
+    },
+    "collection": {
+        "textFilterFields": ["name", "account", "contact", "stage", "nextStep"]
     }
 }

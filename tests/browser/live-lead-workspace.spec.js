@@ -14,7 +14,7 @@ test('authenticated Lead list uses the Nexa live-search workspace', async ({page
     await page.locator('#login-form button[type="submit"]').click();
     await page.waitForURL(/\/w\/[^/]+(?:\/.*)?$/, {timeout: 30_000});
 
-    await page.evaluate(() => { window.location.hash = '#Lead'; });
+    await page.goto(`${baseUrl}/w/isolation-alpha/Lead`);
     await expect(page.locator('.nexa-lead-list-page')).toBeVisible({timeout: 20_000});
     await expect(page.locator('.nexa-lead-live-search input[data-name="textFilter"]')).toBeVisible();
     await expect(page.getByRole('link', {name: 'My Leads'})).toBeVisible();
@@ -27,6 +27,17 @@ test('authenticated Lead list uses the Nexa live-search workspace', async ({page
     await search.fill('qualification');
     await page.waitForTimeout(450);
     await expect(search).toHaveValue('qualification');
+
+    await search.fill('');
+    await page.waitForTimeout(450);
+    const firstRecord = page.locator('.nexa-lead-list-page tbody input[type="checkbox"]').first();
+    await expect(firstRecord).toBeVisible();
+    await firstRecord.check();
+    await page.locator('.nexa-lead-list-page .actions-button:visible').first().click();
+    await page.locator('.nexa-lead-list-page .dropdown-menu:visible [data-action="remove"]').first().click();
+    await expect(page.locator('.nexa-delete-dialog')).toBeVisible();
+    await expect(page.locator('.nexa-delete-dialog .modal-title')).toHaveText('Delete 1 record?');
+    await page.locator('.nexa-delete-dialog [data-name="cancel"]').click();
 
     const screenshot = await page.screenshot({animations: 'disabled', fullPage: true});
     await testInfo.attach(`live-lead-${testInfo.project.name}.png`, {body: screenshot, contentType: 'image/png'});
