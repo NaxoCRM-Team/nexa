@@ -25,7 +25,7 @@ This does not close all of M06 or Phase 3. Activities, calendars, projects, docu
 
 Migrations `0035` through `0040` add the sales configuration, commercial lifecycle, tenant currency ownership and auditable reference-rate sourcing without replacing native Opportunity or currency behavior. Every added table is classified as service-owned and requires both `tenant_id` and `service_id`.
 
-The verified clean-install baseline is 197 tables, 184 tenant columns, 166 service columns and 39 applied migrations.
+The verified clean-install baseline is 195 tables, 184 tenant columns, 166 service columns and 40 applied migrations.
 
 ## Runtime Evidence
 

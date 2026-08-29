@@ -15,7 +15,7 @@ The audit compared:
 - the local MariaDB schema; and
 - all 47 sections of the unified product specification.
 
-The current verified clean-install database contains 197 tables, 184 `tenant_id` columns, 166 `service_id` columns, and all 40 migrations through `0040`. The original fixture defines 136 application tables. The additional Nexa tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup, identity security, unified-customer, communication, customization, lead-conversion, sales-pipeline, product, quote, forecasting and tenant-owned currency foundations.
+The current verified clean-install database contains 195 tables, 184 `tenant_id` columns, 166 `service_id` columns, and all 40 migrations through `0040`. A running development database may contain additional local runtime tables. The original fixture defines 136 application tables. The additional Nexa tables provide tenant, plan, entitlement, provisioning, audit, outbox, signup, identity security, unified-customer, communication, customization, lead-conversion, sales-pipeline, product, quote, forecasting and tenant-owned currency foundations.
 
 ## Decisions
 

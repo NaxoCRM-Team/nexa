@@ -73,7 +73,7 @@ jobs:
           done
       - name: Verify expected baseline
         run: |
-          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = "nexa_shared_test"')" -ge "197"
+          test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = "nexa_shared_test"')" -ge "195"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test --execute='SELECT COUNT(*) FROM nexa_plan_definition')" = "3"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test --execute='SELECT COUNT(*) FROM nexa_service_definition')" = "6"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password --execute='SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = "nexa_shared_test" AND column_name = "tenant_id"')" -ge "184"
