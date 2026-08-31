@@ -24,10 +24,15 @@ $previousMysqlPassword = $null
 function Resolve-LocalMariaDbClient([string] $RequestedClient) {
     $command = Get-Command $RequestedClient -ErrorAction SilentlyContinue
     if ($command) { return $command.Source }
-    $candidates = Get-ChildItem 'C:\Program Files' -Directory -Filter 'MariaDB *' -ErrorAction SilentlyContinue |
+    $programFilesCandidates = Get-ChildItem 'C:\Program Files' -Directory -Filter 'MariaDB *' -ErrorAction SilentlyContinue |
         ForEach-Object { Join-Path $_.FullName 'bin\mariadb.exe' } |
         Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
         Sort-Object -Descending
+    $wampCandidates = Get-ChildItem 'C:\wamp64\bin\mariadb' -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { Join-Path $_.FullName 'bin\mariadb.exe' } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Sort-Object -Descending
+    $candidates = @($wampCandidates) + @($programFilesCandidates)
     $installed = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if ($installed) { return $installed }
     throw "A supported MariaDB client was not found."

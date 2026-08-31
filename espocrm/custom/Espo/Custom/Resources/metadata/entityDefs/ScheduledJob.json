@@ -9,6 +9,11 @@
             "name": "Release Stale Call Reservations",
             "isSystem": true,
             "scheduling": "*/15 * * * *"
+        },
+        "MonitorCaseSla": {
+            "name": "Monitor Case SLA",
+            "isSystem": true,
+            "scheduling": "*/5 * * * *"
         }
     }
 }

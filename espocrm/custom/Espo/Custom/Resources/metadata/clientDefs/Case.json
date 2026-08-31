@@ -1,0 +1,5 @@
+{
+    "controller":"controllers/record",
+    "views":{"list":"custom:views/case/list-v2"},
+    "recordViews":{"list":"custom:views/case/record/list-infinite","detail":"custom:views/case/record/detail-workspace","edit":"custom:views/case/record/edit"}
+}

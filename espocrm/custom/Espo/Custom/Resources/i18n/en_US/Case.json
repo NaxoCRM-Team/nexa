@@ -1,0 +1,7 @@
+{
+    "fields": {
+        "category":"Category","slaStatus":"SLA Status","firstResponseDueAt":"First Response Due","resolutionDueAt":"Resolution Due",
+        "firstRespondedAt":"First Responded","resolvedAt":"Resolved","escalationLevel":"Escalation Level","escalatedAt":"Escalated",
+        "escalationReason":"Escalation Reason","opportunity":"Opportunity","nexaQuoteId":"Quote Reference"
+    }
+}

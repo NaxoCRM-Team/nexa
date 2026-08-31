@@ -12,6 +12,7 @@
         "client/custom/css/custom-object-runtime.css",
         "client/custom/css/sales-workspace.css",
         "client/custom/css/activity-workspace.css",
+        "client/custom/css/case-workspace.css",
         "client/custom/css/native-workspaces.css",
         "client/custom/css/currency-admin.css",
         "client/custom/css/back-button.css"
