@@ -1,0 +1,9 @@
+[
+    {"label":"Request details","rows":[
+        [{"name":"name"},{"name":"number"}],[{"name":"status"},{"name":"priority"}],[{"name":"type"},{"name":"category"}],
+        [{"name":"description","fullWidth":true}],[{"name":"attachments","fullWidth":true}]
+    ]},
+    {"label":"Response commitment","rows":[
+        [{"name":"slaStatus"},{"name":"resolutionDueAt"}],[{"name":"firstRespondedAt"},{"name":"resolvedAt"}]
+    ]}
+]

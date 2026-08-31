@@ -1,31 +1,22 @@
 {
     "fields": {
-        "isPinned": {
-            "type": "bool",
-            "default": false,
-            "layoutDetailDisabled": true,
-            "layoutListDisabled": true,
-            "layoutMassUpdateDisabled": true,
-            "layoutFiltersDisabled": true
-        },
-        "assignedUsers": {
-            "type": "linkMultiple",
-            "view": "views/fields/assigned-users",
-            "maxCount": 10
-        },
-        "assignedUser": {
-            "disabled": true
-        }
+        "isPinned": {"type":"bool","default":false,"layoutDetailDisabled":true,"layoutListDisabled":true,"layoutMassUpdateDisabled":true,"layoutFiltersDisabled":true},
+        "category": {"type":"enum","options":["","Billing","Technical","Account","Product","Delivery","Feedback","Other"],"audited":true,"displayAsLabel":true},
+        "slaPolicyId": {"type":"varchar","readOnly":true,"layoutListDisabled":true,"layoutDetailDisabled":true},
+        "slaStatus": {"type":"enum","options":["Not Started","Running","Paused","Met","Breached"],"readOnly":true,"displayAsLabel":true,"style":{"Running":"primary","Paused":"warning","Met":"success","Breached":"danger"}},
+        "firstResponseDueAt": {"type":"datetime","readOnly":true},
+        "resolutionDueAt": {"type":"datetime","readOnly":true},
+        "firstRespondedAt": {"type":"datetime","readOnly":true},
+        "resolvedAt": {"type":"datetime","readOnly":true},
+        "slaPausedAt": {"type":"datetime","readOnly":true,"layoutDetailDisabled":true,"layoutListDisabled":true},
+        "slaPausedSeconds": {"type":"int","readOnly":true,"layoutDetailDisabled":true,"layoutListDisabled":true},
+        "escalationLevel": {"type":"int","readOnly":true},
+        "escalatedAt": {"type":"datetime","readOnly":true},
+        "escalationReason": {"type":"varchar","readOnly":true},
+        "opportunity": {"type":"link","audited":true},
+        "nexaQuoteId": {"type":"varchar","audited":true,"layoutListDisabled":true}
     },
-    "links": {
-        "assignedUsers": {
-            "type": "hasMany",
-            "entity": "User",
-            "relationName": "entityUser",
-            "layoutRelationshipsDisabled": true
-        },
-        "assignedUser": {
-            "disabled": true
-        }
-    }
+    "links": {"opportunity":{"type":"belongsTo","entity":"Opportunity"}},
+    "collection": {"textFilterFields":["name","number","description","category"],"fullTextSearch":true},
+    "indexes": {"slaDue":{"columns":["slaStatus","resolutionDueAt","deleted"]},"opportunity":{"columns":["opportunityId"]}}
 }

@@ -1,0 +1,12 @@
+[
+    {"label":"Case details","rows":[
+        [{"name":"name"},{"name":"number"}],[{"name":"status"},{"name":"priority"}],
+        [{"name":"type"},{"name":"category"}],[{"name":"account"},{"name":"contact"}],
+        [{"name":"lead"},{"name":"opportunity"}],[{"name":"assignedUser"},{"name":"teams"}],
+        [{"name":"description","fullWidth":true}],[{"name":"attachments","fullWidth":true}]
+    ]},
+    {"label":"Service level","rows":[
+        [{"name":"slaStatus"},{"name":"escalationLevel"}],[{"name":"firstResponseDueAt"},{"name":"resolutionDueAt"}],
+        [{"name":"firstRespondedAt"},{"name":"resolvedAt"}],[{"name":"escalatedAt"},{"name":"escalationReason"}]
+    ]}
+]

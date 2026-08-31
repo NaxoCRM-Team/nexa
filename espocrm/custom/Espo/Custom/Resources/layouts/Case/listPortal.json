@@ -1,0 +1,5 @@
+[
+    {"name":"number","widthPx":90,"link":true},{"name":"name","link":true},{"name":"status","width":16},
+    {"name":"priority","width":14},{"name":"category","width":16},{"name":"slaStatus","width":14},
+    {"name":"resolutionDueAt","width":18}
+]

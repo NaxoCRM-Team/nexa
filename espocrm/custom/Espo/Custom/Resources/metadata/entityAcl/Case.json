@@ -1,7 +1,8 @@
 {
-    "links": {
-        "assignedUsers": {
-            "readOnly": true
-        }
+    "fields": {
+        "slaPolicyId":{"readOnly":true},"slaStatus":{"readOnly":true},"firstResponseDueAt":{"readOnly":true},
+        "resolutionDueAt":{"readOnly":true},"firstRespondedAt":{"readOnly":true},"resolvedAt":{"readOnly":true},
+        "slaPausedAt":{"readOnly":true},"slaPausedSeconds":{"readOnly":true},"escalationLevel":{"readOnly":true},
+        "escalatedAt":{"readOnly":true},"escalationReason":{"readOnly":true}
     }
 }

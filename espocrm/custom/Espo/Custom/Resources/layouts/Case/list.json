@@ -1,8 +1,6 @@
 [
-    {"name":"name", "link": true},
-    {"name":"number", "widthPx": 100},
-    {"name":"status", "width": 11},
-    {"name":"priority", "width": 11},
-    {"name":"account", "width": 18},
-    {"name":"assignedUsers", "width": 14}
+    {"name":"number","widthPx":90,"link":true},{"name":"name","width":23,"link":true},
+    {"name":"status","width":11},{"name":"priority","width":10},{"name":"category","width":12},
+    {"name":"account","width":16},{"name":"assignedUser","width":14},{"name":"slaStatus","width":11},
+    {"name":"resolutionDueAt","width":15}
 ]
