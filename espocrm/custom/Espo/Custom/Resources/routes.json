@@ -506,6 +506,51 @@
         "noAuth": true
     },
     {
+        "route": "/Nexa/projects",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\GetProjects"
+    },
+    {
+        "route": "/Nexa/projects",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\PostProject"
+    },
+    {
+        "route": "/Nexa/projects/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\PutProject"
+    },
+    {
+        "route": "/Nexa/projects/:id",
+        "method": "delete",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\DeleteProject"
+    },
+    {
+        "route": "/Nexa/projects/:id/updates",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\PostProjectUpdate"
+    },
+    {
+        "route": "/Nexa/projects/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\GetProject"
+    },
+    {
+        "route": "/Nexa/projects/:id/links",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\PostProjectLink"
+    },
+    {
+        "route": "/Nexa/projects/:id/links/:type/:recordId",
+        "method": "delete",
+        "actionClassName": "Espo\\Custom\\Tools\\Project\\Api\\DeleteProjectLink"
+    },
+    {
+        "route": "/Nexa/activity/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Activity\\Api\\GetWorkspace"
+    },
+    {
         "route": "/Nexa/currency/settings",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Currency\\Api\\GetSettings"

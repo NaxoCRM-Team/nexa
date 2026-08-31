@@ -1,0 +1,15 @@
+{
+    "controller": "custom:controllers/calendar",
+    "colors": {
+        "Meeting": "#287f74",
+        "Call": "#d06855",
+        "Task": "#5b7fb4"
+    },
+    "scopeList": ["Meeting", "Call", "Task"],
+    "allDayScopeList": ["Task"],
+    "modeList": ["month", "agendaWeek", "timeline", "agendaDay"],
+    "sharedViewModeList": ["basicWeek", "month", "basicDay"],
+    "additionalColorList": ["#9a72ad", "#c28a38"],
+    "iconClass": "far fa-calendar-alt",
+    "slotDuration": 30
+}

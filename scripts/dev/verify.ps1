@@ -22,6 +22,7 @@ $required = @(
     'docs/development/windows-performance.md', 'docs/development/design-system.md',
     'docs/development/phase-0-release-verification.md', 'package.json', 'package-lock.json', 'playwright.config.js',
     'docs/development/phase-3-sales-exit-gate.md',
+    'docs/development/phase-3-activity-exit-gate.md',
     'compose.yaml', 'scripts/dev/apply-shared-schema.ps1', 'scripts/dev/provision-demo-tenants.ps1',
     'scripts/dev/initialize-local-database.ps1', 'scripts/dev/complete-local-setup.ps1',
     'scripts/dev/setup-native-windows.ps1', 'scripts/dev/mariadb-version-policy.ps1',
@@ -48,6 +49,7 @@ $required = @(
     'database/shared/migrations/0038_add_quote_tax_snapshot.sql',
     'database/shared/migrations/0039_add_tenant_currency_ownership.sql',
     'database/shared/migrations/0040_add_currency_rate_provider.sql',
+    'database/shared/migrations/0041_add_project_collaboration.sql',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
     'espocrm/custom/Espo/Custom/Tools/Currency/Api/PostRatePreview.php',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
@@ -80,6 +82,7 @@ $required = @(
     'tests/tenant/TenantNativeMergeTest.php',
     'tests/workflows/TenantFileLibraryTest.php',
     'tests/workflows/SalesPipelineForecastContractTest.php',
+    'tests/workflows/ActivityWorkspaceContractTest.php',
     'tests/workflows/TenantCurrencyContractTest.php',
     'tests/tenant/TenantCurrencyIsolationTest.php',
     'tests/tenant/TenantSalesPipelineTest.php', 'tests/browser/sales-workspace.spec.js',
@@ -226,6 +229,7 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CustomerFounda
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantNativeMergeTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\SalesPipelineForecastContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ActivityWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantSalesPipelineTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantCurrencyContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantCurrencyIsolationTest.php')
@@ -302,6 +306,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Lead lifecycle and conversion contract suite' } else { Fail 'Lead lifecycle and conversion contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\SalesPipelineForecastContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Sales pipeline and forecast contract suite' } else { Fail 'Sales pipeline and forecast contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ActivityWorkspaceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Activity workspace contract suite' } else { Fail 'Activity workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\TenantCurrencyContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant currency ownership contract suite' } else { Fail 'Tenant currency ownership contract suite failed.' }
     if (-not $Ci) {
