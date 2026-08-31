@@ -19,7 +19,7 @@ This evidence covers the M06 opportunity and commercial-planning slice of Phase 
 - responsive Opportunity list, create, edit, detail, pipeline, forecast and product workspaces;
 - tenant, service and Opportunity ACL enforcement on every read and write.
 
-This does not close all of M06 or Phase 3. Activities, calendars, projects, documents, collaboration, service workflows and the complete Phase 3 acceptance suite remain attached to their own backlog issues.
+This does not close all of Phase 3. Activities, calendars, projects, documents and collaboration are evidenced separately in the Phase 3 Activity and Collaboration Exit Gate. Service workflows and the complete Phase 3 acceptance suite remain attached to their own backlog issues.
 
 ## Database Evidence
 

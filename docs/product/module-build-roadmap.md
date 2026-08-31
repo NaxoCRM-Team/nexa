@@ -29,7 +29,7 @@ Module IDs are stable architecture and ownership identifiers. Delivery order is 
 | M04 | Identity, Teams and Access | Users, profiles, social login, SSO, MFA, teams, departments, hierarchy, roles, permission sets, record/field/content restrictions, session security, sensitive-data protection and audited impersonation | F-015, F-024, F-067, F-072, F-073, F-074, F-079, F-083 |
 | M05 | Unified CRM Data Platform | Customer 360 identity, accounts, contacts, leads, conversion, opportunities, lifecycle stages, relationship graph, custom objects/fields/layouts, formulas, dynamic logic, calculated properties, currencies, import/export and deduplication | F-026, F-029, F-039, F-040, F-047, F-068 |
 | M06 | Sales, Activity and Calendar Workspace | Pipelines, forecasting, stage rules, activities, tasks, calls, meetings, personal/team calendars, products, projects, documents, collaboration and account-centered workflows | F-050 |
-| M07 | Service and Operational Email | Cases, queues, SLA/escalation, customer service workspace, knowledge base, portals, SMTP/IMAP operational email, threading, team email and support entitlements | F-020, F-027, F-028 |
+| M07 | Service and Operational Email | Cases, queues, SLA/escalation, customer service workspace, portals, SMTP/IMAP operational email, threading, team email and support entitlements; knowledge base follows after the core service workflows | F-020, F-027, F-028 |
 | M08 | Consent, Forms, Landing Pages and Assets | Consent ledger, cookie tools, form and landing-page builders, conditional fields, form actions, website content surfaces, URL mappings, localization, file/media assets and download governance | F-010, F-016, F-032, F-034, F-042 |
 | M09 | Marketing Contacts, Segments and Campaigns | Marketing-contact status, static/dynamic segments, audiences, target lists, campaign definitions/enrollment, marketing events, presets and asset governance | F-007, F-044, F-055 |
 | M10 | Marketing Email and Deliverability | Drag-and-drop/HTML editor, templates, personalization, dynamic content, programmable/single-send APIs, approvals, scheduling, sending domains, suppression, bounce/complaint handling and health reporting | F-013, F-025, F-031, F-033, F-071, F-075, F-085 |
@@ -62,7 +62,8 @@ Every existing area receives a product decision: retain and redesign, extend, re
 | Opportunities | Retain core model; redesign pipeline, forecasting-ready fields and account context | M05, M06 |
 | Tasks, Calls, Meetings, Calendar and reminders | Unify into the Sales Workspace and responsive activity composer | M06 |
 | Emails, email accounts, templates and inbound email | Separate personal/team email from marketing email; share governed contact and consent data | M07, M10 |
-| Cases, Knowledge Base and Portal | Redesign as Service workspace with tenant-aware support entitlements | M07 |
+| Cases and Portal | Redesign as the core Service workspace with tenant-aware support entitlements | M07 |
+| Knowledge Base | Retain the native foundation and redesign after the core CRM, service and Portal workflows are operational | M07 |
 | Campaigns, Target Lists and Mass Email | Reuse suitable records and replace limited workflows with Nexa campaign and email modules | M09, M10 |
 | Documents, attachments, notes and stream | Retain storage concepts; apply tenant isolation, permissions, collaboration UI and lifecycle rules | M05, M06 |
 | Users, Teams, Roles and Portals | Extend for plan limits, reusable permissions, hierarchy, field security and tenant boundaries | M03, M04 |
@@ -124,12 +125,18 @@ Delivery is split across Sprints 05-07: tenant lifecycle, entitlements and role 
 - Redesign and harden Accounts, Contacts, Leads, lead conversion and Opportunities with the complete field and association requirements.
 - Add typed relationships, association labels, custom objects/fields/layouts, formulas, conditional logic, calculated properties and duplicate management.
 - Complete multiple pipelines, stage rules, forecasting, activities, calendars, products, projects, documents, collaboration and multi-currency behavior.
-- Complete operational email, Cases, queues, SLA timers, escalation, Knowledge Base, Portal and customer-support workflows.
+- Complete operational email, Cases, queues, SLA timers, escalation, Portal and customer-support workflows.
 - Deliver tenant-aware CRM APIs plus governed asynchronous import, export, merge and migration tooling.
+
+**M07 implementation reconciliation (31 August 2026):** Personal operational email is delivered and has already been exercised through the Contact and Account workflows. Each staff user can connect a Gmail or Microsoft mailbox through OAuth, or configure SMTP/IMAP manually; OAuth tokens are encrypted and tenant/service scoped; the Contact workspace composes through the connected mailbox and associates Email records with Contacts or Accounts; and the retained Email model provides read state, reply relationships, folders, assignment, teams and customer-record parents. It is not rebuilt or subjected to another broad acceptance slice in Phase 3.
+
+Native EspoCRM Case and Portal models remain authoritative. Phase 3 redesigns their list, create, detail and customer-facing experiences; preserves native Case numbering, statuses, priorities, customer relationships, activities, emails, attachments, distribution and Portal ownership controls; applies tenant/service isolation; and adds only missing SLA, escalation and SaaS workflow data. Existing inbound-email-to-Case behavior is integrated rather than replaced. Shared/team inbox and Knowledge Base are deferred, while Google OAuth production approval remains production-readiness work.
 
 The tenant fields, layouts, custom objects and relationship sub-gate is recorded in [Phase 3 Customization Exit Gate](../development/phase-3-customization-exit-gate.md).
 
 The opportunity, pipeline, forecasting, product and quote sub-gate is recorded in [Phase 3 Sales Exit Gate](../development/phase-3-sales-exit-gate.md).
+
+The native activity, calendar, project and document collaboration sub-gate is recorded in [Phase 3 Activity and Collaboration Exit Gate](../development/phase-3-activity-exit-gate.md).
 
 **Exit gate:** A tenant can operate a connected customer, sales and service lifecycle in which conversion, relationships, activities and support history remain attached to the same governed customer identity.
 

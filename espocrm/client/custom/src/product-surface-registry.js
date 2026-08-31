@@ -9,6 +9,7 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-lifecycle', 'Lifecycle'],
         ]},
         {name: 'nexa-sales', label: 'Sales', iconClass: 'fas fa-chart-line', items: [
+            ['nexa-activity-workspace', 'Activity Workspace', '#NexaActivity/agenda', 'fas fa-calendar-check'],
             'Opportunity', 'Meeting', 'Call', 'Task', 'Calendar',
             ['nexa-sales-pipelines', 'Pipelines', '#NexaSales/pipelines', 'fas fa-project-diagram'],
             ['nexa-sales-forecasts', 'Forecasts', '#NexaSales/forecasts', 'fas fa-chart-bar'],
