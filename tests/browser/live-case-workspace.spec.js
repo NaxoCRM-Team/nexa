@@ -16,6 +16,8 @@ test('native Case list, create form and service workspace render', async ({page}
     test.skip(!baseUrl || !userName || !password, 'Live Nexa credentials were not provided.');
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await login(page);
+    await page.getByRole('button', {name: /Service/}).click();
+    await expect(page.getByRole('link', {name: /Cases/}).first()).toBeVisible();
     await page.goto(`${baseUrl}/w/isolation-alpha/Case`);
     await expect(page.locator('.nexa-case-list-page')).toBeVisible({timeout:30_000});
     await expect(page.locator('.nexa-case-live-search input[data-name="textFilter"]')).toBeVisible();

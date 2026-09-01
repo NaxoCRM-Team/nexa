@@ -34,7 +34,7 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-target-accounts', 'Target Accounts & ABM'],
         ]},
         {name: 'nexa-service', label: 'Service', iconClass: 'fas fa-headset', items: [
-            'Case', 'Email', 'KnowledgeBaseArticle',
+            ['Case', 'Cases', '#Case', 'fas fa-headset'], 'Email', 'KnowledgeBaseArticle',
             ['nexa-shared-inbox', 'Shared Inbox'],
             ['nexa-service-queues', 'Queues & SLAs'],
             ['nexa-customer-portal', 'Customer Portal'],

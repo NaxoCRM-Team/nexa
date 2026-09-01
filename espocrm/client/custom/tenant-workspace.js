@@ -106,7 +106,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
             label: 'Service',
             iconClass: 'fas fa-comments',
             items: [
-                'Case',
+                ['Case', 'Cases', '#Case', 'fas fa-headset'],
                 'Email',
                 'KnowledgeBaseArticle',
                 ['nexa-shared-inbox', 'Shared Inbox'],
@@ -187,6 +187,20 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
         aClassName: 'nav-link-group nexa-workspace-group-link',
         itemList: group.items.map(item => {
             if (typeof item !== 'string') {
+                const existing = existingByName.get(item[0]);
+
+                if (existing) {
+                    usedNames.add(item[0]);
+
+                    return {
+                        ...existing,
+                        link: item[2] || existing.link,
+                        iconClass: item[3] || existing.iconClass,
+                        isInMore: false,
+                        isAfterShowMore: false,
+                    };
+                }
+
                 return createPlannedModule(item);
             }
 

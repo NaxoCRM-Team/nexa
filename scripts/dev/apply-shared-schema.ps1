@@ -7,6 +7,7 @@ param(
     [string] $DatabaseHost = '127.0.0.1',
     [int] $Port = 3306,
     [string] $User = 'root',
+    [string] $Password = '',
     [string] $EnvironmentFile = '.env',
     [switch] $InitializeBaseSchema,
     [switch] $IncludeDevelopmentSeeds
@@ -39,7 +40,8 @@ function Resolve-LocalMariaDbClient([string] $RequestedClient) {
 }
 
 function Get-LocalArguments([switch] $SkipDatabase) {
-    $arguments = @('--batch', '--skip-column-names', '--skip-password', "--host=$DatabaseHost", "--port=$Port", "--user=$User", '--ssl=FALSE')
+    $arguments = @('--batch', '--skip-column-names', "--host=$DatabaseHost", "--port=$Port", "--user=$User", '--ssl=FALSE')
+    if ($Password -eq '') { $arguments += '--skip-password' }
     if (-not $SkipDatabase) { $arguments += $Database }
     return $arguments
 }
@@ -64,14 +66,21 @@ function Invoke-SqlFile([IO.FileInfo] $File) {
 }
 
 try {
+    if (-not $PSBoundParameters.ContainsKey('Password') -and (Test-Path -LiteralPath (Join-Path $root $EnvironmentFile))) {
+        foreach ($line in Get-Content -LiteralPath (Join-Path $root $EnvironmentFile)) {
+            if ($line -match '^DB_PASSWORD=(.*)$') { $Password = $matches[1].Trim().Trim('"').Trim("'") }
+        }
+    }
+
     $ClientPath = Resolve-LocalMariaDbClient $ClientPath
     $clientVersion = (& $ClientPath --version 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -ne 0) { throw "Unable to read the MariaDB client version: $clientVersion" }
     Assert-NexaMariaDbVersion $clientVersion 'MariaDB client' | Out-Null
     Write-Host "Using $ClientPath ($clientVersion)" -ForegroundColor DarkGray
     
-    $localPassword = ""
-    $env:MYSQL_PWD = $null
+    $localPassword = $Password
+    $previousMysqlPassword = $env:MYSQL_PWD
+    $env:MYSQL_PWD = if ($Password -ne '') { $Password } else { $null }
 
     $serverVersion = @((Invoke-LocalQuery 'SELECT VERSION();'))
     Assert-NexaMariaDbVersion $serverVersion 'MariaDB server' | Out-Null
@@ -94,14 +103,8 @@ try {
         if ($trackingExists) {
             $stored = @((Invoke-Query "SELECT checksum_sha256 FROM $Database.nexa_schema_migration WHERE migration_id='$($migration.Name)';"))
             if ($stored.Count -gt 0) {
-                if ($stored[0] -ne $checksum) { 
-                    # ✨ OVERWRITE ONLY THE BROKEN ONE: Forces Git script update through locally
-                    Write-Host "[OVERWRITE FROM GIT] $($migration.Name)" -ForegroundColor Yellow
-                    Invoke-SqlFile $migration
-                    $elapsed = [int]((Get-Date) - $started).TotalMilliseconds
-                    $trackingSql = "UPDATE $Database.nexa_schema_migration SET checksum_sha256='$checksum', execution_ms=$elapsed, applied_at=CURRENT_TIMESTAMP(6) WHERE migration_id='$($migration.Name)';"
-                    Invoke-Query $trackingSql | Out-Null
-                    continue
+                if ($stored[0] -ne $checksum) {
+                    throw "Applied migration $($migration.Name) has changed. Restore it and create a new numbered migration."
                 }
                 Write-Host "[SKIP] $($migration.Name)" -ForegroundColor DarkGray
                 continue
@@ -119,5 +122,6 @@ try {
 }
 finally {
     $localPassword = $null
-    $env:MYSQL_PWD = $null
+    $Password = ''
+    $env:MYSQL_PWD = $previousMysqlPassword
 }
