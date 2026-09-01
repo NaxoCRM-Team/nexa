@@ -9,6 +9,9 @@ $portalList = $read('espocrm/custom/Espo/Custom/Resources/layouts/Case/listPorta
 $portalDetail = $read('espocrm/custom/Espo/Custom/Resources/layouts/Case/detailPortal.json');
 $view = $read('espocrm/client/custom/src/views/case/record/detail-workspace.js');
 $list = $read('espocrm/client/custom/src/views/case/list-v2.js');
+$recordList = $read('espocrm/client/custom/src/views/case/record/list-infinite.js');
+$styles = $read('espocrm/client/custom/css/case-workspace.css');
+$labels = $read('espocrm/custom/Espo/Custom/Resources/i18n/en_US/Case.json');
 $search = $read('espocrm/client/custom/src/views/case/record/search-live.js');
 $service = $read('espocrm/custom/Espo/Custom/Tools/CaseService/CaseSlaService.php');
 $migration = $read('database/shared/migrations/0042_add_case_service_sla.sql');
@@ -28,6 +31,13 @@ $assert(str_contains($portalList, 'slaStatus') && str_contains($portalDetail, 'R
 $assert(str_contains($view, 'isPortalUser()') && str_contains($view, "parentType:'Case'"), 'One native-backed view must adapt for portal users and related activity.');
 $assert(str_contains($search, 'queueLiveSearch') && str_contains($search, 'collection.fetch'), 'Case search must provide immediate loaded-row and server search.');
 $assert(str_contains($list, 'SLA policies') && str_contains($list, 'getUser().isAdmin()'), 'Tenant-admin SLA configuration is missing.');
+$assert(str_contains($list, 'options.pagination = false') && str_contains($list, 'options.showMore = true'), 'Case lists must replace page navigation with bounded incremental loading.');
+$assert(str_contains($recordList, 'this.collection.hasMore()') && str_contains($recordList, 'this.showMoreRecords({skipNotify:true}'), 'Case scrolling must retain native scoped collection loading.');
+$assert(str_contains($recordList, 'setupColumnResize()') && str_contains($recordList, 'nexaListColumnWidths:${this.entityType}'), 'Case columns must support persistent drag resizing.');
+$assert(str_contains($styles, '.nexa-case-list-workspace') && str_contains($styles, '100dvh - var(--nexa-header-height'), 'The Case list must stay inside the available application viewport.');
+$assert(str_contains($styles, '.nexa-case-list-page .pagination') && str_contains($styles, 'overflow:auto'), 'Case pagination must be hidden while the table scrolls horizontally and vertically.');
+$assert(str_contains($labels, '"number":"Case ID"'), 'The Case business reference must be labelled Case ID.');
+$assert(str_contains($list, 'settingsContainer.nextElementSibling !== total') && str_contains($styles, '.nexa-case-list-page .nexa-list-toolbar .total-count'), 'Case column and total controls must remain grouped in the list toolbar.');
 $assert(str_contains($migration, 'nexa_case_sla_policy') && str_contains($migration, '`tenant_id`') && str_contains($migration, '`service_id`'), 'SLA policy storage must be tenant and service owned.');
 $assert(str_contains($migration, "eu.entity_type = 'Case'") && str_contains($migration, 'assigned_user_id'), 'Legacy Case assignment data must be reconciled into native ownership.');
 $assert(str_contains($service, 'tenant_id=? AND service_id=?') && str_contains($service, 'Table::ACTION_EDIT'), 'Case SLA APIs must enforce tenant/service and native ACL.');

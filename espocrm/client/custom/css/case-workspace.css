@@ -1,13 +1,22 @@
 :root { --nexa-case-green:#086f65; --nexa-case-ink:#162925; --nexa-case-muted:#63746f; --nexa-case-border:#d7e2df; --nexa-case-surface:#f6f9f8; }
 .nexa-case-row-filtered { display:none !important; }
 .nexa-case-list-page #main > .content, .nexa-case-record-page #main > .content { max-width:none; }
-.nexa-case-list-page .list-container { display:flex; flex-direction:column; min-height:0; }
-.nexa-case-list-page .nexa-case-scroll-list { overflow:auto; min-height:260px; max-height:calc(100vh - 265px); border:1px solid var(--nexa-case-border); border-radius:6px; background:#fff; }
+.nexa-case-list-page #main { overflow:hidden; }
+.nexa-case-list-workspace { display:flex; flex-direction:column; height:calc(100dvh - var(--nexa-header-height,64px) - var(--vertical-gap,16px) - var(--container-padding,15px)); min-height:0 !important; overflow:hidden; }
+.nexa-case-list-workspace > .page-header, .nexa-case-list-workspace > .search-container { flex:0 0 auto; }
+.nexa-case-list-workspace > .list-container { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
+.nexa-case-list-workspace > .list-container > .nexa-list-toolbar { flex:0 0 auto; }
+.nexa-case-list-page .nexa-case-scroll-list, .nexa-case-list-page .nexa-record-list { flex:1 1 auto; height:auto; max-height:none; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; border:1px solid var(--nexa-case-border); border-radius:6px; background:#fff; }
+.nexa-case-list-page .nexa-case-scroll-list .show-more, .nexa-case-list-page .pagination { display:none !important; }
 .nexa-case-list-page .nexa-case-live-search .input-group { max-width:520px; }
 .nexa-case-list-page .nexa-case-live-search input { height:38px; border-color:#b9cac6; box-shadow:none; }
 .nexa-case-create-button { background:var(--nexa-case-green) !important; border-color:var(--nexa-case-green) !important; color:#fff !important; display:inline-flex !important; align-items:center; gap:8px; }
 .nexa-case-sla-settings, .nexa-case-column-selector { display:inline-flex !important; align-items:center; gap:7px; min-height:36px; }
-.nexa-case-table thead th { background:#eef4f2; color:#304b45; font-size:12px; font-weight:700; text-transform:uppercase; white-space:nowrap; }
+.nexa-case-list-page .nexa-list-toolbar .settings-container { margin-left:auto; }
+.nexa-case-list-page .nexa-list-toolbar .total-count { align-items:center; background:#f2f6f7; border:1px solid #dce5e7; border-radius:5px; color:#52666e; display:inline-flex; font-size:12px; gap:5px; margin-left:0; min-height:36px; padding:6px 10px; }
+.nexa-case-list-page .nexa-list-toolbar .total-count-span { color:var(--nexa-case-ink); font-weight:700; }
+.nexa-case-list-page .nexa-case-table { min-width:1380px; }
+.nexa-case-table thead th { background:#eef4f2; border-right:1px solid #c9d7d3; color:#304b45; font-size:12px; font-weight:700; text-transform:uppercase; white-space:nowrap; }
 .nexa-case-table tbody td { vertical-align:middle; }
 .nexa-case-table td[data-name="name"] a, .nexa-case-table td[data-name="number"] a { color:#075f58; font-weight:700; }
 .nexa-case-table .label-danger { background:#c72c3b; }
@@ -82,6 +91,7 @@
     .nexa-case-context-card + .nexa-case-context-card { margin:0; padding:0; border:0; }
 }
 @media (max-width:760px) {
+    .nexa-case-list-page .nexa-list-toolbar .settings-container { margin-left:0; }
     .nexa-case-toolbar { align-items:flex-start; flex-direction:column; }
     .nexa-case-identity { width:100%; align-items:flex-start; }
     .nexa-case-identity > div { min-width:0; }

@@ -3,12 +3,21 @@ define('custom:views/case/list-v2', ['views/list'], Dep => class extends Dep {
     recordView = 'custom:views/case/record/list-infinite';
     setup() {
         super.setup();
-        this.once('remove', () => { this.controlsObserver?.disconnect(); document.body.classList.remove('nexa-case-list-page'); });
+        this.once('remove', () => {
+            this.controlsObserver?.disconnect();
+            document.body.classList.remove('nexa-case-list-page');
+            this.caseListElement?.classList.remove('nexa-case-list-workspace');
+            this.caseListElement = null;
+        });
     }
     prepareRecordViewOptions(options) { super.prepareRecordViewOptions(options); options.pagination = false; options.showMore = true; }
     afterRender() {
         const result = super.afterRender();
-        document.body.classList.add('nexa-case-list-page'); this.decorateControls(); this.observeControls();
+        document.body.classList.add('nexa-case-list-page');
+        this.caseListElement = this.element;
+        this.caseListElement?.classList.add('nexa-case-list-workspace');
+        this.decorateControls();
+        this.observeControls();
         return result;
     }
     observeControls() {
@@ -20,7 +29,7 @@ define('custom:views/case/list-v2', ['views/list'], Dep => class extends Dep {
         const root = this.element;
         if (!root) return;
         root.parentElement?.querySelector('.nexa-case-live-search input[data-name="textFilter"]')
-            ?.setAttribute('placeholder', 'Search by case number, subject, category or description');
+            ?.setAttribute('placeholder', 'Search by Case ID, subject, category or description');
         const create = root.querySelector('.page-header .header-buttons [data-action="create"], .page-header .header-buttons [data-name="create"]');
         if (create && !create.classList.contains('nexa-case-create-button')) {
             create.classList.add('nexa-case-create-button');
@@ -35,6 +44,11 @@ define('custom:views/case/list-v2', ['views/list'], Dep => class extends Dep {
         const total = root.querySelector('.total-count');
         if (total && !total.querySelector('.nexa-total-label')) {
             const label = document.createElement('span'); label.className = 'nexa-total-label'; label.textContent = 'Total cases:'; total.prepend(label);
+        }
+        const toolbar = settings?.closest('.nexa-list-toolbar');
+        const settingsContainer = settings?.closest('.settings-container');
+        if (toolbar && settingsContainer && total && settingsContainer.nextElementSibling !== total) {
+            toolbar.insertBefore(total, settingsContainer.nextElementSibling);
         }
         if (this.getUser().isAdmin() && create && !root.querySelector('[data-nexa-sla-settings]')) {
             const button = document.createElement('button');
