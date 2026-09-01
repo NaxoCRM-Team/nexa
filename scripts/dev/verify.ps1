@@ -23,6 +23,7 @@ $required = @(
     'docs/development/phase-0-release-verification.md', 'package.json', 'package-lock.json', 'playwright.config.js',
     'docs/development/phase-3-sales-exit-gate.md',
     'docs/development/phase-3-activity-exit-gate.md',
+    'docs/development/phase-3-exit-gate.md',
     'compose.yaml', 'scripts/dev/apply-shared-schema.ps1', 'scripts/dev/provision-demo-tenants.ps1',
     'scripts/dev/initialize-local-database.ps1', 'scripts/dev/complete-local-setup.ps1',
     'scripts/dev/setup-native-windows.ps1', 'scripts/dev/mariadb-version-policy.ps1',
@@ -50,6 +51,7 @@ $required = @(
     'database/shared/migrations/0039_add_tenant_currency_ownership.sql',
     'database/shared/migrations/0040_add_currency_rate_provider.sql',
     'database/shared/migrations/0041_add_project_collaboration.sql',
+    'database/shared/migrations/0042_add_case_service_sla.sql',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
     'espocrm/custom/Espo/Custom/Tools/Currency/Api/PostRatePreview.php',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
@@ -86,6 +88,9 @@ $required = @(
     'tests/workflows/TenantCurrencyContractTest.php',
     'tests/tenant/TenantCurrencyIsolationTest.php',
     'tests/tenant/TenantSalesPipelineTest.php', 'tests/browser/sales-workspace.spec.js',
+    'tests/tenant/CaseSlaApiJobTest.php', 'tests/tenant/DemoCasePortalFixtureTest.php',
+    'tests/workflows/Phase3AcceptanceContractTest.php',
+    'tests/development/Phase3MigrationReplayTest.ps1', 'scripts/dev/verify-phase-3.ps1',
     'tests/browser/fixtures/sales-workspace.html',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
     'espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json',
@@ -141,6 +146,7 @@ foreach ($file in $jsonFiles) {
 }
 
 $powerShellFiles = Get-ChildItem -LiteralPath (Join-Path $root 'scripts\dev') -Filter '*.ps1' -File
+$powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase3MigrationReplayTest.ps1')
 foreach ($file in $powerShellFiles) {
     $tokens = $null
     $parseErrors = $null
@@ -231,6 +237,9 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantFileL
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\SalesPipelineForecastContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ActivityWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantSalesPipelineTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CaseSlaApiJobTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\DemoCasePortalFixtureTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\Phase3AcceptanceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantCurrencyContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantCurrencyIsolationTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\TenantImageLibrary.php')
@@ -310,6 +319,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Activity workspace contract suite' } else { Fail 'Activity workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\TenantCurrencyContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant currency ownership contract suite' } else { Fail 'Tenant currency ownership contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\Phase3AcceptanceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Phase 3 acceptance contract suite' } else { Fail 'Phase 3 acceptance contract suite failed.' }
     if (-not $Ci) {
         & php (Join-Path $root 'tests\tenant\CustomerFoundationRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation two-tenant runtime suite' } else { Fail 'Customer foundation two-tenant runtime suite failed.' }
@@ -323,6 +334,10 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant sales pipeline runtime suite' } else { Fail 'Two-tenant sales pipeline runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantCurrencyIsolationTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant currency isolation runtime suite' } else { Fail 'Two-tenant currency isolation runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\CaseSlaApiJobTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Case SLA API and background-job runtime suite' } else { Fail 'Case SLA API and background-job runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\DemoCasePortalFixtureTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Case and Portal fixture suite' } else { Fail 'Two-tenant Case and Portal fixture suite failed.' }
     }
     & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }

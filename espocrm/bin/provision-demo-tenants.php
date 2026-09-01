@@ -38,6 +38,50 @@ function demoId(string $tenantId, string $type, string $key): string
     return substr(hash('sha256', $tenantId . ':' . $type . ':' . $key), 0, 17);
 }
 
+function demoCaseSlaPolicyId(string $tenantId, string $priority): string
+{
+    $hex = md5($tenantId . DEMO_SERVICE_ID . $priority . 'case-sla');
+
+    return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-4' . substr($hex, 13, 3) .
+        '-8' . substr($hex, 17, 3) . '-' . substr($hex, 20, 12);
+}
+
+/** @return array<string, string> */
+function ensureDemoCaseSlaPolicies(PDO $pdo, string $tenantId): array
+{
+    $definitions = [
+        'Urgent' => [60, 480, 240, 0],
+        'High' => [240, 1440, 720, 0],
+        'Normal' => [480, 2880, 1440, 1],
+        'Low' => [1440, 7200, 2880, 0],
+    ];
+    $ids = [];
+
+    foreach ($definitions as $priority => [$response, $resolution, $escalation, $isDefault]) {
+        $id = demoCaseSlaPolicyId($tenantId, $priority);
+        $ids[$priority] = $id;
+        upsertDemoRow($pdo, 'nexa_case_sla_policy', [
+            'id' => $id,
+            'tenant_id' => $tenantId,
+            'service_id' => DEMO_SERVICE_ID,
+            'name' => $priority . ' support',
+            'priority' => $priority,
+            'category' => null,
+            'first_response_minutes' => $response,
+            'resolution_minutes' => $resolution,
+            'escalation_minutes' => $escalation,
+            'pause_statuses_json' => '["Pending"]',
+            'is_default' => $isDefault,
+            'is_active' => 1,
+        ], [
+            'name', 'priority', 'first_response_minutes', 'resolution_minutes',
+            'escalation_minutes', 'pause_statuses_json', 'is_default', 'is_active',
+        ]);
+    }
+
+    return $ids;
+}
+
 /**
  * @return array<string, mixed>
  */
@@ -65,6 +109,11 @@ function getDemoProfile(string $slug): array
                 ['key' => 'sales-enablement', 'name' => 'Sales Enablement Rollout', 'account' => 'northstar', 'contact' => 'daniel-okafor', 'amount' => 15000, 'stage' => 'Qualification', 'probability' => 35, 'days' => 50],
                 ['key' => 'customer-success', 'name' => 'Customer Success Expansion', 'account' => 'northstar', 'contact' => 'ava-morgan', 'amount' => 34000, 'stage' => 'Closed Won', 'probability' => 100, 'days' => -35],
             ],
+            'cases' => [
+                ['key' => 'analytics-access', 'name' => 'Analytics access unavailable', 'account' => 'northstar', 'contact' => 'ava-morgan', 'opportunity' => 'analytics-expansion', 'status' => 'New', 'priority' => 'Urgent', 'category' => 'Technical', 'internal' => false],
+                ['key' => 'renewal-review', 'name' => 'Renewal configuration review', 'account' => 'northstar', 'contact' => 'daniel-okafor', 'opportunity' => 'customer-success', 'status' => 'Pending', 'priority' => 'High', 'category' => 'Account', 'internal' => true],
+                ['key' => 'pilot-feedback', 'name' => 'Retail pilot feedback resolved', 'account' => 'cedar-finch', 'contact' => 'mia-chen', 'opportunity' => 'retail-automation', 'status' => 'Closed', 'priority' => 'Normal', 'category' => 'Feedback', 'internal' => false],
+            ],
         ];
     }
 
@@ -88,6 +137,11 @@ function getDemoProfile(string $slug): array
             ['key' => 'operations-workspace', 'name' => 'Operations Workspace', 'account' => 'harbor-health', 'contact' => 'noah-adeyemi', 'amount' => 28000, 'stage' => 'Qualification', 'probability' => 40, 'days' => 42],
             ['key' => 'partner-portal', 'name' => 'Partner Portal Launch', 'account' => 'atlas-works', 'contact' => 'lucas-martin', 'amount' => 36000, 'stage' => 'Negotiation', 'probability' => 70, 'days' => 18],
             ['key' => 'care-rollout', 'name' => 'Care Network Rollout', 'account' => 'harbor-health', 'contact' => 'olivia-bennett', 'amount' => 52000, 'stage' => 'Closed Won', 'probability' => 100, 'days' => -48],
+        ],
+        'cases' => [
+            ['key' => 'patient-invite', 'name' => 'Patient invitation delivery issue', 'account' => 'harbor-health', 'contact' => 'olivia-bennett', 'opportunity' => 'patient-engagement', 'status' => 'New', 'priority' => 'Urgent', 'category' => 'Delivery', 'internal' => false],
+            ['key' => 'operations-permission', 'name' => 'Operations role permission review', 'account' => 'harbor-health', 'contact' => 'noah-adeyemi', 'opportunity' => 'operations-workspace', 'status' => 'Pending', 'priority' => 'High', 'category' => 'Account', 'internal' => true],
+            ['key' => 'portal-launch', 'name' => 'Partner portal launch follow-up', 'account' => 'atlas-works', 'contact' => 'lucas-martin', 'opportunity' => 'partner-portal', 'status' => 'Closed', 'priority' => 'Normal', 'category' => 'Product', 'internal' => false],
         ],
     ];
 }
@@ -118,6 +172,7 @@ function provisionDemoCrmData(
     ];
     $accountIds = [];
     $contactIds = [];
+    $opportunityIds = [];
     $recordCount = 0;
 
     foreach ($profile['accounts'] as $index => $account) {
@@ -230,6 +285,7 @@ function provisionDemoCrmData(
 
     foreach ($profile['opportunities'] as $index => $opportunity) {
         $id = demoId($tenantId, 'opportunity', $opportunity['key']);
+        $opportunityIds[$opportunity['key']] = $id;
         $accountId = $accountIds[$opportunity['account']];
         $contactId = $contactIds[$opportunity['contact']];
 
@@ -257,6 +313,42 @@ function provisionDemoCrmData(
             'tenant_id' => $tenantId,
             'service_id' => DEMO_SERVICE_ID,
         ]);
+        $recordCount++;
+    }
+
+    $policyIds = ensureDemoCaseSlaPolicies($pdo, $tenantId);
+
+    foreach ($profile['cases'] as $index => $case) {
+        $status = $case['status'];
+        $slaStatus = $status === 'Closed' ? 'Met' : ($status === 'Pending' ? 'Paused' : 'Running');
+        $createdAt = $dateTime('-' . (4 + $index) . ' days');
+        $firstRespondedAt = $status === 'Closed' ? $dateTime('-6 days') : null;
+        $resolvedAt = $status === 'Closed' ? $dateTime('-5 days') : null;
+
+        upsertDemoRow($pdo, 'case', array_merge($common, [
+            'id' => demoId($tenantId, 'case', $case['key']),
+            'name' => $case['name'],
+            'status' => $status,
+            'priority' => $case['priority'],
+            'type' => 'Question',
+            'category' => $case['category'],
+            'sla_policy_id' => $policyIds[$case['priority']],
+            'sla_status' => $slaStatus,
+            'first_response_due_at' => $status === 'Closed' ? $dateTime('-6 days') : $dateTime('+4 hours'),
+            'resolution_due_at' => $status === 'Closed' ? $dateTime('-5 days') : $dateTime('+2 days'),
+            'first_responded_at' => $firstRespondedAt,
+            'resolved_at' => $resolvedAt,
+            'sla_paused_at' => $status === 'Pending' ? $dateTime('-3 hours') : null,
+            'sla_paused_seconds' => 0,
+            'escalation_level' => 0,
+            'description' => 'Representative customer service request for Phase 3 acceptance testing.',
+            'is_internal' => $case['internal'] ? 1 : 0,
+            'account_id' => $accountIds[$case['account']],
+            'contact_id' => $contactIds[$case['contact']],
+            'opportunity_id' => $opportunityIds[$case['opportunity']],
+            'created_at' => $createdAt,
+            'version_number' => 1,
+        ]));
         $recordCount++;
     }
 
@@ -317,6 +409,80 @@ function provisionDemoCrmData(
         ]);
         $recordCount++;
     }
+
+    $portalId = demoId($tenantId, 'portal', 'customer-support');
+    $portalRoleId = demoId($tenantId, 'portal-role', 'customer-support');
+    $portalUserId = demoId($tenantId, 'portal-user', 'customer-support');
+    $portalContact = $profile['contacts'][0];
+    $portalContactId = $contactIds[$portalContact['key']];
+    $portalAccountId = $accountIds[$portalContact['account']];
+    $portalUserName = 'customer-' . ($tenantSlug === 'isolation-alpha' ? 'alpha' : 'beta');
+
+    upsertDemoRow($pdo, 'portal', [
+        'id' => $portalId,
+        'name' => $profile['accounts'][0]['name'] . ' Support Portal',
+        'deleted' => 0,
+        'custom_id' => $tenantSlug . '-support',
+        'is_active' => 1,
+        'tab_list' => '["Case"]',
+        'quick_create_list' => '["Case"]',
+        'application_name' => 'Nexa Customer Support',
+        'theme' => 'Espo',
+        'language' => 'en_US',
+        'time_zone' => 'Europe/London',
+        'default_currency' => $currency,
+        'auth_token_lifetime' => 24,
+        'auth_token_max_idle_time' => 2,
+        'created_at' => $dateTime('-14 days'),
+        'modified_at' => $dateTime('now'),
+        'created_by_id' => $adminId,
+        'modified_by_id' => $adminId,
+        'tenant_id' => $tenantId,
+        'service_id' => DEMO_SERVICE_ID,
+    ]);
+    upsertDemoRow($pdo, 'portal_role', [
+        'id' => $portalRoleId,
+        'name' => 'Customer Case Access',
+        'deleted' => 0,
+        'data' => json_encode(['Case' => ['create' => 'yes', 'read' => 'account', 'edit' => 'contact', 'delete' => 'no', 'stream' => 'contact']], JSON_THROW_ON_ERROR),
+        'field_data' => '{}',
+        'export_permission' => 'no',
+        'mass_update_permission' => 'no',
+        'created_at' => $dateTime('-14 days'),
+        'modified_at' => $dateTime('now'),
+        'tenant_id' => $tenantId,
+        'service_id' => DEMO_SERVICE_ID,
+    ]);
+    upsertDemoRow($pdo, 'user', [
+        'id' => $portalUserId,
+        'deleted' => 0,
+        'user_name' => $portalUserName,
+        'login_email' => $portalUserName . '@' . $tenantSlug . '.nexa.test',
+        'type' => 'portal',
+        'password' => password_hash((string) getenv('NEXA_TENANT_' . ($tenantSlug === 'isolation-alpha' ? 'A' : 'B') . '_ADMIN_PASSWORD'), PASSWORD_BCRYPT),
+        'first_name' => $portalContact['firstName'],
+        'last_name' => $portalContact['lastName'],
+        'is_active' => 1,
+        'created_at' => $dateTime('-14 days'),
+        'modified_at' => $dateTime('now'),
+        'delete_id' => '0',
+        'contact_id' => $portalContactId,
+        'tenant_id' => $tenantId,
+        'service_id' => DEMO_SERVICE_ID,
+    ]);
+    foreach ([
+        ['portal_portal_role', ['portal_id' => $portalId, 'portal_role_id' => $portalRoleId]],
+        ['portal_user', ['portal_id' => $portalId, 'user_id' => $portalUserId]],
+        ['portal_role_user', ['portal_role_id' => $portalRoleId, 'user_id' => $portalUserId]],
+        ['account_portal_user', ['account_id' => $portalAccountId, 'user_id' => $portalUserId]],
+    ] as [$table, $links]) {
+        upsertDemoRow($pdo, $table, array_merge($links, [
+            'deleted' => 0,
+            'tenant_id' => $tenantId,
+            'service_id' => DEMO_SERVICE_ID,
+        ]));
+    }
+    $recordCount += 3;
 
     return $recordCount;
 }

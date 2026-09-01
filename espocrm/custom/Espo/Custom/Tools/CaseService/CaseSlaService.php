@@ -22,6 +22,12 @@ use stdClass;
 final class CaseSlaService
 {
     private const CLOSED_STATUSES = ['Closed', 'Rejected', 'Duplicate'];
+    private const DEFAULT_POLICIES = [
+        ['priority' => 'Urgent', 'response' => 60, 'resolution' => 480, 'escalation' => 240, 'default' => false],
+        ['priority' => 'High', 'response' => 240, 'resolution' => 1440, 'escalation' => 720, 'default' => false],
+        ['priority' => 'Normal', 'response' => 480, 'resolution' => 2880, 'escalation' => 1440, 'default' => true],
+        ['priority' => 'Low', 'response' => 1440, 'resolution' => 7200, 'escalation' => 2880, 'default' => false],
+    ];
 
     public function __construct(
         private TenantContextStore $tenantContextStore,
@@ -199,6 +205,18 @@ final class CaseSlaService
     /** @return array<string, mixed>|null */
     private function matchingPolicy(TenantContext $context, string $priority, string $category): ?array
     {
+        $row = $this->findMatchingPolicy($context, $priority, $category);
+
+        if ($row) return $row;
+
+        $this->ensureDefaultPolicies($context);
+
+        return $this->findMatchingPolicy($context, $priority, $category);
+    }
+
+    /** @return array<string, mixed>|null */
+    private function findMatchingPolicy(TenantContext $context, string $priority, string $category): ?array
+    {
         $statement = $this->entityManager->getPDO()->prepare(
             'SELECT * FROM nexa_case_sla_policy WHERE tenant_id=? AND service_id=? AND is_active=1 ' .
             'AND (priority=? OR priority IS NULL) AND (category=? OR category IS NULL) ' .
@@ -207,6 +225,30 @@ final class CaseSlaService
         $statement->execute([$context->tenantId, $context->serviceId, $priority, $category, $priority, $category]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
+    }
+
+    private function ensureDefaultPolicies(TenantContext $context): void
+    {
+        $sql = 'INSERT INTO nexa_case_sla_policy ' .
+            '(id,tenant_id,service_id,name,priority,first_response_minutes,resolution_minutes,escalation_minutes,pause_statuses_json,is_default,is_active) ' .
+            'VALUES (?,?,?,?,?,?,?,?,?, ?,1) ON DUPLICATE KEY UPDATE modified_at=modified_at';
+        $statement = $this->entityManager->getPDO()->prepare($sql);
+
+        foreach (self::DEFAULT_POLICIES as $policy) {
+            $priority = $policy['priority'];
+            $statement->execute([
+                $this->policyId($context, $priority), $context->tenantId, $context->serviceId,
+                $priority . ' support', $priority, $policy['response'], $policy['resolution'],
+                $policy['escalation'], '["Pending"]', $policy['default'] ? 1 : 0,
+            ]);
+        }
+    }
+
+    private function policyId(TenantContext $context, string $priority): string
+    {
+        $hex = md5($context->tenantId . $context->serviceId . $priority . 'case-sla');
+        return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-4' . substr($hex, 13, 3) .
+            '-8' . substr($hex, 17, 3) . '-' . substr($hex, 20, 12);
     }
 
     /** @return array<string, mixed> */

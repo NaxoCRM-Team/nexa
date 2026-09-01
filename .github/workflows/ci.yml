@@ -144,6 +144,9 @@ jobs:
           test "$(mariadb --skip-column-names --host=127.0.0.1 --user=root --password=ci_root_password nexa_upgrade_test --execute='SELECT COUNT(*) FROM contact WHERE tenant_id = "00000000-0000-4000-8000-000000000001"')" = "1"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --user=root --password=ci_root_password nexa_upgrade_test --execute='SELECT COUNT(*) FROM lead WHERE tenant_id = "00000000-0000-4000-8000-000000000001"')" = "1"
           test "$(mariadb --skip-column-names --host=127.0.0.1 --user=root --password=ci_root_password nexa_upgrade_test --execute='SELECT COUNT(*) FROM opportunity WHERE tenant_id = "00000000-0000-4000-8000-000000000001"')" = "1"
+      - name: Replay Phase 3 clean and incremental migrations
+        shell: pwsh
+        run: ./tests/development/Phase3MigrationReplayTest.ps1 -DatabaseHost 127.0.0.1 -Port 3306 -User root -Password ci_root_password
 
   browser-quality:
     name: Shell accessibility and visual validation
