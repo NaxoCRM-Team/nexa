@@ -584,5 +584,30 @@
         "route": "/Nexa/cases/sla-policies",
         "method": "put",
         "actionClassName": "Espo\\Custom\\Tools\\CaseService\\Api\\PutSlaPolicies"
+    },
+    {
+        "route": "/Nexa/consent/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/consent/purposes",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\PostPurpose"
+    },
+    {
+        "route": "/Nexa/consent/decisions",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\PostDecision"
+    },
+    {
+        "route": "/Nexa/consent/decisions/:id/void",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\PostDecisionVoid"
+    },
+    {
+        "route": "/Nexa/consent/contact/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\GetContactConsent"
     }
 ]

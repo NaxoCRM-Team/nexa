@@ -1,0 +1,158 @@
+.nexa-consent-workspace [data-field-error] {
+    color: #b42332;
+    display: block;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 650;
+    margin-top: 5px;
+}
+
+.nexa-consent-workspace .is-invalid {
+    border-color: #c93645;
+    box-shadow: 0 0 0 2px rgba(201, 54, 69, 0.12);
+}
+
+.nexa-consent-workspace [data-evidence-help] {
+    color: #687873;
+    display: block;
+    font-size: 11px;
+    margin: -2px 0 6px;
+}
+
+.nexa-consent-workspace label span b,
+.nexa-consent-modal label span b {
+    color: #b42332;
+}
+
+.nexa-consent-history-tools {
+    align-items: center;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(135px, 0.7fr)) auto auto;
+    padding: 12px 18px;
+}
+
+.nexa-history-search {
+    margin: 0;
+    position: relative;
+}
+
+.nexa-history-search > span {
+    color: #6d7c78;
+    left: 12px;
+    position: absolute;
+    top: 11px;
+}
+
+.nexa-history-search input {
+    padding-left: 36px;
+}
+
+.nexa-history-voided {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.nexa-history-voided input {
+    height: 16px;
+    margin: 0;
+    width: 16px;
+}
+
+.nexa-consent-history-tools > strong {
+    color: #425a54;
+    font-size: 12px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.nexa-consent-history .nexa-consent-table-wrap {
+    height: 360px;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.nexa-consent-history table {
+    min-width: 1040px;
+}
+
+.nexa-consent-history th button {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    padding: 0;
+    text-transform: inherit;
+}
+
+.nexa-consent-history tbody tr.is-voided {
+    opacity: 0.62;
+}
+
+.nexa-audit-state {
+    background: #edf2f1;
+    color: #50635e;
+    display: inline-flex;
+    font-size: 9px;
+    font-weight: 700;
+    margin-left: 6px;
+    padding: 2px 5px;
+    text-transform: uppercase;
+}
+
+.nexa-audit-state.is-voided {
+    background: #fde8ea;
+    color: #a51f2e;
+}
+
+.nexa-audit-actions {
+    display: inline-flex;
+    gap: 5px;
+}
+
+.nexa-audit-actions button {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #cbd8d4;
+    color: #315a53;
+    display: inline-flex;
+    font-size: 10px;
+    gap: 4px;
+    padding: 4px 7px;
+}
+
+.nexa-audit-actions button:hover {
+    background: #edf7f4;
+    border-color: #8fb7ad;
+}
+
+.nexa-consent-modal [data-void-form] > p {
+    color: #536762;
+    margin: 0;
+}
+
+.nexa-consent-modal .btn-danger {
+    align-items: center;
+    display: inline-flex;
+    gap: 7px;
+}
+
+@media (max-width: 1000px) {
+    .nexa-consent-history-tools {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .nexa-consent-history-tools {
+        grid-template-columns: 1fr;
+    }
+
+    .nexa-consent-history-tools > strong {
+        text-align: left;
+    }
+}

@@ -152,7 +152,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
             items: [
                 ['nexa-tracking-events', 'Tracking & Events'],
                 ['nexa-data-quality', 'Data Quality'],
-                ['nexa-consent-privacy', 'Consent & Privacy'],
+                ['nexa-consent-privacy', 'Consent & Privacy', '#NexaConsent', 'fas fa-user-shield'],
                 ['nexa-import-export', 'Import & Export', '#Contact/exportAudit'],
                 ['nexa-integrations', 'Integrations'],
                 ['nexa-api-webhooks', 'API & Webhooks'],

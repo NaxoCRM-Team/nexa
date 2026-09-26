@@ -340,6 +340,24 @@
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_consent_purpose",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_consent_event",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_consent_state",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
                    }
                ],
     "espoCoreConversion":  {
