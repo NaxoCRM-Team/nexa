@@ -283,9 +283,8 @@ final class ContactLifecycleService
         $service = $this->recordServiceContainer->get('Contact');
         $updatedIds = [];
 
-        $this->entityManager->getTransactionManager()->run(
-            function () use ($ids, $channels, $status, $reason, $note, $tenant, $service, &$updatedIds): void {
-                foreach ($ids as $id) {
+        $operation = function () use ($ids, $channels, $status, $reason, $note, $tenant, $service, &$updatedIds): void {
+            foreach ($ids as $id) {
                     $contact = $this->entityManager->getRDBRepository('Contact')->getById($id);
                     if (!$contact || !$this->acl->check($contact, Table::ACTION_EDIT)) {
                         throw new Forbidden('One or more selected contacts cannot be updated.');
@@ -346,10 +345,15 @@ final class ContactLifecycleService
                         $note,
                     );
                     $this->recordCommunicationActivity($id, $effectiveChannels, $status, $reason, $note);
-                    $updatedIds[] = $id;
-                }
+                $updatedIds[] = $id;
             }
-        );
+        };
+
+        if ($this->entityManager->getPDO()->inTransaction()) {
+            $operation();
+        } else {
+            $this->entityManager->getTransactionManager()->run($operation);
+        }
 
         return ['count' => count($updatedIds), 'ids' => $updatedIds, 'status' => $status, 'channels' => $channels];
     }

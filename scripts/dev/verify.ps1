@@ -52,6 +52,9 @@ $required = @(
     'database/shared/migrations/0040_add_currency_rate_provider.sql',
     'database/shared/migrations/0041_add_project_collaboration.sql',
     'database/shared/migrations/0042_add_case_service_sla.sql',
+    'database/shared/migrations/0043_add_consent_governance.sql',
+    'database/shared/migrations/0044_govern_consent_audit_history.sql',
+    'docs/architecture/phase-4-native-capability-audit.md',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
     'espocrm/custom/Espo/Custom/Tools/Currency/Api/PostRatePreview.php',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
@@ -90,6 +93,8 @@ $required = @(
     'tests/tenant/TenantSalesPipelineTest.php', 'tests/browser/sales-workspace.spec.js',
     'tests/tenant/CaseSlaApiJobTest.php', 'tests/tenant/DemoCasePortalFixtureTest.php',
     'tests/workflows/Phase3AcceptanceContractTest.php',
+    'tests/workflows/ConsentGovernanceContractTest.php', 'tests/tenant/TenantConsentGovernanceTest.php',
+    'tests/browser/live-consent-workspace.spec.js',
     'tests/development/Phase3MigrationReplayTest.ps1', 'scripts/dev/verify-phase-3.ps1',
     'tests/browser/fixtures/sales-workspace.html',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
@@ -240,6 +245,8 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantSalesPip
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CaseSlaApiJobTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\DemoCasePortalFixtureTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\Phase3AcceptanceContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\ConsentGovernanceContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantConsentGovernanceTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantCurrencyContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantCurrencyIsolationTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\TenantImageLibrary.php')
@@ -321,6 +328,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant currency ownership contract suite' } else { Fail 'Tenant currency ownership contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\Phase3AcceptanceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Phase 3 acceptance contract suite' } else { Fail 'Phase 3 acceptance contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\ConsentGovernanceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Consent governance contract suite' } else { Fail 'Consent governance contract suite failed.' }
     if (-not $Ci) {
         & php (Join-Path $root 'tests\tenant\CustomerFoundationRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation two-tenant runtime suite' } else { Fail 'Customer foundation two-tenant runtime suite failed.' }
@@ -338,6 +347,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Case SLA API and background-job runtime suite' } else { Fail 'Case SLA API and background-job runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\DemoCasePortalFixtureTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Case and Portal fixture suite' } else { Fail 'Two-tenant Case and Portal fixture suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantConsentGovernanceTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant consent governance runtime suite' } else { Fail 'Two-tenant consent governance runtime suite failed.' }
     }
     & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }
