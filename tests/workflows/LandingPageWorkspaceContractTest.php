@@ -1,0 +1,23 @@
+<?php
+declare(strict_types=1);
+$root=dirname(__DIR__,2);$read=static fn(string $path):string=>(string)file_get_contents($root.'/'.$path);$assert=static function(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);};
+$migration=$read('database/shared/migrations/0050_add_landing_page_governance.sql');$service=$read('espocrm/custom/Espo/Custom/Tools/LandingPage/LandingPageService.php');$catalog=$read('espocrm/custom/Espo/Custom/Tools/LandingPage/LandingPageTemplateCatalog.php');$renderer=$read('espocrm/custom/Espo/Custom/Tools/LandingPage/LandingPageRenderer.php');$routes=$read('espocrm/custom/Espo/Custom/Resources/routes.json');$view=$read('espocrm/client/custom/src/views/landing-page/workspace.js');$template=$read('espocrm/client/custom/res/templates/landing-page/workspace.tpl');$htaccess=$read('espocrm/.htaccess');$application=$read('espocrm/application/Espo/Core/Application.php');
+foreach(['nexa_landing_page','nexa_landing_page_version','nexa_landing_page_event'] as $table)$assert(str_contains($migration,"CREATE TABLE IF NOT EXISTS `{$table}`"),"Missing {$table}.");
+foreach(['/Nexa/landing-pages/workspace','/Nexa/landing-pages/:id/publish','/Nexa/landing-pages/:id/archive'] as $route)$assert(str_contains($routes,$route),"Missing route {$route}.");
+$assert(str_contains($service,'tenant_id=?')&&str_contains($service,'service_id=?'),'Landing pages must be tenant and service scoped.');
+$assert(str_contains($service,'nexa_landing_page_version')&&str_contains($service,"status='published'"),'Publishing must create an immutable version.');
+$assert(str_contains($service,"access_scope='public'")&&str_contains($service,'publishedAsset'),'Public pages must expose only referenced public assets.');
+$assert(str_contains($renderer,'LeadCaptureForm')&&str_contains($renderer,'nexa_form_profile'),'Published forms must be reused rather than reimplemented.');
+$assert(str_contains($renderer,'recordEvent')&&str_contains($migration,"'view', 'click'"),'Landing page analytics hooks are missing.');
+$assert(str_contains($template,'data-add-block="hero"')&&str_contains($template,'data-add-block="form"')&&str_contains($view,'custom:workspace-table'),'The visual builder and standard catalogue table are missing.');
+$assert(str_contains($template,'data-template-grid')&&str_contains($view,'useTemplate'),'The launch-ready template gallery is missing.');
+$assert(str_contains($view,'contenteditable="true"')&&str_contains($view,'inlineEdit'),'Direct canvas editing is missing.');
+$assert(str_contains($view,'LeadCaptureForm')&&str_contains($view,'nexa-preview-form-frame'),'Draft preview must render the selected published form.');
+$assert(str_contains($view,"postRequest('Nexa/assets'")&&str_contains($view,"accessScope:'public'"),'Canvas image replacement must use the tenant Asset Library.');
+$assert(str_contains($view,'<a class="nexa-preview-button"'),'Full-page preview calls to action must be functional links.');
+foreach(['Request a Demo','Consultation & Quote','Event Registration','Report Download'] as $name)$assert(str_contains($catalog,$name),"Missing professional template {$name}.");
+foreach(['features','stats','testimonial'] as $type)$assert(str_contains($service,"'{$type}'")&&str_contains($renderer,"'{$type}' =>"),"Missing rich landing-page block {$type}.");
+foreach(['request-demo.jpg','consultation.jpg','event-registration.jpg','lead-magnet.jpg'] as $image)$assert(is_file($root.'/espocrm/client/custom/img/landing-templates/'.$image),"Missing template photograph {$image}.");
+$assert(str_contains($htaccess,'NexaLandingPage')&&str_contains($application,'resolveLandingPageKey'),'Portable public landing-page routing is missing.');
+$assert(!preg_match('/isolation-(alpha|beta)|30000000-0000-4000-8000-00000000000[12]/',$service),'Landing pages must not hard-code demo tenants.');
+echo "Landing page workspace contracts passed.\n";
