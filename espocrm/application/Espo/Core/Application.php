@@ -113,7 +113,15 @@ class Application
 
             $resolver = $this->container->getByClass(TenantResolver::class);
             $authToken = is_string($_COOKIE['auth-token'] ?? null) ? $_COOKIE['auth-token'] : '';
-            $tenant = $authToken !== '' ? $resolver->resolveAuthToken($authToken) : null;
+            $tenant = $this->resolvePublicResourceTenant($resolver, $className);
+
+            if ($tenant === null && $authToken !== '') {
+                $tenant = $resolver->resolveAuthToken($authToken);
+            }
+
+            if ($tenant === null) {
+                $tenant = $this->resolveLoginRequestTenant($resolver, $className);
+            }
 
             if ($tenant === null) {
                 $host = preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? '') ?? '';
@@ -121,27 +129,28 @@ class Application
             }
 
             if ($tenant === null) {
-                // Twilio's voice webhooks arrive at whatever public host is
-                // fronting this install (an ngrok tunnel in local dev, a real
-                // domain in production) - never a registered tenant domain,
-                // since Twilio has no concept of our tenants. This mirrors
-                // TenantContextMiddleware::isPublicPlatformRoute()'s allow-list
-                // for the same two routes - that check runs one layer deeper,
-                // but requests never reach it if this outer gate throws first.
-                // Matched by suffix, not exact path: this app supports being
-                // installed under any subfolder (see PortableSubfolderTest),
-                // so REQUEST_URI here still carries that prefix (e.g. /nexa/...)
-                // - unlike TenantContextMiddleware's check, which runs after
-                // EspoCRM's own routing has already stripped it.
                 $requestPath = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
-                $isTwilioVoiceWebhook = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (
-                    str_ends_with($requestPath, '/api/v1/Nexa/call/twiml') ||
-                    str_ends_with($requestPath, '/api/v1/Nexa/call/status')
-                );
 
-                if ($isTwilioVoiceWebhook) {
+                if ($this->isSharedLoginApiRequest($className, $requestPath)) {
                     $this->container->getByClass(PlatformExecutionGateway::class)
-                        ->run('Twilio voice webhook', $run);
+                        ->run('shared login API', $run);
+
+                    return;
+                }
+
+                if ($this->isPublicPlatformApiRequest($className, $requestPath)) {
+                    $this->container->getByClass(PlatformExecutionGateway::class)
+                        ->run('public authentication and callback API', $run);
+
+                    return;
+                }
+
+                if (
+                    str_ends_with($className, '\\ApplicationRunners\\Client') &&
+                    str_ends_with(rtrim($requestPath, '/'), '/login')
+                ) {
+                    $this->container->getByClass(PlatformExecutionGateway::class)
+                        ->run('shared login client shell', $run);
 
                     return;
                 }
@@ -153,6 +162,100 @@ class Application
         } catch (RunnerException $e) {
             die($e->getMessage());
         }
+    }
+
+    private function resolvePublicResourceTenant(TenantResolver $resolver, string $className): ?TenantContext
+    {
+        if (
+            str_ends_with($className, '\\ApplicationRunners\\EntryPoint') &&
+            strcasecmp((string) ($_GET['entryPoint'] ?? ''), 'LeadCaptureForm') === 0
+        ) {
+            return $resolver->resolveLeadCaptureFormId((string) ($_GET['id'] ?? ''));
+        }
+
+        if (
+            str_ends_with($className, '\\ApplicationRunners\\Api') &&
+            strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST'
+        ) {
+            $path = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+
+            if (preg_match('#/api/v1/LeadCapture/form/([A-Za-z0-9]{17})/?$#', $path, $matches) === 1) {
+                return $resolver->resolveLeadCaptureFormId($matches[1]);
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveLoginRequestTenant(TenantResolver $resolver, string $className): ?TenantContext
+    {
+        $path = (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+
+        if (
+            !str_ends_with($className, '\\ApplicationRunners\\Api') ||
+            !str_ends_with($path, '/api/v1/App/user')
+        ) {
+            return null;
+        }
+
+        $authorization = trim((string) ($_SERVER['HTTP_ESPO_AUTHORIZATION'] ?? ''));
+
+        if ($authorization === '') {
+            $authorization = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
+
+            if (str_starts_with(strtolower($authorization), 'basic ')) {
+                $authorization = trim(substr($authorization, 6));
+            }
+        }
+
+        $decoded = base64_decode($authorization, true);
+
+        if (!is_string($decoded) || !str_contains($decoded, ':')) {
+            return null;
+        }
+
+        return $resolver->resolveLoginIdentifier(explode(':', $decoded, 2)[0]);
+    }
+
+    private function isSharedLoginApiRequest(string $className, string $path): bool
+    {
+        return str_ends_with($className, '\\ApplicationRunners\\Api') &&
+            strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET' &&
+            str_ends_with($path, '/api/v1/App/user');
+    }
+
+    private function isPublicPlatformApiRequest(string $className, string $path): bool
+    {
+        if (!str_ends_with($className, '\\ApplicationRunners\\Api')) {
+            return false;
+        }
+
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        $postRouteSuffixes = [
+            '/api/v1/Nexa/signup',
+            '/api/v1/Nexa/signup/profile',
+            '/api/v1/Nexa/signup/verify',
+            '/api/v1/Nexa/signup/resend',
+            '/api/v1/Nexa/auth/recovery',
+            '/api/v1/Nexa/call/twiml',
+            '/api/v1/Nexa/call/status',
+        ];
+
+        if ($method === 'POST') {
+            foreach ($postRouteSuffixes as $suffix) {
+                if (str_ends_with($path, $suffix)) {
+                    return true;
+                }
+            }
+        }
+
+        return $method === 'GET' && (
+            str_ends_with($path, '/api/v1/I18n') ||
+            str_ends_with($path, '/api/v1/Settings') ||
+            str_ends_with($path, '/api/v1/Nexa/auth/providers') ||
+            preg_match('#/api/v1/Nexa/auth/provider/[a-z0-9_-]+/(start|callback)$#', $path) === 1 ||
+            preg_match('#/api/v1/Nexa/mail/oauth/[a-z0-9_-]+/callback$#', $path) === 1
+        );
     }
 
     private function runForTenant(TenantContext $tenant, callable $callback): mixed

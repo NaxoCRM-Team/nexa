@@ -150,9 +150,15 @@ final class CaseSlaService
         $items = is_array($data->policies ?? null) ? $data->policies : [];
         if ($items === []) throw new BadRequest('Add at least one SLA policy.');
 
-        $this->entityManager->getPDO()->beginTransaction();
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+
+        if ($ownsTransaction) {
+            $pdo->beginTransaction();
+        }
+
         try {
-            $this->entityManager->getPDO()->prepare(
+            $pdo->prepare(
                 'UPDATE nexa_case_sla_policy SET is_active=0,is_default=0 WHERE tenant_id=? AND service_id=?'
             )->execute([$context->tenantId, $context->serviceId]);
             $defaultSeen = false;
@@ -174,7 +180,7 @@ final class CaseSlaService
                     'VALUES (?,?,?,?,?,?,?,?,?,?,?,1) ON DUPLICATE KEY UPDATE name=VALUES(name),priority=VALUES(priority),category=VALUES(category),' .
                     'first_response_minutes=VALUES(first_response_minutes),resolution_minutes=VALUES(resolution_minutes),escalation_minutes=VALUES(escalation_minutes),' .
                     'pause_statuses_json=VALUES(pause_statuses_json),is_default=VALUES(is_default),is_active=1';
-                $this->entityManager->getPDO()->prepare($sql)->execute([
+                $pdo->prepare($sql)->execute([
                     $id, $context->tenantId, $context->serviceId, $name, $priority,
                     trim((string) ($item->category ?? '')) ?: null, $response, $resolution,
                     max(0, (int) ($item->escalationMinutes ?? 0)) ?: null, '["Pending"]', $isDefault ? 1 : 0,
@@ -182,13 +188,18 @@ final class CaseSlaService
                 $defaultSeen = $defaultSeen || $isDefault;
             }
             if (!$defaultSeen) {
-                $this->entityManager->getPDO()->prepare(
+                $pdo->prepare(
                     'UPDATE nexa_case_sla_policy SET is_default=1 WHERE tenant_id=? AND service_id=? AND is_active=1 ORDER BY name LIMIT 1'
                 )->execute([$context->tenantId, $context->serviceId]);
             }
-            $this->entityManager->getPDO()->commit();
+            if ($ownsTransaction) {
+                $pdo->commit();
+            }
         } catch (\Throwable $e) {
-            $this->entityManager->getPDO()->rollBack();
+            if ($ownsTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+
             throw $e;
         }
         return $this->listPolicies();

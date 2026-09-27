@@ -609,5 +609,62 @@
         "route": "/Nexa/consent/contact/:id",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\GetContactConsent"
+    },
+    {
+        "route": "/Nexa/consent/cookies/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\GetCookieWorkspace"
+    },
+    {
+        "route": "/Nexa/consent/cookies/settings",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\PutCookieSettings"
+    },
+    {
+        "route": "/Nexa/public/cookies/config/:key",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\GetPublicCookieConfig",
+        "noAuth": true
+    },
+    {
+        "route": "/Nexa/public/cookies/receipts",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Consent\\Api\\PostPublicCookieReceipt",
+        "noAuth": true
+    },
+    {
+        "route": "/Nexa/forms/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/forms",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\PostForm"
+    },
+    {
+        "route": "/Nexa/forms/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\PutForm"
+    },
+    {
+        "route": "/Nexa/forms/:id/publish",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\PostPublish"
+    },
+    {
+        "route": "/Nexa/forms/:id/archive",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\PostArchive"
+    },
+    {
+        "route": "/Nexa/forms/submissions",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\GetSubmissions"
+    },
+    {
+        "route": "/Nexa/forms/submissions/:id",
+        "method": "delete",
+        "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\DeleteSubmission"
     }
 ]

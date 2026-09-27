@@ -1,0 +1,47 @@
+body.nexa-public-form input.form-control,
+body.nexa-public-form textarea.form-control,
+body.nexa-public-form select.form-control {
+    background-color: #ffffff;
+    color: #172f35 !important;
+    caret-color: #0f766e;
+    opacity: 1;
+    -webkit-text-fill-color: #172f35 !important;
+}
+
+body.nexa-public-form input.form-control::placeholder,
+body.nexa-public-form textarea.form-control::placeholder {
+    color: #64777c !important;
+    opacity: 1;
+    -webkit-text-fill-color: #64777c !important;
+}
+
+body.nexa-public-form input.form-control:focus,
+body.nexa-public-form textarea.form-control:focus,
+body.nexa-public-form select.form-control:focus {
+    background-color: #ffffff;
+    border-color: #0f766e;
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+    color: #172f35 !important;
+    -webkit-text-fill-color: #172f35 !important;
+}
+
+body.nexa-public-form input.form-control:-webkit-autofill,
+body.nexa-public-form input.form-control:-webkit-autofill:hover,
+body.nexa-public-form input.form-control:-webkit-autofill:focus {
+    box-shadow: 0 0 0 1000px #ffffff inset;
+    caret-color: #0f766e;
+    -webkit-text-fill-color: #172f35 !important;
+}
+
+body.nexa-public-form select.form-control option {
+    background-color: #ffffff;
+    color: #172f35;
+}
+
+body.nexa-public-form .nexa-form-redirect-notice {
+    color: #526b65;
+    font-size: 13px;
+    font-weight: 650;
+    margin: 14px auto 0;
+    text-align: center;
+}

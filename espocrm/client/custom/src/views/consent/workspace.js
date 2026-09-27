@@ -24,6 +24,13 @@ define('custom:views/consent/workspace', ['view'], Dep => class extends Dep {
         'click [data-action="void-decision"]': 'openVoidDecision',
         'click [data-action="close-void"]': 'closeVoidDecision',
         'submit [data-void-form]': 'voidDecision',
+        'click [data-action="switch-consent-view"]': 'switchConsentView',
+        'change [data-cookie-form]': 'cookieFormChanged',
+        'input [data-cookie-form]': 'cookieFormChanged',
+        'submit [data-cookie-form]': 'saveCookieSettings',
+        'click [data-action="add-cookie-category"]': 'addCookieCategory',
+        'click [data-action="remove-cookie-category"]': 'removeCookieCategory',
+        'click [data-action="copy-cookie-embed"]': 'copyCookieEmbed',
     };
 
     setup() {
@@ -33,6 +40,7 @@ define('custom:views/consent/workspace', ['view'], Dep => class extends Dep {
         this.searchTimer = null;
         this.correctsEventId = null;
         this.historySort = {field: 'occurredAt', direction: 'desc'};
+        this.cookieWorkspace = null;
     }
 
     afterRender() {
@@ -52,8 +60,12 @@ define('custom:views/consent/workspace', ['view'], Dep => class extends Dep {
     async load() {
         this.setState('loading');
         try {
-            this.workspace = await Espo.Ajax.getRequest('Nexa/consent/workspace');
+            [this.workspace, this.cookieWorkspace] = await Promise.all([
+                Espo.Ajax.getRequest('Nexa/consent/workspace'),
+                Espo.Ajax.getRequest('Nexa/consent/cookies/workspace'),
+            ]);
             this.renderWorkspace();
+            this.renderCookieWorkspace();
             this.setState('ready');
         } catch (error) {
             this.setState('error');
@@ -346,6 +358,144 @@ define('custom:views/consent/workspace', ['view'], Dep => class extends Dep {
         } catch (error) {
             Espo.Ui.error(error?.message || 'Communication purpose could not be saved.');
         } finally { button.disabled = false; }
+    }
+
+    switchConsentView(event) {
+        const view = event.currentTarget.dataset.view;
+        this.element.querySelectorAll('[data-consent-view]').forEach(node => {
+            node.hidden = node.dataset.consentView !== view;
+            node.style.display = node.hidden ? 'none' : '';
+        });
+        this.element.querySelectorAll('[data-action="switch-consent-view"]').forEach(button => button.classList.toggle('is-active', button.dataset.view === view));
+        const purposeAction = this.element.querySelector('[data-purpose-action]');
+        purposeAction.hidden = view !== 'communications';
+        purposeAction.style.display = purposeAction.hidden ? 'none' : '';
+    }
+
+    renderCookieWorkspace() {
+        const banner = this.cookieWorkspace?.banner;
+        const form = this.element.querySelector('[data-cookie-form]');
+        if (!banner || !form) return;
+        Object.entries(this.cookieWorkspace.summary || {}).forEach(([key, value]) => {
+            const node = this.element.querySelector(`[data-cookie-summary="${key}"]`);
+            if (node) node.textContent = Number(value || 0).toLocaleString();
+        });
+        ['name', 'policyVersion', 'heading', 'privacyNoticeUrl', 'message', 'integrationMode', 'regionMode', 'position', 'locale', 'primaryColor', 'backgroundColor', 'textColor'].forEach(name => {
+            if (form.elements[name]) form.elements[name].value = banner[name] || '';
+        });
+        form.elements.regions.value = (banner.regions || []).join(', ');
+        form.elements.showReject.checked = Boolean(banner.showReject);
+        form.elements.isPublished.checked = Boolean(banner.isPublished);
+        this.renderCookieCategories(banner.categories || []);
+        this.element.querySelector('[data-cookie-embed]').value = banner.embedCode || '';
+        this.element.querySelector('[data-cookie-publish-state]').textContent = banner.isPublished ? 'Published' : 'Draft';
+        this.cookieFormChanged();
+    }
+
+    renderCookieCategories(categories) {
+        const host = this.element.querySelector('[data-cookie-categories]');
+        host.innerHTML = categories.map((item, index) => `<article data-cookie-category-row data-key="${this.escape(item.key)}">
+            <span class="fas ${item.isEssential ? 'fa-lock' : 'fa-cookie-bite'}" aria-hidden="true"></span>
+            <div><input class="form-control" data-category-name maxlength="120" value="${this.escape(item.name)}" aria-label="Category name"><input class="form-control" data-category-description maxlength="500" value="${this.escape(item.description || '')}" placeholder="Explain what these cookies do" aria-label="Category description"></div>
+            <label><input type="checkbox" data-category-default ${item.defaultEnabled ? 'checked' : ''} ${item.isEssential ? 'disabled' : ''}>Default on</label>
+            ${item.isEssential ? '<strong>Required</strong>' : `<button class="btn btn-icon" type="button" data-action="remove-cookie-category" data-index="${index}" title="Remove category"><span class="fas fa-trash-alt"></span></button>`}
+        </article>`).join('');
+    }
+
+    cookieFormChanged() {
+        const form = this.element.querySelector('[data-cookie-form]');
+        if (!form) return;
+        const regions = form.querySelector('[data-cookie-regions]');
+        regions.hidden = form.elements.regionMode.value !== 'custom';
+        regions.style.display = regions.hidden ? 'none' : '';
+        const data = this.cookieFormData(form);
+        const existing = data.integrationMode === 'existing_banner';
+        form.querySelector('[data-cookie-mode-help]').textContent = existing ? 'Nexa records choices from the website consent tool and does not show another banner.' : 'Nexa displays and manages the visitor banner.';
+        this.element.querySelector('[data-cookie-install-help]').textContent = existing ? 'Install the adapter once, then call NexaConsent.sync when the existing banner changes.' : 'Add this once before the closing body tag on the tenant website.';
+        const syncExample = this.element.querySelector('[data-cookie-sync-example]');
+        syncExample.hidden = !existing; syncExample.style.display = existing ? '' : 'none';
+        const preview = this.element.querySelector('[data-cookie-preview]');
+        preview.style.setProperty('--cookie-primary', data.primaryColor);
+        preview.style.setProperty('--cookie-bg', data.backgroundColor);
+        preview.style.setProperty('--cookie-text', data.textColor);
+        preview.innerHTML = `<div><h3>${this.escape(data.heading || 'Your privacy choices')}</h3><p>${this.escape(data.message || 'Cookie notice')}</p><section>${data.categories.map(item => `<span><i class="fas ${item.isEssential ? 'fa-lock' : 'fa-cookie-bite'}"></i>${this.escape(item.name)}</span>`).join('')}</section><footer><button type="button">Accept all</button>${data.showReject ? '<button type="button">Reject optional</button>' : ''}<button type="button">Manage choices</button></footer></div>`;
+    }
+
+    cookieFormData(form) {
+        return {
+            name: form.elements.name.value.trim(), policyVersion: form.elements.policyVersion.value.trim(),
+            heading: form.elements.heading.value.trim(), privacyNoticeUrl: form.elements.privacyNoticeUrl.value.trim(),
+            message: form.elements.message.value.trim(), integrationMode: form.elements.integrationMode.value, regionMode: form.elements.regionMode.value,
+            regions: form.elements.regions.value.split(',').map(item => item.trim()).filter(Boolean), position: form.elements.position.value,
+            locale: form.elements.locale.value.trim(), primaryColor: form.elements.primaryColor.value,
+            backgroundColor: form.elements.backgroundColor.value, textColor: form.elements.textColor.value,
+            showReject: form.elements.showReject.checked, isPublished: form.elements.isPublished.checked,
+            categories: [...form.querySelectorAll('[data-cookie-category-row]')].map(row => ({
+                key: row.dataset.key, name: row.querySelector('[data-category-name]').value.trim(),
+                description: row.querySelector('[data-category-description]').value.trim(),
+                isEssential: row.querySelector('.fa-lock') !== null,
+                defaultEnabled: row.querySelector('[data-category-default]').disabled || row.querySelector('[data-category-default]').checked,
+            })),
+        };
+    }
+
+    addCookieCategory() {
+        const form = this.element.querySelector('[data-cookie-form]');
+        const current = this.cookieFormData(form).categories;
+        const number = current.length + 1;
+        current.push({key: `category_${Date.now()}`, name: `Optional category ${number}`, description: '', isEssential: false, defaultEnabled: false});
+        this.renderCookieCategories(current);
+        this.cookieFormChanged();
+        this.element.querySelector('[data-cookie-categories] [data-cookie-category-row]:last-child [data-category-name]')?.select();
+    }
+
+    removeCookieCategory(event) {
+        event.currentTarget.closest('[data-cookie-category-row]')?.remove();
+        this.cookieFormChanged();
+    }
+
+    validateCookieForm(form) {
+        let valid = true;
+        form.querySelectorAll('[data-cookie-error]').forEach(node => { node.textContent = ''; });
+        form.querySelectorAll('[required]').forEach(field => {
+            field.classList.remove('is-invalid');
+            if (field.value.trim()) return;
+            field.classList.add('is-invalid');
+            const error = form.querySelector(`[data-cookie-error="${field.name}"]`);
+            if (error) error.textContent = 'This field is required.';
+            valid = false;
+        });
+        if (form.elements.regionMode.value === 'custom' && !form.elements.regions.value.trim()) {
+            form.elements.regions.classList.add('is-invalid');
+            form.querySelector('[data-cookie-error="regions"]').textContent = 'Add at least one region code.';
+            valid = false;
+        }
+        if (!valid) form.querySelector('.is-invalid')?.focus();
+        return valid;
+    }
+
+    async saveCookieSettings(event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        if (!this.validateCookieForm(form)) return;
+        const button = form.querySelector('[type="submit"]'); button.disabled = true;
+        try {
+            this.cookieWorkspace = await Espo.Ajax.putRequest('Nexa/consent/cookies/settings', this.cookieFormData(form));
+            this.renderCookieWorkspace();
+            Espo.Ui.success(this.cookieWorkspace.banner.isPublished ? 'Cookie banner saved and published.' : 'Cookie banner draft saved.');
+        } catch (error) {
+            Espo.Ui.error(error?.message || 'Cookie settings could not be saved.');
+        } finally { button.disabled = false; }
+    }
+
+    async copyCookieEmbed() {
+        const field = this.element.querySelector('[data-cookie-embed]');
+        try {
+            await navigator.clipboard.writeText(field.value);
+            Espo.Ui.success('Embed code copied.');
+        } catch (error) {
+            field.select(); document.execCommand('copy'); Espo.Ui.success('Embed code copied.');
+        }
     }
 
     channelLabel(value) { return {email:'Email',phone:'Phone',sms:'SMS',whatsapp:'WhatsApp',linkedin:'LinkedIn',postal:'Postal mail',live_chat:'Live chat'}[value] || value; }

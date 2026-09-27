@@ -38,6 +38,7 @@ use Espo\Core\EntryPoint\Traits\NoAuth;
 use Espo\Core\Exceptions\BadRequest;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\Utils\Client\ActionRenderer;
+use Espo\Custom\Tools\Form\PublicFormRuntimeService;
 
 /**
  * @noinspection PhpUnused
@@ -49,6 +50,7 @@ class LeadCaptureForm implements EntryPoint
     public function __construct(
         private ActionRenderer $actionRenderer,
         private FormService $service,
+        private PublicFormRuntimeService $nexaRuntime,
     ) {}
 
     /**
@@ -64,9 +66,10 @@ class LeadCaptureForm implements EntryPoint
         }
 
         [$leadCapture, $data, $captchaScript] = $this->service->getData($id);
+        $data = $this->nexaRuntime->enhance($leadCapture, $data, $request);
 
         $params = new ActionRenderer\Params(
-            controller: 'controllers/lead-capture-form',
+            controller: 'custom:controllers/nexa-lead-capture-form',
             action: 'show',
             data: $data,
         );

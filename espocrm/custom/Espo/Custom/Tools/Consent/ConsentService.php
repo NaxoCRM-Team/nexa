@@ -165,6 +165,9 @@ final class ConsentService
         if (!in_array($status, self::STATUSES, true)) throw new BadRequest('Select a valid consent decision.');
         $source = strtolower(trim((string) ($data->source ?? 'manual')));
         if (!in_array($source, ['manual', 'form', 'import', 'api', 'preference_center', 'system'], true)) throw new BadRequest('Select a valid evidence source.');
+        $actorType = $source === 'form' ? 'visitor' : ($source === 'system' ? 'system' : 'user');
+        $actorId = $actorType === 'user' ? $this->user->getId() : null;
+        $evidence = is_array($data->evidence ?? null) ? $data->evidence : [];
         $legalBasis = $this->legalBasis($data->legalBasis ?? $purpose['defaultLegalBasis'], false);
         $note = $this->nullableText($data->evidenceNote ?? null, 1000, 'Evidence note');
         if ($status === 'granted' && $source === 'manual' && $note === null) throw new BadRequest('Describe how consent was obtained.');
@@ -189,7 +192,7 @@ final class ConsentService
                 }
             }
             $event = $pdo->prepare('INSERT INTO nexa_consent_event (id,tenant_id,service_id,contact_id,purpose_id,channel,status,legal_basis,source,policy_version,privacy_notice_url,evidence_note,evidence_json,actor_type,actor_id,occurred_at,expires_at,supersedes_event_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-            $event->execute([$eventId, $context->tenantId, $context->serviceId, $contactId, $purposeId, $channel, $status, $legalBasis, $source, $purpose['policyVersion'], $purpose['privacyNoticeUrl'], $note, json_encode(['recordedFrom' => 'Nexa consent workspace'], JSON_THROW_ON_ERROR), 'user', $this->user->getId(), $occurredAt, $expiresAt, $supersedesEventId]);
+            $event->execute([$eventId, $context->tenantId, $context->serviceId, $contactId, $purposeId, $channel, $status, $legalBasis, $source, $purpose['policyVersion'], $purpose['privacyNoticeUrl'], $note, json_encode(['recordedFrom' => $source === 'form' ? 'Published Nexa form' : 'Nexa consent workspace', ...$evidence], JSON_THROW_ON_ERROR), $actorType, $actorId, $occurredAt, $expiresAt, $supersedesEventId]);
             if ($supersedesEventId !== null) {
                 $supersede = $pdo->prepare('UPDATE nexa_consent_event SET superseded_by_event_id=? WHERE id=? AND tenant_id=? AND service_id=?');
                 $supersede->execute([$eventId, $supersedesEventId, $context->tenantId, $context->serviceId]);
