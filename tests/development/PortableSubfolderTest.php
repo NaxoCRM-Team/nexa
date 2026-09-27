@@ -52,6 +52,24 @@ $assert(
     $workspaceRoute === ['slug' => 'isolation-alpha', 'fragment' => 'Contact/view/abc123'],
     'A tenant workspace path must expose its public slug and internal route fragment.'
 );
+$landingPageRoute = NexaApplicationPath::landingPageRoute(
+    '/nexa/p/8106939abfab7bf679709733d75d9a6d18d9ee4cb326d86b/request-a-demo-draft',
+    '/nexa'
+);
+$assert(
+    $landingPageRoute === [
+        'key' => '8106939abfab7bf679709733d75d9a6d18d9ee4cb326d86b',
+        'slug' => 'request-a-demo-draft',
+    ],
+    'A clean public landing-page URL must resolve inside a copied application subfolder.'
+);
+$assert(
+    NexaApplicationPath::landingPageRoute(
+        '/p/8106939abfab7bf679709733d75d9a6d18d9ee4cb326d86b/request-a-demo-draft/',
+        ''
+    ) === $landingPageRoute,
+    'Public landing pages must support root installs and an optional trailing slash.'
+);
 
 $originalScriptName = $_SERVER['SCRIPT_NAME'] ?? null;
 $originalRequestUri = $_SERVER['REQUEST_URI'] ?? null;
@@ -118,6 +136,13 @@ $assert(
 $assert(
     str_contains($publicEntry, '$clientBasePath = NexaApplicationPath::baseHref($basePath);'),
     'Every client route must receive the absolute application mount path.'
+);
+$assert(
+    str_contains($publicEntry, 'NexaApplicationPath::landingPageRoute') &&
+    str_contains($publicEntry, "\$_GET['entryPoint'] = 'NexaLandingPage'") &&
+    str_contains($publicEntry, "\$_SERVER['QUERY_STRING'] = http_build_query") &&
+    str_contains($publicEntry, "filter_has_var(INPUT_GET, 'entryPoint') || isset(\$_GET['entryPoint'])"),
+    'A clean landing-page route must reach its public entry point even when Apache drops the rewritten query string.'
 );
 
 $assert(

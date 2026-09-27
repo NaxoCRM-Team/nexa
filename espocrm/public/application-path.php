@@ -58,6 +58,21 @@ final class NexaApplicationPath
         ];
     }
 
+    /** @return null|array{key: string, slug: string} */
+    public static function landingPageRoute(string $requestPath, string $basePath): ?array
+    {
+        $prefix = preg_quote(self::baseHref($basePath), '~');
+
+        if (preg_match('~^' . $prefix . 'p/([a-f0-9]{48})/([a-z0-9](?:[a-z0-9-]{0,158}[a-z0-9]))/?$~i', $requestPath, $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'key' => strtolower($matches[1]),
+            'slug' => strtolower($matches[2]),
+        ];
+    }
+
     public static function baseHref(string $basePath): string
     {
         return ($basePath === '' ? '' : $basePath) . '/';
