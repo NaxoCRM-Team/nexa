@@ -666,5 +666,65 @@
         "route": "/Nexa/forms/submissions/:id",
         "method": "delete",
         "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\DeleteSubmission"
+    },
+    {
+        "route": "/Nexa/assets/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/assets",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PostAsset"
+    },
+    {
+        "route": "/Nexa/assets/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PutAsset"
+    },
+    {
+        "route": "/Nexa/assets/:id/version",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PostVersion"
+    },
+    {
+        "route": "/Nexa/assets/:id/archive",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PostArchive"
+    },
+    {
+        "route": "/Nexa/assets/:id/restore",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PostRestore"
+    },
+    {
+        "route": "/Nexa/assets/:id/download",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetDownload"
+    },
+    {
+        "route": "/Nexa/landing-pages/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\LandingPage\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/landing-pages",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\LandingPage\\Api\\PostPage"
+    },
+    {
+        "route": "/Nexa/landing-pages/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\LandingPage\\Api\\PutPage"
+    },
+    {
+        "route": "/Nexa/landing-pages/:id/publish",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\LandingPage\\Api\\PostPublish"
+    },
+    {
+        "route": "/Nexa/landing-pages/:id/archive",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\LandingPage\\Api\\PostArchive"
     }
 ]

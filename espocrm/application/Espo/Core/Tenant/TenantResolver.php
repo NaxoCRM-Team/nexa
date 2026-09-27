@@ -179,6 +179,21 @@ final class TenantResolver
         return $this->contextFromRow($rows[0], 'lead-capture-form');
     }
 
+    public function resolveLandingPageKey(string $publicKey): ?TenantContext
+    {
+        $publicKey = trim($publicKey);
+        if (!preg_match('/^[a-f0-9]{48}$/', $publicKey)) return null;
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT DISTINCT t.id,t.slug,t.display_name,ts.service_id FROM nexa_landing_page p ' .
+            'INNER JOIN nexa_tenant t ON t.id=p.tenant_id ' . $this->crmServiceJoin() .
+            "WHERE p.public_key=:publicKey AND p.status='published' AND p.service_id=ts.service_id " .
+            'AND t.status=:tenantStatus LIMIT 2'
+        );
+        $statement->execute(['publicKey'=>$publicKey,'tenantStatus'=>'active','tenantServiceStatus'=>'active','serviceStatus'=>'active','serviceKey'=>'crm']);
+        $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
+        return count($rows) === 1 ? $this->contextFromRow($rows[0], 'landing-page') : null;
+    }
+
     private function crmServiceJoin(): string
     {
         return 'INNER JOIN nexa_tenant_service ts ON ts.tenant_id = t.id AND ts.status = :tenantServiceStatus ' .

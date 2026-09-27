@@ -52,7 +52,7 @@ final class TenantImageLibrary
     /** @return array{list: array<int, array<string, mixed>>, total: int, offset: int, limit: int} */
     public function getPage(string $search, int $offset, int $limit): array
     {
-        if (!$this->acl->checkScope('Note', Table::ACTION_CREATE)) {
+        if (!$this->canUseFiles()) {
             throw new Forbidden('You do not have permission to use tenant files.');
         }
 
@@ -103,7 +103,7 @@ final class TenantImageLibrary
     /** @return array{list: array<int, array<string, mixed>>, total: int, offset: int, limit: int} */
     public function getFilePage(string $search, int $offset, int $limit): array
     {
-        if (!$this->acl->checkScope('Note', Table::ACTION_CREATE)) {
+        if (!$this->canUseFiles()) {
             throw new Forbidden('You do not have permission to use tenant files.');
         }
 
@@ -146,7 +146,7 @@ final class TenantImageLibrary
     /** @return array{id: string, name: string, mimeType: string, size: int} */
     public function upload(string $name, string $declaredType, string $encodedData): array
     {
-        if (!$this->acl->checkScope('Note', Table::ACTION_CREATE)) {
+        if (!$this->canUseFiles()) {
             throw new Forbidden('You do not have permission to upload tenant files.');
         }
 
@@ -201,7 +201,7 @@ final class TenantImageLibrary
     /** @return array{id: string, name: string, mimeType: string, size: int} */
     public function uploadFile(string $name, string $declaredType, string $encodedData): array
     {
-        if (!$this->acl->checkScope('Note', Table::ACTION_CREATE)) {
+        if (!$this->canUseFiles()) {
             throw new Forbidden('You do not have permission to upload tenant files.');
         }
         if (str_contains($encodedData, ',')) {
@@ -239,5 +239,11 @@ final class TenantImageLibrary
         $this->entityManager->saveEntity($attachment, [SaveOption::SILENT => true]);
 
         return ['id' => $attachment->getId(), 'name' => $safeName, 'mimeType' => $detectedType, 'size' => strlen($contents)];
+    }
+
+    private function canUseFiles(): bool
+    {
+        return $this->acl->checkScope('Note', Table::ACTION_CREATE)
+            || $this->acl->checkScope('Document', Table::ACTION_CREATE);
     }
 }

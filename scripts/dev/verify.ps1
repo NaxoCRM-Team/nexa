@@ -100,8 +100,13 @@ $required = @(
     'tests/workflows/ConsentGovernanceContractTest.php', 'tests/tenant/TenantConsentGovernanceTest.php',
     'tests/workflows/CookieConsentContractTest.php', 'tests/tenant/TenantCookieConsentTest.php',
     'tests/workflows/FormWorkspaceContractTest.php', 'tests/tenant/TenantFormWorkspaceTest.php',
+    'tests/workflows/AssetWorkspaceContractTest.php', 'tests/tenant/TenantAssetWorkspaceTest.php',
+    'tests/workflows/LandingPageWorkspaceContractTest.php', 'tests/tenant/TenantLandingPageWorkspaceTest.php',
+    'tests/tenant/TenantLandingPageTemplateCatalogTest.php',
     'tests/browser/live-consent-workspace.spec.js',
     'tests/browser/live-form-workspace.spec.js',
+    'tests/browser/live-asset-workspace.spec.js',
+    'tests/browser/live-landing-page-workspace.spec.js',
     'tests/development/Phase3MigrationReplayTest.ps1', 'scripts/dev/verify-phase-3.ps1',
     'tests/browser/fixtures/sales-workspace.html',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
@@ -258,6 +263,11 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CookieConse
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantCookieConsentTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\FormWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantFormWorkspaceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantLandingPageWorkspaceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantLandingPageTemplateCatalogTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\TenantCurrencyContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantCurrencyIsolationTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\TenantFile\TenantImageLibrary.php')
@@ -345,6 +355,10 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Cookie consent governance contract suite' } else { Fail 'Cookie consent governance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\FormWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Forms workspace contract suite' } else { Fail 'Forms workspace contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Landing page workspace contract suite' } else { Fail 'Landing page workspace contract suite failed.' }
     if (-not $Ci) {
         & php (Join-Path $root 'tests\tenant\CustomerFoundationRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation two-tenant runtime suite' } else { Fail 'Customer foundation two-tenant runtime suite failed.' }
@@ -368,6 +382,12 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant cookie consent runtime suite' } else { Fail 'Two-tenant cookie consent runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantFormWorkspaceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Forms workspace runtime suite' } else { Fail 'Two-tenant Forms workspace runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Asset workspace runtime suite' } else { Fail 'Two-tenant Asset workspace runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantLandingPageWorkspaceTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Landing Page workspace runtime suite' } else { Fail 'Two-tenant Landing Page workspace runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantLandingPageTemplateCatalogTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Tenant Landing Page template catalogue runtime suite' } else { Fail 'Tenant Landing Page template catalogue runtime suite failed.' }
     }
     & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }

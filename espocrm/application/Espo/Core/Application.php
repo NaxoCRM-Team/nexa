@@ -174,6 +174,13 @@ class Application
         }
 
         if (
+            str_ends_with($className, '\\ApplicationRunners\\EntryPoint') &&
+            in_array(strtolower((string) ($_GET['entryPoint'] ?? '')), ['nexalandingpage', 'nexalandingasset', 'nexalandingclick'], true)
+        ) {
+            return $resolver->resolveLandingPageKey((string) ($_GET['key'] ?? ''));
+        }
+
+        if (
             str_ends_with($className, '\\ApplicationRunners\\Api') &&
             strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST'
         ) {

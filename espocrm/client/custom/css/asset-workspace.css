@@ -1,0 +1,48 @@
+.nexa-assets-page .content-wrapper { overflow: hidden; }
+.nexa-asset-workspace [hidden],
+.nexa-asset-overlay[hidden],
+.nexa-asset-overlay [hidden] { display: none !important; }
+.nexa-asset-workspace { display: flex; flex-direction: column; height: calc(100vh - var(--navbar-height, 52px) - 26px); min-height: 520px; padding: 18px 22px 12px; color: #172f35; }
+.nexa-asset-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
+.nexa-asset-header h1, .nexa-asset-overlay h2 { margin: 2px 0 4px; font-weight: 700; letter-spacing: 0; }
+.nexa-asset-header p { margin: 0; color: #5e6c70; }
+.nexa-asset-eyebrow { color: #087d71; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.nexa-asset-header .btn-primary, .nexa-asset-overlay .btn-primary { background: #087d71; border-color: #087d71; color: #fff; }
+.nexa-asset-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.nexa-asset-search { position: relative; flex: 1; max-width: 440px; }
+.nexa-asset-search > .fas { left: 13px; position: absolute; top: 12px; color: #647579; }
+.nexa-asset-search input { padding-left: 36px; }
+.nexa-asset-total { margin-left: auto; font-weight: 700; white-space: nowrap; }
+.nexa-asset-table-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid #d6dfe0; background: #fff; }
+.nexa-asset-table-wrap table { min-width: 1080px; table-layout: fixed; margin: 0; }
+.nexa-asset-table-wrap th { position: sticky; top: 0; z-index: 2; background: #f3f7f7; border-bottom: 1px solid #c9d4d5 !important; cursor: grab; }
+.nexa-asset-table-wrap th button { border: 0; background: transparent; padding: 0; font-weight: 700; }
+.nexa-asset-table-wrap td { vertical-align: middle !important; overflow: hidden; text-overflow: ellipsis; }
+.nexa-asset-table-wrap td small { display: block; color: #68777a; overflow: hidden; text-overflow: ellipsis; }
+.nexa-asset-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.nexa-asset-name > span:last-child { min-width: 0; }
+.nexa-asset-file-icon { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%; background: #e6f3f1; color: #087d71; }
+.nexa-asset-badge { display: inline-flex; padding: 2px 8px; border-radius: 4px; background: #e8eff0; font-size: 12px; font-weight: 700; }
+.nexa-asset-badge.is-public { background: #e3f3e7; color: #166534; }
+.nexa-asset-actions { display: flex; gap: 4px; }
+.nexa-asset-empty { height: 220px; text-align: center; color: #667579; }
+.nexa-asset-empty > * { display: block; margin: 6px auto; }
+.nexa-asset-loaded { min-height: 24px; padding-top: 7px; color: #68777a; font-size: 12px; }
+.nexa-asset-state { display: grid; place-items: center; flex: 1; gap: 10px; }
+.nexa-asset-state.is-error { color: #a62929; }
+.nexa-asset-overlay { position: fixed; inset: 0; z-index: 1055; display: none; align-items: center; justify-content: center; width: 100vw; height: 100vh; padding: 20px; background: rgba(14, 27, 31, .55); }
+.nexa-asset-overlay > div { width: min(720px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: #fff; border-radius: 8px; box-shadow: 0 22px 60px rgba(0,0,0,.28); }
+.nexa-asset-overlay header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid #dce4e5; }
+.nexa-asset-overlay form { padding: 20px 24px; }
+.nexa-asset-confirm { max-width: 480px; }
+.nexa-asset-confirm-body { padding: 20px 24px 4px; }
+.nexa-asset-confirm-body p { margin: 0 0 16px; }
+.nexa-asset-confirm-note { display: flex; gap: 9px; padding: 12px; border: 1px solid #d7e1e2; background: #f6f9f9; color: #43565a; }
+.nexa-asset-confirm > footer { padding: 16px 24px 22px; }
+.nexa-asset-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.nexa-asset-form-grid label { display: grid; gap: 6px; font-weight: 600; }
+.nexa-asset-form-grid label.is-wide { grid-column: 1 / -1; }
+.nexa-asset-form-grid small { color: #68777a; font-weight: 400; }
+.nexa-asset-form-error { margin-top: 14px; padding: 10px 12px; border-left: 3px solid #b42318; background: #fff0ee; color: #8f1d15; }
+.nexa-asset-overlay footer { display: flex; gap: 10px; padding-top: 20px; }
+@media (max-width: 767px) { .nexa-asset-workspace { padding: 12px; } .nexa-asset-header { align-items: stretch; flex-direction: column; } .nexa-asset-toolbar { align-items: stretch; flex-wrap: wrap; } .nexa-asset-search { flex-basis: 100%; max-width: none; } .nexa-asset-total { margin-left: 0; } .nexa-asset-form-grid { grid-template-columns: 1fr; } .nexa-asset-form-grid label.is-wide { grid-column: auto; } }
