@@ -2,7 +2,11 @@ define(['views/lead-capture/form'], Dep => class extends Dep {
     setup() {
         super.setup();
         document.body.classList.add('nexa-public-form');
-        this.once('remove', () => document.body.classList.remove('nexa-public-form'));
+        this.isLandingFrame = new URLSearchParams(window.location.search).get('nexaFrame') === '1';
+        if (this.isLandingFrame) {
+            document.body.classList.add('nexa-landing-form-frame');
+        }
+        this.once('remove', () => document.body.classList.remove('nexa-public-form', 'nexa-landing-form-frame'));
         const defaults = this.formData.nexaSubmissionDefaults || {};
         let visitorId = null;
 
@@ -50,6 +54,17 @@ define(['views/lead-capture/form'], Dep => class extends Dep {
         this.isPosting = false;
         this.recordView.remove();
         await this.reRender();
+
+        if (this.isLandingFrame && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'nexa:form-submitted',
+                successText: String(this.formData.successText || 'Thank you. Your response has been received.'),
+                redirectUrl: result.redirectUrl || null,
+                redirectDelaySeconds: Math.max(1, Math.min(30, Number(this.formData.nexaRedirectDelaySeconds || 4))),
+            }, window.location.origin);
+
+            return;
+        }
 
         if (result.redirectUrl) await this.redirectAfterSuccess(result.redirectUrl);
     }

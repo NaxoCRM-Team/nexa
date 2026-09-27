@@ -45,3 +45,91 @@ body.nexa-public-form .nexa-form-redirect-notice {
     margin: 14px auto 0;
     text-align: center;
 }
+
+body.nexa-public-form.nexa-landing-form-frame {
+    min-height: 100vh;
+    overflow-x: hidden;
+    background: #ffffff !important;
+    color: #172f35;
+}
+
+body.nexa-public-form.nexa-landing-form-frame > .container.content {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+}
+
+body.nexa-public-form.nexa-landing-form-frame .block-center-5 {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    min-height: 100vh;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+}
+
+body.nexa-public-form.nexa-landing-form-frame .record,
+body.nexa-public-form.nexa-landing-form-frame .record-grid,
+body.nexa-public-form.nexa-landing-form-frame .record-grid > .left,
+body.nexa-public-form.nexa-landing-form-frame .record-grid .middle {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+}
+
+body.nexa-public-form.nexa-landing-form-frame .nexa-record-panel {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+}
+
+body.nexa-public-form.nexa-landing-form-frame .panel-body-form {
+    padding: 24px 28px;
+}
+
+body.nexa-public-form.nexa-landing-form-frame .button-container {
+    margin: 0;
+    padding: 16px 28px 30px;
+    background: #ffffff;
+}
+
+body.nexa-public-form.nexa-landing-form-frame .alert.alert-default {
+    margin: 22px 28px 0;
+    padding: 14px 16px;
+    border: 0;
+    border-left: 4px solid #0f766e;
+    border-radius: 4px;
+    background: #edf7f5;
+    color: #244247;
+    font-size: 15px;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+body.nexa-public-form.nexa-landing-form-frame .alert.alert-default p:last-child {
+    margin-bottom: 0;
+}
+
+body.nexa-public-form.nexa-landing-form-frame > footer {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    body.nexa-public-form.nexa-landing-form-frame .panel-body-form {
+        padding: 20px;
+    }
+
+    body.nexa-public-form.nexa-landing-form-frame .button-container {
+        padding: 14px 20px 24px;
+    }
+
+    body.nexa-public-form.nexa-landing-form-frame .alert.alert-default {
+        margin: 18px 20px 0;
+    }
+}

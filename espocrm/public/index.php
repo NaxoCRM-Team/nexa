@@ -33,6 +33,23 @@ $basePath = NexaApplicationPath::fromScriptName($_SERVER['SCRIPT_NAME'] ?? '/pub
 $requestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
 $isFriendlyLoginRequest = NexaApplicationPath::isRoute($requestPath, $basePath, 'login');
 $workspaceRoute = NexaApplicationPath::workspaceRoute($requestPath, $basePath);
+$landingPageRoute = NexaApplicationPath::landingPageRoute($requestPath, $basePath);
+
+// Some subfolder Apache configurations retain the path but discard the
+// query string added by an internal rewrite. Recover the public entry point
+// from the canonical path so published pages never fall into the CRM client.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && $landingPageRoute !== null) {
+    $_GET['entryPoint'] = 'NexaLandingPage';
+    $_GET['key'] = $landingPageRoute['key'];
+    $_GET['slug'] = $landingPageRoute['slug'];
+    $_SERVER['QUERY_STRING'] = http_build_query([
+        'entryPoint' => $_GET['entryPoint'],
+        'key' => $_GET['key'],
+        'slug' => $_GET['slug'],
+    ]);
+}
+
+$hasEntryPoint = filter_has_var(INPUT_GET, 'entryPoint') || isset($_GET['entryPoint']);
 
 // Keep one canonical login URL across root and subfolder installations.
 if ($isFriendlyLoginRequest && !str_ends_with($requestPath, '/')) {
@@ -59,7 +76,7 @@ if ($workspaceRoute !== null && str_ends_with($requestPath, '/')) {
 $isLandingRequest = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
     && NexaApplicationPath::isApplicationRoot($requestPath, $basePath)
     && !isset($_GET['login'])
-    && !filter_has_var(INPUT_GET, 'entryPoint');
+    && !$hasEntryPoint;
 
 if ($isLandingRequest) {
     header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -90,7 +107,7 @@ $app = new Application();
 $clientBasePath = NexaApplicationPath::baseHref($basePath);
 $app->setClientBasePath($clientBasePath);
 
-if (filter_has_var(INPUT_GET, 'entryPoint')) {
+if ($hasEntryPoint) {
     $app->run(EntryPoint::class);
 
     exit;

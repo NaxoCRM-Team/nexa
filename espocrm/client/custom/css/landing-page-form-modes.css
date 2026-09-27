@@ -1,0 +1,33 @@
+.nexa-preview-form-action {
+    display: flex;
+    min-height: 150px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 24px;
+    border: 1px solid #ccd7d8;
+    background: #fff;
+}
+
+.nexa-preview-form-action > span {
+    display: grid;
+    gap: 5px;
+}
+
+.nexa-preview-form-action small {
+    color: #66777b;
+    font-weight: 500;
+    text-transform: none;
+}
+
+.nexa-preview-form-action .nexa-preview-button {
+    border: 0;
+    white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+    .nexa-preview-form-action {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

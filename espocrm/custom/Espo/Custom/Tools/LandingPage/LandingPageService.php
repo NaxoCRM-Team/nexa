@@ -148,8 +148,13 @@ final class LandingPageService
     {
         $type = strtolower(trim((string) ($block->type ?? ''))); if (!in_array($type, self::BLOCK_TYPES, true)) throw new BadRequest('The page contains an unsupported content block.');
         $rawId = (string) ($block->id ?? ''); $id = preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $rawId) ? $rawId : 'block-' . ($position + 1) . '-' . substr(bin2hex(random_bytes(4)), 0, 8); $result = ['id' => $id, 'type' => $type];
-        foreach (['eyebrow' => 100, 'heading' => 200, 'text' => 2000, 'caption' => 300, 'buttonLabel' => 80, 'altText' => 500] as $field => $max) $result[$field] = mb_substr(trim((string) ($block->{$field} ?? '')), 0, $max);
+        foreach (['eyebrow' => 100, 'heading' => 200, 'text' => 2000, 'caption' => 300, 'buttonLabel' => 80, 'formButtonLabel' => 80, 'altText' => 500] as $field => $max) $result[$field] = mb_substr(trim((string) ($block->{$field} ?? '')), 0, $max);
         $result['buttonUrl'] = $this->link($block->buttonUrl ?? null); $result['assetId'] = trim((string) ($block->assetId ?? '')) ?: null; $result['formId'] = trim((string) ($block->formId ?? '')) ?: null;
+        $formMode = strtolower(trim((string) ($block->formMode ?? 'modal')));
+        $result['formMode'] = in_array($formMode, ['modal', 'embedded', 'page'], true) ? $formMode : 'modal';
+        $result['buttonNewTab'] = (bool) ($block->buttonNewTab ?? false);
+        if ($type === 'form' && $result['formButtonLabel'] === '') $result['formButtonLabel'] = 'Open form';
+        if ($type === 'form' && !$result['formId']) $result['formId'] = $this->resolveUnambiguousForm($context, $publishing);
         $templateImage = trim((string) ($block->templateImage ?? ''));
         $result['templateImage'] = in_array($templateImage, self::TEMPLATE_IMAGES, true) ? $templateImage : null;
         $result['items'] = [];
@@ -169,7 +174,16 @@ final class LandingPageService
     private function templates(): array { return LandingPageTemplateCatalog::get(rtrim((string) $this->config->get('siteUrl'), '/')); }
 
     private function requireAsset(TenantContext $context, string $id, bool $publishing): void { $sql = "SELECT 1 FROM nexa_asset_profile WHERE id=? AND tenant_id=? AND service_id=? AND status='active'" . ($publishing ? " AND access_scope='public'" : '') . ' LIMIT 1'; $statement = $this->entityManager->getPDO()->prepare($sql); $statement->execute([$id, $context->tenantId, $context->serviceId]); if (!$statement->fetchColumn()) throw new BadRequest('A selected page asset is unavailable' . ($publishing ? ' or is not public.' : '.')); }
-    private function requireForm(TenantContext $context, string $id): void { $statement = $this->entityManager->getPDO()->prepare("SELECT 1 FROM nexa_form_profile WHERE lead_capture_id=? AND tenant_id=? AND service_id=? AND status='published' LIMIT 1"); $statement->execute([$id, $context->tenantId, $context->serviceId]); if (!$statement->fetchColumn()) throw new BadRequest('A selected form is not published in this workspace.'); }
+    private function requireForm(TenantContext $context, string $id): void { $statement = $this->entityManager->getPDO()->prepare("SELECT 1 FROM nexa_form_profile p INNER JOIN lead_capture l ON l.id=p.lead_capture_id AND l.tenant_id=p.tenant_id AND l.service_id=p.service_id WHERE p.lead_capture_id=? AND p.tenant_id=? AND p.service_id=? AND p.status='published' AND l.deleted=0 AND l.is_active=1 AND l.form_enabled=1 LIMIT 1"); $statement->execute([$id, $context->tenantId, $context->serviceId]); if (!$statement->fetchColumn()) throw new BadRequest('A selected form is not published in this workspace.'); }
+    private function resolveUnambiguousForm(TenantContext $context, bool $publishing): ?string
+    {
+        $statement = $this->entityManager->getPDO()->prepare("SELECT p.lead_capture_id FROM nexa_form_profile p INNER JOIN lead_capture l ON l.id=p.lead_capture_id AND l.tenant_id=p.tenant_id AND l.service_id=p.service_id WHERE p.tenant_id=? AND p.service_id=? AND p.status='published' AND l.deleted=0 AND l.is_active=1 AND l.form_enabled=1 ORDER BY p.modified_at DESC LIMIT 2");
+        $statement->execute([$context->tenantId, $context->serviceId]);
+        $ids = $statement->fetchAll(PDO::FETCH_COLUMN);
+        if (count($ids) === 1) return (string) $ids[0];
+        if ($publishing && count($ids) === 0) throw new BadRequest('Publish a form before publishing a landing page that contains a form block.');
+        return null;
+    }
     /** @return array<string, mixed> */
     private function requirePage(TenantContext $context, string $id, bool $archived = false): array { if (!preg_match('/^[a-f0-9-]{36}$/i', $id)) throw new BadRequest('Select a valid landing page.'); $statement = $this->entityManager->getPDO()->prepare('SELECT * FROM nexa_landing_page WHERE id=? AND tenant_id=? AND service_id=?' . ($archived ? '' : " AND status<>'archived'") . ' LIMIT 1'); $statement->execute([$id, $context->tenantId, $context->serviceId]); $row = $statement->fetch(PDO::FETCH_ASSOC); if (!$row) throw new NotFound('The landing page is unavailable.'); return $row; }
     private function publicUrl(string $key, string $slug): string { return rtrim((string) $this->config->get('siteUrl'), '/') . '/p/' . rawurlencode($key) . '/' . rawurlencode($slug); }
