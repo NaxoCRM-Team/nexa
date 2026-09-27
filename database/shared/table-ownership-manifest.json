@@ -358,6 +358,42 @@
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_cookie_banner",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_cookie_category",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_cookie_receipt",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_form_profile",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_form_version",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_form_event",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
                    }
                ],
     "espoCoreConversion":  {

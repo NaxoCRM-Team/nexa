@@ -1,13 +1,18 @@
 <main class="nexa-consent-workspace" aria-labelledby="nexa-consent-title">
     <header class="nexa-consent-header">
         <div><p>Data &amp; Integrations</p><h1 id="nexa-consent-title">Consent &amp; Privacy</h1><span>Keep communication eligibility explainable without creating a second customer record.</span></div>
-        <button class="btn btn-primary" type="button" data-action="add-purpose"><span class="fas fa-plus" aria-hidden="true"></span>Add purpose</button>
+        <button class="btn btn-primary" type="button" data-action="add-purpose" data-purpose-action><span class="fas fa-plus" aria-hidden="true"></span>Add purpose</button>
     </header>
 
     <section data-consent-state="loading" class="nexa-consent-state"><span class="fas fa-circle-notch fa-spin" aria-hidden="true"></span><p>Loading consent governance...</p></section>
     <section data-consent-state="error" class="nexa-consent-state" hidden><span class="fas fa-exclamation-circle" aria-hidden="true"></span><p>Consent governance could not be loaded.</p><button class="btn btn-default" type="button" data-action="reload">Try again</button></section>
 
     <div data-consent-state="ready" hidden>
+        <nav class="nexa-consent-tabs" aria-label="Consent settings">
+            <button type="button" class="is-active" data-action="switch-consent-view" data-view="communications"><span class="fas fa-user-shield" aria-hidden="true"></span>Communication consent</button>
+            <button type="button" data-action="switch-consent-view" data-view="cookies"><span class="fas fa-cookie-bite" aria-hidden="true"></span>Website cookies</button>
+        </nav>
+        <div data-consent-view="communications">
         <section class="nexa-consent-summary" aria-label="Consent eligibility summary">
             <article><span class="fas fa-users" aria-hidden="true"></span><div><small>Total contacts</small><strong data-summary="totalContacts">0</strong></div></article>
             <article><span class="fas fa-bullhorn" aria-hidden="true"></span><div><small>Marketing contacts</small><strong data-summary="marketingContacts">0</strong></div></article>
@@ -53,6 +58,61 @@
                 <strong data-history-count>0 decisions</strong>
             </div>
             <div class="nexa-consent-table-wrap"><table class="table"><thead><tr><th><button type="button" data-history-sort="contactName">Contact</button></th><th><button type="button" data-history-sort="purposeName">Purpose</button></th><th><button type="button" data-history-sort="channel">Channel</button></th><th><button type="button" data-history-sort="status">Decision</button></th><th><button type="button" data-history-sort="source">Source</button></th><th><button type="button" data-history-sort="actorName">Recorded by</button></th><th><button type="button" data-history-sort="occurredAt">Date</button></th><th>Actions</th></tr></thead><tbody data-consent-history></tbody></table></div>
+        </section>
+        </div>
+
+        <section class="nexa-cookie-workspace" data-consent-view="cookies" hidden>
+            <div class="nexa-cookie-summary">
+                <article><span class="fas fa-receipt" aria-hidden="true"></span><div><small>Total receipts</small><strong data-cookie-summary="totalReceipts">0</strong></div></article>
+                <article><span class="fas fa-calendar-alt" aria-hidden="true"></span><div><small>Last 30 days</small><strong data-cookie-summary="last30Days">0</strong></div></article>
+                <article><span class="fas fa-broadcast-tower" aria-hidden="true"></span><div><small>Publishing</small><strong data-cookie-publish-state>Draft</strong></div></article>
+            </div>
+            <div class="nexa-cookie-layout">
+                <form class="nexa-consent-panel nexa-cookie-form" data-cookie-form novalidate>
+                    <header><div><p>Website privacy</p><h2>Cookie banner</h2><span>Configure the notice visitors see and preserve a versioned receipt of every choice.</span></div></header>
+                    <div class="nexa-cookie-form-body">
+                        <div class="nexa-form-grid">
+                            <label><span>Banner name <b>*</b></span><input class="form-control" name="name" maxlength="120" required><em data-cookie-error="name"></em></label>
+                            <label><span>Policy version <b>*</b></span><input class="form-control" name="policyVersion" maxlength="40" required><em data-cookie-error="policyVersion"></em></label>
+                            <label><span>Heading <b>*</b></span><input class="form-control" name="heading" maxlength="160" required><em data-cookie-error="heading"></em></label>
+                            <label><span>Privacy notice URL</span><input class="form-control" type="url" name="privacyNoticeUrl" placeholder="https://example.com/privacy"><em data-cookie-error="privacyNoticeUrl"></em></label>
+                        </div>
+                        <label><span>Notice <b>*</b></span><textarea class="form-control" name="message" rows="3" maxlength="1000" required></textarea><em data-cookie-error="message"></em></label>
+                        <div class="nexa-form-grid">
+                            <label><span>Integration mode</span><select class="form-control" name="integrationMode"><option value="managed">Nexa-managed banner</option><option value="existing_banner">Use existing website banner</option></select><small data-cookie-mode-help></small></label>
+                            <label><span>Regional coverage</span><select class="form-control" name="regionMode"><option value="global">All visitors</option><option value="eu_uk">EU and United Kingdom</option><option value="custom">Selected regions</option></select></label>
+                            <label data-cookie-regions hidden><span>Country or region codes</span><input class="form-control" name="regions" placeholder="GB, IE, FR"><small>Use two-letter codes separated by commas.</small><em data-cookie-error="regions"></em></label>
+                            <label><span>Position</span><select class="form-control" name="position"><option value="bottom">Full width bottom</option><option value="bottom_left">Bottom left</option><option value="bottom_right">Bottom right</option></select></label>
+                            <label><span>Language</span><input class="form-control" name="locale" maxlength="12" value="en"></label>
+                        </div>
+                        <div class="nexa-cookie-colors">
+                            <label><span>Action colour</span><input type="color" name="primaryColor"></label>
+                            <label><span>Background</span><input type="color" name="backgroundColor"></label>
+                            <label><span>Text</span><input type="color" name="textColor"></label>
+                            <label><input type="checkbox" name="showReject">Show reject button</label>
+                            <label><input type="checkbox" name="isPublished">Published</label>
+                        </div>
+                        <section class="nexa-cookie-categories">
+                            <header><div><h3>Cookie categories</h3><span>Necessary cookies stay enabled. Add optional categories only when the website uses them.</span></div><button type="button" class="btn btn-default" data-action="add-cookie-category"><span class="fas fa-plus"></span>Add category</button></header>
+                            <div data-cookie-categories></div>
+                            <em data-cookie-error="categories"></em>
+                        </section>
+                    </div>
+                    <footer><button class="btn btn-primary" type="submit"><span class="fas fa-save"></span>Save cookie settings</button></footer>
+                </form>
+                <aside>
+                    <section class="nexa-consent-panel nexa-cookie-preview-panel"><header><div><p>Preview</p><h2>Visitor experience</h2></div></header><div class="nexa-cookie-preview" data-cookie-preview></div></section>
+                    <section class="nexa-consent-panel nexa-cookie-install"><header><div><p>Installation</p><h2>Website embed code</h2><span data-cookie-install-help>Add this once before the closing body tag on the tenant website.</span></div></header><div><textarea class="form-control" data-cookie-embed readonly rows="4"></textarea><button type="button" class="btn btn-default" data-action="copy-cookie-embed"><span class="fas fa-copy"></span>Copy code</button><div class="nexa-cookie-sync-example" data-cookie-sync-example hidden><strong>Connect the existing banner</strong><p>Call this whenever its visitor choice changes.</p><pre>window.NexaConsent.sync({
+  choice: 'custom',
+  categories: {
+    necessary: true,
+    preferences: false,
+    analytics: true,
+    advertising: false
+  }
+});</pre></div></div></section>
+                </aside>
+            </div>
         </section>
     </div>
     <div class="nexa-consent-modal" data-purpose-modal hidden></div>

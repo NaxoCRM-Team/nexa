@@ -15,6 +15,8 @@ Version 1.0 is implemented in `client/custom/css/nexa-design-system.css`. Produc
 
 Use `.nexa-button` and its secondary state for commands, `.nexa-field` with a visible label for inputs and selectors, `.nexa-toolbar` for grouped actions, and `.nexa-table-wrap` for responsive tables. A scrollable table wrapper must have a region label and `tabindex="0"`. Alerts use status-specific variants; empty and loading states keep the surrounding layout stable.
 
+New operational data tables use `client/custom/src/workspace-table.js` unless an existing native record list already provides equivalent behavior. They use a constrained scroll region instead of visible page-number controls, load large datasets incrementally, support column sorting, and let users move and resize columns. Column order and widths are stored per user and table. Every header and body cell carries the same stable `data-column` key; action columns remain fixed and are not draggable.
+
 Dialogs require an accessible name, focus containment, Escape dismissal and focus restoration. The application shell follows the same behavior for its mobile navigation drawer.
 
 ## Verification

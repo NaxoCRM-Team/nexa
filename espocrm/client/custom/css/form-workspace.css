@@ -1,0 +1,111 @@
+.nexa-forms-page #main { overflow: hidden; }
+.nexa-form-workspace { --form-green:#087f6d; --form-ink:#172b26; --form-line:#d7e1dd; color:var(--form-ink); height:calc(100vh - var(--nexa-header-height, 64px)); min-height:560px; display:flex; flex-direction:column; padding:20px 24px 0; overflow:hidden; }
+.nexa-form-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; padding-bottom:16px; }
+.nexa-form-heading p,.nexa-form-editor-dialog>header p { margin:0 0 2px; color:var(--form-green); font-size:12px; font-weight:700; text-transform:uppercase; }
+.nexa-form-heading h1 { margin:0; font-size:26px; line-height:1.25; }
+.nexa-form-heading>div>span { display:block; margin-top:4px; color:#667771; }
+.nexa-form-workspace .btn-primary { background:#087f6d; border-color:#087f6d; color:#fff; }
+.nexa-form-workspace .btn-primary:hover,.nexa-form-workspace .btn-primary:focus { background:#056858; border-color:#056858; color:#fff; }
+.nexa-form-tabs { display:flex; gap:24px; border-bottom:1px solid var(--form-line); flex:none; }
+.nexa-form-tabs button { border:0; border-bottom:3px solid transparent; background:none; padding:10px 2px 11px; font-weight:700; color:#62736d; }
+.nexa-form-tabs button.is-active { color:var(--form-green); border-color:var(--form-green); }
+.nexa-form-workspace>[data-form-state="ready"] { flex:1; min-height:0; }
+.nexa-form-workspace [data-form-tab] { height:100%; min-height:0; display:flex; flex-direction:column; }
+.nexa-form-toolbar { min-height:64px; display:flex; align-items:center; gap:12px; padding:12px 0; }
+.nexa-form-toolbar label { position:relative; margin:0; width:min(360px,50vw); }
+.nexa-form-toolbar label span { position:absolute; left:12px; top:11px; color:#72817c; z-index:1; }
+.nexa-form-toolbar label input { padding-left:35px; }
+.nexa-form-toolbar select { width:170px; }
+.nexa-form-toolbar>strong { margin-left:auto; color:#53645e; }
+.nexa-form-table-wrap { flex:1; min-height:0; overflow:auto; border:1px solid var(--form-line); border-bottom:0; background:#fff; }
+.nexa-form-table-wrap table { min-width:920px; margin:0; table-layout:fixed; }
+.nexa-form-table-wrap table[data-workspace-table="forms"] { min-width:1180px; }
+.nexa-form-table-wrap table[data-workspace-table="submissions"] { min-width:860px; }
+.nexa-form-table-wrap thead { position:sticky; top:0; z-index:2; background:#f5f8f7; }
+.nexa-form-table-wrap th { height:44px; border-bottom:1px solid #c8d4d0 !important; color:#455650; font-size:12px; font-weight:700; text-transform:uppercase; vertical-align:middle !important; }
+.nexa-form-table-wrap th[data-column] { border-right:1px solid #d9e2df; overflow:hidden; position:relative; white-space:nowrap; }
+.nexa-form-table-wrap th[data-column]:not([data-column="actions"]) { cursor:grab; }
+.nexa-form-table-wrap th[data-column].is-dragging { opacity:.5; }
+.nexa-form-table-wrap th [data-table-sort] { align-items:center; background:transparent; border:0; color:inherit; display:inline-flex; font:inherit; gap:6px; padding:0 13px 0 0; text-transform:inherit; }
+.nexa-form-table-wrap th [data-table-sort].is-sorted::after { color:var(--form-green); content:'\f0d8'; font-family:'Font Awesome 5 Free'; font-weight:900; }
+.nexa-form-table-wrap th [data-table-sort].is-sorted[data-direction="desc"]::after { content:'\f0d7'; }
+.nexa-form-table-wrap .nexa-col-resizer { bottom:0; cursor:col-resize; position:absolute; right:-4px; top:0; width:9px; z-index:4; }
+.nexa-form-table-wrap .nexa-col-resizer:hover::after { background:#168779; content:''; inset:0 4px; position:absolute; }
+.nexa-form-table-wrap td { height:64px; vertical-align:middle !important; border-bottom:1px solid #e5ebe8 !important; }
+.nexa-form-table-wrap td[data-column] { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nexa-form-name { display:flex; align-items:center; gap:11px; border:0; background:none; padding:0; text-align:left; color:#076e60; }
+.nexa-form-name>span:first-child { display:grid; place-items:center; width:34px; height:34px; border-radius:6px; background:#e3f2ee; }
+.nexa-form-name strong,.nexa-form-name small,.nexa-form-table-wrap td small { display:block; }
+.nexa-form-name small,.nexa-form-table-wrap td small { margin-top:3px; color:#708079; }
+.nexa-form-status { display:inline-flex; padding:3px 8px; border-radius:999px; background:#edf1ef; color:#52615c; font-size:12px; font-weight:700; }
+.nexa-form-status.is-published { background:#dff2e9; color:#146443; }
+.nexa-form-status.is-draft { background:#fff1cf; color:#795700; }
+.nexa-form-status.is-archived { background:#edf0ef; color:#68756f; }
+.nexa-version { font-size:11px; }
+.nexa-row-actions { display:flex; justify-content:flex-end; gap:4px; white-space:nowrap; }
+.nexa-form-workspace .btn-icon { width:34px; height:34px; padding:0; display:inline-grid; place-items:center; }
+.nexa-form-workspace .btn-icon.is-danger { color:#b02a37; }
+.nexa-form-empty,.nexa-form-state { flex:1; display:grid; place-content:center; justify-items:center; text-align:center; color:#667771; }
+.nexa-form-empty>span,.nexa-form-state>span { font-size:30px; color:#5c8f83; margin-bottom:10px; }
+.nexa-form-empty h2 { margin:0 0 6px; color:var(--form-ink); font-size:20px; }
+.nexa-form-empty p { max-width:420px; }
+.nexa-form-empty .btn { justify-self:center; }
+.nexa-form-editor { position:fixed; inset:0; z-index:1100; align-items:center; justify-content:center; padding:20px; background:rgba(15,29,25,.56); backdrop-filter:blur(2px); }
+.nexa-form-editor-dialog { width:min(1440px,96vw); height:min(860px,94vh); display:flex; flex-direction:column; background:#fff; border-radius:8px; box-shadow:0 24px 70px rgba(0,0,0,.25); overflow:hidden; }
+.nexa-form-editor-dialog>header { height:74px; flex:none; display:flex; align-items:center; justify-content:space-between; padding:0 24px; border-bottom:1px solid var(--form-line); }
+.nexa-form-editor-dialog>header h2 { margin:0; font-size:21px; }
+.nexa-form-editor-dialog form { display:flex; flex:1; min-height:0; flex-direction:column; }
+.nexa-form-editor-grid { display:grid; grid-template-columns:minmax(260px,.8fr) minmax(360px,1.2fr) minmax(290px,.85fr); flex:1; min-height:0; }
+.nexa-form-editor-grid>section { min-width:0; padding:20px; overflow-y:auto; }
+.nexa-form-editor-grid>section+section { border-left:1px solid var(--form-line); }
+.nexa-form-editor-grid h3 { margin:0 0 14px; font-size:14px; }
+.nexa-form-editor-grid h3:not(:first-child) { margin-top:24px; padding-top:18px; border-top:1px solid #e4ebe8; }
+.nexa-form-editor-grid label { display:block; margin-bottom:14px; }
+.nexa-form-editor-grid label>span { display:block; margin-bottom:5px; font-size:12px; font-weight:700; }
+.nexa-form-editor-grid label>em { display:block; color:#b02a37; font-size:12px; font-style:normal; margin-top:4px; }
+.nexa-form-editor-grid label>small { color:#718079; }
+.nexa-form-editor-grid .nexa-check { display:flex; align-items:flex-start; gap:9px; font-weight:500; line-height:1.4; }
+.nexa-form-editor-grid .nexa-check input { margin-top:3px; }
+.nexa-field-search { position:relative; }
+.nexa-field-search>span { position:absolute; left:11px; top:10px; color:#718079; }
+.nexa-field-search input { padding-left:34px; }
+.nexa-field-catalog { display:grid; gap:7px; }
+.nexa-field-catalog>button { display:flex; align-items:center; gap:10px; width:100%; border:1px solid var(--form-line); background:#fff; padding:9px 10px; text-align:left; }
+.nexa-field-catalog>button:hover { border-color:#68a99b; background:#f2faf7; }
+.nexa-field-catalog>button>span:first-child { color:var(--form-green); }
+.nexa-field-catalog strong,.nexa-field-catalog small { display:block; }
+.nexa-field-catalog small { color:#718079; }
+.nexa-form-canvas { background:#f5f8f7; }
+.nexa-form-canvas>div:first-child { margin-bottom:14px; }
+.nexa-form-canvas>div:first-child h3 { margin-bottom:3px; }
+.nexa-form-canvas>div:first-child span { color:#687872; font-size:12px; }
+.nexa-form-canvas [data-selected-fields] { display:grid; gap:8px; }
+.nexa-form-canvas [data-selected-fields]>article { display:grid; grid-template-columns:20px minmax(120px,1fr) auto auto; align-items:center; gap:10px; padding:10px; background:#fff; border:1px solid var(--form-line); border-radius:5px; }
+.nexa-form-canvas [data-selected-fields]>article>span { color:#8b9994; }
+.nexa-form-canvas [data-selected-fields] strong,.nexa-form-canvas [data-selected-fields] small { display:block; }
+.nexa-form-canvas [data-selected-fields] small { color:#718079; }
+.nexa-form-canvas [data-selected-fields] label { display:flex; align-items:center; gap:6px; margin:0; font-size:12px; }
+.nexa-builder-preview { margin-top:22px; padding:18px; border:1px solid var(--form-line); background:#fff; }
+.nexa-builder-preview>p { margin:0 0 14px; color:#557068; font-size:12px; font-weight:700; text-transform:uppercase; }
+.nexa-builder-preview label span { font-size:12px; }
+.nexa-builder-preview input { width:100%; height:36px; border:1px solid #cbd6d2; }
+.nexa-builder-preview>button { border:0; background:var(--form-green); color:#fff; padding:9px 18px; }
+.nexa-field-empty { padding:35px; text-align:center; color:#718079; border:1px dashed #bfcac6; }
+.nexa-form-editor-dialog form>footer { min-height:66px; flex:none; display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:12px 20px; border-top:1px solid var(--form-line); background:#fff; }
+.nexa-form-editor-dialog form>footer>[data-editor-status] { margin-right:auto; color:#667771; }
+.nexa-form-table-wrap td:first-child small { display:block; color:#708079; }
+.nexa-table-empty { height:180px !important; text-align:center; color:#718079; }
+body.nexa-modal-open { overflow:hidden; }
+.nexa-form-confirm { background:rgba(16,29,26,.58); inset:0; padding:18px; place-items:center; position:fixed; z-index:1200; }
+.nexa-form-confirm>div { background:#fff; border-radius:8px; box-shadow:0 24px 70px rgba(0,0,0,.28); overflow:hidden; width:min(500px,96vw); }
+.nexa-form-confirm header,.nexa-form-confirm footer { align-items:center; display:flex; gap:12px; justify-content:space-between; padding:18px 22px; }
+.nexa-form-confirm header { border-bottom:1px solid var(--form-line); }
+.nexa-form-confirm header h2 { font-size:20px; margin:0; }
+.nexa-form-confirm section { padding:22px; }
+.nexa-form-confirm section>p { margin:0; }
+.nexa-form-confirm footer { border-top:1px solid var(--form-line); justify-content:flex-start; }
+.nexa-form-delete-warning { background:#fff3d8; border-left:3px solid #d98b08; display:grid; gap:4px; margin-top:16px; padding:12px; }
+.nexa-form-delete-warning strong { color:#704b00; }
+.nexa-form-delete-warning span { color:#695b3c; font-size:12px; line-height:1.5; }
+@media (max-width:1100px) { .nexa-form-editor-grid { grid-template-columns:280px 1fr; } .nexa-form-settings { grid-column:1/-1; border-left:0 !important; border-top:1px solid var(--form-line); } }
+@media (max-width:760px) { .nexa-form-workspace { padding:14px 12px 0; height:calc(100vh - 58px); } .nexa-form-heading { align-items:flex-start; } .nexa-form-heading h1 { font-size:22px; } .nexa-form-heading>div>span { display:none; } .nexa-form-toolbar { flex-wrap:wrap; } .nexa-form-toolbar label { width:100%; } .nexa-form-toolbar>strong { margin-left:0; } .nexa-form-editor { padding:0; } .nexa-form-editor-dialog { width:100vw; height:100vh; max-height:none; border-radius:0; } .nexa-form-editor-grid { display:block; overflow-y:auto; } .nexa-form-editor-grid>section { overflow:visible; border-left:0 !important; border-top:1px solid var(--form-line); } .nexa-form-editor-dialog form>footer { flex-wrap:wrap; } .nexa-form-editor-dialog form>footer>[data-editor-status] { width:100%; } }

@@ -31,6 +31,21 @@ final class TenantContextMiddleware implements MiddlewareInterface
             );
         }
 
+        $leadCaptureFormId = $this->extractLeadCaptureFormId($request);
+
+        if ($leadCaptureFormId !== null) {
+            $tenant = $this->tenantResolver->resolveLeadCaptureFormId($leadCaptureFormId);
+
+            if ($tenant === null) {
+                return $this->errorResponse(404, 'Form not found');
+            }
+
+            return $this->tenantContextStore->runWith(
+                $tenant,
+                fn () => $handler->handle($request->withAttribute('nexaTenant', $tenant))
+            );
+        }
+
         $resetRequestId = $this->extractPasswordResetRequestId($request);
         $identifier = $this->extractLoginIdentifier($request);
 
@@ -100,6 +115,8 @@ final class TenantContextMiddleware implements MiddlewareInterface
         }
 
         return $method === 'GET' && (
+            str_ends_with($path, '/api/v1/I18n') ||
+            str_ends_with($path, '/api/v1/Settings') ||
             str_ends_with($path, '/api/v1/Nexa/auth/providers') ||
             preg_match('#/api/v1/Nexa/auth/provider/[a-z0-9_-]+/(start|callback)$#', $path) === 1 ||
             // Mail "connect inbox" OAuth callback: reached directly by
@@ -156,5 +173,20 @@ final class TenantContextMiddleware implements MiddlewareInterface
             (is_object($body) ? ($body->requestId ?? null) : null);
 
         return is_string($requestId) && trim($requestId) !== '' ? trim($requestId) : null;
+    }
+
+    private function extractLeadCaptureFormId(ServerRequestInterface $request): ?string
+    {
+        if (strtoupper($request->getMethod()) !== 'POST') {
+            return null;
+        }
+
+        $path = (string) $request->getUri()->getPath();
+
+        if (preg_match('#/api/v1/LeadCapture/form/([A-Za-z0-9]{17})/?$#', $path, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
     }
 }

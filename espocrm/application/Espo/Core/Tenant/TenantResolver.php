@@ -145,6 +145,40 @@ final class TenantResolver
         return $this->contextFromRow($rows[0], 'password-reset-request');
     }
 
+    public function resolveLeadCaptureFormId(string $formId): ?TenantContext
+    {
+        $formId = trim($formId);
+
+        if (!preg_match('/^[A-Za-z0-9]{17}$/', $formId)) {
+            return null;
+        }
+
+        // A native form ID is an opaque public capability. Resolve its owner
+        // before tenant-scoped LeadCapture repositories process the request.
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT DISTINCT t.id, t.slug, t.display_name, ts.service_id FROM lead_capture lc ' .
+            'INNER JOIN nexa_tenant t ON t.id = lc.tenant_id ' .
+            $this->crmServiceJoin() .
+            'WHERE lc.form_id = :formId AND lc.deleted = 0 AND lc.is_active = 1 ' .
+            'AND lc.form_enabled = 1 AND lc.service_id = ts.service_id ' .
+            'AND t.status = :tenantStatus LIMIT 2'
+        );
+        $statement->execute([
+            'formId' => $formId,
+            'tenantStatus' => 'active',
+            'tenantServiceStatus' => 'active',
+            'serviceStatus' => 'active',
+            'serviceKey' => 'crm',
+        ]);
+        $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (count($rows) !== 1) {
+            return null;
+        }
+
+        return $this->contextFromRow($rows[0], 'lead-capture-form');
+    }
+
     private function crmServiceJoin(): string
     {
         return 'INNER JOIN nexa_tenant_service ts ON ts.tenant_id = t.id AND ts.status = :tenantServiceStatus ' .

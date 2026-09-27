@@ -67,4 +67,25 @@ test('tenant administrator can use the consent governance workspace', async ({pa
         await expect(page.getByRole('dialog', {name: 'Void consent decision?'})).toBeVisible();
         await page.getByRole('dialog', {name: 'Void consent decision?'}).getByRole('button', {name: 'Cancel'}).click();
     }
+
+    await page.getByRole('button', {name: 'Website cookies'}).click();
+    await expect(page.locator('[data-consent-view="cookies"]')).toBeVisible();
+    await expect(page.getByRole('heading', {name: 'Cookie banner'})).toBeVisible();
+    await expect(page.locator('[data-cookie-categories] [data-cookie-category-row]')).toHaveCount(4);
+    await expect(page.locator('[data-cookie-categories] .fa-lock')).toHaveCount(1);
+    await expect(page.locator('[data-cookie-preview]')).toContainText('Your privacy choices');
+    await expect(page.locator('[data-cookie-embed]')).toHaveValue(/data-nexa-cookie-key/);
+    const cookieForm = page.locator('[data-cookie-form]');
+    await cookieForm.locator('[name="integrationMode"]').selectOption('existing_banner');
+    await expect(page.locator('[data-cookie-sync-example]')).toBeVisible();
+    await expect(page.locator('[data-cookie-mode-help]')).toContainText('does not show another banner');
+    await cookieForm.locator('[name="integrationMode"]').selectOption('managed');
+    const originalMessage = await cookieForm.locator('[name="message"]').inputValue();
+    await cookieForm.locator('[name="message"]').fill('');
+    await cookieForm.getByRole('button', {name: 'Save cookie settings'}).click();
+    await expect(cookieForm.locator('[data-cookie-error="message"]')).toHaveText('This field is required.');
+    await cookieForm.locator('[name="message"]').fill(originalMessage);
+    await expect(page.locator('[data-cookie-preview]')).toContainText(originalMessage);
+    await page.getByRole('button', {name: 'Communication consent'}).click();
+    await expect(page.locator('[data-consent-view="communications"]')).toBeVisible();
 });

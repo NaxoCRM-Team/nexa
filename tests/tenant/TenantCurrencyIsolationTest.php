@@ -33,6 +33,16 @@ $pdo = $entityManager->getPDO();
 $pdo->beginTransaction();
 
 try {
+    $historyCount = static function (string $tenantId) use ($pdo): int {
+        $query = $pdo->prepare('SELECT COUNT(*) FROM nexa_tenant_currency_history WHERE tenant_id = ?');
+        $query->execute([$tenantId]);
+        return (int) $query->fetchColumn();
+    };
+    $historyBefore = [
+        $tenantA->tenantId => $historyCount($tenantA->tenantId),
+        $tenantB->tenantId => $historyCount($tenantB->tenantId),
+    ];
+
     $store->runWith($tenantA, fn () => $service->save((object) [
         'baseCurrency' => 'GBP', 'defaultCurrency' => 'GBP',
         'rateMode' => 'manual',
@@ -63,10 +73,11 @@ try {
     $assert(abs((float) $alphaNative['converted'] - 76.0) < 0.001, 'Native EspoCRM conversion did not use Tenant A rates.');
     $assert($betaNative['base'] === 'USD' && $betaNative['list'] === ['USD'], 'Native EspoCRM Config leaked Tenant A currencies to Tenant B.');
 
-    $history = $pdo->prepare('SELECT tenant_id, COUNT(*) AS quantity FROM nexa_tenant_currency_history WHERE tenant_id IN (?, ?) GROUP BY tenant_id');
-    $history->execute([$tenantA->tenantId, $tenantB->tenantId]);
-    $counts = array_column($history->fetchAll(PDO::FETCH_ASSOC), 'quantity', 'tenant_id');
-    $assert((int) ($counts[$tenantA->tenantId] ?? 0) === 1 && (int) ($counts[$tenantB->tenantId] ?? 0) === 1, 'Currency changes were not audited independently by tenant.');
+    $assert(
+        $historyCount($tenantA->tenantId) === $historyBefore[$tenantA->tenantId] + 1 &&
+        $historyCount($tenantB->tenantId) === $historyBefore[$tenantB->tenantId] + 1,
+        'Currency changes were not audited independently by tenant.'
+    );
     echo "Tenant currency isolation tests passed.\n";
 } finally {
     if ($pdo->inTransaction()) $pdo->rollBack();

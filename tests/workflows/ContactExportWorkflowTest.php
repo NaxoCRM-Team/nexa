@@ -62,7 +62,7 @@ $assert(str_contains($migration, 'idx_attachment_tenant_export_audit'), 'Export 
 $assert(str_contains($tenantResolver, 'resolveAuthToken'), 'Protected browser downloads must resolve their tenant from the auth-token cookie.');
 $assert(str_contains($tenantResolver, "a.token = :token") && str_contains($tenantResolver, 'a.is_active = 1'), 'Cookie tenant discovery must require an active native auth token.');
 $assert(str_contains($application, "\$_COOKIE['auth-token']") && str_contains($application, 'resolveAuthToken'), 'Web entry points must use token-based tenant discovery before host fallback.');
-$assert(str_contains($surfaceRegistry, "['nexa-import-export', 'Import & Export', '#Contact/exportAudit']"), 'Import & Export must be an active Data & Integrations surface.');
+$assert(str_contains($surfaceRegistry, "['nexa-import-export', 'Import & Export', '#Contact/exportAudit'"), 'Import & Export must be an active Data & Integrations surface.');
 $assert(str_contains($workspaceNavigation, "link ? 'nexa-active-module-link' : 'nexa-planned-module-link'"), 'Delivered submenu surfaces must not be disabled as planned modules.');
 $assert(!str_contains($contactList, 'nexa-contact-export-audit-button'), 'The Contact list must not duplicate the Import & Export navigation entry.');
 

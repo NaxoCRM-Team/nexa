@@ -61,6 +61,7 @@ use Espo\Modules\Crm\Entities\Contact;
 use Espo\Modules\Crm\Entities\Lead;
 use Espo\Tools\LeadCapture\Jobs\OptInConfirmation;
 use Espo\Tools\Captcha\Checker as CaptchaChecker;
+use Espo\Custom\Tools\Form\PublicFormRuntimeService;
 use stdClass;
 use DateTime;
 
@@ -78,6 +79,7 @@ class CaptureService
         private PhoneNumberSanitizer $phoneNumberSanitizer,
         private ServiceContainer $serviceContainer,
         private CaptchaChecker $captchaChecker,
+        private PublicFormRuntimeService $nexaFormRuntime,
     ) {}
 
     /**
@@ -94,6 +96,7 @@ class CaptureService
     public function captureForm(string $id, stdClass $data, ?string $captchaToken = null): FormResult
     {
         $leadCapture = $this->getLeadCaptureByFormId($id);
+        $this->nexaFormRuntime->validateSubmission($leadCapture, $data);
 
         $apiKey = $leadCapture->getApiKey();
 
@@ -169,6 +172,12 @@ class CaptureService
 
                 if ($isAlreadyOptedIn) {
                     $this->log->debug("LeadCapture: Already opted in. Skipped.");
+
+                    $this->nexaFormRuntime->recordSubmission($leadCapture, [
+                        'targetId' => $target->getId(),
+                        'targetType' => $target->getEntityType(),
+                        'data' => $data,
+                    ]);
 
                     return;
                 }
@@ -338,6 +347,7 @@ class CaptureService
             $this->hookManager->process(LeadCapture::ENTITY_TYPE, 'afterLeadCapture', $leadCapture, [], [
                'targetId' => $contact->getId(),
                'targetType' => Contact::ENTITY_TYPE,
+               'data' => $data,
             ]);
 
             $this->hookManager->process(Contact::ENTITY_TYPE, 'afterLeadCapture', $contact, [], [
@@ -392,6 +402,7 @@ class CaptureService
                 [
                    'targetId' => $targetLead->getId(),
                    'targetType' => Lead::ENTITY_TYPE,
+                   'data' => $data,
                 ]
             );
 
@@ -409,6 +420,14 @@ class CaptureService
         if (!$isLogged) {
             $this->log($leadCapture, $target, $data, $isNew);
         }
+
+        // The native hooks are conditional around target-list behavior. This
+        // idempotent call guarantees every completed capture has runtime evidence.
+        $this->nexaFormRuntime->recordSubmission($leadCapture, [
+            'targetId' => $target->getId(),
+            'targetType' => $target->getEntityType(),
+            'data' => $data,
+        ]);
     }
 
     /**
