@@ -50,7 +50,6 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
                 'Contact',
                 'Lead',
                 ['nexa-customer-timeline', 'Customer Timeline'],
-                ['nexa-lists-segments', 'Lists & Segments'],
                 ['nexa-lifecycle', 'Lifecycle'],
                 ['nexa-custom-objects', 'Custom Objects'],
             ],
@@ -78,7 +77,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
             iconClass: 'fas fa-bullhorn',
             items: [
                 'Campaign',
-                'TargetList',
+                ['nexa-lists-segments', 'Lists & Segments', '#NexaSegments', 'fas fa-users'],
                 'EmailTemplate',
                 ['nexa-marketing-contacts', 'Marketing Contacts'],
                 ['nexa-marketing-email', 'Marketing Email'],
@@ -441,6 +440,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
             'Team',
             'WorkingTimeCalendar',
             'Import',
+            'TargetList',
         ]);
         const additionalTabs = existingTabs.filter(item =>
             !usedNames.has(item.name) && !administrationScopes.has(item.name));

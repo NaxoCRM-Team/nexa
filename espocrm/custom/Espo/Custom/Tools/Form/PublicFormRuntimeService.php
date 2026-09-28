@@ -74,6 +74,11 @@ final class PublicFormRuntimeService
             'nexaConsentPolicyVersion' => $policyVersion,
         ];
         $data['nexaRedirectDelaySeconds'] = max(1, min(30, (int) ($configuration['redirectDelaySeconds'] ?? 4)));
+        $data['nexaFormId'] = $form->getId();
+        $data['nexaFieldList'] = array_values((array) ($configuration['fieldList'] ?? []));
+        $data['nexaRequiredFields'] = array_values((array) ($configuration['requiredFields'] ?? []));
+        $data['nexaConditionalRules'] = array_values((array) ($configuration['conditionalRules'] ?? []));
+        $data['nexaProgressiveProfiling'] = (bool) ($configuration['progressiveProfiling'] ?? false);
 
         $this->insertEvent($context, $form->getId(), $submissionKey, 'view', $data['nexaSubmissionDefaults'], null, null, $request->getHeader('User-Agent'));
 
@@ -85,9 +90,11 @@ final class PublicFormRuntimeService
         $context = $this->tenantContextStore->require();
         $configuration = $this->publishedConfiguration($context, $form->getId());
 
-        if ($configuration === null || empty($configuration['consentPurposeId'])) return;
+        if ($configuration === null) return;
 
-        if (($data->nexaConsentAccepted ?? null) !== true) {
+        $this->applyConditionalValidation($configuration, $data);
+
+        if (!empty($configuration['consentPurposeId']) && ($data->nexaConsentAccepted ?? null) !== true) {
             throw new BadRequest('Consent is required before this form can be submitted.');
         }
     }
@@ -113,7 +120,10 @@ final class PublicFormRuntimeService
             'nexaConsentAccepted' => ($data->nexaConsentAccepted ?? null) === true,
             'nexaFormVersion' => max(0, (int) ($data->nexaFormVersion ?? 0)),
         ];
-        $this->insertEvent($context, $form->getId(), $submissionKey, 'submission', $defaults, $targetType, $targetId, null);
+        if (!$this->insertEvent($context, $form->getId(), $submissionKey, 'submission', $defaults, $targetType, $targetId, null)) return;
+
+        $configuration = $this->publishedConfiguration($context, $form->getId()) ?? [];
+        $this->applyRecordActions($configuration, $data, $targetType, $targetId, $defaults['nexaConsentAccepted']);
 
         if ($targetType !== 'Contact' || !$defaults['nexaConsentAccepted'] || !$defaults['nexaConsentPurposeId'] || !$defaults['nexaConsentChannel']) return;
 
@@ -163,7 +173,7 @@ final class PublicFormRuntimeService
     }
 
     /** @param array<string, mixed> $data */
-    private function insertEvent(TenantContext $context, string $formId, string $submissionKey, string $type, array $data, ?string $targetType, ?string $targetId, ?string $userAgent): void
+    private function insertEvent(TenantContext $context, string $formId, string $submissionKey, string $type, array $data, ?string $targetType, ?string $targetId, ?string $userAgent): bool
     {
         $secret = (string) $this->config->get('hashSecretKey', $context->tenantId);
         $statement = $this->entityManager->getPDO()->prepare(
@@ -177,6 +187,97 @@ final class PublicFormRuntimeService
             !empty($data['nexaConsentAccepted']) ? 'granted' : null, $this->text($data['nexaConsentPolicyVersion'] ?? null, 40),
             max(0, (int) ($data['nexaFormVersion'] ?? 0)),
         ]);
+
+        return $statement->rowCount() > 0;
+    }
+
+    /** @param array<string, mixed> $configuration */
+    private function applyConditionalValidation(array $configuration, stdClass $data): void
+    {
+        $required = array_fill_keys((array) ($configuration['requiredFields'] ?? []), true);
+        $rulesByTarget = [];
+
+        foreach ((array) ($configuration['conditionalRules'] ?? []) as $rule) {
+            $rule = (array) $rule;
+            $source = (string) ($rule['sourceField'] ?? '');
+            $target = (string) ($rule['targetField'] ?? '');
+            if ($source === '' || $target === '') continue;
+
+            $rulesByTarget[$target][] = $rule;
+        }
+
+        foreach ($rulesByTarget as $target => $rules) {
+            $visible = true;
+            foreach ($rules as $rule) {
+                $source = (string) $rule['sourceField'];
+                if (!$this->conditionMatches($data->$source ?? null, (string) ($rule['operator'] ?? 'equals'), $rule['value'] ?? null)) {
+                    $visible = false;
+                    break;
+                }
+            }
+
+            if (!$visible) {
+                unset($data->$target);
+                continue;
+            }
+            if (isset($required[$target]) && $this->isEmpty($data->$target ?? null)) {
+                throw new BadRequest("Complete the required conditional field {$target}.");
+            }
+        }
+    }
+
+    private function conditionMatches(mixed $actual, string $operator, mixed $expected): bool
+    {
+        $actualText = mb_strtolower(trim(is_array($actual) ? implode(' ', $actual) : (string) ($actual ?? '')));
+        $expectedText = mb_strtolower(trim((string) ($expected ?? '')));
+        return match ($operator) {
+            'notEquals' => $actualText !== $expectedText,
+            'contains' => $expectedText !== '' && str_contains($actualText, $expectedText),
+            'isEmpty' => $this->isEmpty($actual),
+            'isNotEmpty' => !$this->isEmpty($actual),
+            default => $actualText === $expectedText,
+        };
+    }
+
+    private function isEmpty(mixed $value): bool
+    {
+        return $value === null || $value === '' || $value === [];
+    }
+
+    /** @param array<string, mixed> $configuration */
+    private function applyRecordActions(array $configuration, stdClass $data, string $targetType, string $targetId, bool $consentAccepted): void
+    {
+        if (!in_array($targetType, ['Lead', 'Contact'], true)) return;
+        $target = $this->entityManager->getEntityById($targetType, $targetId);
+        if (!$target) return;
+        $changed = false;
+        foreach ((array) ($configuration['fieldMapping'] ?? []) as $source => $destination) {
+            if (!is_string($source) || !is_string($destination) || $source === $destination || !property_exists($data, $source)) continue;
+            if ($this->metadata->get(['entityDefs', $targetType, 'fields', $destination]) === null || $this->isEmpty($data->$source)) continue;
+            $target->set($destination, $data->$source);
+            $changed = true;
+        }
+        $assignedUserId = trim((string) ($configuration['assignedUserId'] ?? ''));
+        if ($assignedUserId !== '' && $this->scopedUserExists($assignedUserId)) {
+            $target->set('assignedUserId', $assignedUserId);
+            $changed = true;
+        }
+        foreach (['lifecycleStage', 'marketingStatus'] as $field) {
+            $value = trim((string) ($configuration[$field] ?? ''));
+            if ($value === '' || ($field === 'marketingStatus' && $value === 'Marketing' && !$consentAccepted)) continue;
+            if ($this->metadata->get(['entityDefs', $targetType, 'fields', $field]) === null) continue;
+            $target->set($field, $value);
+            $changed = true;
+        }
+        if ($changed) $this->entityManager->saveEntity($target);
+    }
+
+    private function scopedUserExists(string $id): bool
+    {
+        $context = $this->tenantContextStore->require();
+        $statement = $this->entityManager->getPDO()->prepare('SELECT 1 FROM `user` WHERE id=? AND tenant_id=? AND service_id=? AND deleted=0 AND is_active=1 LIMIT 1');
+        $statement->execute([$id, $context->tenantId, $context->serviceId]);
+        return (bool) $statement->fetchColumn();
     }
 
     private function submissionKey(mixed $value): string

@@ -43,6 +43,11 @@
                     <section class="nexa-form-canvas">
                         <div><h3>Form fields</h3><span>Order the fields and choose which answers are required.</span></div>
                         <div data-selected-fields></div>
+                        <div class="nexa-conditional-builder">
+                            <div><h3>Conditional fields</h3><span>Show a field only when another answer matches.</span></div>
+                            <div data-conditional-rules></div>
+                            <button class="btn btn-default btn-sm" type="button" data-action="add-condition"><span class="fas fa-plus" aria-hidden="true"></span> Add condition</button>
+                        </div>
                         <div class="nexa-builder-preview"><p>Preview</p><div data-form-preview></div><button type="button" disabled>Submit</button></div>
                     </section>
                     <section class="nexa-form-settings">
@@ -50,10 +55,14 @@
                         <label><span>Lead source</span><input class="form-control" name="leadSource" value="Web Site"></label>
                         <label><span>Audience list</span><select class="form-control" name="targetListId"></select></label>
                         <label><span>Assign to team</span><select class="form-control" name="targetTeamId"></select></label>
+                        <label><span>Assign contact owner</span><select class="form-control" name="assignedUserId"></select></label>
                         <label class="nexa-check"><input type="checkbox" name="subscribeToTargetList">Add successful submissions to the selected audience</label>
                         <label class="nexa-check"><input type="checkbox" name="duplicateCheck" checked>Check Contacts and Leads for duplicates</label>
                         <label class="nexa-check"><input type="checkbox" name="captcha">Require CAPTCHA</label>
                         <label class="nexa-check"><input type="checkbox" name="progressiveProfiling">Use progressive profiling when visitor identity is known</label>
+                        <h3>Record updates</h3>
+                        <label><span>Lifecycle stage</span><select class="form-control" name="lifecycleStage"></select><small>Applied to the Lead or matched Contact after submission.</small></label>
+                        <label><span>Marketing status</span><select class="form-control" name="marketingStatus"></select><small>Marketing status requires recorded consent below.</small></label>
                         <h3>Consent</h3>
                         <label><span>Purpose</span><select class="form-control" name="consentPurposeId"></select></label>
                         <label><span>Channel</span><select class="form-control" name="consentChannel"><option value="">Select channel</option><option value="email">Email</option><option value="phone">Phone</option><option value="sms">SMS</option><option value="whatsapp">WhatsApp</option><option value="linkedin">LinkedIn</option><option value="postal">Postal</option><option value="live_chat">Live chat</option></select></label>

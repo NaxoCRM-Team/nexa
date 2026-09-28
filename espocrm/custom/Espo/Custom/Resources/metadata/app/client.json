@@ -19,6 +19,7 @@
         "client/custom/css/consent-history.css",
         "client/custom/css/cookie-consent-admin.css",
         "client/custom/css/form-workspace.css",
+        "client/custom/css/segment-workspace.css",
         "client/custom/css/public-form.css",
         "client/custom/css/asset-workspace.css",
         "client/custom/css/landing-page-workspace.css",

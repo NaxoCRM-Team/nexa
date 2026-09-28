@@ -5,7 +5,6 @@ define('custom:product-surface-registry', [], () => {
         {name: 'nexa-crm', label: 'CRM', iconClass: 'fas fa-address-book', items: [
             'Account', 'Contact', 'Lead',
             ['nexa-customer-timeline', 'Customer Timeline'],
-            ['nexa-lists-segments', 'Lists & Segments'],
             ['nexa-lifecycle', 'Lifecycle'],
         ]},
         {name: 'nexa-sales', label: 'Sales', iconClass: 'fas fa-chart-line', items: [
@@ -17,7 +16,7 @@ define('custom:product-surface-registry', [], () => {
             'Document', 'Template',
         ]},
         {name: 'nexa-marketing', label: 'Marketing', iconClass: 'fas fa-bullhorn', items: [
-            'Campaign', 'TargetList', 'EmailTemplate',
+            'Campaign', ['nexa-lists-segments', 'Lists & Segments', '#NexaSegments', 'fas fa-users'], 'EmailTemplate',
             ['nexa-marketing-contacts', 'Marketing Contacts'],
             ['nexa-marketing-email', 'Marketing Email'],
             ['nexa-forms', 'Forms', '#NexaForms', 'fas fa-file-alt'],

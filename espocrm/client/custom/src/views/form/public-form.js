@@ -21,6 +21,7 @@ define(['views/lead-capture/form'], Dep => class extends Dep {
         }
 
         this.model.set({...defaults, nexaVisitorId: visitorId});
+        this.whenReady().then(() => this.initializeFormIntelligence());
     }
 
     async actionCreate() {
@@ -50,6 +51,7 @@ define(['views/lead-capture/form'], Dep => class extends Dep {
         }
 
         Espo.Ui.notify();
+        this.rememberCompletedFields();
         this.isPosted = true;
         this.isPosting = false;
         this.recordView.remove();
@@ -84,5 +86,80 @@ define(['views/lead-capture/form'], Dep => class extends Dep {
         }
 
         document.location.href = url;
+    }
+
+    initializeFormIntelligence() {
+        const rules = this.formData.nexaConditionalRules || [];
+        const protectedFields = new Set(rules.flatMap(rule => [rule.sourceField, rule.targetField]));
+        const requiredFields = new Set(this.formData.nexaRequiredFields || []);
+
+        if (this.formData.nexaProgressiveProfiling) {
+            this.completedFields().forEach(field => {
+                if (!requiredFields.has(field) && !protectedFields.has(field)) this.recordView.hideField(field);
+            });
+        }
+
+        this.listenTo(this.model, 'change', () => this.applyConditionalRules());
+        this.applyConditionalRules();
+    }
+
+    applyConditionalRules() {
+        const requiredFields = new Set(this.formData.nexaRequiredFields || []);
+        const rulesByTarget = new Map();
+
+        (this.formData.nexaConditionalRules || []).forEach(rule => {
+            if (!rulesByTarget.has(rule.targetField)) rulesByTarget.set(rule.targetField, []);
+            rulesByTarget.get(rule.targetField).push(rule);
+        });
+
+        rulesByTarget.forEach((rules, target) => {
+            const visible = rules.every(rule => this.conditionMatches(this.model.get(rule.sourceField), rule.operator, rule.value));
+            if (visible) {
+                this.recordView.showField(target);
+                if (requiredFields.has(target)) this.recordView.setFieldRequired(target);
+            } else {
+                this.recordView.hideField(target);
+                this.recordView.setFieldNotRequired(target);
+            }
+        });
+    }
+
+    conditionMatches(actual, operator, expected) {
+        const actualText = String(Array.isArray(actual) ? actual.join(' ') : (actual ?? '')).trim().toLowerCase();
+        const expectedText = String(expected ?? '').trim().toLowerCase();
+
+        if (operator === 'notEquals') return actualText !== expectedText;
+        if (operator === 'contains') return expectedText !== '' && actualText.includes(expectedText);
+        if (operator === 'isEmpty') return actualText === '';
+        if (operator === 'isNotEmpty') return actualText !== '';
+        return actualText === expectedText;
+    }
+
+    profileStorageKey() {
+        return `nexa-form-profile-${this.formData.nexaFormId || 'public'}`;
+    }
+
+    completedFields() {
+        try {
+            const fields = JSON.parse(window.localStorage.getItem(this.profileStorageKey()) || '[]');
+            return Array.isArray(fields) ? fields : [];
+        } catch {
+            return [];
+        }
+    }
+
+    rememberCompletedFields() {
+        if (!this.formData.nexaProgressiveProfiling) return;
+        const completed = new Set(this.completedFields());
+        (this.formData.nexaFieldList || []).forEach(field => {
+            const value = this.model.get(field);
+            if (value !== null && value !== undefined && value !== '' && (!Array.isArray(value) || value.length)) completed.add(field);
+        });
+
+        try {
+            window.localStorage.setItem(this.profileStorageKey(), JSON.stringify([...completed]));
+        } catch {
+            // The form remains usable when browser storage is unavailable.
+        }
     }
 });
