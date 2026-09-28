@@ -14,6 +14,11 @@
             "name": "Monitor Case SLA",
             "isSystem": true,
             "scheduling": "*/5 * * * *"
+        },
+        "RecalculateDynamicSegments": {
+            "name": "Recalculate Dynamic Segments",
+            "isSystem": true,
+            "scheduling": "*/15 * * * *"
         }
     }
 }

@@ -1,0 +1,46 @@
+const {test, expect} = require('@playwright/test');
+
+const baseUrl = (process.env.NEXA_LIVE_URL || '').replace(/\/$/, '');
+const userName = process.env.NEXA_LIVE_USERNAME || '';
+const password = process.env.NEXA_LIVE_PASSWORD || '';
+
+test('Lists and Segments workspace supports governed audience building', async ({page}) => {
+    test.setTimeout(60_000);
+    test.skip(!baseUrl || !userName || !password, 'Live Nexa credentials were not provided.');
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.goto(`${baseUrl}/login/`);
+    await page.locator('#field-userName').fill(userName);
+    await page.locator('#field-password').fill(password);
+    await page.locator('#login-form button[type="submit"]').click();
+    await page.waitForURL(/\/w\/[^/]+(?:\/.*)?$/, {timeout: 30_000});
+    const workspaceBase = page.url().match(/^(.*\/w\/[^/]+)/)?.[1];
+    expect(workspaceBase).toBeTruthy();
+    await page.goto(`${workspaceBase}/NexaSegments`);
+    await expect(page.getByRole('heading', {name: 'Segments', exact: true})).toBeVisible();
+    await expect(page.locator('[data-segment-state="ready"]')).toBeVisible();
+    await expect(page.locator('[data-segment-search]')).toBeVisible();
+    await expect(page.locator('[data-workspace-table="segments"]')).toBeVisible();
+    await page.getByRole('button', {name: 'Create segment'}).first().click();
+    const dialog = page.getByRole('dialog', {name: 'Create segment'});
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('Contacts', {exact: true})).toBeVisible();
+    await expect(dialog.getByText('Static segment', {exact: true})).toBeVisible();
+    await expect(dialog.getByText('Active segment', {exact: true})).toBeVisible();
+    await dialog.getByRole('button', {name: /Continue/}).click();
+    await expect(dialog.locator('[data-segment-rule]')).toHaveCount(1);
+    await dialog.locator('[data-rule-field]').selectOption('createdAt');
+    const operatorValues = await dialog.locator('[data-rule-operator] option').evaluateAll(options => options.map(option => option.value));
+    expect(operatorValues).toHaveLength(4);
+    expect(operatorValues).toEqual(expect.arrayContaining(['withinLastDays', 'beforeDays', 'isEmpty', 'isNotEmpty']));
+    await dialog.locator('[data-rule-operator]').selectOption('withinLastDays');
+    await dialog.locator('[data-rule-value]').fill('30');
+    await dialog.getByRole('button', {name: 'Preview'}).click();
+    await expect(dialog.locator('[data-editor-status]')).toContainText('matching contacts');
+    await dialog.getByRole('button', {name: /Continue/}).click();
+    await expect(dialog.locator('[name="name"]')).toBeFocused();
+    await expect(dialog.getByText('Workspace access', {exact: true})).toBeVisible();
+    await dialog.getByRole('button', {name: 'Close'}).click();
+    await expect(dialog).toBeHidden();
+    expect(pageErrors).toEqual([]);
+});

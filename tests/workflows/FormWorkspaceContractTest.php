@@ -51,6 +51,11 @@ $assert(str_contains($publicView, "classList.add('nexa-public-form')"), 'Public 
 $assert(str_contains($publicCss, 'color: #172f35 !important') && str_contains($publicCss, '-webkit-text-fill-color: #172f35 !important'), 'Public Form inputs must retain readable typed text across themes and browser autofill.');
 $assert(str_contains($clientMetadata, 'client/custom/css/public-form.css'), 'Public Form readability styles must be registered in client metadata.');
 $assert(str_contains($runtime, 'nexaRedirectDelaySeconds') && str_contains($template, 'name="redirectDelaySeconds"'), 'Forms must expose a governed redirect delay.');
+$assert(str_contains($template, 'data-conditional-rules') && str_contains($view, 'renderConditionalRules') && str_contains($runtime, 'applyConditionalValidation'), 'Forms must configure, render and enforce conditional fields.');
+$assert(str_contains($template, 'name="progressiveProfiling"') && str_contains($publicView, 'rememberCompletedFields') && str_contains($publicView, 'completedFields'), 'Forms must progressively hide completed optional properties for returning visitors.');
+$assert(str_contains($view, 'data-action="change-mapping"') && str_contains($service, 'fieldMapping(') && str_contains($runtime, 'applyRecordActions'), 'Forms must validate and apply explicit CRM field mappings.');
+$assert(str_contains($template, 'name="assignedUserId"') && str_contains($template, 'name="lifecycleStage"') && str_contains($template, 'name="marketingStatus"'), 'Forms must expose governed ownership, lifecycle and marketing actions.');
+$assert(str_contains($runtime, "if (!\$this->insertEvent") && str_contains($runtime, 'rowCount() > 0'), 'Post-submission actions must be idempotent per governed submission event.');
 $assert(str_contains($publicView, 'await this.reRender()') && str_contains($publicView, 'redirectAfterSuccess') && str_contains($publicView, 'setTimeout(resolve, 1000)') && str_contains($publicView, 'document.location.href = url'), 'Public Forms must render the success state and countdown before redirecting.');
 $assert(str_contains($service, 'viewCount') && str_contains($service, 'conversionRate'), 'Forms workspace must report views and conversion performance.');
 $assert(str_contains($service, 'tenant_id=?') && str_contains($service, 'service_id=?'), 'Forms queries must enforce tenant and service scope.');

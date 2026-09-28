@@ -12,6 +12,9 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
         'click [data-action="move-field-up"]': 'moveFieldUp',
         'click [data-action="move-field-down"]': 'moveFieldDown',
         'change [data-action="toggle-required"]': 'toggleRequired',
+        'change [data-action="change-mapping"]': 'changeMapping',
+        'click [data-action="add-condition"]': 'addCondition',
+        'click [data-action="remove-condition"]': 'removeCondition',
         'input [data-field-search]': 'renderFieldCatalog',
         'input [data-form-search]': 'renderForms',
         'change [data-form-status]': 'renderForms',
@@ -33,6 +36,7 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
         this.workspace = null;
         this.currentForm = null;
         this.selectedFields = [];
+        this.conditionalRules = [];
         this.tableManager = new WorkspaceTable(this);
         this.tableSort = {forms: {key: 'modifiedAt', direction: 'desc'}, submissions: {key: 'createdAt', direction: 'desc'}};
         this.submissionOffset = 0;
@@ -273,7 +277,8 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
     openEditor(form) {
         this.currentForm = form;
         const config = form?.configuration || this.defaultConfiguration();
-        this.selectedFields = (config.fieldList || []).map(name => ({name, required: (config.requiredFields || []).includes(name)}));
+        this.selectedFields = (config.fieldList || []).map(name => ({name, required: (config.requiredFields || []).includes(name), mapsTo: config.fieldMapping?.[name] || name}));
+        this.conditionalRules = (config.conditionalRules || []).map(rule => ({...rule}));
         const editor = this.element.querySelector('[data-form-editor]');
         const node = this.element.querySelector('[data-form-editor-form]');
         node.reset();
@@ -281,13 +286,19 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
         node.elements.redirectDelaySeconds.value = config.redirectDelaySeconds || 4;
         node.elements.targetListId.innerHTML = this.selectOptions(this.workspace.targetLists, 'No audience list');
         node.elements.targetTeamId.innerHTML = this.selectOptions(this.workspace.teams, 'No team assignment');
+        node.elements.assignedUserId.innerHTML = this.selectOptions(this.workspace.users, 'Keep automatic ownership');
         node.elements.consentPurposeId.innerHTML = this.selectOptions(this.workspace.purposes, 'No consent field');
         node.elements.formTheme.innerHTML = this.selectOptions(this.workspace.themes, 'Use system theme');
+        node.elements.lifecycleStage.innerHTML = this.selectOptions(this.workspace.lifecycleStages, 'Do not change lifecycle');
+        node.elements.marketingStatus.innerHTML = this.selectOptions(this.workspace.marketingStatuses, 'Do not change marketing status');
         node.elements.targetListId.value = config.targetListId || '';
         node.elements.targetTeamId.value = config.targetTeamId || '';
+        node.elements.assignedUserId.value = config.assignedUserId || '';
         node.elements.consentPurposeId.value = config.consentPurposeId || '';
         node.elements.formTheme.value = config.formTheme || 'Espo';
         node.elements.consentChannel.value = config.consentChannel || '';
+        node.elements.lifecycleStage.value = config.lifecycleStage || '';
+        node.elements.marketingStatus.value = config.marketingStatus || '';
         node.elements.subscribeToTargetList.checked = Boolean(config.subscribeToTargetList);
         node.elements.duplicateCheck.checked = config.duplicateCheck !== false;
         node.elements.captcha.checked = Boolean(config.captcha);
@@ -300,6 +311,7 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
         document.body.classList.add('nexa-modal-open');
         this.renderFieldCatalog();
         this.renderSelectedFields();
+        this.renderConditionalRules();
         node.elements.name.focus();
     }
 
@@ -312,7 +324,7 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
     }
 
     defaultConfiguration() {
-        return {name: '', title: '', formTheme: 'Espo', leadSource: 'Web Site', successMessage: 'Thanks. Your information has been received.', redirectDelaySeconds: 4, duplicateCheck: true, fieldList: ['firstName', 'lastName', 'emailAddress'], requiredFields: ['lastName', 'emailAddress'], frameAncestors: []};
+        return {name: '', title: '', formTheme: 'Espo', leadSource: 'Web Site', successMessage: 'Thanks. Your information has been received.', redirectDelaySeconds: 4, duplicateCheck: true, fieldList: ['firstName', 'lastName', 'emailAddress'], requiredFields: ['lastName', 'emailAddress'], fieldMapping: {firstName: 'firstName', lastName: 'lastName', emailAddress: 'emailAddress'}, conditionalRules: [], frameAncestors: []};
     }
 
     renderFieldCatalog() {
@@ -326,17 +338,49 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
         const catalog = new Map((this.workspace?.fieldCatalog || []).map(item => [item.name, item]));
         this.element.querySelector('[data-selected-fields]').innerHTML = this.selectedFields.map((field, index) => {
             const item = catalog.get(field.name) || {label: field.name, type: 'text'};
-            return `<article data-field-name="${this.escape(field.name)}"><span class="fas fa-grip-vertical" aria-hidden="true"></span><div><strong>${this.escape(item.label)}</strong><small>Maps to Lead.${this.escape(field.name)}</small></div><label><input type="checkbox" data-action="toggle-required" data-name="${this.escape(field.name)}" ${field.required || item.required ? 'checked' : ''} ${item.required ? 'disabled' : ''}>Required</label><div><button class="btn btn-icon" type="button" data-action="move-field-up" data-name="${this.escape(field.name)}" ${index === 0 ? 'disabled' : ''} title="Move up"><span class="fas fa-arrow-up"></span></button><button class="btn btn-icon" type="button" data-action="move-field-down" data-name="${this.escape(field.name)}" ${index === this.selectedFields.length - 1 ? 'disabled' : ''} title="Move down"><span class="fas fa-arrow-down"></span></button><button class="btn btn-icon is-danger" type="button" data-action="remove-field" data-name="${this.escape(field.name)}" title="Remove"><span class="fas fa-times"></span></button></div></article>`;
+            const compatible = (this.workspace.fieldCatalog || []).filter(candidate => candidate.type === item.type);
+            const mapping = compatible.map(candidate => `<option value="${this.escape(candidate.name)}" ${candidate.name === (field.mapsTo || field.name) ? 'selected' : ''}>${this.escape(candidate.label)}</option>`).join('');
+            return `<article data-field-name="${this.escape(field.name)}"><span class="fas fa-grip-vertical" aria-hidden="true"></span><div><strong>${this.escape(item.label)}</strong><label class="nexa-field-map"><span>Save answer to</span><select class="form-control input-sm" data-action="change-mapping" data-name="${this.escape(field.name)}">${mapping}</select></label></div><label><input type="checkbox" data-action="toggle-required" data-name="${this.escape(field.name)}" ${field.required || item.required ? 'checked' : ''} ${item.required ? 'disabled' : ''}>Required</label><div><button class="btn btn-icon" type="button" data-action="move-field-up" data-name="${this.escape(field.name)}" ${index === 0 ? 'disabled' : ''} title="Move up"><span class="fas fa-arrow-up"></span></button><button class="btn btn-icon" type="button" data-action="move-field-down" data-name="${this.escape(field.name)}" ${index === this.selectedFields.length - 1 ? 'disabled' : ''} title="Move down"><span class="fas fa-arrow-down"></span></button><button class="btn btn-icon is-danger" type="button" data-action="remove-field" data-name="${this.escape(field.name)}" title="Remove"><span class="fas fa-times"></span></button></div></article>`;
         }).join('') || '<div class="nexa-field-empty"><span class="fas fa-arrow-left"></span><p>Add CRM fields from the property list.</p></div>';
         this.renderPreview();
     }
 
-    addField(event) { this.selectedFields.push({name: event.currentTarget.dataset.name, required: false}); this.renderFieldCatalog(); this.renderSelectedFields(); }
-    removeField(event) { this.selectedFields = this.selectedFields.filter(item => item.name !== event.currentTarget.dataset.name); this.renderFieldCatalog(); this.renderSelectedFields(); }
+    addField(event) { const name = event.currentTarget.dataset.name; this.selectedFields.push({name, required: false, mapsTo: name}); this.renderFieldCatalog(); this.renderSelectedFields(); this.renderConditionalRules(); }
+    removeField(event) { const name = event.currentTarget.dataset.name; this.selectedFields = this.selectedFields.filter(item => item.name !== name); this.conditionalRules = this.conditionalRules.filter(rule => rule.sourceField !== name && rule.targetField !== name); this.renderFieldCatalog(); this.renderSelectedFields(); this.renderConditionalRules(); }
     moveFieldUp(event) { this.moveField(event.currentTarget.dataset.name, -1); }
     moveFieldDown(event) { this.moveField(event.currentTarget.dataset.name, 1); }
     moveField(name, delta) { const index = this.selectedFields.findIndex(item => item.name === name); const target = index + delta; if (index < 0 || target < 0 || target >= this.selectedFields.length) return; [this.selectedFields[index], this.selectedFields[target]] = [this.selectedFields[target], this.selectedFields[index]]; this.renderSelectedFields(); }
     toggleRequired(event) { const field = this.selectedFields.find(item => item.name === event.currentTarget.dataset.name); if (field) field.required = event.currentTarget.checked; this.renderPreview(); }
+    changeMapping(event) { const field = this.selectedFields.find(item => item.name === event.currentTarget.dataset.name); if (field) field.mapsTo = event.currentTarget.value; }
+
+    readConditionalRules() {
+        return [...this.element.querySelectorAll('[data-condition-rule]')].map(node => ({
+            sourceField: node.querySelector('[data-condition-source]').value,
+            operator: node.querySelector('[data-condition-operator]').value,
+            value: node.querySelector('[data-condition-value]').value.trim(),
+            targetField: node.querySelector('[data-condition-target]').value,
+        }));
+    }
+
+    renderConditionalRules() {
+        const host = this.element.querySelector('[data-conditional-rules]');
+        if (!host) return;
+        const fields = this.selectedFields.map(field => ({id: field.name, name: (this.workspace.fieldCatalog || []).find(item => item.name === field.name)?.label || field.name}));
+        const options = (selected, excluded = '') => fields.filter(field => field.id !== excluded).map(field => `<option value="${this.escape(field.id)}" ${field.id === selected ? 'selected' : ''}>${this.escape(field.name)}</option>`).join('');
+        host.innerHTML = this.conditionalRules.map((rule, index) => `<article data-condition-rule data-index="${index}"><label><span>When</span><select class="form-control input-sm" data-condition-source>${options(rule.sourceField, rule.targetField)}</select></label><label><span>Condition</span><select class="form-control input-sm" data-condition-operator><option value="equals" ${rule.operator === 'equals' ? 'selected' : ''}>equals</option><option value="notEquals" ${rule.operator === 'notEquals' ? 'selected' : ''}>does not equal</option><option value="contains" ${rule.operator === 'contains' ? 'selected' : ''}>contains</option><option value="isEmpty" ${rule.operator === 'isEmpty' ? 'selected' : ''}>is empty</option><option value="isNotEmpty" ${rule.operator === 'isNotEmpty' ? 'selected' : ''}>is not empty</option></select></label><label><span>Value</span><input class="form-control input-sm" data-condition-value value="${this.escape(rule.value || '')}" ${['isEmpty', 'isNotEmpty'].includes(rule.operator) ? 'disabled' : ''}></label><label><span>Show</span><select class="form-control input-sm" data-condition-target>${options(rule.targetField, rule.sourceField)}</select></label><button class="btn btn-icon is-danger" type="button" data-action="remove-condition" data-index="${index}" title="Remove condition"><span class="fas fa-times"></span></button></article>`).join('') || '<p class="nexa-condition-empty">No conditional fields. Every selected field is shown.</p>';
+    }
+
+    addCondition() {
+        if (this.selectedFields.length < 2) { Espo.Ui.error('Add at least two form fields before creating a condition.'); return; }
+        this.conditionalRules = this.readConditionalRules();
+        this.conditionalRules.push({sourceField: this.selectedFields[0].name, operator: 'equals', value: '', targetField: this.selectedFields[1].name});
+        this.renderConditionalRules();
+    }
+
+    removeCondition(event) {
+        this.conditionalRules = this.readConditionalRules().filter((rule, index) => index !== Number(event.currentTarget.dataset.index));
+        this.renderConditionalRules();
+    }
 
     renderPreview() {
         const preview = this.element.querySelector('[data-form-preview]');
@@ -349,11 +393,13 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
         const form = this.element.querySelector('[data-form-editor-form]');
         return {
             name: form.elements.name.value.trim(), description: form.elements.description.value.trim(), title: form.elements.title.value.trim(), formTheme: form.elements.formTheme.value, intro: form.elements.intro.value.trim(),
-            leadSource: form.elements.leadSource.value.trim(), targetListId: form.elements.targetListId.value, targetTeamId: form.elements.targetTeamId.value,
+            leadSource: form.elements.leadSource.value.trim(), targetListId: form.elements.targetListId.value, targetTeamId: form.elements.targetTeamId.value, assignedUserId: form.elements.assignedUserId.value,
             subscribeToTargetList: form.elements.subscribeToTargetList.checked, duplicateCheck: form.elements.duplicateCheck.checked, captcha: form.elements.captcha.checked,
             progressiveProfiling: form.elements.progressiveProfiling.checked, consentPurposeId: form.elements.consentPurposeId.value, consentChannel: form.elements.consentChannel.value,
             consentLabel: form.elements.consentLabel.value.trim(), successMessage: form.elements.successMessage.value.trim(), redirectUrl: form.elements.redirectUrl.value.trim(), redirectDelaySeconds: Number(form.elements.redirectDelaySeconds.value || 4),
+            lifecycleStage: form.elements.lifecycleStage.value, marketingStatus: form.elements.marketingStatus.value,
             frameAncestors: form.elements.frameAncestors.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean), fields: this.selectedFields,
+            fieldMapping: Object.fromEntries(this.selectedFields.map(field => [field.name, field.mapsTo || field.name])), conditionalRules: this.readConditionalRules(),
         };
     }
 
@@ -362,6 +408,8 @@ define('custom:views/form/workspace', ['view', 'custom:workspace-table'], (Dep, 
         if (!payload.name) { this.element.querySelector('[data-form-error="name"]').textContent = 'Enter a form name.'; return false; }
         if (!payload.fields.length) { Espo.Ui.error('Add at least one field to the form.'); return false; }
         if (payload.consentPurposeId && !payload.consentChannel) { Espo.Ui.error('Select the communication channel covered by the consent statement.'); return false; }
+        if (payload.marketingStatus === 'Marketing' && !payload.consentPurposeId) { Espo.Ui.error('Select a consent purpose before marking submissions as marketing contacts.'); return false; }
+        if (payload.conditionalRules.some(rule => !rule.sourceField || !rule.targetField || rule.sourceField === rule.targetField)) { Espo.Ui.error('Choose two different fields for each condition.'); return false; }
         return true;
     }
 

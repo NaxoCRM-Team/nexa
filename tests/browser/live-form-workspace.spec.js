@@ -41,6 +41,15 @@ test('Forms workspace supports responsive form building', async ({page}) => {
         await expect(dialog.getByText('Text displayed on the form', {exact: true})).toBeVisible();
         await expect(dialog.getByText('Text displayed after submission', {exact: true})).toBeVisible();
         await expect(dialog.locator('[name="redirectDelaySeconds"]')).toHaveValue('4');
+        await expect(dialog.getByText('Conditional fields', {exact: true})).toBeVisible();
+        await expect(dialog.locator('[data-action="change-mapping"]')).toHaveCount(3);
+        await expect(dialog.locator('[name="assignedUserId"]')).toBeVisible();
+        await expect(dialog.locator('[name="lifecycleStage"] option')).not.toHaveCount(0);
+        await expect(dialog.locator('[name="marketingStatus"] option')).not.toHaveCount(0);
+        await dialog.locator('[data-action="add-condition"]').click();
+        await expect(dialog.locator('[data-condition-rule]')).toHaveCount(1);
+        await expect(dialog.locator('[data-condition-source]')).toBeVisible();
+        await expect(dialog.locator('[data-condition-target]')).toBeVisible();
         await dialog.locator('[data-field-search]').fill('phone');
         await expect(dialog.locator('[data-field-catalog]')).toContainText(/Phone/i);
         await dialog.getByRole('button', {name: 'Cancel'}).click();

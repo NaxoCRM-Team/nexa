@@ -58,6 +58,9 @@ final class FormWorkspaceService
             'purposes' => $this->consentPurposes($context),
             'targetLists' => $this->namedRecords($context, 'target_list'),
             'teams' => $this->namedRecords($context, 'team'),
+            'users' => $this->namedRecords($context, 'user'),
+            'lifecycleStages' => $this->optionCatalog('lifecycleStage'),
+            'marketingStatuses' => $this->optionCatalog('marketingStatus'),
             'themes' => $this->themeCatalog(),
             'recentSubmissions' => $submissions['list'],
             'submissionTotal' => $submissions['total'],
@@ -332,10 +335,27 @@ final class FormWorkspaceService
     /** @return array<int, array{id: string, name: string}> */
     private function namedRecords(TenantContext $context, string $table): array
     {
-        if (!in_array($table, ['target_list', 'team'], true)) return [];
-        $statement = $this->entityManager->getPDO()->prepare("SELECT id,name FROM `$table` WHERE tenant_id=? AND service_id=? AND deleted=0 ORDER BY name LIMIT 500");
+        if (!in_array($table, ['target_list', 'team', 'user'], true)) return [];
+        $active = $table === 'user' ? ' AND is_active=1' : '';
+        $name = $table === 'user' ? "COALESCE(NULLIF(TRIM(CONCAT_WS(' ',first_name,last_name)),''),user_name) AS name" : 'name';
+        $order = $table === 'user' ? 'COALESCE(NULLIF(TRIM(CONCAT_WS(\' \',first_name,last_name)),\'\'),user_name)' : 'name';
+        $statement = $this->entityManager->getPDO()->prepare("SELECT id,{$name} FROM `$table` WHERE tenant_id=? AND service_id=? AND deleted=0{$active} ORDER BY {$order} LIMIT 500");
         $statement->execute([$context->tenantId, $context->serviceId]);
         return $statement->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** @return array<int, array{id: string, name: string}> */
+    private function optionCatalog(string $field): array
+    {
+        $options = (array) ($this->metadata->get(['entityDefs', 'Lead', 'fields', $field, 'options']) ?? []);
+
+        return array_values(array_map(
+            fn (string $value): array => [
+                'id' => $value,
+                'name' => $this->language->translateOption($value, $field, 'Lead'),
+            ],
+            array_filter($options, static fn (mixed $value): bool => is_string($value) && $value !== ''),
+        ));
     }
 
     /** @return array<string, mixed> */
@@ -367,6 +387,19 @@ final class FormWorkspaceService
             $fieldList[] = $field['name'];
             if ($field['required']) $required[] = $field['name'];
         }
+        $fieldMapping = $this->fieldMapping((array) ($input->fieldMapping ?? []), $fieldList, $available);
+        $conditionalRules = $this->conditionalRules((array) ($input->conditionalRules ?? []), $fieldList);
+        $context = $this->tenantContextStore->require();
+        $targetListId = trim((string) ($input->targetListId ?? '')) ?: null;
+        $targetTeamId = trim((string) ($input->targetTeamId ?? '')) ?: null;
+        $assignedUserId = trim((string) ($input->assignedUserId ?? '')) ?: null;
+        $this->requireScopedRecord($context, 'target_list', $targetListId, 'Select an audience from this workspace.');
+        $this->requireScopedRecord($context, 'team', $targetTeamId, 'Select a team from this workspace.');
+        $this->requireScopedRecord($context, 'user', $assignedUserId, 'Select an active owner from this workspace.', true);
+        $lifecycleStage = $this->allowedOption($input->lifecycleStage ?? null, 'lifecycleStage');
+        $marketingStatus = $this->allowedOption($input->marketingStatus ?? null, 'marketingStatus');
+        if ($marketingStatus === 'Marketing' && $purposeId === null) throw new BadRequest('Select a consent purpose before marking submissions as marketing contacts.');
+
         return [
             'name' => $name, 'description' => $this->text($input->description ?? null, 1000),
             'title' => $this->text($input->title ?? $name, 80) ?: $name,
@@ -378,22 +411,81 @@ final class FormWorkspaceService
             'language' => trim((string) ($input->language ?? 'en_US')) ?: 'en_US',
             'frameAncestors' => $frameAncestors, 'captcha' => (bool) ($input->captcha ?? false),
             'duplicateCheck' => (bool) ($input->duplicateCheck ?? true), 'leadSource' => trim((string) ($input->leadSource ?? 'Web Site')) ?: 'Web Site',
-            'targetListId' => trim((string) ($input->targetListId ?? '')) ?: null, 'targetTeamId' => trim((string) ($input->targetTeamId ?? '')) ?: null,
+            'targetListId' => $targetListId, 'targetTeamId' => $targetTeamId,
             'subscribeToTargetList' => (bool) ($input->subscribeToTargetList ?? false),
             'fieldList' => $fieldList, 'requiredFields' => $required,
-            'fieldMapping' => array_combine($fieldList, $fieldList) ?: [],
+            'fieldMapping' => $fieldMapping,
             'consentPurposeId' => $purposeId, 'consentChannel' => $channel,
             'consentLabel' => $this->text($input->consentLabel ?? null, 500),
             'progressiveProfiling' => (bool) ($input->progressiveProfiling ?? false),
-            'conditionalRules' => array_values((array) ($input->conditionalRules ?? [])),
+            'conditionalRules' => $conditionalRules,
+            'assignedUserId' => $assignedUserId,
+            'lifecycleStage' => $lifecycleStage,
+            'marketingStatus' => $marketingStatus,
         ];
+    }
+
+    /** @param array<int|string, mixed> $input @param string[] $fieldList @param array<string, array<string, mixed>> $available @return array<string, string> */
+    private function fieldMapping(array $input, array $fieldList, array $available): array
+    {
+        $mapping = [];
+        foreach ($fieldList as $source) {
+            $destination = trim((string) ($input[$source] ?? $source));
+            $sourceType = (string) ($available[$source]['type'] ?? '');
+            $destinationType = (string) ($available[$destination]['type'] ?? '');
+            if ($destination === '' || !isset($available[$destination]) || $sourceType !== $destinationType) {
+                throw new BadRequest("Select a compatible CRM property for {$source}.");
+            }
+            $mapping[$source] = $destination;
+        }
+
+        return $mapping;
+    }
+
+    /** @param array<int, mixed> $input @param string[] $fieldList @return array<int, array<string, string>> */
+    private function conditionalRules(array $input, array $fieldList): array
+    {
+        $operators = ['equals', 'notEquals', 'contains', 'isEmpty', 'isNotEmpty'];
+        $rules = [];
+        foreach ($input as $item) {
+            $item = (array) $item;
+            $source = trim((string) ($item['sourceField'] ?? ''));
+            $target = trim((string) ($item['targetField'] ?? ''));
+            $operator = trim((string) ($item['operator'] ?? 'equals'));
+            $value = mb_substr(trim((string) ($item['value'] ?? '')), 0, 500);
+            if (!in_array($source, $fieldList, true) || !in_array($target, $fieldList, true) || $source === $target || !in_array($operator, $operators, true)) {
+                throw new BadRequest('Each conditional field rule must use two different fields from this form.');
+            }
+            $rules[] = ['sourceField' => $source, 'operator' => $operator, 'value' => $value, 'targetField' => $target];
+        }
+
+        return $rules;
+    }
+
+    private function allowedOption(mixed $value, string $field): ?string
+    {
+        $value = trim((string) ($value ?? ''));
+        if ($value === '') return null;
+        if (!in_array($value, array_column($this->optionCatalog($field), 'id'), true)) throw new BadRequest("Select a valid {$field} value.");
+        return $value;
+    }
+
+    private function requireScopedRecord(TenantContext $context, string $table, ?string $id, string $message, bool $active = false): void
+    {
+        if ($id === null) return;
+        if (!in_array($table, ['target_list', 'team', 'user'], true)) throw new BadRequest($message);
+        $sql = "SELECT 1 FROM `$table` WHERE id=? AND tenant_id=? AND service_id=? AND deleted=0" . ($active ? ' AND is_active=1' : '') . ' LIMIT 1';
+        $statement = $this->entityManager->getPDO()->prepare($sql);
+        $statement->execute([$id, $context->tenantId, $context->serviceId]);
+        if (!$statement->fetchColumn()) throw new BadRequest($message);
     }
 
     /** @param array<string, mixed> $configuration @return array<string, mixed> */
     private function nativePayload(array $configuration, bool $published): array
     {
         $fieldParams = [];
-        foreach ($configuration['fieldList'] as $field) $fieldParams[$field] = ['required' => in_array($field, $configuration['requiredFields'], true)];
+        $conditionalTargets = array_column($configuration['conditionalRules'] ?? [], 'targetField');
+        foreach ($configuration['fieldList'] as $field) $fieldParams[$field] = ['required' => in_array($field, $configuration['requiredFields'], true) && !in_array($field, $conditionalTargets, true)];
         return [
             'name' => $configuration['name'], 'isActive' => true, 'formEnabled' => $published,
             'fieldList' => $configuration['fieldList'], 'fieldParams' => (object) $fieldParams,
@@ -422,6 +514,7 @@ final class FormWorkspaceService
             'targetListId' => $row['target_list_id'], 'targetTeamId' => $row['target_team_id'], 'subscribeToTargetList' => (bool) $row['subscribe_to_target_list'],
             'fieldList' => $fieldList, 'requiredFields' => $required, 'fieldMapping' => array_combine($fieldList, $fieldList) ?: [],
             'consentPurposeId' => null, 'consentChannel' => null, 'consentLabel' => null, 'progressiveProfiling' => false, 'conditionalRules' => [],
+            'assignedUserId' => null, 'lifecycleStage' => null, 'marketingStatus' => null,
         ];
     }
 

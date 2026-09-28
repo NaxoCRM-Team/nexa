@@ -668,6 +668,46 @@
         "actionClassName": "Espo\\Custom\\Tools\\Form\\Api\\DeleteSubmission"
     },
     {
+        "route": "/Nexa/segments/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/segments",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\PostSegment"
+    },
+    {
+        "route": "/Nexa/segments/preview",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\PostPreview"
+    },
+    {
+        "route": "/Nexa/segments/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\PutSegment"
+    },
+    {
+        "route": "/Nexa/segments/:id/recalculate",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\PostRecalculate"
+    },
+    {
+        "route": "/Nexa/segments/:id/archive",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\PostArchive"
+    },
+    {
+        "route": "/Nexa/segments/:id/duplicate",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\PostDuplicate"
+    },
+    {
+        "route": "/Nexa/segments/:id/export",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\GetExport"
+    },
+    {
         "route": "/Nexa/assets/workspace",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetWorkspace"

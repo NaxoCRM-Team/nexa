@@ -49,7 +49,16 @@ try {
             (object) ['name' => 'firstName', 'required' => true],
             (object) ['name' => 'lastName', 'required' => true],
             (object) ['name' => 'emailAddress', 'required' => true],
+            (object) ['name' => 'title', 'required' => true],
         ],
+        'fieldMapping' => ['firstName' => 'firstName', 'lastName' => 'lastName', 'emailAddress' => 'emailAddress', 'title' => 'firstName'],
+        'conditionalRules' => [
+            (object) ['sourceField' => 'firstName', 'operator' => 'equals', 'value' => 'Ada', 'targetField' => 'title'],
+            (object) ['sourceField' => 'lastName', 'operator' => 'equals', 'value' => 'Lovelace', 'targetField' => 'title'],
+        ],
+        'progressiveProfiling' => true,
+        'lifecycleStage' => 'MarketingQualifiedLead',
+        'marketingStatus' => 'Marketing',
         'duplicateCheck' => true,
         'leadSource' => 'Web Site',
         'successMessage' => 'Thank you.',
@@ -65,6 +74,9 @@ try {
     $assert($alphaForm !== null && $alphaForm['status'] === 'published', 'The form was not published.');
     $assert($alphaForm['version'] === 1 && $alphaForm['hasUnpublishedChanges'] === false, 'Published form version state is incorrect.');
     $assert(($alphaForm['configuration']['formTheme'] ?? null) === 'Violet', 'The native form theme was not retained in the published configuration.');
+    $assert(($alphaForm['configuration']['fieldMapping']['title'] ?? null) === 'firstName', 'The explicit CRM field mapping was not retained.');
+    $assert(count($alphaForm['configuration']['conditionalRules'] ?? []) === 2, 'The conditional field rules were not retained.');
+    $assert(($alphaForm['configuration']['lifecycleStage'] ?? null) === 'MarketingQualifiedLead', 'The lifecycle action was not retained.');
     $themeQuery = $pdo->prepare('SELECT form_theme FROM lead_capture WHERE id = ? AND tenant_id = ? AND service_id = ?');
     $themeQuery->execute([$id, $tenantA->tenantId, $tenantA->serviceId]);
     $assert($themeQuery->fetchColumn() === 'Violet', 'Publishing did not write the selected theme to native Lead Capture.');
@@ -82,6 +94,24 @@ try {
         $consentRejected = true;
     }
     $assert($consentRejected, 'A published form accepted a submission without its required consent.');
+    $conditionalRejected = false;
+    try {
+        $store->runWith($tenantA, function () use ($entityManager, $runtime, $id): void {
+            $runtime->validateSubmission($entityManager->getEntityById('LeadCapture', $id), (object) [
+                'firstName' => 'Ada',
+                'lastName' => 'Lovelace',
+                'nexaConsentAccepted' => true,
+            ]);
+        });
+    } catch (BadRequest) {
+        $conditionalRejected = true;
+    }
+    $assert($conditionalRejected, 'A visible required conditional field could be omitted.');
+    $conditionalData = (object) ['firstName' => 'Ada', 'lastName' => 'Byron', 'title' => 'This must be ignored', 'nexaConsentAccepted' => true];
+    $store->runWith($tenantA, function () use ($entityManager, $runtime, $id, $conditionalData): void {
+        $runtime->validateSubmission($entityManager->getEntityById('LeadCapture', $id), $conditionalData);
+    });
+    $assert(!property_exists($conditionalData, 'title'), 'A hidden conditional field was accepted by the server.');
     $submissionKey = 'f1000000-0000-4000-8000-000000000001';
     $store->runWith($tenantA, function () use ($entityManager, $runtime, $id, $submissionKey, $purposeId): void {
         $runtime->recordSubmission($entityManager->getEntityById('LeadCapture', $id), [
@@ -105,6 +135,34 @@ try {
     $event = $eventQuery->fetch(PDO::FETCH_ASSOC);
     $assert($event && $event['tenant_id'] === $tenantA->tenantId && $event['service_id'] === $tenantA->serviceId, 'Form submission evidence was not written to its tenant and service.');
     $assert($event['event_type'] === 'submission' && $event['consent_status'] === 'granted', 'Form submission consent evidence is incomplete.');
+
+    $actionLead = $store->runWith($tenantA, fn () => $recordServices->get('Lead')->create(
+        (object) ['firstName' => 'Ada', 'lastName' => 'Actions'],
+        CreateParams::create(),
+    ));
+    $actionSubmissionKey = 'f1000000-0000-4000-8000-000000000002';
+    $actionPayload = [
+        'targetId' => $actionLead->getId(),
+        'targetType' => 'Lead',
+        'data' => (object) [
+            'title' => 'Revenue Operations',
+            'nexaSubmissionKey' => $actionSubmissionKey,
+            'nexaConsentAccepted' => true,
+            'nexaConsentPurposeId' => $purposeId,
+            'nexaConsentChannel' => 'email',
+            'nexaConsentPolicyVersion' => 'test-1',
+            'nexaFormVersion' => 1,
+        ],
+    ];
+    $store->runWith($tenantA, fn () => $runtime->recordSubmission($entityManager->getEntityById('LeadCapture', $id), $actionPayload));
+    $store->runWith($tenantA, fn () => $runtime->recordSubmission($entityManager->getEntityById('LeadCapture', $id), $actionPayload));
+    $actionLead = $store->runWith($tenantA, fn () => $entityManager->getEntityById('Lead', $actionLead->getId()));
+    $assert($actionLead->get('firstName') === 'Revenue Operations', 'The published field mapping was not applied to the captured record.');
+    $assert($actionLead->get('lifecycleStage') === 'MarketingQualifiedLead', 'The lifecycle action was not applied to the captured record.');
+    $assert($actionLead->get('marketingStatus') === 'Marketing', 'The consent-aware marketing action was not applied to the captured record.');
+    $actionEventCount = $pdo->prepare("SELECT COUNT(*) FROM nexa_form_event WHERE tenant_id=? AND service_id=? AND submission_key=? AND event_type='submission'");
+    $actionEventCount->execute([$tenantA->tenantId, $tenantA->serviceId, $actionSubmissionKey]);
+    $assert((int) $actionEventCount->fetchColumn() === 1, 'Repeated submission hooks duplicated the governed event or actions.');
     $tenantBEventCount = $store->runWith($tenantB, function () use ($pdo, $tenantB, $submissionKey): int {
         $statement = $pdo->prepare('SELECT COUNT(*) FROM nexa_form_event WHERE tenant_id=? AND service_id=? AND submission_key=?');
         $statement->execute([$tenantB->tenantId, $tenantB->serviceId, $submissionKey]);
