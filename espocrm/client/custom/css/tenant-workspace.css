@@ -4,6 +4,49 @@
     background: #f6f8fa;
 }
 
+.nexa-impersonation-banner {
+    align-items: center;
+    background: #fff3cd;
+    border-bottom: 1px solid #e1bd58;
+    color: #4d3900;
+    display: flex;
+    gap: 10px;
+    height: 42px;
+    inset: 0 0 auto;
+    padding: 0 18px;
+    position: fixed;
+    z-index: 11000;
+}
+
+.nexa-impersonation-banner [data-session-copy] {
+    flex: 1;
+}
+
+.nexa-impersonation-banner .btn {
+    background: #17202a;
+    border-color: #17202a;
+    color: #fff;
+}
+
+body.nexa-is-impersonating #navbar {
+    top: 42px;
+}
+
+body.nexa-is-impersonating #main {
+    padding-top: 42px;
+}
+
+@media (max-width: 600px) {
+    .nexa-impersonation-banner {
+        font-size: 12px;
+        padding: 0 10px;
+    }
+
+    .nexa-impersonation-banner strong {
+        display: none;
+    }
+}
+
 /* Authentication can add the native navbar before its configured view has
  * finished rendering. Keep that intermediate frame private so users never
  * see Espo's unbranded navigation while the Nexa shell is being composed. */

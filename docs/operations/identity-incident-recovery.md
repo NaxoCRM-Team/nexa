@@ -20,7 +20,7 @@ Use this runbook when an OIDC client secret, SAML certificate, authenticator, re
 
 ## Master-key rotation
 
-Generate a new 32-byte `NEXA_AUTH_SECRET_KEY`, decrypt each provider secret with the old key, re-encrypt it with the new key, increment `secret_key_version`, then remove the old key from the runtime. Never rotate the key by changing `.env` alone; doing so makes existing encrypted credentials unreadable.
+Use the versioned key-ring and rotation procedure in [security-governance.md](security-governance.md). Keep old and new keys available during rotation; never rotate by replacing `NEXA_AUTH_SECRET_KEY` alone because pre-rotation credentials would become unreadable.
 
 ## Lost access
 

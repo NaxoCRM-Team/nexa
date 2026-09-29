@@ -77,6 +77,24 @@
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "optional"
                    },
+                     {
+                        "name":  "nexa_managed_secret",
+                        "classification":  "tenantOwned",
+                        "tenantColumn":  "tenant_id",
+                        "serviceScope":  "required"
+                     },
+                     {
+                        "name":  "nexa_impersonation_session",
+                        "classification":  "platformControl",
+                        "tenantColumn":  "target_tenant_id",
+                        "serviceScope":  "required"
+                     },
+                     {
+                        "name":  "nexa_impersonation_action_cursor",
+                        "classification":  "tenantEvent",
+                        "tenantColumn":  "tenant_id",
+                        "serviceScope":  "required"
+                     },
                    {
                        "name":  "nexa_outbox_event",
                        "classification":  "tenantEvent",

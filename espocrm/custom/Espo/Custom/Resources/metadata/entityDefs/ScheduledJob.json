@@ -19,6 +19,11 @@
             "name": "Recalculate Dynamic Segments",
             "isSystem": true,
             "scheduling": "*/15 * * * *"
+        },
+        "ExpireImpersonationSessions": {
+            "name": "Expire Impersonation Sessions",
+            "isSystem": true,
+            "scheduling": "* * * * *"
         }
     }
 }

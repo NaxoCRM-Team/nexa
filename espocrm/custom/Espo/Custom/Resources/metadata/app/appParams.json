@@ -4,5 +4,8 @@
     },
     "addressSubdivisionData": {
         "className": "Espo\\Custom\\Classes\\AppParams\\AddressSubdivisionData"
+    },
+    "nexaImpersonation": {
+        "className": "Espo\\Custom\\Tools\\App\\AppParams\\ImpersonationIdentity"
     }
 }

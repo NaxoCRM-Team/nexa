@@ -48,7 +48,7 @@ $cleanup = static function () use ($pdo, $testIds): void {
     $pdo->prepare("DELETE FROM nexa_lifecycle_assignment WHERE entity_id IN ({$placeholders})")->execute($testIds);
     $pdo->prepare("DELETE FROM nexa_timeline_event WHERE source_entity_id IN ({$placeholders}) OR account_id IN ({$placeholders})")->execute([...$testIds, ...$testIds]);
     $pdo->prepare("DELETE FROM nexa_relationship_edge WHERE source_entity_id IN ({$placeholders}) OR target_entity_id IN ({$placeholders})")->execute([...$testIds, ...$testIds]);
-    $pdo->prepare("DELETE FROM nexa_audit_event WHERE subject_id IN ({$placeholders})")->execute($testIds);
+    // Audit events are intentionally append-only; synthetic record IDs make retained events unambiguous.
     $pdo->prepare("DELETE FROM nexa_outbox_event WHERE aggregate_id IN ({$placeholders})")->execute($testIds);
     $pdo->prepare("DELETE FROM account WHERE id IN ({$placeholders})")->execute($testIds);
 };
