@@ -708,6 +708,36 @@
         "actionClassName": "Espo\\Custom\\Tools\\Segment\\Api\\GetExport"
     },
     {
+        "route": "/Nexa/campaigns/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/campaigns/preview",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostPreview"
+    },
+    {
+        "route": "/Nexa/campaigns",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostCampaign"
+    },
+    {
+        "route": "/Nexa/campaigns/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PutCampaign"
+    },
+    {
+        "route": "/Nexa/campaigns/:id/enroll",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostEnroll"
+    },
+    {
+        "route": "/Nexa/campaigns/:id/status",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostStatus"
+    },
+    {
         "route": "/Nexa/assets/workspace",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetWorkspace"

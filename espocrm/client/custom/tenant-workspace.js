@@ -76,7 +76,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
             label: 'Marketing',
             iconClass: 'fas fa-bullhorn',
             items: [
-                'Campaign',
+                ['nexa-campaigns', 'Campaigns', '#NexaCampaigns', 'fas fa-bullhorn'],
                 ['nexa-lists-segments', 'Lists & Segments', '#NexaSegments', 'fas fa-users'],
                 'EmailTemplate',
                 ['nexa-marketing-contacts', 'Marketing Contacts'],
