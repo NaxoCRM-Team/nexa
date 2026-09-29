@@ -6,7 +6,8 @@ define('custom:views/global-search/global-search', ['views/global-search/global-
         this.activeSuggestionIndex = -1;
         this.suggestionList = [];
         this.addHandler('input', 'input.global-search-input', 'onInput');
-        this.addHandler('click', '[data-suggestion-index]', 'onSuggestionClick');
+        this.addHandler('click', '[data-suggestion-index]', (event, target) =>
+            this.onSuggestionClick(event, target));
         this.addHandler('click', '[data-action="clearRecentSearches"]', 'clearRecentSearches');
     }
 
@@ -184,16 +185,41 @@ define('custom:views/global-search/global-search', ['views/global-search/global-
         this.inputElement.setAttribute('aria-activedescendant', `nexa-search-option-${this.activeSuggestionIndex}`);
     }
 
-    onSuggestionClick(event) {
-        const index = Number(event.currentTarget.dataset.suggestionIndex);
+    onSuggestionClick(event, target) {
+        const index = Number(target.dataset.suggestionIndex);
         this.activateSuggestion(this.suggestionList[index]);
     }
 
     activateSuggestion(suggestion) {
         if (!suggestion) return;
         if (suggestion.type === 'module') {
+            const moduleRoutes = {
+                Campaign: 'NexaCampaigns',
+            };
+            const destination = String(suggestion.url || '');
+            let route = destination.replace(/^#/, '');
+
+            if (!destination.startsWith('#')) {
+                try {
+                    const url = new URL(destination, window.location.href);
+                    route = url.hash ? url.hash.slice(1) :
+                        decodeURIComponent(url.pathname).match(/\/w\/[^/]+\/(.+)$/)?.[1] || '';
+                } catch (error) {
+                    route = '';
+                }
+            }
+
+            route = route.replace(/^\/+|\/+$/g, '');
+
             this.closeSuggestions();
-            window.location.href = suggestion.url;
+            this.inputElement.value = '';
+
+            if (!route) return;
+
+            const [scope, ...suffix] = route.split('/');
+            const resolvedRoute = [moduleRoutes[scope] || scope, ...suffix].join('/');
+
+            this.getRouter().navigate(resolvedRoute, {trigger: true});
             return;
         }
         this.inputElement.value = suggestion.label;

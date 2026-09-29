@@ -16,7 +16,7 @@ define('custom:product-surface-registry', [], () => {
             'Document', 'Template',
         ]},
         {name: 'nexa-marketing', label: 'Marketing', iconClass: 'fas fa-bullhorn', items: [
-            ['nexa-campaigns', 'Campaigns', '#NexaCampaigns', 'fas fa-bullhorn'], ['nexa-lists-segments', 'Lists & Segments', '#NexaSegments', 'fas fa-users'], 'EmailTemplate',
+            ['Campaign', 'Campaigns', '#NexaCampaigns', 'fas fa-bullhorn'], ['nexa-lists-segments', 'Lists & Segments', '#NexaSegments', 'fas fa-users'], 'EmailTemplate',
             ['nexa-marketing-contacts', 'Marketing Contacts'],
             ['nexa-marketing-email', 'Marketing Email'],
             ['nexa-forms', 'Forms', '#NexaForms', 'fas fa-file-alt'],

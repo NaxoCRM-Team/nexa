@@ -168,13 +168,21 @@
 }
 
 @media (max-width: 767px) {
+    body.nexa-side-navigation #navbar {
+        z-index: 1300;
+    }
+
     body.nexa-side-navigation #navbar .navbar-body.in .global-search-container {
         position: relative;
+        z-index: 1301;
     }
 
     .nexa-search-suggestion-panel {
+        left: 0;
         max-height: min(55dvh, 420px);
-        top: calc(100% + 5px);
+        position: fixed;
+        right: 0;
+        top: calc(var(--nexa-header-height, 58px) + 28px);
     }
 
     #global-search-panel {

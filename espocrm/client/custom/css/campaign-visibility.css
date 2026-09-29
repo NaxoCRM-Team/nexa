@@ -1,0 +1,6 @@
+.nexa-campaign-workspace [hidden],
+.nexa-campaign-editor[hidden],
+.nexa-campaign-empty[hidden],
+.nexa-campaign-state[hidden] {
+    display: none !important;
+}
