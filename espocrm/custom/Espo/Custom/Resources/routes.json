@@ -713,6 +713,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetWorkspace"
     },
     {
+        "route": "/Nexa/events",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostEvent"
+    },
+    {
         "route": "/Nexa/assets",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PostAsset"

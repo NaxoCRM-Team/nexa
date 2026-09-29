@@ -62,7 +62,10 @@ $required = @(
     'database/shared/migrations/0050_add_landing_page_governance.sql',
     'database/shared/migrations/0051_add_segment_governance.sql',
     'database/shared/migrations/0052_expand_segment_builder.sql',
+    'database/shared/migrations/0053_add_behavior_event_foundation.sql',
+    'database/shared/migrations/0054_harden_phase4_public_surfaces.sql',
     'docs/architecture/phase-4-native-capability-audit.md',
+    'docs/development/phase-4-exit-gate.md',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
     'espocrm/custom/Espo/Custom/Tools/Currency/Api/PostRatePreview.php',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
@@ -105,6 +108,9 @@ $required = @(
     'tests/workflows/CookieConsentContractTest.php', 'tests/tenant/TenantCookieConsentTest.php',
     'tests/workflows/FormWorkspaceContractTest.php', 'tests/tenant/TenantFormWorkspaceTest.php',
     'tests/workflows/SegmentWorkspaceContractTest.php', 'tests/tenant/TenantSegmentWorkspaceTest.php',
+    'tests/workflows/Phase4SecurityContractTest.php', 'tests/tenant/TenantPhase4SecurityTest.php',
+    'tests/workflows/Phase4AcceptanceContractTest.php',
+    'tests/workflows/BehaviorEventContractTest.php', 'tests/tenant/TenantBehaviorEventTest.php',
     'tests/workflows/AssetWorkspaceContractTest.php', 'tests/tenant/TenantAssetWorkspaceTest.php',
     'tests/workflows/LandingPageWorkspaceContractTest.php', 'tests/tenant/TenantLandingPageWorkspaceTest.php',
     'tests/tenant/TenantLandingPageTemplateCatalogTest.php',
@@ -114,6 +120,7 @@ $required = @(
     'tests/browser/live-asset-workspace.spec.js',
     'tests/browser/live-landing-page-workspace.spec.js',
     'tests/development/Phase3MigrationReplayTest.ps1', 'scripts/dev/verify-phase-3.ps1',
+    'tests/development/Phase4MigrationReplayTest.ps1', 'scripts/dev/verify-phase-4.ps1',
     'tests/browser/fixtures/sales-workspace.html',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
     'espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json',
@@ -170,6 +177,7 @@ foreach ($file in $jsonFiles) {
 
 $powerShellFiles = Get-ChildItem -LiteralPath (Join-Path $root 'scripts\dev') -Filter '*.ps1' -File
 $powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase3MigrationReplayTest.ps1')
+$powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase4MigrationReplayTest.ps1')
 foreach ($file in $powerShellFiles) {
     $tokens = $null
     $parseErrors = $null
@@ -271,6 +279,13 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\FormWorkspa
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantFormWorkspaceTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\SegmentWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantSegmentWorkspaceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\Phase4SecurityContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantPhase4SecurityTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\Phase4AcceptanceContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\PublicAccess\PublicRateLimitExceeded.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\PublicAccess\PublicRequestLimiter.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\BehaviorEventContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Jobs\RecalculateDynamicSegments.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
@@ -366,6 +381,12 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Forms workspace contract suite' } else { Fail 'Forms workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\SegmentWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Lists and segments workspace contract suite' } else { Fail 'Lists and segments workspace contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\Phase4SecurityContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Phase 4 public security contract suite' } else { Fail 'Phase 4 public security contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\Phase4AcceptanceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Phase 4 acceptance contract suite' } else { Fail 'Phase 4 acceptance contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\BehaviorEventContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Behavior event contract suite' } else { Fail 'Behavior event contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
@@ -395,6 +416,10 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Forms workspace runtime suite' } else { Fail 'Two-tenant Forms workspace runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantSegmentWorkspaceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Lists and Segments runtime suite' } else { Fail 'Two-tenant Lists and Segments runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantPhase4SecurityTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior event runtime suite' } else { Fail 'Two-tenant behavior event runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Asset workspace runtime suite' } else { Fail 'Two-tenant Asset workspace runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantLandingPageWorkspaceTest.php')
@@ -445,7 +470,7 @@ foreach ($name in $migrationNames) {
 }
 
 if (-not $Ci -and (Get-Command docker -ErrorAction SilentlyContinue)) {
-    & docker compose --project-directory $root config --quiet
+    & docker compose --env-file (Join-Path $root '.env.example') --project-directory $root config --quiet
     if ($LASTEXITCODE -eq 0) { Pass 'Compose configuration' } else { Fail 'Compose configuration is invalid' }
 }
 

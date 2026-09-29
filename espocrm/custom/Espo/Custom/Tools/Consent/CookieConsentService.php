@@ -10,6 +10,7 @@ use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Utils\Config;
 use Espo\Entities\User;
+use Espo\Custom\Tools\PublicAccess\PublicRequestLimiter;
 use PDO;
 use stdClass;
 
@@ -21,6 +22,7 @@ final class CookieConsentService
         private User $user,
         private Acl $acl,
         private Config $config,
+        private PublicRequestLimiter $publicRequestLimiter,
     ) {}
 
     /** @return array<string, mixed> */
@@ -144,6 +146,13 @@ final class CookieConsentService
     public function getPublicConfig(string $publicKey, ?string $regionCode = null): array
     {
         $banner = $this->publicBanner($publicKey);
+        $this->publicRequestLimiter->enforce(
+            (string) $banner['tenant_id'],
+            (string) $banner['service_id'],
+            'cookie-config:' . (string) $banner['id'],
+            600,
+            300,
+        );
         $payload = $this->bannerPayload(new TenantContext($banner['tenant_id'], 'public', 'cookie-public', '', $banner['service_id']), $banner, false);
         $regionCode = strtoupper(substr(trim((string) $regionCode), 0, 3));
         $payload['regionCode'] = $regionCode ?: null;
@@ -156,6 +165,13 @@ final class CookieConsentService
     {
         $publicKey = trim((string) ($data->publicKey ?? ''));
         $banner = $this->publicBanner($publicKey);
+        $this->publicRequestLimiter->enforce(
+            (string) $banner['tenant_id'],
+            (string) $banner['service_id'],
+            'cookie-receipt:' . (string) $banner['id'],
+            60,
+            600,
+        );
         $receiptKey = $this->uuidValue($data->receiptKey ?? null, 'receipt');
         $visitorId = $this->uuidValue($data->visitorId ?? null, 'visitor');
         $choice = strtolower(trim((string) ($data->choice ?? '')));

@@ -454,6 +454,24 @@
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_visitor_identity",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_behavior_event",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_public_rate_limit",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
                    }
                ],
     "espoCoreConversion":  {

@@ -31,16 +31,23 @@ test('Landing page templates and builder remain responsive',async({page})=>{
     await canvasHeading.fill('A tailored demo for modern teams');
     await canvasHeading.press('Tab');
     await expect(page.locator('[data-block-settings] [name="heading"]')).toHaveValue('A tailored demo for modern teams');
+    await page.locator('[data-settings-tab="page"]').click();
+    await page.locator('[data-page-settings] [name="name"]').fill('Browser preview page');
+    await expect(page.locator('[data-page-settings] [name="slug"]')).toHaveValue('browser-preview-page');
     const formSelect=page.locator('[data-block-settings] [name="formId"]');
     await page.locator('.nexa-preview-block.is-form').click();
     if(await formSelect.locator('option').count()>1)await formSelect.selectOption({index:1});
-    await page.locator('[data-page-settings] [name="name"]').fill('Browser preview page');
-    await expect(page.locator('[data-page-settings] [name="slug"]')).toHaveValue('browser-preview-page');
     await page.getByRole('button',{name:'Preview'}).click();
     await expect(dialog).toBeVisible();
     const previewFrame=dialog.locator('[data-preview-frame]');
     await expect(previewFrame.contentFrame().locator('a[href="#demo-form"]')).toHaveCount(2);
-    if(await formSelect.locator('option').count()>1)await expect(previewFrame.contentFrame().locator('iframe[src*="LeadCaptureForm"]')).toBeVisible();
+    expect(errors).toEqual([]);
+    if(await formSelect.locator('option').count()>1){
+        await previewFrame.contentFrame().locator('[data-nexa-form-open]').first().click();
+        await expect(previewFrame.contentFrame().locator('[data-nexa-form-dialog][open]')).toBeVisible();
+        await expect(previewFrame.contentFrame().locator('iframe[src*="LeadCaptureForm"]')).toBeVisible();
+        await previewFrame.contentFrame().locator('[data-nexa-form-close]').click();
+    }
     const box=await dialog.boundingBox(); const viewport=page.viewportSize();
     expect(Math.abs(box.x+box.width/2-viewport.width/2)).toBeLessThan(4);
     await dialog.getByRole('button',{name:'Close'}).click();
