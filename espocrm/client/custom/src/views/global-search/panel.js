@@ -5,6 +5,27 @@ define('custom:views/global-search/panel', ['views/global-search/panel'], BaseVi
         super.setup();
         this.query = this.options.query || '';
         this.addHandler('click', '[data-action="retrySearch"]', () => this.loadResults());
+        this.addHandler('click', '.list-container a[href]', (event, target) =>
+            this.navigateToResult(event, target));
+    }
+
+    navigateToResult(event, target) {
+        const href = target.getAttribute('href');
+
+        if (!href || href === '#') return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const route = href.startsWith('#') ? href.slice(1) : null;
+        this.close();
+
+        if (route) {
+            this.getRouter().navigate(route, {trigger: true});
+            return;
+        }
+
+        window.location.assign(href);
     }
 
     data() {
