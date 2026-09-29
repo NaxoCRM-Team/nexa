@@ -25,4 +25,4 @@ Phase 4 extends EspoCRM where its existing model is suitable. Nexa adds a custom
 
 ## Excluded From This Workstream
 
-Campaign management and marketing email are owned by the parallel Phase 4 workstream. Consent and audience APIs expose stable boundaries for that work, but do not duplicate its editors, delivery engine or analytics.
+Campaign management retains native Campaign records, target-list relationships, tracking URLs, permissions and statistics. Nexa adds versioned definitions, consent-aware audience previews, explainable suppression and governed enrollment. Marketing email delivery, provider processing and analytics remain owned by M10 and later phases; Phase 4 does not duplicate that delivery engine.

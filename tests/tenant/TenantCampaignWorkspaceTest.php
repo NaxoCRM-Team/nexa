@@ -1,0 +1,55 @@
+<?php
+declare(strict_types=1);
+$root = dirname(__DIR__, 2);
+require $root . '/espocrm/bootstrap.php';
+use Espo\Core\Application;
+use Espo\Core\InjectableFactory;
+use Espo\Core\ORM\EntityManager;
+use Espo\Core\Record\CreateParams;
+use Espo\Core\Record\ServiceContainer;
+use Espo\Core\Tenant\TenantContext;
+use Espo\Core\Tenant\TenantContextStore;
+use Espo\Custom\Tools\Campaign\CampaignWorkspaceService;
+use Espo\Custom\Tools\Consent\ConsentService;
+use Espo\Custom\Tools\Segment\SegmentWorkspaceService;
+
+$assert = static function (bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); };
+$tenantA = new TenantContext('30000000-0000-4000-8000-000000000001', 'isolation-alpha', 'tenant-campaign-test');
+$tenantB = new TenantContext('30000000-0000-4000-8000-000000000002', 'isolation-beta', 'tenant-campaign-test');
+$application = new Application(); $application->setupSystemUser(); $container = $application->getContainer();
+$entityManager = $container->getByClass(EntityManager::class); $store = $container->getByClass(TenantContextStore::class); $factory = $container->getByClass(InjectableFactory::class); $services = $container->getByClass(ServiceContainer::class); $pdo = $entityManager->getPDO(); $transactions = $entityManager->getTransactionManager();
+$transactions->start();
+try {
+    $contactA = $store->runWith($tenantA, fn () => $services->get('Contact')->create((object) ['firstName'=>'Alpha','lastName'=>'Campaign','emailAddress'=>'alpha-campaign@example.test','addressCountry'=>'Campaign Test','marketingStatus'=>'Marketing'], CreateParams::create()));
+    $contactB = $store->runWith($tenantB, fn () => $services->get('Contact')->create((object) ['firstName'=>'Beta','lastName'=>'Campaign','emailAddress'=>'beta-campaign@example.test','addressCountry'=>'Campaign Test','marketingStatus'=>'Marketing'], CreateParams::create()));
+    $marketable = $pdo->prepare("UPDATE contact SET marketing_status='Marketing' WHERE id=? AND tenant_id=? AND service_id=?");
+    $marketable->execute([$contactA->getId(), $tenantA->tenantId, $tenantA->serviceId]);
+    $marketable->execute([$contactB->getId(), $tenantB->tenantId, $tenantB->serviceId]);
+    $consentWorkspace = $store->runWith($tenantA, fn (): array => $factory->create(ConsentService::class)->getWorkspace());
+    $marketingPurposes = array_values(array_filter($consentWorkspace['purposes'], static fn (array $item): bool => $item['purposeKey'] === 'marketing_communications'));
+    $assert(count($marketingPurposes) === 1, 'The default marketing communications purpose is missing.');
+    $purposeId = (string) $marketingPurposes[0]['id'];
+    $store->runWith($tenantA, fn (): array => $factory->create(ConsentService::class)->recordDecision((object) ['contactId'=>$contactA->getId(),'purposeId'=>$purposeId,'channel'=>'email','status'=>'granted','source'=>'manual','legalBasis'=>'FreelyGivenConsent','evidenceNote'=>'Tenant campaign acceptance test.']));
+    $segment = $store->runWith($tenantA, fn (): array => $factory->create(SegmentWorkspaceService::class)->save((object) ['name'=>'Campaign test audience','type'=>'dynamic','matchMode'=>'all','rules'=>[(object) ['field'=>'country','operator'=>'equals','value'=>'Campaign Test']]]));
+    $campaign = $store->runWith($tenantA, fn (): array => $factory->create(CampaignWorkspaceService::class)->save((object) ['name'=>'Consent-aware test campaign','type'=>'Email','channel'=>'email','purposeId'=>$purposeId,'audienceIds'=>[$segment['id']],'exclusionIds'=>[],'enrollmentMode'=>'continuous']));
+    $campaignId = (string) $campaign['id'];
+    $result = $store->runWith($tenantA, fn (): array => $factory->create(CampaignWorkspaceService::class)->enroll($campaignId));
+    $assert($result['matchedCount'] === 1 && $result['eligibleCount'] === 1 && $result['suppressedCount'] === 0, 'The granted Tenant A contact was not enrolled as eligible: ' . json_encode($result));
+    $enrollment = $pdo->prepare('SELECT tenant_id,service_id,contact_id,status FROM nexa_campaign_enrollment WHERE campaign_id=?'); $enrollment->execute([$campaignId]); $row = $enrollment->fetch(PDO::FETCH_ASSOC);
+    $assert($row && $row['tenant_id'] === $tenantA->tenantId && $row['service_id'] === $tenantA->serviceId && $row['contact_id'] === $contactA->getId() && $row['status'] === 'enrolled', 'Campaign enrollment lacks the correct tenant, service or contact.');
+    $assert($row['contact_id'] !== $contactB->getId(), 'Tenant B contact leaked into Tenant A campaign enrollment.');
+    $workspaceB = $store->runWith($tenantB, fn (): array => $factory->create(CampaignWorkspaceService::class)->getWorkspace());
+    $assert(count(array_filter($workspaceB['campaigns'], static fn (array $item): bool => $item['id'] === $campaignId)) === 0, 'Tenant B can see Tenant A campaign.');
+    $rerun = $store->runWith($tenantA, fn (): array => $factory->create(CampaignWorkspaceService::class)->enroll($campaignId));
+    $assert($rerun['eligibleCount'] === 1, 'Campaign re-evaluation changed a stable eligible audience.');
+    $count = $pdo->prepare('SELECT COUNT(*) FROM nexa_campaign_enrollment WHERE tenant_id=? AND service_id=? AND campaign_id=? AND contact_id=?'); $count->execute([$tenantA->tenantId,$tenantA->serviceId,$campaignId,$contactA->getId()]);
+    $assert((int) $count->fetchColumn() === 1, 'Campaign re-evaluation duplicated the contact enrollment.');
+    $move = $pdo->prepare("UPDATE contact SET address_country='Different Campaign Country' WHERE id=? AND tenant_id=? AND service_id=?"); $move->execute([$contactA->getId(),$tenantA->tenantId,$tenantA->serviceId]);
+    $store->runWith($tenantA, fn (): array => $factory->create(SegmentWorkspaceService::class)->recalculate((string) $segment['id']));
+    $store->runWith($tenantA, fn () => $factory->create(CampaignWorkspaceService::class)->recalculateContinuous());
+    $status = $pdo->prepare('SELECT status,reason_code FROM nexa_campaign_enrollment WHERE tenant_id=? AND service_id=? AND campaign_id=? AND contact_id=?'); $status->execute([$tenantA->tenantId,$tenantA->serviceId,$campaignId,$contactA->getId()]); $exitRow = $status->fetch(PDO::FETCH_ASSOC);
+    $assert($exitRow && $exitRow['status'] === 'exited' && $exitRow['reason_code'] === 'left_audience', 'A contact leaving a continuous campaign audience was not exited.');
+    $event = $pdo->prepare("SELECT COUNT(*) FROM nexa_campaign_event WHERE tenant_id=? AND service_id=? AND campaign_id=? AND contact_id=? AND event_type='contact_exited'"); $event->execute([$tenantA->tenantId,$tenantA->serviceId,$campaignId,$contactA->getId()]);
+    $assert((int) $event->fetchColumn() === 1, 'Continuous campaign exit was not recorded in immutable history.');
+    echo "Tenant Campaign workspace tests passed.\n";
+} finally { $transactions->rollback(); }

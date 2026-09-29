@@ -468,6 +468,30 @@
                        "serviceScope":  "required"
                    },
                    {
+                       "name":  "nexa_campaign_profile",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_campaign_version",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_campaign_enrollment",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_campaign_event",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
                        "name":  "nexa_public_rate_limit",
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",

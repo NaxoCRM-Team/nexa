@@ -50,13 +50,14 @@ try {
         'tests\tenant\TenantAssetWorkspaceTest.php',
         'tests\tenant\TenantLandingPageWorkspaceTest.php',
         'tests\tenant\TenantSegmentWorkspaceTest.php',
+        'tests\tenant\TenantCampaignWorkspaceTest.php',
         'tests\tenant\TenantBehaviorEventTest.php',
         'tests\tenant\TenantPhase4SecurityTest.php'
     )) { Invoke-Checked $PhpPath @((Join-Path $root $suite)) }
 
     if (-not $SkipBrowser) {
         Write-Host 'Live Phase 4 browser tests require NEXA_LIVE_URL, NEXA_LIVE_USERNAME and NEXA_LIVE_PASSWORD.' -ForegroundColor Yellow
-        Invoke-Checked 'npx' @('playwright', 'test', 'tests/browser/live-asset-workspace.spec.js', 'tests/browser/live-consent-workspace.spec.js', 'tests/browser/live-form-workspace.spec.js', 'tests/browser/live-landing-page-workspace.spec.js', 'tests/browser/live-segment-workspace.spec.js', '--project=desktop', '--project=mobile', '--workers=1')
+        Invoke-Checked 'npx' @('playwright', 'test', 'tests/browser/live-asset-workspace.spec.js', 'tests/browser/live-consent-workspace.spec.js', 'tests/browser/live-form-workspace.spec.js', 'tests/browser/live-landing-page-workspace.spec.js', 'tests/browser/live-segment-workspace.spec.js', 'tests/browser/live-campaign-workspace.spec.js', '--project=desktop', '--project=mobile', '--workers=1')
     }
 
     Write-Host 'Phase 4 workstream exit gate passed.' -ForegroundColor Green

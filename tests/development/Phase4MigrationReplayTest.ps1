@@ -69,7 +69,8 @@ try {
         'nexa_landing_page', 'nexa_landing_page_version', 'nexa_landing_page_event',
         'nexa_segment_definition', 'nexa_segment_version', 'nexa_segment_run',
         'nexa_segment_membership_event', 'nexa_visitor_identity', 'nexa_behavior_event',
-        'nexa_public_rate_limit'
+        'nexa_public_rate_limit', 'nexa_campaign_profile', 'nexa_campaign_version',
+        'nexa_campaign_enrollment', 'nexa_campaign_event'
     )
 
     Invoke-SqlFile (Get-Item -LiteralPath $baseSchema) $cleanDatabase
