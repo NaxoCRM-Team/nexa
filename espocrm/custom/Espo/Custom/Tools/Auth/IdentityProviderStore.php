@@ -33,7 +33,12 @@ final class IdentityProviderStore
             throw new RuntimeException('Identity provider is unavailable.');
         }
 
-        $provider['client_secret'] = $this->secretCipher->decrypt($provider['encrypted_client_secret']);
+        $provider['client_secret'] = $this->secretCipher->decryptFor(
+            $provider['encrypted_client_secret'],
+            (string) $provider['tenant_id'],
+            \Espo\Core\Tenant\TenantContext::CRM_SERVICE_ID,
+            'identity-provider:' . (string) $provider['id'],
+        );
         $provider['allowed_email_domains'] = $this->jsonList($provider['allowed_email_domains']);
         $provider['attribute_mapping'] = $this->jsonMap($provider['attribute_mapping']);
 

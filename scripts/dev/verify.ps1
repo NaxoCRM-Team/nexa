@@ -65,6 +65,10 @@ $required = @(
     'database/shared/migrations/0053_add_behavior_event_foundation.sql',
     'database/shared/migrations/0054_harden_phase4_public_surfaces.sql',
     'database/shared/migrations/0055_add_campaign_enrollment_governance.sql',
+    'database/shared/migrations/0056_add_security_governance.sql',
+    'docs/operations/security-governance.md',
+    'tests/auth/Sprint6SecurityGovernanceTest.php',
+    'espocrm/bin/rotate-managed-secrets.php',
     'docs/architecture/phase-4-native-capability-audit.md',
     'docs/development/phase-4-exit-gate.md',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
@@ -234,7 +238,9 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\OR
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\install\core\Installer.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\bin\provision-demo-tenants.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\bin\configure-identity-provider.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\bin\rotate-managed-secrets.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\auth\IdentitySecurityTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\auth\Sprint6SecurityGovernanceTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\EntryPoints\ChangePassword.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\install-development-seeds.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\verify-local-install.php')
@@ -336,6 +342,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Portable subfolder suite' } else { Fail 'Portable subfolder suite failed.' }
     & php (Join-Path $root 'tests\auth\IdentitySecurityTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Identity security contract suite' } else { Fail 'Identity security contract suite failed.' }
+    & php (Join-Path $root 'tests\auth\Sprint6SecurityGovernanceTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Sprint 06 security governance suite' } else { Fail 'Sprint 06 security governance suite failed.' }
     & php (Join-Path $root 'tests\dashboard\TenantDashboardTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant dashboard contract suite' } else { Fail 'Tenant dashboard contract suite failed.' }
     & php (Join-Path $root 'tests\search\GlobalSearchTenantTest.php')

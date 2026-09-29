@@ -81,7 +81,12 @@ try {
         'display_name' => required($options, 'name'),
         'issuer' => required($options, 'issuer'),
         'client_id' => $options['client-id'] ?? null,
-        'encrypted_client_secret' => $secret !== '' ? $cipher->encrypt($secret) : null,
+        'encrypted_client_secret' => $secret !== '' ? $cipher->encryptFor(
+            $secret,
+            $tenantId,
+            \Espo\Core\Tenant\TenantContext::CRM_SERVICE_ID,
+            'identity-provider:' . $id,
+        ) : null,
         'secret_key_version' => $secret !== '' ? 1 : null,
         'authorization_endpoint' => $options['authorization-endpoint'] ?? null,
         'token_endpoint' => $options['token-endpoint'] ?? null,

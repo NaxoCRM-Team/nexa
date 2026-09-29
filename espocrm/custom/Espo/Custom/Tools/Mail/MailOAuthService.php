@@ -106,10 +106,11 @@ final class MailOAuthService
         $this->assertProvider($provider);
         $pdo = $this->entityManager->getPDO();
 
-        $attemptId = $this->lockPendingAttempt($pdo, $provider, $state);
-        if ($attemptId === null) {
+        $attempt = $this->lockPendingAttempt($pdo, $provider, $state);
+        if ($attempt === null) {
             return;
         }
+        $attemptId = (string) $attempt['id'];
 
         if ($errorParam !== null && $errorParam !== '') {
             $this->failAttempt($pdo, $attemptId, 'provider_denied');
@@ -140,8 +141,8 @@ final class MailOAuthService
                 'WHERE id = ?'
             )->execute([
                 $email,
-                $this->cipher->encrypt($token['accessToken']),
-                $this->cipher->encrypt($token['refreshToken']),
+                $this->cipher->encryptFor($token['accessToken'], (string) $attempt['tenant_id'], self::CRM_SERVICE_ID, 'mailbox-oauth:access'),
+                $this->cipher->encryptFor($token['refreshToken'], (string) $attempt['tenant_id'], self::CRM_SERVICE_ID, 'mailbox-oauth:refresh'),
                 $token['expiresAt']->format('Y-m-d H:i:s.u'),
                 $token['grantedScope'],
                 $attemptId,
@@ -334,16 +335,30 @@ final class MailOAuthService
             throw new RuntimeException('This mailbox is no longer connected. Please reconnect it.');
         }
 
-        $accessToken = $this->cipher->decrypt($row['access_token_encrypted']);
+        $accessToken = $this->cipher->decryptFor(
+            $row['access_token_encrypted'],
+            (string) $row['tenant_id'],
+            (string) $row['service_id'],
+            'mailbox-oauth:access',
+        );
         $expiresAt = new DateTimeImmutable($row['expires_at']);
 
         if ($expiresAt <= (new DateTimeImmutable())->modify('+2 minutes')) {
-            $refreshToken = $this->cipher->decrypt($row['refresh_token_encrypted']);
+            $refreshToken = $this->cipher->decryptFor(
+                $row['refresh_token_encrypted'],
+                (string) $row['tenant_id'],
+                (string) $row['service_id'],
+                'mailbox-oauth:refresh',
+            );
             $refreshed = $this->refreshAccessToken((string) $row['provider'], $refreshToken);
             $accessToken = $refreshed['accessToken'];
 
             $pdo->prepare('UPDATE nexa_mailbox_oauth_token SET access_token_encrypted = ?, expires_at = ? WHERE id = ?')
-                ->execute([$this->cipher->encrypt($accessToken), $refreshed['expiresAt']->format('Y-m-d H:i:s.u'), $row['id']]);
+                ->execute([
+                    $this->cipher->encryptFor($accessToken, (string) $row['tenant_id'], (string) $row['service_id'], 'mailbox-oauth:access'),
+                    $refreshed['expiresAt']->format('Y-m-d H:i:s.u'),
+                    $row['id'],
+                ]);
         }
 
         return [
@@ -353,10 +368,11 @@ final class MailOAuthService
         ];
     }
 
-    private function lockPendingAttempt(PDO $pdo, string $provider, string $state): ?string
+    /** @return null|array{id:string,tenant_id:string,expires_at:string} */
+    private function lockPendingAttempt(PDO $pdo, string $provider, string $state): ?array
     {
         $statement = $pdo->prepare(
-            'SELECT id, expires_at FROM nexa_mailbox_oauth_attempt WHERE provider = ? AND state_hash = ? AND consumed_at IS NULL LIMIT 1'
+            'SELECT id, tenant_id, expires_at FROM nexa_mailbox_oauth_attempt WHERE provider = ? AND state_hash = ? AND consumed_at IS NULL LIMIT 1'
         );
         $statement->execute([$provider, hash('sha256', $state)]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
@@ -365,7 +381,11 @@ final class MailOAuthService
             return null;
         }
 
-        return (string) $row['id'];
+        return [
+            'id' => (string) $row['id'],
+            'tenant_id' => (string) $row['tenant_id'],
+            'expires_at' => (string) $row['expires_at'],
+        ];
     }
 
     private function failAttempt(PDO $pdo, string $attemptId, string $reason): void

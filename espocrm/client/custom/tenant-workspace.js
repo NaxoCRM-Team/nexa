@@ -1,6 +1,57 @@
 define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-surface-registry'], (NavbarView, productSurfaceRegistry) => {
     const defaultData = NavbarView.prototype.data;
     const defaultAfterRender = NavbarView.prototype.afterRender;
+    const encodeSessionHandoff = payload => btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const ensureImpersonationBanner = view => {
+        const session = view.getHelper().getAppParam('nexaImpersonation');
+        document.querySelectorAll('.nexa-impersonation-banner').forEach(element => element.remove());
+        document.body.classList.toggle('nexa-is-impersonating', Boolean(session));
+
+        if (!session) return;
+
+        const banner = document.createElement('aside');
+        const expiresAt = new Date(String(session.expiresAt).replace(' ', 'T') + 'Z');
+        banner.className = 'nexa-impersonation-banner';
+        banner.setAttribute('role', 'alert');
+        banner.innerHTML = `<span class="fas fa-user-shield" aria-hidden="true"></span><strong>Impersonation active</strong><span data-session-copy></span><button type="button" class="btn btn-sm" data-exit-impersonation><span class="fas fa-sign-out-alt" aria-hidden="true"></span>Exit</button>`;
+        document.body.prepend(banner);
+
+        const copy = banner.querySelector('[data-session-copy]');
+        const exitButton = banner.querySelector('[data-exit-impersonation]');
+        let exiting = false;
+        const exit = () => {
+            if (exiting) return;
+            exiting = true;
+            exitButton.disabled = true;
+            exitButton.lastChild.textContent = ' Exiting...';
+            Espo.Ajax.postRequest('Nexa/security/impersonation/exit', {})
+                .then(data => {
+                    const payload = encodeSessionHandoff({userName: data.userName, token: data.token, provider: 'operator'});
+                    const root = location.pathname.split('/w/')[0].replace(/\/$/, '');
+                    location.assign(`${root}/login/#nexa-social=${payload}`);
+                })
+                .catch(() => {
+                    exiting = false;
+                    exitButton.disabled = false;
+                    exitButton.lastChild.textContent = ' Exit';
+                    Espo.Ui.error('The operator session could not be restored. Please sign in again.');
+                });
+        };
+        const tick = () => {
+            const remaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+            const minutes = Math.floor(remaining / 60);
+            const seconds = String(remaining % 60).padStart(2, '0');
+            copy.textContent = `${session.operatorName} is viewing this workspace. ${minutes}:${seconds} remaining.`;
+            if (remaining <= 5) exit();
+        };
+        tick();
+        const timer = window.setInterval(() => {
+            if (!document.body.contains(banner)) return window.clearInterval(timer);
+            tick();
+        }, 1000);
+        exitButton.addEventListener('click', exit);
+    };
     const updateCurrentYear = () => {
         const year = String(new Date().getFullYear());
         document.querySelectorAll('[data-nexa-current-year]').forEach(element => {
@@ -525,6 +576,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
                 });
 
             const tenant = this.getHelper().getAppParam('nexaTenant');
+            ensureImpersonationBanner(this);
             const container = this.element?.querySelector('.navbar-right-container');
             const rightList = container?.querySelector('.navbar-right');
             const mobileHeader = this.element?.querySelector('.navbar-header');

@@ -1,5 +1,35 @@
 [
     {
+        "route": "/Nexa/security/impersonation/request",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\PostImpersonationRequest"
+    },
+    {
+        "route": "/Nexa/security/impersonation/:id/approve",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\PostImpersonationApprove"
+    },
+    {
+        "route": "/Nexa/security/impersonation/:id/start",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\PostImpersonationStart"
+    },
+    {
+        "route": "/Nexa/security/impersonation/exit",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\PostImpersonationExit"
+    },
+    {
+        "route": "/Nexa/security/audit",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\GetSecurityAudit"
+    },
+    {
+        "route": "/Nexa/security/audit/verify",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\GetSecurityAuditVerify"
+    },
+    {
         "route":  "/Nexa/signup",
         "method":  "post",
         "actionClassName":  "Espo\\Custom\\Tools\\Signup\\Api\\PostSignup",

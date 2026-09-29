@@ -310,10 +310,14 @@ require(['views/login', 'views/user/password-change-request', 'app', 'backbone']
                     .padEnd(Math.ceil(socialPayload.length / 4) * 4, '=');
                 const social = JSON.parse(decodeURIComponent(escape(atob(padded))));
                 const authorization = btoa(social.userName + ':' + social.token);
-                const providerLabel = social.provider === 'microsoft' ? 'Microsoft' : 'Google';
+                const providerLabel = social.provider === 'operator'
+                    ? 'operator'
+                    : social.provider === 'microsoft' ? 'Microsoft' : 'Google';
                 socialConnectingPanel.hidden = false;
                 loginPanel.hidden = true;
-                socialConnectingMessage.textContent = `We are securely connecting your ${providerLabel} identity to the correct Nexa workspace.`;
+                socialConnectingMessage.textContent = social.provider === 'operator'
+                    ? 'We are securely restoring your platform operator session.'
+                    : `We are securely connecting your ${providerLabel} identity to the correct Nexa workspace.`;
                 this.disableForm();
                 Espo.Ajax.getRequest('App/user', null, {
                     login: true,
