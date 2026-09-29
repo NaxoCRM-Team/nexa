@@ -13,6 +13,7 @@ use Espo\Core\Utils\Config;
 use Espo\Core\Utils\Metadata;
 use Espo\Custom\Tools\Consent\ConsentService;
 use Espo\Entities\LeadCapture;
+use Espo\Custom\Tools\PublicAccess\PublicRequestLimiter;
 use PDO;
 use stdClass;
 
@@ -25,12 +26,20 @@ final class PublicFormRuntimeService
         private Metadata $metadata,
         private Config $config,
         private ConsentService $consentService,
+        private PublicRequestLimiter $publicRequestLimiter,
     ) {}
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
     public function enhance(LeadCapture $form, array $data, Request $request): array
     {
         $context = $this->tenantContextStore->require();
+        $this->publicRequestLimiter->enforce(
+            $context->tenantId,
+            $context->serviceId,
+            'form-view:' . $form->getId(),
+            300,
+            600,
+        );
         $configuration = $this->publishedConfiguration($context, $form->getId());
 
         if ($configuration === null) return $data;
@@ -88,6 +97,14 @@ final class PublicFormRuntimeService
     public function validateSubmission(LeadCapture $form, stdClass $data): void
     {
         $context = $this->tenantContextStore->require();
+        $this->publicRequestLimiter->enforce(
+            $context->tenantId,
+            $context->serviceId,
+            'form-submit:' . $form->getId(),
+            20,
+            600,
+            1800,
+        );
         $configuration = $this->publishedConfiguration($context, $form->getId());
 
         if ($configuration === null) return;

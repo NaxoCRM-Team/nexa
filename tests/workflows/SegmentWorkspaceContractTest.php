@@ -27,6 +27,7 @@ foreach (['/Nexa/segments/workspace', '/Nexa/segments/preview', '/Nexa/segments/
 }
 $assert(str_contains($service, "->get('TargetList')->create"), 'Segments must create the native Target List record.');
 $assert(str_contains($service, 'contact_target_list'), 'Segments must retain native Contact-to-Target-List membership.');
+$assert(str_contains($service, 'entity_phone_number') && str_contains($service, 'pn.name AS phone'), 'Segment export must reuse the native primary-phone relationship.');
 $assert(str_contains($service, 'tenant_id=?') && str_contains($service, 'service_id=?'), 'Segment queries must enforce tenant and service scope.');
 $assert(str_contains($service, 'nexa_consent_state') && str_contains($service, "marketing_status='Marketing'"), 'Audience eligibility must use governed consent and marketing status.');
 $assert(str_contains($service, 'nexa_segment_membership_event') && str_contains($service, "'entered'") && str_contains($service, "'exited'"), 'Dynamic membership changes must be explainable and auditable.');

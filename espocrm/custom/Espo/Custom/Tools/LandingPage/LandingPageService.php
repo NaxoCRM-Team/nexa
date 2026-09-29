@@ -11,6 +11,7 @@ use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Utils\Config;
 use Espo\Entities\Attachment;
 use Espo\Entities\User;
+use Espo\Custom\Tools\PublicAccess\PublicRequestLimiter;
 use PDO;
 use stdClass;
 
@@ -25,6 +26,7 @@ final class LandingPageService
         private TenantContextStore $tenantContextStore,
         private Config $config,
         private User $user,
+        private PublicRequestLimiter $publicRequestLimiter,
     ) {}
 
     /** @return array<string, mixed> */
@@ -91,6 +93,7 @@ final class LandingPageService
     public function publishedAsset(string $publicKey, string $slug, string $assetId): array
     {
         $published = $this->published($publicKey, $slug); $referenced = false;
+        $this->limitPublicRequest($published['page'], 'asset', 300, 600);
         foreach (($published['configuration']['blocks'] ?? []) as $block) if (($block['assetId'] ?? null) === $assetId) { $referenced = true; break; }
         if (!$referenced) throw new NotFound('Asset not found.'); $page = $published['page'];
         $statement = $this->entityManager->getPDO()->prepare("SELECT current_attachment_id FROM nexa_asset_profile WHERE id=? AND tenant_id=? AND service_id=? AND status='active' AND access_scope='public' LIMIT 1"); $statement->execute([$assetId, $page['tenant_id'], $page['service_id']]); $attachmentId = $statement->fetchColumn();
@@ -102,9 +105,22 @@ final class LandingPageService
     {
         if (!in_array($type, ['view', 'click'], true)) throw new BadRequest('Invalid landing page event.');
         $published = $this->published($publicKey, $slug); $page = $published['page'];
+        $this->limitPublicRequest($page, $type, $type === 'view' ? 300 : 120, 600);
         $eventKey = hash('sha256', implode('|', [$type, $page['id'], $target, microtime(true), bin2hex(random_bytes(8))]));
         $statement = $this->entityManager->getPDO()->prepare('INSERT INTO nexa_landing_page_event (id,tenant_id,service_id,landing_page_id,event_key,event_type,target_key,referrer,user_agent_hash,page_version) VALUES (?,?,?,?,?,?,?,?,?,?)');
         $statement->execute([$this->uuid(), $page['tenant_id'], $page['service_id'], $page['id'], $eventKey, $type, mb_substr(trim((string) $target), 0, 160) ?: null, $this->safeUrl($referrer), $userAgent ? hash('sha256', mb_substr($userAgent, 0, 1000)) : null, (int) $page['version_number']]);
+    }
+
+    public function signClickDestination(string $publicKey, string $slug, string $target, string $destination): string
+    {
+        return hash_hmac('sha256', implode('|', [$publicKey, $slug, $target, $destination]), $this->clickSecret());
+    }
+
+    public function verifyClickDestination(string $publicKey, string $slug, string $target, string $destination, string $signature): void
+    {
+        if ($signature === '' || !hash_equals($this->signClickDestination($publicKey, $slug, $target, $destination), $signature)) {
+            throw new BadRequest('The landing page destination is invalid.');
+        }
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -187,6 +203,9 @@ final class LandingPageService
     /** @return array<string, mixed> */
     private function requirePage(TenantContext $context, string $id, bool $archived = false): array { if (!preg_match('/^[a-f0-9-]{36}$/i', $id)) throw new BadRequest('Select a valid landing page.'); $statement = $this->entityManager->getPDO()->prepare('SELECT * FROM nexa_landing_page WHERE id=? AND tenant_id=? AND service_id=?' . ($archived ? '' : " AND status<>'archived'") . ' LIMIT 1'); $statement->execute([$id, $context->tenantId, $context->serviceId]); $row = $statement->fetch(PDO::FETCH_ASSOC); if (!$row) throw new NotFound('The landing page is unavailable.'); return $row; }
     private function publicUrl(string $key, string $slug): string { return rtrim((string) $this->config->get('siteUrl'), '/') . '/p/' . rawurlencode($key) . '/' . rawurlencode($slug); }
+    /** @param array<string, mixed> $page */
+    private function limitPublicRequest(array $page, string $operation, int $limit, int $windowSeconds): void { $this->publicRequestLimiter->enforce((string) $page['tenant_id'], (string) $page['service_id'], 'landing-' . $operation . ':' . (string) $page['id'], $limit, $windowSeconds); }
+    private function clickSecret(): string { $secret = (string) $this->config->get('hashSecretKey', ''); return $secret !== '' ? $secret : (string) $this->config->get('siteUrl', 'nexa'); }
     private function validSlug(string $slug): bool { return preg_match('/^[a-z0-9](?:[a-z0-9-]{0,158}[a-z0-9])?$/', $slug) === 1; }
     private function link(mixed $value): ?string { $value = trim((string) ($value ?? '')); if ($value === '') return null; if (preg_match('/^#[a-zA-Z][a-zA-Z0-9_-]{0,63}$/', $value) || str_starts_with($value, '/') || filter_var($value, FILTER_VALIDATE_URL) !== false) return mb_substr($value, 0, 1000); throw new BadRequest('Enter a valid button URL or section anchor.'); }
     private function safeUrl(mixed $value): ?string { $value = trim((string) ($value ?? '')); return $value !== '' && filter_var($value, FILTER_VALIDATE_URL) !== false ? mb_substr($value, 0, 1000) : null; }

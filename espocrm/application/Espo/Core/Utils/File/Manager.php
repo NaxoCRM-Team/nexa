@@ -366,7 +366,9 @@ class Manager
             return false;
         }
 
-        $result = rename($tmpPath, $path);
+        // Windows can briefly lock cache files while Apache or antivirus reads them.
+        // The retry loop handles that expected contention without polluting the app log.
+        $result = @rename($tmpPath, $path);
 
         if (!$result && stripos(\PHP_OS, 'WIN') === 0) {
             $result = $this->renameInLoop($tmpPath, $path);
@@ -388,7 +390,7 @@ class Manager
                 break;
             }
 
-            $result = rename($source, $destination);
+            $result = @rename($source, $destination);
 
             if ($result !== false) {
                 return true;
