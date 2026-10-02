@@ -486,6 +486,12 @@
                        "serviceScope":  "required"
                    },
                    {
+                       "name":  "nexa_behavior_event_replay",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
                        "name":  "nexa_campaign_profile",
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",

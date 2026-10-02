@@ -778,6 +778,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostEvent"
     },
     {
+        "route": "/Nexa/events/:id/replay",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostReplay"
+    },
+    {
         "route": "/Nexa/assets",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PostAsset"

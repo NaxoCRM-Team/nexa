@@ -116,7 +116,8 @@ $required = @(
     'tests/workflows/CampaignWorkspaceContractTest.php', 'tests/tenant/TenantCampaignWorkspaceTest.php',
     'tests/workflows/Phase4SecurityContractTest.php', 'tests/tenant/TenantPhase4SecurityTest.php',
     'tests/workflows/Phase4AcceptanceContractTest.php',
-    'tests/workflows/BehaviorEventContractTest.php', 'tests/tenant/TenantBehaviorEventTest.php',
+    'tests/workflows/BehaviorEventContractTest.php', 'tests/workflows/BehaviorEventValidationTest.php',
+    'tests/tenant/TenantBehaviorEventTest.php', 'tests/tenant/TenantBehaviorEventReplayTest.php',
     'tests/workflows/AssetWorkspaceContractTest.php', 'tests/tenant/TenantAssetWorkspaceTest.php',
     'tests/workflows/LandingPageWorkspaceContractTest.php', 'tests/tenant/TenantLandingPageWorkspaceTest.php',
     'tests/tenant/TenantLandingPageTemplateCatalogTest.php',
@@ -296,7 +297,9 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\Phase4Accep
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\PublicAccess\PublicRateLimitExceeded.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\PublicAccess\PublicRequestLimiter.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\BehaviorEventContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\BehaviorEventValidationTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorEventReplayTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Jobs\RecalculateDynamicSegments.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
@@ -402,6 +405,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Phase 4 acceptance contract suite' } else { Fail 'Phase 4 acceptance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\BehaviorEventContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Behavior event contract suite' } else { Fail 'Behavior event contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\BehaviorEventValidationTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Behavior event validation suite' } else { Fail 'Behavior event validation suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
@@ -437,6 +442,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior event runtime suite' } else { Fail 'Two-tenant behavior event runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantBehaviorEventReplayTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior event replay suite' } else { Fail 'Two-tenant behavior event replay suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Asset workspace runtime suite' } else { Fail 'Two-tenant Asset workspace runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantLandingPageWorkspaceTest.php')
