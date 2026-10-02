@@ -793,6 +793,21 @@
         "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostTrackingSource"
     },
     {
+        "route": "/Nexa/tracking/retention",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\GetEventRetention"
+    },
+    {
+        "route": "/Nexa/tracking/retention",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PutEventRetention"
+    },
+    {
+        "route": "/Nexa/tracking/retention/purge",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostEventRetentionPurge"
+    },
+    {
         "route": "/Nexa/tracking/sources/:id",
         "method": "put",
         "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PutTrackingSource"

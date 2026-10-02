@@ -20,9 +20,13 @@ Visitor identities created by the earlier foundation are upgraded from the legac
 
 The evidence reference is hashed before storage. An existing visitor link cannot be silently changed to another Contact. Cross-tenant Contact and Account identifiers are rejected by the central ownership check.
 
+When trusted evidence links a visitor to a Contact, Nexa atomically assigns all earlier events for that tenant, service and visitor to the Contact. The Contact's current Account is inherited when available, and matching rows are projected into the canonical customer timeline without duplication. Future events from the same visitor inherit the verified Contact automatically; the same raw visitor key in another tenant or service remains unrelated.
+
+Website-category events reconcile the Contact's latest website visit. The Contact Activity tab reads the canonical timeline through the native record ACL boundary and displays page, landing page, link, form, content, webinar, purchase, email-reply and custom behavior in chronological order.
+
 ## Idempotency and delivery
 
-The tuple of tenant, service, source and idempotency key identifies one event. Retries return the original event identifier. Event storage, identity resolution, customer-timeline projection and transactional-outbox publication occur in one database transaction.
+The tuple of tenant, service, source and idempotency key identifies one event. Retries return the original event identifier. Event storage, identity resolution, historical backfill, customer-timeline projection and transactional-outbox publication occur in one database transaction. Timeline records require both tenant and service ownership.
 
 The outbox remains the replay boundary for downstream scoring, automation, tracked email and attribution consumers. Those modules must not write directly to behavioral-event tables.
 
@@ -47,3 +51,13 @@ Three consent modes are supported:
 Global Privacy Control always suppresses advertising events. The browser runtime waits for the Nexa consent client in managed mode, exposes `window.NexaTracking.track` for deliberate custom events and assigns stable browser and tab-session identifiers without sending cookies or CRM credentials.
 
 Rotating a source key immediately disables the old embed code. Pausing a source rejects collection without deleting its historical events.
+
+## Retention and legal holds
+
+Tenant administrators govern behavior data from the existing Tracking & Events workspace. Identified-customer events default to 730 days, anonymous events default to 90 days and completed replay requests default to 90 days. Administrators may select an identified window from 90 days to 7 years, an anonymous window from 30 days to 2 years and a replay window from 30 days to 1 year. Anonymous retention cannot exceed identified retention.
+
+A legal hold requires a reason and blocks both scheduled and manual deletion for the tenant and service. Policy changes and completed manual or effective scheduled purge runs are written to the existing hash-linked security audit ledger.
+
+The native EspoCRM scheduler runs one tenant-context-aware retention job daily. Each run removes at most 5,000 eligible events and at most 5,000 terminal replay requests or orphan visitor identities. Events with queued or processing replay requests, or unpublished outbox messages, are not eligible. Removing an event also removes its canonical behavior timeline projection and published event outbox payload in the same transaction. No job performs an unscoped cross-tenant sweep.
+
+Retention indexes cover tenant, service, identity state and occurrence time. The administration workspace reports identified, anonymous, total, oldest and currently eligible event counts without introducing a second event store.

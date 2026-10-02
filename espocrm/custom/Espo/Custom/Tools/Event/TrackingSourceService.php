@@ -25,6 +25,7 @@ final class TrackingSourceService
         private Acl $acl,
         private Config $config,
         private BehaviorEventService $behaviorEventService,
+        private EventRetentionService $eventRetentionService,
     ) {}
 
     /** @return array<string, mixed> */
@@ -43,6 +44,7 @@ final class TrackingSourceService
         return [
             'sources' => array_map(fn (array $row): array => $this->payload($row), $statement->fetchAll(PDO::FETCH_ASSOC)),
             'limits' => ['origins' => 20, 'eventsPerMinute' => 120, 'payloadBytes' => 98304],
+            'retention' => $this->eventRetentionService->workspace(),
         ];
     }
 

@@ -129,11 +129,12 @@ try {
         ]);
         $pdo->prepare(
             'INSERT INTO nexa_timeline_event ' .
-            '(id, tenant_id, contact_id, account_id, event_type, source_entity_type, ' .
-            'source_entity_id, source_occurred_at, summary) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(6), ?)'
+            '(id, tenant_id, service_id, contact_id, account_id, event_type, source_entity_type, ' .
+            'source_entity_id, source_occurred_at, summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(6), ?)'
         )->execute([
             $uuid("timeline-{$suffix}"),
             $tenantId,
+            $serviceId,
             $contactId,
             $accountId,
             'contact.created',

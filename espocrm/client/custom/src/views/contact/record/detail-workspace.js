@@ -133,6 +133,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             this.loadContactCalls(shell);
             this.loadContactEmails(shell);
             this.startContactEmailPolling(shell);
+            this.loadContactBehaviorTimeline(shell);
             this.loadContactCommunicationActivities(shell);
             this.loadContactMarketingContext(shell);
             this.loadContactRecordCreationActivities(shell);
@@ -4103,13 +4104,14 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             const panels = workspace?.querySelector('[data-nexa-activity-panels]');
             if (!panels) return [];
             const activities = [
+                ...(this.contactBehaviorActivities || []),
                 ...(this.contactCommunicationActivities || []),
                 ...(this.contactMarketingActivities || []),
                 ...(this.contactRecordCreationRecords || []).map(record => this.recordCreationActivity(record)),
             ];
 
             const websiteVisit = this.contactNoteDate(this.model.get('lastWebsiteVisitAt'));
-            if (websiteVisit) {
+            if (websiteVisit && !(this.contactBehaviorActivities || []).length) {
                 activities.push({
                     id: 'website-last-visit',
                     type: 'website',
@@ -4253,6 +4255,78 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
             });
 
             return activities.sort((left, right) => (right.date?.getTime() || 0) - (left.date?.getTime() || 0));
+        }
+
+        async loadContactBehaviorTimeline(workspace = null) {
+            workspace = workspace || this.element.querySelector('[data-nexa-contact-workspace]');
+            this.contactBehaviorActivities = [];
+
+            try {
+                const payload = await Espo.Ajax.getRequest(
+                    `Nexa/customer/Contact/${encodeURIComponent(this.model.id)}/foundation`,
+                    {timelineLimit: 200}
+                );
+                const titleMap = {
+                    'page.viewed': 'Page viewed',
+                    'landing_page.viewed': 'Landing page viewed',
+                    'link.clicked': 'Link clicked',
+                    'form.submitted': 'Form submitted',
+                    'asset.downloaded': 'Asset downloaded',
+                    'video.started': 'Video started',
+                    'video.progressed': 'Video progress recorded',
+                    'video.completed': 'Video completed',
+                    'webinar.registered': 'Webinar registration',
+                    'webinar.attended': 'Webinar attended',
+                    'purchase.completed': 'Purchase completed',
+                    'email.replied': 'Email reply tracked',
+                };
+                const typeMap = {
+                    website: 'website',
+                    form: 'marketing',
+                    content: 'marketing',
+                    event: 'marketing',
+                    commerce: 'opportunity',
+                    email: 'marketing',
+                };
+
+                this.contactBehaviorActivities = (payload.timeline || [])
+                    .filter(event => event.source_entity_type === 'BehaviorEvent')
+                    .map(event => {
+                        const behavior = event.behavior || {};
+                        const properties = behavior.properties || event.metadata?.properties || {};
+                        const pageUrl = behavior.pageUrl || event.metadata?.pageUrl || '';
+                        const referrerUrl = behavior.referrerUrl || event.metadata?.referrerUrl || '';
+                        const eventCategory = behavior.eventCategory || event.metadata?.eventCategory || 'custom';
+                        const consentCategory = behavior.consentCategory || event.metadata?.consentCategory || '';
+                        const title = titleMap[event.event_type] ||
+                            String(event.event_type || 'Behavior event')
+                                .replace(/^custom\./, '')
+                                .replace(/[._-]+/g, ' ')
+                                .replace(/\b\w/g, value => value.toUpperCase());
+                        const pageTitle = properties.title || properties.pageTitle || properties.formName || '';
+                        const text = pageTitle || pageUrl || event.summary || title;
+                        const details = [
+                            ['Event', event.event_type || 'Not recorded'],
+                            pageUrl ? ['Page', pageUrl] : null,
+                            referrerUrl ? ['Referrer', referrerUrl] : null,
+                            consentCategory ? ['Consent category', consentCategory] : null,
+                        ].filter(Boolean);
+
+                        return {
+                            id: `behavior-${event.id}`,
+                            type: typeMap[eventCategory] || 'other',
+                            title,
+                            text,
+                            date: this.contactNoteDate(event.source_occurred_at),
+                            href: pageUrl,
+                            behaviorDetails: details,
+                        };
+                    });
+            } catch (error) {
+                this.contactBehaviorActivities = [];
+            }
+
+            this.renderContactActivities(workspace);
         }
 
         async loadContactCommunicationActivities(workspace = null) {
@@ -4930,6 +5004,10 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 : this.contactActivityTypeLabel(activity.type);
             const details = activity.type === 'note' && activity.richContent
                 ? `<div class="nexa-rich-activity-content">${this.formatNoteContent(activity.richContent)}</div>`
+                : activity.behaviorDetails
+                ? `<dl class="nexa-activity-audit-details">
+                    ${activity.behaviorDetails.map(([label, value]) => `<div><dt>${this.escape(label)}</dt><dd>${this.escape(value)}</dd></div>`).join('')}
+                </dl>`
                 : activity.type === 'preference'
                 ? `<dl class="nexa-activity-audit-details">
                     <div><dt>Changed by</dt><dd>${this.escape(activity.actor)}</dd></div>

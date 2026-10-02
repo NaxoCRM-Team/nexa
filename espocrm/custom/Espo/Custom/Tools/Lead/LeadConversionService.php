@@ -300,11 +300,11 @@ final class LeadConversionService
 
         if ($targets['contact_id'] || $targets['account_id']) {
             $timeline = $pdo->prepare(
-                "INSERT INTO nexa_timeline_event (id,tenant_id,contact_id,account_id,event_type,source_entity_type,source_entity_id,source_occurred_at,actor_type,actor_id,correlation_id,summary,metadata_json) " .
-                "VALUES (?,?,?,?, 'lead.converted','Lead',?,CURRENT_TIMESTAMP(6),'user',?,?, 'Lead converted',?)"
+                "INSERT INTO nexa_timeline_event (id,tenant_id,service_id,contact_id,account_id,event_type,source_entity_type,source_entity_id,source_occurred_at,actor_type,actor_id,correlation_id,summary,metadata_json) " .
+                "VALUES (?,?,?,?,?, 'lead.converted','Lead',?,CURRENT_TIMESTAMP(6),'user',?,?, 'Lead converted',?)"
             );
             $timeline->execute([
-                $this->uuid(), $context->tenantId, $targets['contact_id'], $targets['account_id'],
+                $this->uuid(), $context->tenantId, $context->serviceId, $targets['contact_id'], $targets['account_id'],
                 $leadId, $this->actorId(), $correlationId, $metadataJson,
             ]);
         }

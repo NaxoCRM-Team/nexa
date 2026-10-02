@@ -205,9 +205,9 @@
                    },
                    {
                        "name":  "nexa_timeline_event",
-                       "classification":  "tenantOwned",
+                       "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",
-                       "serviceScope":  "none"
+                       "serviceScope":  "required"
                    },
                    {
                        "name":  "nexa_custom_entity_definition",
@@ -487,6 +487,12 @@
                    },
                    {
                        "name":  "nexa_behavior_event_replay",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_event_retention_policy",
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "required"

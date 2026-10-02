@@ -122,8 +122,8 @@ final class TenantRecordMergeService
     private function moveTimeline(PDO $pdo, TenantContext $context, string $entityType, string $targetId, string $sourceId): void
     {
         $column = $entityType === 'Contact' ? 'contact_id' : 'account_id';
-        $statement = $pdo->prepare("UPDATE nexa_timeline_event SET {$column} = ? WHERE tenant_id = ? AND {$column} = ?");
-        $statement->execute([$targetId, $context->tenantId, $sourceId]);
+        $statement = $pdo->prepare("UPDATE nexa_timeline_event SET {$column} = ? WHERE tenant_id = ? AND service_id = ? AND {$column} = ?");
+        $statement->execute([$targetId, $context->tenantId, $context->serviceId, $sourceId]);
     }
 
     private function moveContactData(PDO $pdo, TenantContext $context, string $targetId, string $sourceId): void

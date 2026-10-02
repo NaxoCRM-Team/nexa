@@ -52,11 +52,17 @@ foreach ($tables as $table) {
         str_contains($migration, "CREATE TABLE IF NOT EXISTS {$table}"),
         "Migration is missing {$table}."
     );
+    $expectedClassification = $table === 'nexa_timeline_event' ? 'serviceOwned' : 'tenantOwned';
     $assert(
-        ($manifestTables[$table]['classification'] ?? '') === 'tenantOwned',
-        "{$table} must be tenantOwned."
+        ($manifestTables[$table]['classification'] ?? '') === $expectedClassification,
+        "{$table} must be {$expectedClassification}."
     );
 }
+
+$assert(
+    ($manifestTables['nexa_timeline_event']['serviceScope'] ?? '') === 'required',
+    'nexa_timeline_event must require service scope.'
+);
 
 $assert(
     substr_count($migration, 'tenant_id CHAR(36) NOT NULL') === count($tables),

@@ -464,9 +464,9 @@ final class CustomerFoundationRecorder
         }
 
         $sql = 'INSERT INTO nexa_timeline_event ' .
-            '(id, tenant_id, contact_id, account_id, event_type, source_entity_type, source_entity_id, ' .
+            '(id, tenant_id, service_id, contact_id, account_id, event_type, source_entity_type, source_entity_id, ' .
             'source_occurred_at, actor_type, actor_id, correlation_id, summary, metadata_json) ' .
-            'VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6), ?, ?, ?, ?, ?)';
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6), ?, ?, ?, ?, ?)';
         if ($mergeSubject) {
             $sql .= ' ON DUPLICATE KEY UPDATE ' .
                 'contact_id = COALESCE(contact_id, VALUES(contact_id)), ' .
@@ -476,7 +476,7 @@ final class CustomerFoundationRecorder
 
         $statement = $this->entityManager->getPDO()->prepare($sql);
         $statement->execute([
-            $this->uuid(), $context->tenantId, $contactId, $accountId, $eventType,
+            $this->uuid(), $context->tenantId, $context->serviceId, $contactId, $accountId, $eventType,
             $sourceType, $sourceId, $this->actorType(), $this->actorId(), $correlationId,
             $summary, $this->json($metadata),
         ]);
