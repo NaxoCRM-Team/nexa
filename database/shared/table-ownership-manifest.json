@@ -492,6 +492,12 @@
                        "serviceScope":  "required"
                    },
                    {
+                       "name":  "nexa_tracking_source",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
+                   },
+                   {
                        "name":  "nexa_campaign_profile",
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",

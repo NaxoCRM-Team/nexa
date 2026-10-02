@@ -117,7 +117,9 @@ $required = @(
     'tests/workflows/Phase4SecurityContractTest.php', 'tests/tenant/TenantPhase4SecurityTest.php',
     'tests/workflows/Phase4AcceptanceContractTest.php',
     'tests/workflows/BehaviorEventContractTest.php', 'tests/workflows/BehaviorEventValidationTest.php',
+    'tests/workflows/PublicEventCollectorContractTest.php',
     'tests/tenant/TenantBehaviorEventTest.php', 'tests/tenant/TenantBehaviorEventReplayTest.php',
+    'tests/tenant/TenantPublicEventCollectorTest.php',
     'tests/workflows/AssetWorkspaceContractTest.php', 'tests/tenant/TenantAssetWorkspaceTest.php',
     'tests/workflows/LandingPageWorkspaceContractTest.php', 'tests/tenant/TenantLandingPageWorkspaceTest.php',
     'tests/tenant/TenantLandingPageTemplateCatalogTest.php',
@@ -298,8 +300,10 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\PublicAccess\PublicRequestLimiter.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\BehaviorEventContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\BehaviorEventValidationTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\PublicEventCollectorContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorEventReplayTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantPublicEventCollectorTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Jobs\RecalculateDynamicSegments.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
@@ -407,6 +411,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Behavior event contract suite' } else { Fail 'Behavior event contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\BehaviorEventValidationTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Behavior event validation suite' } else { Fail 'Behavior event validation suite failed.' }
+    & php (Join-Path $root 'tests\workflows\PublicEventCollectorContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Public event collector contract suite' } else { Fail 'Public event collector contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
@@ -444,6 +450,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior event runtime suite' } else { Fail 'Two-tenant behavior event runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventReplayTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior event replay suite' } else { Fail 'Two-tenant behavior event replay suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantPublicEventCollectorTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant public event collector suite' } else { Fail 'Two-tenant public event collector suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Asset workspace runtime suite' } else { Fail 'Two-tenant Asset workspace runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantLandingPageWorkspaceTest.php')

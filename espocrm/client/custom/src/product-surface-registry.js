@@ -60,7 +60,7 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-seo-analytics', 'SEO Analytics'],
         ]},
         {name: 'nexa-data-tools', label: 'Data & Integrations', iconClass: 'fas fa-database', items: [
-            ['nexa-tracking-events', 'Tracking & Events'],
+            ['nexa-tracking-events', 'Tracking & Events', '#NexaTracking', 'fas fa-wave-square'],
             ['nexa-data-quality', 'Data Quality'],
             ['nexa-consent-privacy', 'Consent & Privacy', '#NexaConsent', 'fas fa-user-shield'],
             ['nexa-import-export', 'Import & Export', '#Contact/exportAudit', 'fas fa-exchange-alt'],

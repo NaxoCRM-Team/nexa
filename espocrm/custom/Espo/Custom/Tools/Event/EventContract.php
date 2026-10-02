@@ -34,18 +34,7 @@ final class EventContract
     public function normalize(stdClass $input): array
     {
         $eventType = $this->requiredText($input->eventType ?? null, 128, 'Enter an event type.');
-        $definition = self::STANDARD_EVENTS[$eventType] ?? null;
-
-        if ($definition === null) {
-            if (!preg_match('/^custom\.[a-z0-9][a-z0-9._-]{1,119}$/', $eventType)) {
-                throw new BadRequest('Use a supported event type or a custom.* event name.');
-            }
-
-            $definition = [
-                'category' => 'custom',
-                'consent' => $this->consentCategory($input->consentCategory ?? 'analytics'),
-            ];
-        }
+        $definition = $this->classification($eventType, $input->consentCategory ?? 'analytics');
 
         $version = (int) ($input->eventVersion ?? 1);
         if ($version !== 1) {
@@ -89,6 +78,20 @@ final class EventContract
             'identityMethod' => $identity['method'],
             'identityEvidenceHash' => $identity['evidenceHash'],
         ];
+    }
+
+    /** @return array{category: string, consent: string} */
+    public function classification(mixed $eventType, mixed $customConsentCategory = 'analytics'): array
+    {
+        $eventType = $this->requiredText($eventType, 128, 'Enter an event type.');
+        $definition = self::STANDARD_EVENTS[$eventType] ?? null;
+        if ($definition !== null) {
+            return $definition;
+        }
+        if (!preg_match('/^custom\.[a-z0-9][a-z0-9._-]{1,119}$/', $eventType)) {
+            throw new BadRequest('Use a supported event type or a custom.* event name.');
+        }
+        return ['category' => 'custom', 'consent' => $this->consentCategory($customConsentCategory)];
     }
 
     /** @return array{method: ?string, evidenceHash: ?string} */
