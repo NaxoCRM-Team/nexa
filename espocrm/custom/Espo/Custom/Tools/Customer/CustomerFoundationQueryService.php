@@ -48,7 +48,13 @@ final class CustomerFoundationQueryService
             'identities' => $contactId ? $this->identities($context->tenantId, $contactId) : [],
             'relationships' => $this->relationships($context->tenantId, $context->serviceId, $entityType, $id),
             'lifecycle' => $this->lifecycle($context->tenantId, $entityType, $id),
-            'timeline' => $this->timeline($context->tenantId, $contactId, $accountId, $timelineLimit),
+            'timeline' => $this->timeline(
+                $context->tenantId,
+                $context->serviceId,
+                $contactId,
+                $accountId,
+                $timelineLimit,
+            ),
         ];
     }
 
@@ -171,24 +177,53 @@ final class CustomerFoundationQueryService
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function timeline(string $tenantId, ?string $contactId, ?string $accountId, int $limit): array
+    private function timeline(
+        string $tenantId,
+        string $serviceId,
+        ?string $contactId,
+        ?string $accountId,
+        int $limit,
+    ): array
     {
-        $subjectColumn = $contactId ? 'contact_id' : 'account_id';
+        $subjectColumn = $contactId ? 't.contact_id' : 't.account_id';
         $subjectId = $contactId ?: $accountId;
         $statement = $this->entityManager->getPDO()->prepare(
-            'SELECT id, contact_id, account_id, event_type, source_entity_type, source_entity_id, ' .
-            'source_occurred_at, actor_type, actor_id, visibility, correlation_id, summary, metadata_json ' .
-            "FROM nexa_timeline_event WHERE tenant_id = ? AND {$subjectColumn} = ? " .
-            'ORDER BY source_occurred_at DESC LIMIT ?'
+            'SELECT t.id, t.contact_id, t.account_id, t.event_type, t.source_entity_type, t.source_entity_id, ' .
+            't.source_occurred_at, t.actor_type, t.actor_id, t.visibility, t.correlation_id, t.summary, ' .
+            't.metadata_json, b.event_category AS behavior_event_category, ' .
+            'b.consent_category AS behavior_consent_category, b.page_url AS behavior_page_url, ' .
+            'b.referrer_url AS behavior_referrer_url, b.properties_json AS behavior_properties_json ' .
+            'FROM nexa_timeline_event t LEFT JOIN nexa_behavior_event b ' .
+            "ON t.source_entity_type = 'BehaviorEvent' AND b.id = t.source_entity_id " .
+            'AND b.tenant_id = t.tenant_id AND b.service_id = t.service_id ' .
+            "WHERE t.tenant_id = ? AND t.service_id = ? AND {$subjectColumn} = ? " .
+            'ORDER BY t.source_occurred_at DESC, t.id DESC LIMIT ?'
         );
         $statement->bindValue(1, $tenantId);
-        $statement->bindValue(2, $subjectId);
-        $statement->bindValue(3, $limit, PDO::PARAM_INT);
+        $statement->bindValue(2, $serviceId);
+        $statement->bindValue(3, $subjectId);
+        $statement->bindValue(4, $limit, PDO::PARAM_INT);
         $statement->execute();
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
         foreach ($rows as &$row) {
             $row['metadata'] = $this->decode($row['metadata_json']);
+            if ($row['source_entity_type'] === 'BehaviorEvent') {
+                $row['behavior'] = [
+                    'eventCategory' => $row['behavior_event_category'],
+                    'consentCategory' => $row['behavior_consent_category'],
+                    'pageUrl' => $row['behavior_page_url'],
+                    'referrerUrl' => $row['behavior_referrer_url'],
+                    'properties' => $this->decode($row['behavior_properties_json']),
+                ];
+            }
             unset($row['metadata_json']);
+            unset(
+                $row['behavior_event_category'],
+                $row['behavior_consent_category'],
+                $row['behavior_page_url'],
+                $row['behavior_referrer_url'],
+                $row['behavior_properties_json'],
+            );
         }
         unset($row);
         return $rows;

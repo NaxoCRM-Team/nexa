@@ -66,11 +66,14 @@ $required = @(
     'database/shared/migrations/0054_harden_phase4_public_surfaces.sql',
     'database/shared/migrations/0055_add_campaign_enrollment_governance.sql',
     'database/shared/migrations/0056_add_security_governance.sql',
+    'database/shared/migrations/0060_scope_timeline_and_backfill_identity.sql',
+    'database/shared/migrations/0061_add_event_retention_governance.sql',
     'docs/operations/security-governance.md',
     'tests/auth/Sprint6SecurityGovernanceTest.php',
     'espocrm/bin/rotate-managed-secrets.php',
     'docs/architecture/phase-4-native-capability-audit.md',
     'docs/development/phase-4-exit-gate.md',
+    'docs/development/phase-5-exit-gate.md',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
     'espocrm/custom/Espo/Custom/Tools/Currency/Api/PostRatePreview.php',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
@@ -116,7 +119,14 @@ $required = @(
     'tests/workflows/CampaignWorkspaceContractTest.php', 'tests/tenant/TenantCampaignWorkspaceTest.php',
     'tests/workflows/Phase4SecurityContractTest.php', 'tests/tenant/TenantPhase4SecurityTest.php',
     'tests/workflows/Phase4AcceptanceContractTest.php',
-    'tests/workflows/BehaviorEventContractTest.php', 'tests/tenant/TenantBehaviorEventTest.php',
+    'tests/workflows/BehaviorEventContractTest.php', 'tests/workflows/BehaviorEventValidationTest.php',
+    'tests/workflows/PublicEventCollectorContractTest.php',
+    'tests/workflows/CustomerBehaviorTimelineContractTest.php',
+    'tests/workflows/EventRetentionContractTest.php',
+    'tests/workflows/Phase5AcceptanceContractTest.php',
+    'tests/tenant/TenantBehaviorEventTest.php', 'tests/tenant/TenantBehaviorEventReplayTest.php',
+    'tests/tenant/TenantPublicEventCollectorTest.php', 'tests/tenant/TenantBehaviorIdentityBackfillTest.php',
+    'tests/tenant/TenantEventRetentionTest.php',
     'tests/workflows/AssetWorkspaceContractTest.php', 'tests/tenant/TenantAssetWorkspaceTest.php',
     'tests/workflows/LandingPageWorkspaceContractTest.php', 'tests/tenant/TenantLandingPageWorkspaceTest.php',
     'tests/tenant/TenantLandingPageTemplateCatalogTest.php',
@@ -126,8 +136,10 @@ $required = @(
     'tests/browser/live-campaign-workspace.spec.js',
     'tests/browser/live-asset-workspace.spec.js',
     'tests/browser/live-landing-page-workspace.spec.js',
+    'tests/browser/live-tracking-retention.spec.js',
     'tests/development/Phase3MigrationReplayTest.ps1', 'scripts/dev/verify-phase-3.ps1',
     'tests/development/Phase4MigrationReplayTest.ps1', 'scripts/dev/verify-phase-4.ps1',
+    'tests/development/Phase5MigrationReplayTest.ps1', 'scripts/dev/verify-phase-5.ps1',
     'tests/browser/fixtures/sales-workspace.html',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
     'espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json',
@@ -185,6 +197,7 @@ foreach ($file in $jsonFiles) {
 $powerShellFiles = Get-ChildItem -LiteralPath (Join-Path $root 'scripts\dev') -Filter '*.ps1' -File
 $powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase3MigrationReplayTest.ps1')
 $powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase4MigrationReplayTest.ps1')
+$powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase5MigrationReplayTest.ps1')
 foreach ($file in $powerShellFiles) {
     $tokens = $null
     $parseErrors = $null
@@ -296,7 +309,15 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\Phase4Accep
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\PublicAccess\PublicRateLimitExceeded.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\PublicAccess\PublicRequestLimiter.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\BehaviorEventContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\BehaviorEventValidationTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\PublicEventCollectorContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\CustomerBehaviorTimelineContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\EventRetentionContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorEventReplayTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantPublicEventCollectorTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorIdentityBackfillTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantEventRetentionTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Jobs\RecalculateDynamicSegments.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
@@ -402,6 +423,16 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Phase 4 acceptance contract suite' } else { Fail 'Phase 4 acceptance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\BehaviorEventContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Behavior event contract suite' } else { Fail 'Behavior event contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\BehaviorEventValidationTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Behavior event validation suite' } else { Fail 'Behavior event validation suite failed.' }
+    & php (Join-Path $root 'tests\workflows\PublicEventCollectorContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Public event collector contract suite' } else { Fail 'Public event collector contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\CustomerBehaviorTimelineContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Customer behavior timeline contract suite' } else { Fail 'Customer behavior timeline contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\EventRetentionContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Event retention governance contract suite' } else { Fail 'Event retention governance contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\Phase5AcceptanceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Phase 5 acceptance contract suite' } else { Fail 'Phase 5 acceptance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
@@ -437,6 +468,14 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior event runtime suite' } else { Fail 'Two-tenant behavior event runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantBehaviorEventReplayTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior event replay suite' } else { Fail 'Two-tenant behavior event replay suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantPublicEventCollectorTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant public event collector suite' } else { Fail 'Two-tenant public event collector suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantBehaviorIdentityBackfillTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant behavior identity backfill suite' } else { Fail 'Two-tenant behavior identity backfill suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantEventRetentionTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant event retention suite' } else { Fail 'Two-tenant event retention suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Asset workspace runtime suite' } else { Fail 'Two-tenant Asset workspace runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantLandingPageWorkspaceTest.php')
@@ -447,10 +486,13 @@ if ($php) {
     & php (Join-Path $root 'tests\workflows\TenantFileLibraryTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Tenant file library and rich editor contract suite' } else { Fail 'Tenant file library and rich editor contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Module convention contract suite' } else { Fail 'Module convention contract suite failed.' }
     & php (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Product requirements alignment suite' } else { Fail 'Product requirements alignment suite failed.' }
     & php (Join-Path $root 'tests\architecture\SchemaRequirementsMappingTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Schema requirements mapping suite' } else { Fail 'Schema requirements mapping suite failed.' }
     & php (Join-Path $root 'tests\architecture\CustomerProfileSkeletonTest.php')
-    if ($LASTEXITCODE -eq 0) { Pass 'Architecture contract suites' } else { Fail 'Architecture contract suite failed.' }
+    if ($LASTEXITCODE -eq 0) { Pass 'Customer profile skeleton suite' } else { Fail 'Customer profile skeleton suite failed.' }
 }
 
 $tracked = & git -C $root ls-files

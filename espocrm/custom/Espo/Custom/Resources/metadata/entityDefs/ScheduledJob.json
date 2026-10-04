@@ -24,6 +24,11 @@
             "name": "Expire Impersonation Sessions",
             "isSystem": true,
             "scheduling": "* * * * *"
+        },
+        "PurgeBehaviorEvents": {
+            "name": "Purge Expired Behavior Events",
+            "isSystem": true,
+            "scheduling": "17 2 * * *"
         }
     }
 }

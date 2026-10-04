@@ -778,6 +778,63 @@
         "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostEvent"
     },
     {
+        "route": "/Nexa/events/:id/replay",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostReplay"
+    },
+    {
+        "route": "/Nexa/tracking/sources",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\GetTrackingSources"
+    },
+    {
+        "route": "/Nexa/tracking/sources",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostTrackingSource"
+    },
+    {
+        "route": "/Nexa/tracking/retention",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\GetEventRetention"
+    },
+    {
+        "route": "/Nexa/tracking/retention",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PutEventRetention"
+    },
+    {
+        "route": "/Nexa/tracking/retention/purge",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostEventRetentionPurge"
+    },
+    {
+        "route": "/Nexa/tracking/sources/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PutTrackingSource"
+    },
+    {
+        "route": "/Nexa/tracking/sources/:id/rotate-key",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostTrackingSourceRotateKey"
+    },
+    {
+        "route": "/Nexa/tracking/sources/:id/test",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostTrackingSourceTest"
+    },
+    {
+        "route": "/Nexa/public/events/:key",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\PostPublicEvent",
+        "noAuth": true
+    },
+    {
+        "route": "/Nexa/public/events/:key",
+        "method": "options",
+        "actionClassName": "Espo\\Custom\\Tools\\Event\\Api\\OptionsPublicEvent",
+        "noAuth": true
+    },
+    {
         "route": "/Nexa/assets",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\PostAsset"

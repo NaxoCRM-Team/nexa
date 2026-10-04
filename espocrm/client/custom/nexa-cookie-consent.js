@@ -43,6 +43,7 @@
             const visitorKey = `nexa_cookie_visitor_${publicKey}`;
             visitorId = window.localStorage.getItem(visitorKey) || uuid();
             window.localStorage.setItem(visitorKey, visitorId);
+            client.visitorId = visitorId;
             client.config = config;
             resolveReady(config);
             window.dispatchEvent(new CustomEvent('nexa:cookie-ready', {detail: {mode: config.integrationMode}}));
