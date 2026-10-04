@@ -68,12 +68,14 @@ $required = @(
     'database/shared/migrations/0056_add_security_governance.sql',
     'database/shared/migrations/0060_scope_timeline_and_backfill_identity.sql',
     'database/shared/migrations/0061_add_event_retention_governance.sql',
+    'database/shared/migrations/0062_add_marketing_email_governance.sql',
     'docs/operations/security-governance.md',
     'tests/auth/Sprint6SecurityGovernanceTest.php',
     'espocrm/bin/rotate-managed-secrets.php',
     'docs/architecture/phase-4-native-capability-audit.md',
     'docs/development/phase-4-exit-gate.md',
     'docs/development/phase-5-exit-gate.md',
+    'docs/architecture/phase-6-native-email-capability-audit.md',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
     'espocrm/custom/Espo/Custom/Tools/Currency/Api/PostRatePreview.php',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
@@ -124,6 +126,9 @@ $required = @(
     'tests/workflows/CustomerBehaviorTimelineContractTest.php',
     'tests/workflows/EventRetentionContractTest.php',
     'tests/workflows/Phase5AcceptanceContractTest.php',
+    'tests/workflows/MarketingEmailWorkspaceContractTest.php',
+    'tests/tenant/TenantMarketingEmailWorkspaceTest.php',
+    'tests/browser/live-marketing-email-workspace.spec.js',
     'tests/tenant/TenantBehaviorEventTest.php', 'tests/tenant/TenantBehaviorEventReplayTest.php',
     'tests/tenant/TenantPublicEventCollectorTest.php', 'tests/tenant/TenantBehaviorIdentityBackfillTest.php',
     'tests/tenant/TenantEventRetentionTest.php',
@@ -318,6 +323,10 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehavior
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantPublicEventCollectorTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantBehaviorIdentityBackfillTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantEventRetentionTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\MarketingEmail\MarketingEmailWorkspaceService.php')
+$phpFiles += Get-ChildItem -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Tools\MarketingEmail\Api') -Filter '*.php'
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\MarketingEmailWorkspaceContractTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantMarketingEmailWorkspaceTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\custom\Espo\Custom\Jobs\RecalculateDynamicSegments.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantAssetWorkspaceTest.php')
@@ -433,6 +442,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Event retention governance contract suite' } else { Fail 'Event retention governance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\Phase5AcceptanceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Phase 5 acceptance contract suite' } else { Fail 'Phase 5 acceptance contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\MarketingEmailWorkspaceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Marketing email workspace contract suite' } else { Fail 'Marketing email workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
@@ -464,6 +475,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Lists and Segments runtime suite' } else { Fail 'Two-tenant Lists and Segments runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantCampaignWorkspaceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Campaign workspace runtime suite' } else { Fail 'Two-tenant Campaign workspace runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingEmailWorkspaceTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Email workspace runtime suite' } else { Fail 'Two-tenant Marketing Email workspace runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantPhase4SecurityTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')

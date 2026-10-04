@@ -768,6 +768,26 @@
         "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostStatus"
     },
     {
+        "route": "/Nexa/marketing-emails/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/marketing-emails",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDraft"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PutDraft"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/transition",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostTransition"
+    },
+    {
         "route": "/Nexa/assets/workspace",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetWorkspace"

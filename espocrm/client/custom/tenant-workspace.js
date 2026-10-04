@@ -131,7 +131,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
                 ['nexa-lists-segments', 'Lists & Segments', '#NexaSegments', 'fas fa-users'],
                 'EmailTemplate',
                 ['nexa-marketing-contacts', 'Marketing Contacts'],
-                ['nexa-marketing-email', 'Marketing Email'],
+                ['nexa-marketing-email', 'Marketing Email', '#NexaMarketingEmail', 'fas fa-envelope-open-text'],
                 ['nexa-forms', 'Forms', '#NexaForms', 'fas fa-file-alt'],
                 ['nexa-landing-pages', 'Landing Pages', '#NexaLandingPages', 'fas fa-window-maximize'],
                 ['nexa-content-assets', 'Content & Assets', '#NexaAssets', 'fas fa-photo-video'],
