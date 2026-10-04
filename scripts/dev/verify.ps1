@@ -73,6 +73,7 @@ $required = @(
     'espocrm/bin/rotate-managed-secrets.php',
     'docs/architecture/phase-4-native-capability-audit.md',
     'docs/development/phase-4-exit-gate.md',
+    'docs/development/phase-5-exit-gate.md',
     'espocrm/custom/Espo/Custom/Tools/Currency/FrankfurterRateProvider.php',
     'espocrm/custom/Espo/Custom/Tools/Currency/Api/PostRatePreview.php',
     'database/shared/migrations/0019_add_contact_communication_preferences.sql',
@@ -122,6 +123,7 @@ $required = @(
     'tests/workflows/PublicEventCollectorContractTest.php',
     'tests/workflows/CustomerBehaviorTimelineContractTest.php',
     'tests/workflows/EventRetentionContractTest.php',
+    'tests/workflows/Phase5AcceptanceContractTest.php',
     'tests/tenant/TenantBehaviorEventTest.php', 'tests/tenant/TenantBehaviorEventReplayTest.php',
     'tests/tenant/TenantPublicEventCollectorTest.php', 'tests/tenant/TenantBehaviorIdentityBackfillTest.php',
     'tests/tenant/TenantEventRetentionTest.php',
@@ -137,6 +139,7 @@ $required = @(
     'tests/browser/live-tracking-retention.spec.js',
     'tests/development/Phase3MigrationReplayTest.ps1', 'scripts/dev/verify-phase-3.ps1',
     'tests/development/Phase4MigrationReplayTest.ps1', 'scripts/dev/verify-phase-4.ps1',
+    'tests/development/Phase5MigrationReplayTest.ps1', 'scripts/dev/verify-phase-5.ps1',
     'tests/browser/fixtures/sales-workspace.html',
     'espocrm/custom/Espo/Custom/Classes/Select/Account/PrimaryFilters/CreatedByMe.php',
     'espocrm/custom/Espo/Custom/Resources/metadata/selectDefs/Account.json',
@@ -194,6 +197,7 @@ foreach ($file in $jsonFiles) {
 $powerShellFiles = Get-ChildItem -LiteralPath (Join-Path $root 'scripts\dev') -Filter '*.ps1' -File
 $powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase3MigrationReplayTest.ps1')
 $powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase4MigrationReplayTest.ps1')
+$powerShellFiles += Get-Item -LiteralPath (Join-Path $root 'tests\development\Phase5MigrationReplayTest.ps1')
 foreach ($file in $powerShellFiles) {
     $tokens = $null
     $parseErrors = $null
@@ -427,6 +431,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Customer behavior timeline contract suite' } else { Fail 'Customer behavior timeline contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\EventRetentionContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Event retention governance contract suite' } else { Fail 'Event retention governance contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\Phase5AcceptanceContractTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Phase 5 acceptance contract suite' } else { Fail 'Phase 5 acceptance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
