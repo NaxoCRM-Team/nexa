@@ -21,7 +21,7 @@ test('marketing email workspace is governed, responsive and native-backed', asyn
     await page.goto(`${workspaceBase}/NexaMarketingEmail`);
     await expect(page.getByRole('heading', {name: 'Marketing Email', exact: true})).toBeVisible();
     await expect(page.locator('[data-email-state="ready"]')).toBeVisible();
-    await expect(page.getByText('Delivery remains locked during provider setup')).toBeVisible();
+    await expect(page.getByText('Delivery setup required')).toBeVisible();
     await expect(page.locator('[data-delivery-message]')).toContainText('verified sending domain');
     await expect(page.locator('[data-email-search]')).toBeVisible();
 

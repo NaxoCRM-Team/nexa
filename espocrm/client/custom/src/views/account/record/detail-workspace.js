@@ -1889,6 +1889,10 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
     }
 
     async prepareEngagementPermissions(records, entityType) {
+        if (entityType === 'MarketingDeliveryEvent') {
+            records.forEach(record => { record.canPin = false; record.canDelete = false; });
+            return;
+        }
         await Promise.all(records.map(async record => {
             const model = await this.getModelFactory().create(entityType);
             model.set(record);
@@ -2012,7 +2016,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         const title = this.engagementTitle(record);
         const owner = record.assignedUserName || record.createdByName || record.fromName || 'Owner not recorded';
         const contactName = record._contact?.name || 'Company-level';
-        const iconMap = {Note: 'fa-sticky-note', Task: 'fa-check-square', Meeting: 'fa-calendar-alt', Call: 'fa-phone', Email: 'fa-envelope'};
+        const iconMap = {Note: 'fa-sticky-note', Task: 'fa-check-square', Meeting: 'fa-calendar-alt', Call: 'fa-phone', Email: 'fa-envelope', MarketingDeliveryEvent: 'fa-envelope-open-text'};
         const url = record._entityType === 'Note'
             ? (record._contact ? `#Contact/view/${encodeURIComponent(record._contact.id)}` : `#Account/view/${encodeURIComponent(this.model.id)}`)
             : `#${record._entityType}/view/${encodeURIComponent(record.id)}`;
@@ -2050,6 +2054,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         const link = item.querySelector('a');
         item.querySelector('.nexa-activity-heading strong').textContent = title;
         item.querySelector('[data-subtitle]').textContent = this.isLoggedInteraction(record) ? `by ${owner}` : `${record._entityType} by ${owner}`;
+        if (record._entityType === 'MarketingDeliveryEvent') item.querySelector('[data-subtitle]').textContent = 'Marketing delivery';
         item.querySelector('[data-contact]').textContent = contactName;
         item.querySelector('[data-owner]').textContent = owner;
         item.querySelector('[data-status]').textContent = record.status || record._entityType;
@@ -2060,9 +2065,14 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         const expandedContent = item.querySelector('.nexa-company-engagement-preview');
         if (richContent) expandedContent.innerHTML = richContent;
         else expandedContent.textContent = preview;
-        item.querySelector('.nexa-activity-details').insertAdjacentHTML('beforeend', this.accountEngagementCommentsSection(record));
+        if (record._entityType !== 'MarketingDeliveryEvent') item.querySelector('.nexa-activity-details').insertAdjacentHTML('beforeend', this.accountEngagementCommentsSection(record));
+        else {
+            item.querySelector('[data-nexa-company-engagement-actions]').remove();
+            item.querySelector('[data-owner]').textContent = 'Recorded automatically';
+            link.remove();
+        }
         TenantImages.hydrate(item);
-        link.href = url;
+        if (record._entityType !== 'MarketingDeliveryEvent') link.href = url;
         return item;
     }
 
@@ -2369,7 +2379,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
     }
 
     engagementPreview(record) {
-        let value = record.post || record.description || record.subject || '';
+        let value = record.post || record.description || record.subject || (record._entityType === 'MarketingDeliveryEvent' ? record.name : '') || '';
         if (this.isLoggedInteraction(record)) {
             const lines = String(value).split('\n');
             const subject = String(lines.shift() || '').replace(/^\[[^\]]+]\s*/, '').trim();

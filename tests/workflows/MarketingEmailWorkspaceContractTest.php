@@ -33,7 +33,7 @@ $assert(str_contains($service, 'tenant_id=?') && str_contains($service, 'service
 $assert(str_contains($service, "'draft'") && str_contains($service, "'review'") && str_contains($service, "'approved'"), 'Draft, review and approval states must be governed.');
 $assert(str_contains($service, "'deliveryEnabled' => \$delivery['ready']"), 'Delivery must follow tenant provider and verified-domain readiness.');
 $assert(str_contains($view, 'data-email-search') && str_contains($view, 'renderEmails'), 'Marketing email must provide live search.');
-$assert(str_contains($template, 'Delivery remains locked') && str_contains($template, 'Create marketing email'), 'The workspace must explain delivery readiness and support draft creation.');
+$assert(str_contains($template, 'data-delivery-title') && str_contains($template, 'Create marketing email') && str_contains($view, 'this.workspace.deliveryEnabled'), 'The workspace must display provider delivery readiness and support draft creation.');
 $assert(str_contains($registry, "'#NexaMarketingEmail'"), 'Marketing navigation must open the governed marketing email workspace.');
 $assert(str_contains($audit, 'EmailTemplate') && str_contains($audit, 'MassEmail') && str_contains($audit, 'Postal'), 'The native capability audit must record native ownership and provider boundaries.');
 $assert(!preg_match('/isolation-(alpha|beta)|30000000-0000-4000-8000-00000000000[12]/', $service), 'Marketing email service must not hard-code demo tenants.');

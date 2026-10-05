@@ -7,6 +7,8 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         'click [data-action="reload"]': 'load',
         'click [data-action="transition"]': 'transition',
         'click [data-action="schedule-email"]': 'scheduleEmail',
+        'click [data-action="email-results"]': 'openResults',
+        'click [data-action="close-results"]': 'closeResults',
         'click [data-action="delivery-setup"]': 'openDelivery',
         'click [data-action="close-delivery"]': 'closeDelivery',
         'click [data-action="verify-domain"]': 'verifyDomain',
@@ -24,7 +26,50 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     afterRender() { super.afterRender(); document.body.classList.add('nexa-marketing-email-page'); this.element.querySelector('[data-email-editor]').style.display='none'; this.element.querySelector('[data-delivery-editor]').style.display='none'; this.installCallbackSetup(); this.once('remove', () => document.body.classList.remove('nexa-marketing-email-page')); this.load(); }
     async load() { this.state('loading'); try { this.workspace = await Espo.Ajax.getRequest('Nexa/marketing-emails/workspace'); this.renderSummary(); this.populateCampaigns(); this.renderEmails(); this.text('[data-delivery-message]', this.workspace.deliveryMessage); this.element.querySelector('[data-action="new-email"]').hidden = !this.workspace.permissions?.create; this.element.querySelector('[data-action="delivery-setup"]').hidden = !this.workspace.permissions?.approve; this.state('ready'); } catch (error) { this.state('error'); Espo.Ui.error(error?.message || 'Marketing email could not be loaded.'); } }
     state(value) { this.element.querySelectorAll('[data-email-state]').forEach(node => { node.hidden = node.dataset.emailState !== value; node.style.display = node.hidden ? 'none' : ''; }); }
-    renderSummary() { const summary = this.workspace.summary || {}; ['total','drafts','review','approved'].forEach(key => this.text(`[data-summary-${key}]`, Number(summary[key] || 0))); }
+    renderSummary() {
+        const summary = this.workspace.summary || {};
+        ['total','drafts','review','approved'].forEach(key => this.text(`[data-summary-${key}]`, Number(summary[key] || 0)));
+        this.text('[data-delivery-title]', this.workspace.deliveryEnabled ? 'Delivery is ready' : 'Delivery setup required');
+        const section = this.element.querySelector('[data-email-usage]');
+        if (section) {
+            section.hidden = !this.workspace.usage;
+            if (this.workspace.usage) {
+                const usage = this.workspace.usage;
+                this.text('[data-usage-month]', new Date(`${usage.month}T00:00:00`).toLocaleDateString(undefined, {month: 'long', year: 'numeric'}));
+                this.text('[data-usage-limit]', usage.limit === null ? 'No configured cap' : Number(usage.limit).toLocaleString());
+                this.text('[data-usage-reserved]', Number(usage.reserved).toLocaleString());
+                this.text('[data-usage-remaining]', usage.remaining === null ? 'No configured cap' : Number(usage.remaining).toLocaleString());
+            }
+        }
+    }
+    openResults(event) {
+        const item = this.workspace.emails.find(row => row.id === event.currentTarget.dataset.id);
+        if (!item) return;
+        this.resultsTrigger = event.currentTarget;
+        const dialog = this.element.querySelector('[data-email-results]');
+        const metrics = item.deliveryMetrics || {};
+        this.text('[data-results-title]', item.name);
+        this.text('[data-results-status]', this.label(item.lifecycleStatus));
+        this.text('[data-results-campaign]', item.campaignName || 'Not linked');
+        ['submitted','delivered','deferred','bounced','complained','failed','opened','clicked','unsubscribed'].forEach(key =>
+            this.text(`[data-result-${key}]`, Number(metrics[key] || 0).toLocaleString()));
+        dialog.hidden = false; dialog.style.display = 'grid';
+        document.body.classList.add('nexa-modal-open');
+        const close = dialog.querySelector('[data-action="close-results"]');
+        close.focus();
+        this.resultsKeyHandler = event => {
+            if (event.key === 'Escape') { event.preventDefault(); this.closeResults(); }
+            if (event.key === 'Tab') { event.preventDefault(); close.focus(); }
+        };
+        dialog.addEventListener('keydown', this.resultsKeyHandler);
+    }
+    closeResults() {
+        const dialog = this.element.querySelector('[data-email-results]');
+        dialog.hidden = true; dialog.style.display = 'none';
+        dialog.removeEventListener('keydown', this.resultsKeyHandler);
+        document.body.classList.remove('nexa-modal-open');
+        if (this.resultsTrigger?.isConnected) this.resultsTrigger.focus();
+    }
     populateCampaigns() { const options = (this.workspace.campaigns || []).map(item => `<option value="${this.escape(item.id)}" data-purpose="${this.escape(item.purposeId || '')}">${this.escape(item.name)} (${Number(item.eligibleCount || 0)} eligible)</option>`).join(''); this.element.querySelector('[name="campaignId"]').innerHTML = `<option value="">Choose an email campaign</option>${options}`; }
     renderEmails() {
         const query = (this.element.querySelector('[data-email-search]')?.value || '').trim().toLowerCase(); const status = this.element.querySelector('[data-email-status]')?.value || '';
@@ -32,10 +77,15 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         this.element.querySelector('[data-email-list]').innerHTML = items.map(item => `<tr><td><button class="nexa-email-name" data-action="edit-email" data-id="${this.escape(item.id)}"><span class="fas fa-envelope-open-text"></span><span><strong>${this.escape(item.name)}</strong><small>${this.escape(item.subject || 'No subject')}</small></span></button></td><td>${this.escape(item.campaignName || 'Not linked')}</td><td><span class="nexa-email-status is-${this.escape(item.lifecycleStatus)}">${this.escape(this.label(item.lifecycleStatus))}</span></td><td>v${Number(item.version || 1)}</td><td>${this.escape(item.fromAddress || 'Not set')}</td><td>${Number(item.queuedCount || 0)}</td><td>${this.escape(this.dateTime(item.modifiedAt))}</td><td><div class="nexa-email-actions">${this.actions(item)}</div></td></tr>`).join('');
         this.text('[data-email-count]', `${items.length} email${items.length === 1 ? '' : 's'}`); const empty = this.element.querySelector('[data-email-empty]'); empty.hidden = items.length > 0; this.element.querySelector('[data-email-table]').hidden = !items.length;
     }
-    actions(item) { const buttons = [`<button class="btn btn-icon" data-action="edit-email" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>`]; if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane')); if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check')); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled) buttons.push(`<button class="btn btn-icon" data-action="schedule-email" data-id="${this.escape(item.id)}" title="Schedule approved email"><span class="fas fa-clock"></span></button>`); if (['review','approved'].includes(item.lifecycleStatus)) buttons.push(this.transitionButton(item, 'return', 'Return to draft', 'fa-undo')); return buttons.join(''); }
+    actions(item) { const buttons = [`<button class="btn btn-icon" data-action="email-results" data-id="${this.escape(item.id)}" title="Delivery results"><span class="fas fa-chart-bar"></span></button>`]; if (['draft','review','approved'].includes(item.lifecycleStatus) && this.workspace.permissions?.edit) buttons.push(`<button class="btn btn-icon" data-action="edit-email" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>`); if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane')); if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check')); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled && this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="schedule-email" data-id="${this.escape(item.id)}" title="Schedule approved email"><span class="fas fa-clock"></span></button>`); if (['review','approved'].includes(item.lifecycleStatus)) buttons.push(this.transitionButton(item, 'return', 'Return to draft', 'fa-undo')); return buttons.join(''); }
     transitionButton(item, action, title, icon) { return `<button class="btn btn-icon" data-action="transition" data-id="${this.escape(item.id)}" data-transition="${action}" title="${title}"><span class="fas ${icon}"></span></button>`; }
     newEmail() { this.openEditor(null); }
-    editEmail(event) { this.openEditor((this.workspace.emails || []).find(item => item.id === event.currentTarget.dataset.id)); }
+    editEmail(event) {
+        const item = (this.workspace.emails || []).find(item => item.id === event.currentTarget.dataset.id);
+        if (!item) return;
+        if (!['draft','review','approved'].includes(item.lifecycleStatus) || !this.workspace.permissions?.edit) return this.openResults(event);
+        this.openEditor(item);
+    }
     openEditor(item) { this.current = item || null; const form = this.element.querySelector('[data-email-form]'); form.reset(); form.elements.name.value=item?.name||''; form.elements.campaignId.value=item?.campaignId||''; form.elements.subject.value=item?.subject||''; form.elements.preheader.value=item?.preheader||''; form.elements.fromAddress.value=item?.fromAddress||''; form.elements.fromName.value=item?.fromName||''; form.elements.replyToAddress.value=item?.replyToAddress||''; form.elements.replyToName.value=item?.replyToName||''; form.elements.startAt.value=this.inputDateTime(item?.startAt); form.elements.bodyHtml.value=item?.bodyHtml||'<p>Hello {{contact.firstName}},</p><p></p><p>Kind regards,<br>{{tenant.name}}</p>'; this.syncCampaign(); this.text('[data-editor-title]', item ? `Edit ${item.name}` : 'Create marketing email'); const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); setTimeout(()=>form.elements.name.focus(),0); }
     closeEditor() { const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=true; editor.style.display='none'; document.body.classList.remove('nexa-modal-open'); }
     async openDelivery() { const editor=this.element.querySelector('[data-delivery-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); Espo.Ui.notify('Loading delivery settings...'); try { this.delivery=await Espo.Ajax.getRequest('Nexa/marketing-delivery/settings'); Espo.Ui.notify(false); this.renderDelivery(); } catch(error){this.closeDelivery();Espo.Ui.notify(false);Espo.Ui.error(error?.message||'Delivery settings could not be loaded.');} }

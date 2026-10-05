@@ -50,6 +50,7 @@ final class MarketingEmailWorkspaceService
                 'approve' => $this->user->isAdmin() && $this->acl->checkScope('MassEmail', Table::ACTION_EDIT),
             ],
             'delivery' => $delivery,
+            'usage' => $this->user->isAdmin() ? $this->delivery->usage() : null,
             'deliveryEnabled' => $delivery['ready'],
             'deliveryMessage' => $delivery['ready'] ? 'Delivery prerequisites are ready.' : 'Scheduling unlocks after a verified sending domain and marketing delivery provider are configured.',
         ];
@@ -183,7 +184,39 @@ final class MarketingEmailWorkspaceService
     {
         $statement = $this->entityManager->getPDO()->prepare("SELECT p.id,p.mass_email_id AS massEmailId,p.delivery_mode AS deliveryMode,p.lifecycle_status AS lifecycleStatus,p.purpose_id AS purposeId,p.preheader,p.version_number AS version,p.submitted_at AS submittedAt,p.approved_at AS approvedAt,m.name,m.status AS nativeStatus,m.start_at AS startAt,m.from_address AS fromAddress,m.from_name AS fromName,m.reply_to_address AS replyToAddress,m.reply_to_name AS replyToName,m.campaign_id AS campaignId,m.email_template_id AS emailTemplateId,m.modified_at AS modifiedAt,t.subject,t.body AS bodyHtml,c.name AS campaignName,cp.name AS purposeName,(SELECT COUNT(*) FROM email_queue_item q WHERE q.mass_email_id=m.id AND q.tenant_id=m.tenant_id AND q.service_id=m.service_id AND q.deleted=0) AS queuedCount FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id INNER JOIN email_template t ON t.id=m.email_template_id AND t.tenant_id=m.tenant_id AND t.service_id=m.service_id LEFT JOIN campaign c ON c.id=m.campaign_id AND c.tenant_id=m.tenant_id AND c.service_id=m.service_id LEFT JOIN nexa_consent_purpose cp ON cp.id=p.purpose_id AND cp.tenant_id=p.tenant_id AND cp.service_id=p.service_id WHERE p.tenant_id=? AND p.service_id=? AND m.deleted=0 AND p.lifecycle_status<>'archived' ORDER BY p.modified_at DESC");
         $statement->execute([$context->tenantId, $context->serviceId]);
-        return array_map(static function (array $row): array { $row['version'] = (int) $row['version']; $row['queuedCount'] = (int) $row['queuedCount']; return $row; }, $statement->fetchAll(PDO::FETCH_ASSOC));
+        $metrics = $this->deliveryMetrics($context);
+        return array_map(static function (array $row) use ($metrics): array {
+            $row['version'] = (int) $row['version']; $row['queuedCount'] = (int) $row['queuedCount'];
+            $row['deliveryMetrics'] = $metrics[$row['id']] ?? array_fill_keys(['submitted','delivered','deferred','bounced','complained','failed','opened','clicked','unsubscribed'], 0);
+            return $row;
+        }, $statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /** @return array<string, array<string, int>> */
+    private function deliveryMetrics(TenantContext $context): array
+    {
+        $query = $this->entityManager->getPDO()->prepare(
+            "SELECT profile_id,SUM(submitted_at IS NOT NULL) AS submitted,SUM(status='delivered') AS delivered," .
+            "SUM(status='deferred') AS deferred,SUM(status='bounced') AS bounced,SUM(status='complained') AS complained," .
+            "SUM(status='failed') AS failed FROM nexa_marketing_delivery_message WHERE tenant_id=? AND service_id=? GROUP BY profile_id"
+        );
+        $query->execute([$context->tenantId,$context->serviceId]);
+        $result = [];
+        foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $id = $row['profile_id']; unset($row['profile_id']);
+            $result[$id] = array_merge(array_fill_keys(['opened','clicked','unsubscribed'], 0), array_map('intval', $row));
+        }
+        $events = $this->entityManager->getPDO()->prepare(
+            "SELECT profile_id,event_type,COUNT(DISTINCT recipient) AS total FROM nexa_marketing_delivery_event " .
+            "WHERE tenant_id=? AND service_id=? AND profile_id IS NOT NULL AND event_type IN ('opened','clicked','unsubscribed') " .
+            "GROUP BY profile_id,event_type"
+        );
+        $events->execute([$context->tenantId,$context->serviceId]);
+        foreach ($events->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $result[$row['profile_id']] ??= array_fill_keys(['submitted','delivered','deferred','bounced','complained','failed','opened','clicked','unsubscribed'], 0);
+            $result[$row['profile_id']][$row['event_type']] = (int) $row['total'];
+        }
+        return $result;
     }
 
     /** @return array<int, array<string, mixed>> */

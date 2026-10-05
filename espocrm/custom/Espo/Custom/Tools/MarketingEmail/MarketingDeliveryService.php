@@ -58,6 +58,27 @@ final class MarketingDeliveryService
         return ['providerConfigured'=>$configured,'verifiedDomainCount'=>$readyDomains,'ready'=>$configured && $readyDomains>0];
     }
 
+    /** @return array<string, int|string|null> */
+    public function usage(): array
+    {
+        $this->requireAdmin();
+        $context = $this->tenantContextStore->require();
+        $query = $this->entityManager->getPDO()->prepare(
+            "SELECT DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') AS month,p.monthly_send_limit," .
+            "COALESCE(u.accepted_count,0) AS reserved,COALESCE(u.delivered_count,0) AS delivered,COALESCE(u.failed_count,0) AS failed " .
+            "FROM nexa_marketing_delivery_provider p LEFT JOIN nexa_marketing_monthly_usage u " .
+            "ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') " .
+            "WHERE p.tenant_id=? AND p.service_id=?"
+        );
+        $query->execute([$context->tenantId, $context->serviceId]);
+        $row = $query->fetch(PDO::FETCH_ASSOC) ?: [];
+        $limit = MarketingAllowance::limit($this->entityManager->getPDO(), $context, (int) ($row['monthly_send_limit'] ?? 0));
+        $reserved = (int) ($row['reserved'] ?? 0);
+        return ['month' => $row['month'] ?? gmdate('Y-m-01'), 'limit' => $limit,
+            'reserved' => $reserved, 'remaining' => max(0, $limit - $reserved),
+            'delivered' => (int) ($row['delivered'] ?? 0), 'failed' => (int) ($row['failed'] ?? 0)];
+    }
+
     /** @return array<string, mixed> */
     public function saveProvider(stdClass $input): array
     {

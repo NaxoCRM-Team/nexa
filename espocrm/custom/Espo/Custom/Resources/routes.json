@@ -818,7 +818,19 @@
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDeliveryDomainVerify"
     },
     {
-        "route": "/Nexa/public/marketing-delivery/postal/:token",
+          "route": "/Nexa/public/marketing-unsubscribe/:id/:token",
+          "method": "get",
+          "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\MarketingUnsubscribe",
+          "noAuth": true
+      },
+      {
+          "route": "/Nexa/public/marketing-unsubscribe/:id/:token",
+          "method": "post",
+          "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\MarketingUnsubscribe",
+          "noAuth": true
+      },
+      {
+          "route": "/Nexa/public/marketing-delivery/postal/:token",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostPostalCallback",
         "noAuth": true

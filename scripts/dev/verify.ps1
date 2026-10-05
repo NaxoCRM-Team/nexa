@@ -133,7 +133,9 @@ $required = @(
     'tests/workflows/MarketingDeliveryGovernanceContractTest.php',
     'tests/tenant/TenantMarketingDeliveryGovernanceTest.php',
     'tests/workflows/MarketingDispatchContractTest.php',
-    'tests/tenant/TenantMarketingDispatchTest.php',
+    'tests/tenant/TenantMarketingDispatchTest.php', 'tests/workflows/MarketingAllowanceTest.php',
+    'tests/tenant/TenantMarketingLifecycleTest.php',
+    'tests/browser/marketing-lifecycle.spec.js',
     'tests/browser/live-marketing-email-workspace.spec.js',
     'tests/tenant/TenantBehaviorEventTest.php', 'tests/tenant/TenantBehaviorEventReplayTest.php',
     'tests/tenant/TenantPublicEventCollectorTest.php', 'tests/tenant/TenantBehaviorIdentityBackfillTest.php',
@@ -461,6 +463,8 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Marketing delivery governance contract suite' } else { Fail 'Marketing delivery governance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\MarketingDispatchContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Marketing dispatch contract suite' } else { Fail 'Marketing dispatch contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\MarketingAllowanceTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Marketing allowance suite' } else { Fail 'Marketing allowance suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Asset workspace contract suite' } else { Fail 'Asset workspace contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
@@ -498,6 +502,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Delivery governance runtime suite' } else { Fail 'Two-tenant Marketing Delivery governance runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingDispatchTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Dispatch runtime suite' } else { Fail 'Two-tenant Marketing Dispatch runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingLifecycleTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Lifecycle runtime suite' } else { Fail 'Two-tenant Marketing Lifecycle runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantPhase4SecurityTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')

@@ -37,6 +37,7 @@ final class MarketingDispatchService
         private TemplateProcessor $templateProcessor,
         private ApplicationConfig $applicationConfig,
         private User $user,
+        private MarketingUnsubscribeService $unsubscribe,
     ) {}
 
     /** @return array{id:string,status:string,eligibleCount:int,scheduledAt:string} */
@@ -197,9 +198,9 @@ final class MarketingDispatchService
             return;
         }
         $rendered = $this->templateProcessor->process($template, TemplateParams::create()->withApplyAcl(false)->withCopyAttachments(false), TemplateData::create()->withParent($contact));
-        $unsubscribeUrl = rtrim($this->applicationConfig->getSiteUrl(), '/') . '?entryPoint=unsubscribe&id=' . rawurlencode($queueItemId);
+        $unsubscribeUrl = rtrim($this->applicationConfig->getSiteUrl(), '/') . '/api/v1/Nexa/public/marketing-unsubscribe/' . rawurlencode($queueItemId) . '/' . $this->unsubscribe->token($queueItemId);
         $body = str_replace(['{queueItemId}', '{optOutUrl}', '{optOutLink}'], [$queueItemId, $unsubscribeUrl, '<a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES) . '">Unsubscribe</a>'], $rendered->getBody());
-        if (stripos($body, '?entryPoint=unsubscribe&amp;id') === false && stripos($body, '?entryPoint=unsubscribe&id') === false) {
+        if (!str_contains($body, '/Nexa/public/marketing-unsubscribe/')) {
             $body .= $rendered->isHtml() ? '<br><br><a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES) . '">Unsubscribe</a>' : "\n\n" . $unsubscribeUrl;
         }
 
@@ -216,7 +217,7 @@ final class MarketingDispatchService
                 htmlBody: $body,
                 textBody: null,
                 queueItemId: $queueItemId,
-                headers: ['List-Unsubscribe' => '<' . $unsubscribeUrl . '>'],
+                headers: ['List-Unsubscribe' => '<' . $unsubscribeUrl . '>', 'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click'],
             ));
             $pdo = $this->entityManager->getPDO();
             $message = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET provider_message_id=?,provider_token=?,status='submitted',attempt_count=attempt_count+1,submitted_at=NOW(6),modified_at=NOW(6) WHERE tenant_id=? AND service_id=? AND email_queue_item_id=? AND status='submitting'");
@@ -242,7 +243,8 @@ final class MarketingDispatchService
             $capacity = $pdo->prepare("SELECT p.monthly_send_limit,u.accepted_count FROM nexa_marketing_delivery_provider p INNER JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? FOR UPDATE");
             $capacity->execute([$context->tenantId, $context->serviceId]);
             $usageRow = $capacity->fetch(PDO::FETCH_ASSOC);
-            if (!$usageRow || ((int) $usageRow['monthly_send_limit'] > 0 && (int) $usageRow['accepted_count'] >= (int) $usageRow['monthly_send_limit'])) {
+            $limit = MarketingAllowance::limit($pdo, $context, (int) ($usageRow['monthly_send_limit'] ?? 0));
+            if (!$usageRow || (int) $usageRow['accepted_count'] >= $limit) {
                 if ($ownsTransaction) {
                     $pdo->rollBack();
                 }
@@ -332,8 +334,8 @@ final class MarketingDispatchService
         if (!$row) {
             return 0;
         }
-        $limit = (int) $row['monthly_send_limit'];
-        return $limit === 0 ? null : max(0, $limit - (int) $row['accepted_count']);
+        $limit = MarketingAllowance::limit($this->entityManager->getPDO(), $context, (int) $row['monthly_send_limit']);
+        return max(0, $limit - (int) $row['accepted_count']);
     }
 
     /** @return array<string, mixed> */

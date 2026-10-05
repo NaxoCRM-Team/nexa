@@ -4279,6 +4279,14 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     'webinar.attended': 'Webinar attended',
                     'purchase.completed': 'Purchase completed',
                     'email.replied': 'Email reply tracked',
+                    'email.delivered': 'Marketing email delivered',
+                    'email.deferred': 'Marketing email delayed',
+                    'email.bounced': 'Marketing email bounced',
+                    'email.complained': 'Marketing email complaint',
+                    'email.failed': 'Marketing email failed',
+                    'email.opened': 'Marketing email opened',
+                    'email.clicked': 'Marketing email link clicked',
+                    'email.unsubscribed': 'Unsubscribed from marketing email',
                 };
                 const typeMap = {
                     website: 'website',
@@ -4290,7 +4298,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 };
 
                 this.contactBehaviorActivities = (payload.timeline || [])
-                    .filter(event => event.source_entity_type === 'BehaviorEvent')
+                    .filter(event => ['BehaviorEvent', 'MarketingDeliveryEvent'].includes(event.source_entity_type))
                     .map(event => {
                         const behavior = event.behavior || {};
                         const properties = behavior.properties || event.metadata?.properties || {};

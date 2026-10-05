@@ -15,7 +15,8 @@ $assert(str_contains($service, 'nexa_campaign_enrollment') && str_contains($serv
 $assert(str_contains($service, "ea.invalid=0") && str_contains($service, "ea.opt_out=0") && str_contains($service, 'do_not_contact'), 'Dispatch must honor native email validity, opt-out and do-not-contact controls.');
 $assert(str_contains($service, 'EmailQueueItem::ENTITY_TYPE') && str_contains($service, 'TemplateProcessor') && str_contains($service, 'PostalDeliveryProvider'), 'Dispatch must retain the native queue and renderer behind the provider adapter.');
 $assert(str_contains($service, 'FOR UPDATE') && str_contains($service, 'accepted_count=accepted_count+1'), 'Monthly delivery capacity must be reserved atomically.');
-$assert(str_contains($service, 'List-Unsubscribe') && str_contains($service, 'entryPoint=unsubscribe'), 'Every governed send must retain native unsubscribe handling.');
+$unsubscribe = $read('espocrm/custom/Espo/Custom/Tools/MarketingEmail/MarketingUnsubscribeService.php');
+$assert(str_contains($service, 'List-Unsubscribe-Post') && str_contains($service, '/Nexa/public/marketing-unsubscribe/') && str_contains($unsubscribe, '$this->native->unsubscribe'), 'Every governed send must offer signed unsubscribe links backed by native opt-out handling.');
 $assert(str_contains($routes, '/Nexa/marketing-emails/:id/schedule') && str_contains($client, 'schedule-email'), 'Approved email scheduling must be available through the API and workspace.');
 $assert(str_contains($scheduled, 'ProcessMarketingDelivery') && str_contains($job, 'runScheduled'), 'The tenant-aware marketing delivery job is not registered.');
 echo "Marketing dispatch contracts passed.\n";

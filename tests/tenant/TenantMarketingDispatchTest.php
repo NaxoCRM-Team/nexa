@@ -37,6 +37,19 @@ $transactions = $entityManager->getTransactionManager();
 $transactions->start();
 
 try {
+    $pdo->prepare("INSERT INTO nexa_tenant_service (tenant_id,service_id,status) SELECT ?,id,'active' FROM nexa_service_definition WHERE service_key='marketing.contacts' ON DUPLICATE KEY UPDATE status='active'")->execute([$tenantA->tenantId]);
+    $allowance = \Espo\Custom\Tools\MarketingEmail\MarketingAllowance::class;
+    $pdo->prepare("UPDATE nexa_tenant_service ts INNER JOIN nexa_service_definition sd ON sd.id=ts.service_id SET ts.hard_limit_override=1000 WHERE ts.tenant_id=? AND sd.service_key='marketing.contacts'")->execute([$tenantA->tenantId]);
+    $assert($allowance::limit($pdo, $tenantA, 0) === 20000, 'A 1,000 contact tier must allow 20,000 monthly sends.');
+    $assert($allowance::limit($pdo, $tenantA, 100) === 100, 'A lower provider cap must remain enforced.');
+    $pdo->prepare("INSERT INTO nexa_tenant_service (tenant_id,service_id,status,hard_limit_override) SELECT ?,id,'active',2000 FROM nexa_service_definition WHERE service_key='marketing.contacts' ON DUPLICATE KEY UPDATE status='active',hard_limit_override=2000")->execute([$tenantB->tenantId]);
+    $assert($allowance::limit($pdo, $tenantB, 0) === 40000, 'Another tenant must retain its own contact-tier allowance.');
+    $pdo->prepare("UPDATE nexa_tenant_subscription SET status='trialing',trial_ends_at=DATE_SUB(NOW(),INTERVAL 1 DAY) WHERE tenant_id=?")->execute([$tenantA->tenantId]);
+    $assert($allowance::limit($pdo, $tenantA, 0) === 0, 'Expired trials must block marketing sends.');
+    $pdo->prepare("UPDATE nexa_tenant_subscription SET status='active' WHERE tenant_id=?")->execute([$tenantA->tenantId]);
+    $pdo->prepare("UPDATE nexa_tenant_service ts INNER JOIN nexa_service_definition sd ON sd.id=ts.service_id SET ts.status='disabled' WHERE ts.tenant_id=? AND sd.service_key='marketing.contacts'")->execute([$tenantA->tenantId]);
+    $assert($allowance::limit($pdo, $tenantA, 0) === 0, 'Disabled marketing entitlements must block sending.');
+    $pdo->prepare("UPDATE nexa_tenant_service ts INNER JOIN nexa_service_definition sd ON sd.id=ts.service_id SET ts.status='active' WHERE ts.tenant_id=? AND sd.service_key='marketing.contacts'")->execute([$tenantA->tenantId]);
     $contact = $store->runWith($tenantA, fn () => $services->get('Contact')->create((object) [
         'firstName' => 'Governed', 'lastName' => 'Recipient',
         'emailAddress' => 'governed-recipient@example.test',

@@ -49,7 +49,9 @@ final class PostalDeliveryProvider implements MarketingDeliveryProvider
         $response = $this->request(rtrim($baseUrl, '/') . '/api/v1/send/message', $payload);
         $data = is_array($response['data'] ?? null) ? $response['data'] : [];
         $messages = is_array($data['messages'] ?? null) ? $data['messages'] : [];
-        $first = is_array($messages[0] ?? null) ? $messages[0] : [];
+        // Postal keys message results by recipient address.
+        $first = $messages !== [] ? reset($messages) : [];
+        $first = is_array($first) ? $first : [];
         $messageId = trim((string) ($data['message_id'] ?? $first['id'] ?? $first['message_id'] ?? ''));
         $token = trim((string) ($first['token'] ?? $data['token'] ?? ''));
         if ($messageId === '') {
