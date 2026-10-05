@@ -788,6 +788,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostTransition"
     },
     {
+        "route": "/Nexa/marketing-emails/:id/schedule",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSchedule"
+    },
+    {
         "route": "/Nexa/marketing-delivery/settings",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDeliverySettings"

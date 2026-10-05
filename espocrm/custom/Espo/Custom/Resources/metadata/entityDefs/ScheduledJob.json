@@ -29,6 +29,11 @@
             "name": "Purge Expired Behavior Events",
             "isSystem": true,
             "scheduling": "17 2 * * *"
+        },
+        "ProcessMarketingDelivery": {
+            "name": "Process Marketing Delivery",
+            "isSystem": true,
+            "scheduling": "* * * * *"
         }
     }
 }

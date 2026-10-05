@@ -17,3 +17,9 @@ Postal remains responsible for accepting and delivering messages, retrying tempo
 Migration `0064` adds the native-queue-to-provider message map and monthly usage ledger. The public callback uses a 48-character one-time token whose SHA-256 hash is stored per tenant and service; administrators can rotate the URL, and repeated provider events are idempotent. Hard bounces and complaints enter the tenant suppression list automatically.
 
 `MarketingDeliveryProvider` is the transport boundary. `PostalDeliveryProvider` retrieves the tenant's encrypted API key only at runtime and submits through Postal's HTTPS message API. It does not select recipients, bypass consent, construct a second campaign queue or own scheduling. The governed dispatcher must continue to select and render native `EmailQueueItem` records before invoking this adapter.
+
+## Governed dispatch boundary
+
+Approved emails can be scheduled only when their campaign is active, their sender domain is verified and the tenant has sufficient monthly capacity. `ProcessMarketingDelivery` runs once per minute inside each tenant's scheduled-job context. It creates native `EmailQueueItem` records from governed campaign enrollments and renders the native `EmailTemplate` for each Contact.
+
+Eligibility is checked again immediately before submission. Withdrawn or expired consent, contact and channel do-not-contact controls, target-list opt-out, native invalid/opted-out email flags and active provider suppressions all prevent delivery. Monthly capacity is locked and reserved before the external request. A delivery-message record is created before calling Postal so concurrent workers cannot submit the same queue item twice. Native Mass Email statuses use `Nexa Scheduled` and `Nexa Sending` while Postal owns transport, preventing the stock SMTP worker from racing the governed dispatcher.
