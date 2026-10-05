@@ -117,6 +117,31 @@ try {
     $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
     $assert($profile->fetchColumn() === 'completed', 'A fully suppressed scheduled email did not finish without delivery.');
 
+    $item = $store->runWith($tenantA, function () use ($entityManager, $draft, $contact) {
+        $item = $entityManager->getNewEntity('EmailQueueItem');
+        $item->set(['massEmailId' => $draft['massEmailId'], 'targetId' => $contact->getId(), 'targetType' => 'Contact', 'status' => 'Sending']);
+        $entityManager->saveEntity($item);
+        return $item;
+    });
+    $pdo->prepare("INSERT INTO nexa_marketing_delivery_message (id,tenant_id,service_id,profile_id,email_queue_item_id,provider_key,recipient,status) VALUES (?,?,?,?,?,'postal','governed-recipient@example.test','submitting')")
+        ->execute(['70000000-0000-4000-8000-000000000001',$tenantA->tenantId,$tenantA->serviceId,$draft['id'],$item->getId()]);
+    $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='sending' WHERE id=?")->execute([$draft['id']]);
+    $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+    $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($profile->fetchColumn() === 'sending', 'An in-flight submission must not be marked complete.');
+    $pdo->prepare("UPDATE nexa_marketing_delivery_message SET modified_at=DATE_SUB(NOW(),INTERVAL 20 MINUTE) WHERE email_queue_item_id=?")->execute([$item->getId()]);
+    $method = new ReflectionMethod(MarketingDispatchService::class, 'pauseStaleSubmissions');
+    $method->invoke($factory->create(MarketingDispatchService::class), $tenantB);
+    $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($profile->fetchColumn() === 'sending', 'Another tenant must not pause this submission.');
+    $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+    $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+    $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($profile->fetchColumn() === 'paused', 'Stale uncertain submissions must pause for review, not resend.');
+    $audit = $pdo->prepare("SELECT COUNT(*) FROM nexa_marketing_email_event WHERE profile_id=? AND event_type='submission_review_required'");
+    $audit->execute([$draft['id']]);
+    $assert((int) $audit->fetchColumn() === 1, 'Recovery must emit one review event.');
+
     $isolated = false;
     try {
         $store->runWith($tenantB, fn (): array => $factory->create(MarketingDispatchService::class)->schedule((string) $draft['id']));

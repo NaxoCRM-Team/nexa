@@ -95,6 +95,7 @@ final class MarketingDispatchService
     public function runScheduled(): void
     {
         $context = $this->tenantContextStore->require();
+        $this->pauseStaleSubmissions($context);
         $statement = $this->entityManager->getPDO()->prepare("SELECT id FROM nexa_marketing_email_profile WHERE tenant_id=? AND service_id=? AND lifecycle_status IN ('scheduled','sending') ORDER BY created_at LIMIT 20");
         $statement->execute([$context->tenantId, $context->serviceId]);
         foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $profileId) {
@@ -171,7 +172,7 @@ final class MarketingDispatchService
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $this->dispatchItem($context, $profile, $massEmail, $template, (string) $row['id'], (string) $row['target_id']);
         }
-        $remaining = $this->entityManager->getPDO()->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND status='Pending' AND deleted=0");
+        $remaining = $this->entityManager->getPDO()->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND status IN ('Pending','Sending') AND deleted=0");
         $remaining->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id']]);
         if ((int) $remaining->fetchColumn() === 0) {
             $failed = $this->entityManager->getPDO()->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND status='Failed' AND deleted=0");
@@ -181,6 +182,34 @@ final class MarketingDispatchService
             } else {
                 $this->completeProfile($context, $profile);
             }
+        }
+    }
+
+    private function pauseStaleSubmissions(TenantContext $context): void
+    {
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $query = $pdo->prepare("SELECT p.id,p.mass_email_id,p.version_number FROM nexa_marketing_email_profile p
+                WHERE p.tenant_id=? AND p.service_id=? AND p.lifecycle_status='sending'
+                AND EXISTS (SELECT 1 FROM nexa_marketing_delivery_message d
+                    WHERE d.profile_id=p.id AND d.tenant_id=p.tenant_id AND d.service_id=p.service_id
+                    AND d.status='submitting' AND d.modified_at<DATE_SUB(NOW(),INTERVAL 15 MINUTE))
+                LIMIT 20 FOR UPDATE");
+            $query->execute([$context->tenantId, $context->serviceId]);
+            foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $profile) {
+                $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='paused',modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")
+                    ->execute([$profile['id'], $context->tenantId, $context->serviceId]);
+                $pdo->prepare("UPDATE mass_email SET status='Nexa Paused',modified_at=NOW() WHERE id=? AND tenant_id=? AND service_id=?")
+                    ->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId]);
+                $this->event($context, $profile['id'], 'submission_review_required', (int) $profile['version_number'],
+                    ['message' => 'A submission has no confirmed provider response. Review Postal before retrying to avoid duplicate delivery.']);
+            }
+            if ($ownsTransaction) $pdo->commit();
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
         }
     }
 

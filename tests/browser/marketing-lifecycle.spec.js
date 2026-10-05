@@ -5,6 +5,52 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const source = name => fs.readFileSync(path.join(root, 'espocrm/client/custom/src/views', name, 'record/detail-workspace.js'), 'utf8');
 
+test('Email preview updates content without executing scripts or requesting remote assets', async ({page}, testInfo) => {
+    const template = fs.readFileSync(path.join(root, 'espocrm/client/custom/res/templates/marketing-email/workspace.tpl'), 'utf8');
+    const css = fs.readFileSync(path.join(root, 'espocrm/client/custom/css/marketing-email-workspace.css'), 'utf8');
+    let remoteRequests = 0;
+    await page.route('https://preview-attacker.example/**', route => { remoteRequests++; return route.abort(); });
+    await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font:14px Arial}.form-control{box-sizing:border-box;width:100%}${css}</style>${template}`);
+    await page.evaluate(() => { window.define = (name, deps, factory) => { window.MarketingWorkspace = factory(class {}); }; });
+    await page.addScriptTag({content: fs.readFileSync(path.join(root, 'espocrm/client/custom/src/views/marketing-email/workspace.js'), 'utf8')});
+    await page.evaluate(() => {
+        window.previewView = new window.MarketingWorkspace();
+        previewView.element = document.querySelector('main');
+        const form = previewView.element.querySelector('[data-email-form]');
+        form.elements.subject.value = 'Customer newsletter';
+        form.elements.preheader.value = 'Your monthly update';
+        form.elements.bodyHtml.value = '<h1>Customer news</h1><p>Welcome back.</p><script>parent.previewCompromised=true</script><img src="https://preview-attacker.example/tracker"><form action="https://preview-attacker.example/submit"><button>Submit</button></form>';
+        const editor = document.querySelector('[data-email-editor]'); editor.hidden = false; editor.style.display = 'grid';
+        previewView.renderContentPreview();
+        form.addEventListener('input', () => previewView.renderContentPreview());
+        form.addEventListener('change', () => previewView.renderContentPreview());
+    });
+    const frame = page.frameLocator('iframe[title="Email content preview"]');
+    await expect(frame.getByRole('heading', {name: 'Customer news'})).toBeVisible();
+    await expect(page.locator('[data-preview-subject]')).toHaveText('Customer newsletter');
+    expect(await page.evaluate(() => window.previewCompromised)).toBeUndefined();
+    await page.locator('[name="bodyHtml"]').fill('<h2>Updated newsletter</h2><p>New content.</p>');
+    await expect(frame.getByRole('heading', {name: 'Updated newsletter'})).toBeVisible();
+    await page.locator('[data-preview-width]').selectOption('mobile');
+    const bounds = await page.locator('iframe[title="Email content preview"]').boundingBox();
+    expect(bounds.width).toBeLessThanOrEqual(377);
+    expect(remoteRequests).toBe(0);
+    await page.evaluate(async () => {
+        window.Espo = {Ui: {notify() {}, error(message) {throw new Error(message);}}, Ajax: {postRequest: async (url, input) => {
+            if (url !== 'Nexa/marketing-emails/preview' || input.contactId !== 'allowed-contact') throw new Error('Wrong preview endpoint.');
+            return {subject: 'Hello Preview', bodyHtml: '<p>Welcome Preview Customer</p><script>parent.previewCompromised=true</script>'};
+        }}};
+        await previewView.previewContact({id: 'allowed-contact', get: () => 'Preview Customer'});
+    });
+    await expect(page.locator('[data-preview-recipient]')).toHaveText('Preview for Preview Customer');
+    await expect(frame.getByText('Welcome Preview Customer')).toBeVisible();
+    expect(await page.evaluate(() => window.previewCompromised)).toBeUndefined();
+    await page.locator('[name="bodyHtml"]').fill('<h2>Edited after personalization</h2>');
+    await expect(frame.getByRole('heading', {name: 'Edited after personalization'})).toBeVisible();
+    await expect(page.locator('[data-preview-recipient]')).toBeEmpty();
+    await testInfo.attach('marketing-content-preview.png', {body: await page.screenshot(), contentType: 'image/png'});
+});
+
 test('Marketing workspace reports usage and delivery outcomes with keyboard dismissal', async ({page}, testInfo) => {
     const template = fs.readFileSync(path.join(root, 'espocrm/client/custom/res/templates/marketing-email/workspace.tpl'), 'utf8');
     const css = fs.readFileSync(path.join(root, 'espocrm/client/custom/css/marketing-email-workspace.css'), 'utf8');

@@ -133,7 +133,7 @@ $required = @(
     'tests/workflows/MarketingDeliveryGovernanceContractTest.php',
     'tests/tenant/TenantMarketingDeliveryGovernanceTest.php',
     'tests/workflows/MarketingDispatchContractTest.php',
-    'tests/tenant/TenantMarketingDispatchTest.php', 'tests/workflows/MarketingAllowanceTest.php',
+    'tests/tenant/TenantMarketingDispatchTest.php', 'tests/workflows/MarketingAllowanceTest.php', 'tests/tenant/TenantMarketingPreviewTest.php',
     'tests/tenant/TenantMarketingLifecycleTest.php',
     'tests/browser/marketing-lifecycle.spec.js',
     'tests/browser/live-marketing-email-workspace.spec.js',
@@ -504,6 +504,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Dispatch runtime suite' } else { Fail 'Two-tenant Marketing Dispatch runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingLifecycleTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Lifecycle runtime suite' } else { Fail 'Two-tenant Marketing Lifecycle runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingPreviewTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Preview runtime suite' } else { Fail 'Two-tenant Marketing Preview runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantPhase4SecurityTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')

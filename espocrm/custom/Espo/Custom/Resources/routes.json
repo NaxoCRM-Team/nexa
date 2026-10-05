@@ -768,6 +768,11 @@
         "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostStatus"
     },
     {
+        "route": "/Nexa/marketing-emails/preview",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostPreview"
+    },
+    {
         "route": "/Nexa/marketing-emails/workspace",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetWorkspace"
