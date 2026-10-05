@@ -87,7 +87,7 @@ final class MarketingEmailWorkspaceService
                 $insert = $pdo->prepare('INSERT INTO nexa_marketing_email_profile (id,tenant_id,service_id,mass_email_id,delivery_mode,lifecycle_status,purpose_id,preheader,version_number,created_by_id,modified_by_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
                 $insert->execute([$id, $context->tenantId, $context->serviceId, $nativeId, $data['deliveryMode'], 'draft', $data['purposeId'], $data['preheader'], $version, $this->user->getId(), $this->user->getId()]);
             } else {
-                $profile = $this->requireProfile($context, $id);
+                $profile = $this->requireProfile($context, $id, true);
                 if (!in_array($profile['lifecycle_status'], ['draft', 'review', 'approved'], true)) throw new BadRequest('This email can no longer be edited.');
                 $nativeId = (string) $profile['mass_email_id'];
                 $templateId = (string) $profile['email_template_id'];
@@ -120,22 +120,31 @@ final class MarketingEmailWorkspaceService
     {
         $this->requireAccess(Table::ACTION_EDIT);
         $context = $this->tenantContextStore->require();
-        $profile = $this->requireProfile($context, $id);
-        $action = strtolower(trim((string) ($input->action ?? '')));
-        $current = (string) $profile['lifecycle_status'];
-        $next = match ($action) {
-            'submit' => $current === 'draft' ? 'review' : null,
-            'approve' => $current === 'review' ? 'approved' : null,
-            'return' => in_array($current, ['review', 'approved'], true) ? 'draft' : null,
-            default => null,
-        };
-        if ($next === null) throw new BadRequest('This email cannot make the requested status change.');
-        if ($action === 'approve' && !$this->user->isAdmin()) throw new Forbidden('Only tenant administrators can approve marketing email.');
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $profile = $this->requireProfile($context, $id, true);
+            $action = strtolower(trim((string) ($input->action ?? '')));
+            $current = (string) $profile['lifecycle_status'];
+            $next = match ($action) {
+                'submit' => $current === 'draft' ? 'review' : null,
+                'approve' => $current === 'review' ? 'approved' : null,
+                'return' => in_array($current, ['review', 'approved'], true) ? 'draft' : null,
+                default => null,
+            };
+            if ($next === null) throw new BadRequest('This email cannot make the requested status change.');
+            if ($action === 'approve' && !$this->user->isAdmin()) throw new Forbidden('Only tenant administrators can approve marketing email.');
 
-        $statement = $this->entityManager->getPDO()->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status=?,submitted_by_id=IF(?='review',?,submitted_by_id),submitted_at=IF(?='review',NOW(6),submitted_at),approved_by_id=IF(?='approved',?,NULL),approved_at=IF(?='approved',NOW(6),NULL),modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?");
-        $statement->execute([$next, $next, $this->user->getId(), $next, $next, $this->user->getId(), $next, $this->user->getId(), $id, $context->tenantId, $context->serviceId]);
-        $this->insertEvent($context, $id, $next, (int) $profile['version_number'], ['previousStatus' => $current]);
-        return ['id' => $id, 'status' => $next];
+            $statement = $this->entityManager->getPDO()->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status=?,submitted_by_id=IF(?='review',?,submitted_by_id),submitted_at=IF(?='review',NOW(6),submitted_at),approved_by_id=IF(?='approved',?,NULL),approved_at=IF(?='approved',NOW(6),NULL),modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?");
+            $statement->execute([$next, $next, $this->user->getId(), $next, $next, $this->user->getId(), $next, $this->user->getId(), $id, $context->tenantId, $context->serviceId]);
+            $this->insertEvent($context, $id, $next, (int) $profile['version_number'], ['previousStatus' => $current]);
+            if ($ownsTransaction) $pdo->commit();
+            return ['id' => $id, 'status' => $next];
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
     }
 
     /** @return array<string, mixed> */
@@ -259,9 +268,59 @@ final class MarketingEmailWorkspaceService
     }
 
     /** @return array<string, mixed> */
-    private function requireProfile(TenantContext $context, string $id): array
+    public function versions(string $id, ?int $version = null): array
     {
-        $statement = $this->entityManager->getPDO()->prepare('SELECT p.*,m.email_template_id FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id WHERE p.id=? AND p.tenant_id=? AND p.service_id=? AND m.deleted=0 LIMIT 1');
+        $this->requireAccess(Table::ACTION_READ);
+        $context = $this->tenantContextStore->require();
+        $profile = $this->requireProfile($context, $id);
+        if (!$this->recordServices->get('MassEmail')->getEntity($profile['mass_email_id']) ||
+            !$this->recordServices->get('EmailTemplate')->getEntity($profile['email_template_id'])) throw new NotFound('Email not found.');
+        foreach (['subject', 'body'] as $field) {
+            if (!$this->acl->checkField('EmailTemplate', $field)) throw new Forbidden('Email content history is not allowed.');
+        }
+        $pdo = $this->entityManager->getPDO();
+        if ($version !== null) {
+            $query = $pdo->prepare('SELECT version_number AS version,subject,preheader,body_html AS bodyHtml,body_text AS bodyText,created_at AS createdAt FROM nexa_marketing_email_version WHERE profile_id=? AND tenant_id=? AND service_id=? AND version_number=?');
+            $query->execute([$id, $context->tenantId, $context->serviceId, $version]);
+            $row = $query->fetch(PDO::FETCH_ASSOC);
+            if (!$row) throw new NotFound('Content version not found.');
+            return $row;
+        }
+        $query = $pdo->prepare("SELECT v.version_number AS version,v.subject,v.created_at AS createdAt,v.created_by_id AS createdById,CONCAT_WS(' ',u.first_name,u.last_name) AS createdByName FROM nexa_marketing_email_version v LEFT JOIN user u ON u.id=v.created_by_id AND u.tenant_id=v.tenant_id AND u.service_id=v.service_id WHERE v.profile_id=? AND v.tenant_id=? AND v.service_id=? ORDER BY v.version_number DESC LIMIT 100");
+        $query->execute([$id, $context->tenantId, $context->serviceId]);
+        return ['currentVersion'=>(int) $profile['version_number'], 'canRestore'=>$this->canWrite(Table::ACTION_EDIT) && in_array($profile['lifecycle_status'], ['draft','review','approved'], true), 'versions'=>$query->fetchAll(PDO::FETCH_ASSOC)];
+    }
+
+    public function restoreVersion(string $id, int $version): array
+    {
+        $this->requireAccess(Table::ACTION_EDIT);
+        $context = $this->tenantContextStore->require();
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $profile = $this->requireProfile($context, $id, true);
+            if (!in_array($profile['lifecycle_status'], ['draft','review','approved'], true)) throw new BadRequest('Only editable emails can restore content.');
+            $content = $this->versions($id, $version);
+            $native = $this->recordServices->get('MassEmail')->getEntity($profile['mass_email_id']);
+            if (!$native) throw new NotFound('Email not found.');
+            $input = (object) $content;
+            foreach (['name','campaignId','startAt','fromAddress','fromName','replyToAddress','replyToName'] as $field) $input->$field = $native->get($field);
+            $input->purposeId = $profile['purpose_id'];
+            $input->deliveryMode = $profile['delivery_mode'];
+            $result = $this->save($input, $id);
+            $this->insertEvent($context, $id, 'version_restored', $result['version'], ['sourceVersion'=>$version]);
+            if ($ownsTransaction) $pdo->commit();
+            return $result;
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+    }
+
+    private function requireProfile(TenantContext $context, string $id, bool $lock = false): array
+    {
+        $statement = $this->entityManager->getPDO()->prepare('SELECT p.*,m.email_template_id FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id WHERE p.id=? AND p.tenant_id=? AND p.service_id=? AND m.deleted=0 LIMIT 1' . ($lock ? ' FOR UPDATE' : ''));
         $statement->execute([$id, $context->tenantId, $context->serviceId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         if (!$row) throw new NotFound('Marketing email not found.');

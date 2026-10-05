@@ -7,6 +7,11 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         'click [data-action="reload"]': 'load',
         'click [data-action="transition"]': 'transition',
         'click [data-action="schedule-email"]': 'scheduleEmail',
+        'click [data-action="control-delivery"]': 'controlDelivery',
+        'click [data-action="version-history"]': 'openVersionHistory',
+        'click [data-action="close-history"]': 'closeVersionHistory',
+        'change [data-history-version]': 'loadHistoryVersion',
+        'click [data-action="restore-version"]': 'restoreHistoryVersion',
         'click [data-action="email-results"]': 'openResults',
         'click [data-action="close-results"]': 'closeResults',
         'click [data-action="delivery-setup"]': 'openDelivery',
@@ -81,9 +86,82 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         this.element.querySelector('[data-email-list]').innerHTML = items.map(item => `<tr><td><button class="nexa-email-name" data-action="edit-email" data-id="${this.escape(item.id)}"><span class="fas fa-envelope-open-text"></span><span><strong>${this.escape(item.name)}</strong><small>${this.escape(item.subject || 'No subject')}</small></span></button></td><td>${this.escape(item.campaignName || 'Not linked')}</td><td><span class="nexa-email-status is-${this.escape(item.lifecycleStatus)}">${this.escape(this.label(item.lifecycleStatus))}</span></td><td>v${Number(item.version || 1)}</td><td>${this.escape(item.fromAddress || 'Not set')}</td><td>${Number(item.queuedCount || 0)}</td><td>${this.escape(this.dateTime(item.modifiedAt))}</td><td><div class="nexa-email-actions">${this.actions(item)}</div></td></tr>`).join('');
         this.text('[data-email-count]', `${items.length} email${items.length === 1 ? '' : 's'}`); const empty = this.element.querySelector('[data-email-empty]'); empty.hidden = items.length > 0; this.element.querySelector('[data-email-table]').hidden = !items.length;
     }
-    actions(item) { const buttons = [`<button class="btn btn-icon" data-action="email-results" data-id="${this.escape(item.id)}" title="Delivery results"><span class="fas fa-chart-bar"></span></button>`]; if (['draft','review','approved'].includes(item.lifecycleStatus) && this.workspace.permissions?.edit) buttons.push(`<button class="btn btn-icon" data-action="edit-email" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>`); if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane')); if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check')); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled && this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="schedule-email" data-id="${this.escape(item.id)}" title="Schedule approved email"><span class="fas fa-clock"></span></button>`); if (['review','approved'].includes(item.lifecycleStatus)) buttons.push(this.transitionButton(item, 'return', 'Return to draft', 'fa-undo')); return buttons.join(''); }
+    actions(item) { const buttons = [`<button class="btn btn-icon" data-action="email-results" data-id="${this.escape(item.id)}" title="Delivery results"><span class="fas fa-chart-bar"></span></button>`]; if (['draft','review','approved'].includes(item.lifecycleStatus) && this.workspace.permissions?.edit) buttons.push(`<button class="btn btn-icon" data-action="edit-email" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>`); if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane')); if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check')); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled && this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="schedule-email" data-id="${this.escape(item.id)}" title="Schedule approved email"><span class="fas fa-clock"></span></button>`); if (['review','approved'].includes(item.lifecycleStatus)) buttons.push(this.transitionButton(item, 'return', 'Return to draft', 'fa-undo')); if (this.workspace.permissions.approve && ['scheduled','sending','paused'].includes(item.lifecycleStatus)) { const control=item.lifecycleStatus==='paused'?'resume':'pause'; buttons.push(`<button class="btn btn-icon" data-action="control-delivery" data-id="${this.escape(item.id)}" data-control="${control}" title="${control==='pause'?'Pause delivery':'Resume delivery'}"><span class="fas ${control==='pause'?'fa-pause':'fa-play'}"></span></button>`); } buttons.push(`<button class="btn btn-icon" data-action="version-history" data-id="${this.escape(item.id)}" title="Content versions"><span class="fas fa-history"></span></button>`); return buttons.join(''); }
     transitionButton(item, action, title, icon) { return `<button class="btn btn-icon" data-action="transition" data-id="${this.escape(item.id)}" data-transition="${action}" title="${title}"><span class="fas ${icon}"></span></button>`; }
     newEmail() { this.previewRequest = (this.previewRequest || 0) + 1; this.recipientPreview = null; this.openEditor(null); }
+    async openVersionHistory(event) {
+        const id = event.currentTarget.dataset.id;
+        this.historyTrigger = event.currentTarget;
+        let modal = this.element.querySelector('[data-email-history]');
+        if (!modal) {
+            modal = document.createElement('div'); modal.className = 'nexa-marketing-email-editor'; modal.dataset.emailHistory = '';
+            modal.innerHTML = '<section class="nexa-marketing-email-dialog nexa-email-history-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-history-title"><header><h2 id="nexa-history-title">Content versions</h2><button class="btn btn-icon" data-action="close-history" type="button" title="Close content versions" aria-label="Close content versions"><span class="fas fa-times"></span></button></header><div class="nexa-history-content"><p data-history-state role="status">Loading versions...</p><label>Version<select class="form-control" data-history-version aria-label="Content version"></select></label><strong data-history-subject></strong><iframe title="Content version preview" sandbox="" referrerpolicy="no-referrer"></iframe></div><footer><button class="btn btn-default" data-action="close-history" type="button">Close</button><button class="btn btn-primary" data-action="restore-version" type="button" disabled><span class="fas fa-undo"></span>Restore as draft</button></footer></section>';
+            this.element.append(modal);
+            modal.addEventListener('keydown', event => {
+                if (event.key === 'Escape') { event.preventDefault(); this.closeVersionHistory(); }
+                if (event.key === 'Tab') {
+                    const controls = [...modal.querySelectorAll('button:not(:disabled),select:not(:disabled)')].filter(node => !node.hidden);
+                    const index = controls.indexOf(document.activeElement);
+                    event.preventDefault(); controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
+                }
+            });
+        }
+        this.history = {id}; modal.hidden = false; modal.style.display = 'grid'; document.body.classList.add('nexa-modal-open');
+        modal.querySelector('[data-action="close-history"]').focus();
+        this.text('[data-history-state]', 'Loading versions...');
+        modal.querySelector('select').innerHTML = ''; modal.querySelector('iframe').srcdoc = '';
+        modal.querySelector('[data-action="restore-version"]').disabled = true;
+        try {
+            const history = await Espo.Ajax.getRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/versions`);
+            if (this.history?.id !== id || modal.hidden) return;
+            this.history = {...history, id};
+            modal.querySelector('select').innerHTML = history.versions.map(version => `<option value="${Number(version.version)}">v${Number(version.version)} - ${this.escape(this.dateTime(version.createdAt))} - ${this.escape(version.createdByName || 'Unknown author')}</option>`).join('');
+            await this.loadHistoryVersion();
+        } catch (error) { this.text('[data-history-state]', error?.message || 'Content versions could not be loaded.'); }
+    }
+    async loadHistoryVersion() {
+        const modal = this.element.querySelector('[data-email-history]');
+        const version = Number(modal.querySelector('select').value), id = this.history?.id;
+        if (!id || !version) { this.text('[data-history-state]', 'No content versions found.'); return; }
+        const request = this.historyRequest = (this.historyRequest || 0) + 1;
+        this.text('[data-history-state]', 'Loading content...');
+        modal.querySelector('[data-action="restore-version"]').disabled = true;
+        try {
+            const content = await Espo.Ajax.getRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/versions/${version}`);
+            if (request !== this.historyRequest || this.history?.id !== id || modal.hidden) return;
+            this.text('[data-history-subject]', content.subject);
+            const policy = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+            modal.querySelector('iframe').srcdoc = `<meta http-equiv="Content-Security-Policy" content="${policy}"><style>body{font:14px Arial;color:#17211f;margin:20px;overflow-wrap:anywhere}img{max-width:100%}</style>${content.bodyHtml}`;
+            this.text('[data-history-state]', version === Number(this.history.currentVersion) ? 'Current version' : `Version ${version}`);
+            modal.querySelector('[data-action="restore-version"]').disabled = !this.history.canRestore || version === Number(this.history.currentVersion);
+        } catch (error) { this.text('[data-history-state]', error?.message || 'Content could not be loaded.'); }
+    }
+    closeVersionHistory() {
+        const modal = this.element.querySelector('[data-email-history]'); modal.hidden = true; modal.style.display = 'none';
+        this.history = null; this.historyRequest = (this.historyRequest || 0) + 1; document.body.classList.remove('nexa-modal-open');
+        if (this.historyTrigger?.isConnected) this.historyTrigger.focus();
+    }
+    restoreHistoryVersion() {
+        const id = this.history?.id, version = Number(this.element.querySelector('[data-history-version]').value);
+        if (!id || !this.history.canRestore || version === Number(this.history.currentVersion)) return;
+        this.confirm({message: `Restore version ${version} as a new draft? Approval will be cleared.`, confirmText: 'Restore draft'}, async () => {
+            try {
+                await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/versions/${version}/restore`, {});
+                this.closeVersionHistory(); await this.load(); Espo.Ui.success('Content restored as a new draft.');
+            } catch (error) { Espo.Ui.error(error?.message || 'Content could not be restored.'); }
+        });
+    }
+    controlDelivery(event) {
+        const {id, control} = event.currentTarget.dataset;
+        const message = control === 'pause' ? 'Pause delivery? Messages already submitted may still be delivered.' : 'Resume this email? Eligibility and monthly limits remain enforced. Unconfirmed submissions must be resolved first.';
+        this.confirm({message, confirmText: control === 'pause' ? 'Pause delivery' : 'Resume delivery'}, async () => {
+            try {
+                await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/control`, {action: control});
+                Espo.Ui.success(control === 'pause' ? 'Delivery paused.' : 'Delivery resumed.');
+                await this.load();
+            } catch (error) { Espo.Ui.error(error?.message || 'Delivery could not be updated.'); }
+        });
+    }
     renderContentPreview() {
         const form = this.element.querySelector('[data-email-form]');
         let preview = form.querySelector('[data-content-preview]');

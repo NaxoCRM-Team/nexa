@@ -103,6 +103,18 @@ try {
     $native = $pdo->prepare('SELECT status FROM mass_email WHERE id=? AND tenant_id=? AND service_id=?');
     $native->execute([$draft['massEmailId'], $tenantA->tenantId, $tenantA->serviceId]);
     $assert($native->fetchColumn() === 'Nexa Scheduled', 'The native MassEmail was not reserved away from the SMTP processor.');
+    $paused = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'pause'));
+    $assert($paused['status'] === 'paused', 'Scheduled delivery must be pausable.');
+    $native->execute([$draft['massEmailId'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($native->fetchColumn() === 'Nexa Paused', 'Native delivery must remain held while paused.');
+    $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+    $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($profile->fetchColumn() === 'paused', 'A worker must not advance a paused profile.');
+    $blocked = false;
+    try { $store->runWith($tenantB, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'resume')); } catch (NotFound) { $blocked = true; }
+    $assert($blocked, 'Another tenant must not resume this email.');
+    $resumed = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'resume'));
+    $assert($resumed['status'] === 'scheduled', 'A paused schedule must resume without recreating its queue.');
 
     // Eligibility is deliberately changed after scheduling. The worker must
     // suppress the recipient at send time and must not contact the provider.
@@ -129,6 +141,11 @@ try {
     $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
     $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
     $assert($profile->fetchColumn() === 'sending', 'An in-flight submission must not be marked complete.');
+    $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'pause'));
+    $blocked = false;
+    try { $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'resume')); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+    $assert($blocked, 'Resume must reject unconfirmed in-flight submissions.');
+    $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='sending' WHERE id=?")->execute([$draft['id']]);
     $pdo->prepare("UPDATE nexa_marketing_delivery_message SET modified_at=DATE_SUB(NOW(),INTERVAL 20 MINUTE) WHERE email_queue_item_id=?")->execute([$item->getId()]);
     $method = new ReflectionMethod(MarketingDispatchService::class, 'pauseStaleSubmissions');
     $method->invoke($factory->create(MarketingDispatchService::class), $tenantB);

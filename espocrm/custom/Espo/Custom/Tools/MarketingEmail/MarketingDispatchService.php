@@ -91,6 +91,46 @@ final class MarketingDispatchService
         return ['id' => $profileId, 'status' => 'scheduled', 'eligibleCount' => $eligibleCount, 'scheduledAt' => (string) $profile['start_at']];
     }
 
+    /** @return array{id:string,status:string} */
+    public function control(string $id, string $action): array
+    {
+        if (!$this->user->isAdmin()) throw new Forbidden('Only a tenant administrator can control delivery.');
+        if (!in_array($action, ['pause', 'resume'], true)) throw new BadRequest('Unknown delivery action.');
+        $context = $this->tenantContextStore->require();
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $profile = $this->profile($context, $id, true);
+            $current = $profile['lifecycle_status'];
+            if ($action === 'pause') {
+                if (!in_array($current, ['scheduled', 'sending'], true)) throw new BadRequest('Only scheduled or sending emails can be paused.');
+                $next = 'paused';
+            } else {
+                if ($current !== 'paused') throw new BadRequest('Only paused emails can resume.');
+                $inFlight = $pdo->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND status='Sending' AND deleted=0");
+                $inFlight->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id']]);
+                if ((int) $inFlight->fetchColumn() > 0) throw new BadRequest('A submission is still awaiting confirmation. Review Postal before resuming.');
+                if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete delivery setup before resuming.');
+                if ($profile['campaign_status'] !== 'active') throw new BadRequest('Activate the campaign before resuming.');
+                $this->requireVerifiedSender($context, (string) $profile['from_address']);
+                $queue = $pdo->prepare('SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND deleted=0');
+                $queue->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id']]);
+                $next = (int) $queue->fetchColumn() > 0 ? 'sending' : 'scheduled';
+            }
+            $pdo->prepare('UPDATE nexa_marketing_email_profile SET lifecycle_status=?,modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?')
+                ->execute([$next, $this->user->getId(), $id, $context->tenantId, $context->serviceId]);
+            $pdo->prepare('UPDATE mass_email SET status=?,modified_at=NOW() WHERE id=? AND tenant_id=? AND service_id=?')
+                ->execute(['Nexa ' . ucfirst($next), $profile['mass_email_id'], $context->tenantId, $context->serviceId]);
+            $this->event($context, $id, $action === 'pause' ? 'paused' : 'resumed', (int) $profile['version_number'], ['previousStatus'=>$current,'status'=>$next]);
+            if ($ownsTransaction) $pdo->commit();
+            return ['id'=>$id,'status'=>$next];
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+    }
+
     /** Process due profiles for the current tenant and service. */
     public function runScheduled(): void
     {
@@ -127,6 +167,11 @@ final class MarketingDispatchService
             $pdo->beginTransaction();
         }
         try {
+            $locked = $this->profile($context, (string) $profile['id'], true);
+            if ($locked['lifecycle_status'] !== 'scheduled') {
+                if ($ownsTransaction) $pdo->rollBack();
+                return;
+            }
             $exists = $pdo->prepare('SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND target_id=? AND target_type=\'Contact\' AND deleted=0');
             foreach ($recipients as $recipient) {
                 $exists->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id'], $recipient['id']]);
@@ -272,6 +317,11 @@ final class MarketingDispatchService
             $capacity = $pdo->prepare("SELECT p.monthly_send_limit,u.accepted_count FROM nexa_marketing_delivery_provider p INNER JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? FOR UPDATE");
             $capacity->execute([$context->tenantId, $context->serviceId]);
             $usageRow = $capacity->fetch(PDO::FETCH_ASSOC);
+            $locked = $this->profile($context, (string) $profile['id'], true);
+            if ($locked['lifecycle_status'] !== 'sending') {
+                if ($ownsTransaction) $pdo->rollBack();
+                return false;
+            }
             $limit = MarketingAllowance::limit($pdo, $context, (int) ($usageRow['monthly_send_limit'] ?? 0));
             if (!$usageRow || (int) $usageRow['accepted_count'] >= $limit) {
                 if ($ownsTransaction) {
@@ -386,6 +436,7 @@ final class MarketingDispatchService
         $pdo = $this->entityManager->getPDO();
         $update = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='completed',modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status='sending'");
         $update->execute([$profile['id'], $context->tenantId, $context->serviceId]);
+        if ($update->rowCount() !== 1) return;
         $native = $pdo->prepare("UPDATE mass_email SET status='Complete',modified_at=NOW() WHERE id=? AND tenant_id=? AND service_id=?");
         $native->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId]);
         $this->event($context, (string) $profile['id'], 'submitted', (int) $profile['version_number'], []);
@@ -395,8 +446,9 @@ final class MarketingDispatchService
     private function failProfile(TenantContext $context, array $profile, string $message): void
     {
         $pdo = $this->entityManager->getPDO();
-        $update = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='failed',modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?");
+        $update = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='failed',modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status IN ('scheduled','sending')");
         $update->execute([$profile['id'], $context->tenantId, $context->serviceId]);
+        if ($update->rowCount() !== 1) return;
         $native = $pdo->prepare("UPDATE mass_email SET status='Failed',modified_at=NOW() WHERE id=? AND tenant_id=? AND service_id=?");
         $native->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId]);
         $this->event($context, (string) $profile['id'], 'failed', (int) $profile['version_number'], ['message' => mb_substr($message, 0, 1000)]);

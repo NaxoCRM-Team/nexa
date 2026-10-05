@@ -793,6 +793,26 @@
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostTransition"
     },
     {
+        "route": "/Nexa/marketing-emails/:id/versions",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetVersions"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/versions/:version",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetVersions"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/versions/:version/restore",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostRestoreVersion"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/control",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostControl"
+    },
+    {
         "route": "/Nexa/marketing-emails/:id/schedule",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSchedule"

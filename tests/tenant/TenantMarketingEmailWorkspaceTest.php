@@ -93,6 +93,23 @@ try {
     $version->execute([$tenantA->tenantId, $tenantA->serviceId, $draft['id']]);
     $assert((int) $version->fetchColumn() === 1, 'Marketing email content version was not recorded once.');
 
+    $history = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->versions($draft['id']));
+    $assert(count($history['versions']) === 1 && $history['currentVersion'] === 1 && $history['canRestore'], 'Version history must include the saved content.');
+    $old = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->versions($draft['id'], 1));
+    $restored = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->restoreVersion($draft['id'], 1));
+    $assert($restored['version'] === 2, 'Restore must create a new version.');
+    $approval = $pdo->prepare('SELECT lifecycle_status,approved_at,approved_by_id FROM nexa_marketing_email_profile WHERE id=?');
+    $approval->execute([$draft['id']]); $approvalRow = $approval->fetch(PDO::FETCH_ASSOC);
+    $assert($approvalRow['lifecycle_status'] === 'draft' && $approvalRow['approved_at'] === null && $approvalRow['approved_by_id'] === null, 'Restore must reset approval.');
+    $after = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->versions($draft['id'], 1));
+    $assert($old === $after, 'Historical content must remain unchanged.');
+    $blocked = false;
+    try { $store->runWith($tenantB, fn () => $factory->create(MarketingEmailWorkspaceService::class)->versions($draft['id'], 1)); } catch (\Espo\Core\Exceptions\NotFound) { $blocked = true; }
+    $assert($blocked, 'History must be tenant isolated.');
+    $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='scheduled' WHERE id=?")->execute([$draft['id']]);
+    $blocked = false;
+    try { $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->restoreVersion($draft['id'], 1)); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+    $assert($blocked, 'Scheduled content must not be replaced by restore.');
     echo "Tenant marketing email workspace tests passed.\n";
 } finally {
     $transactions->rollback();

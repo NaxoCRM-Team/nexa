@@ -90,6 +90,43 @@ test('Marketing workspace reports usage and delivery outcomes with keyboard dism
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
+    await page.evaluate(() => {
+        reportView.workspace.permissions.approve = true;
+        reportView.workspace.emails[0].lifecycleStatus = 'scheduled';
+        reportView.renderEmails();
+    });
+    await expect(page.getByRole('button', {name: 'Pause delivery', exact: true})).toHaveCount(1);
+    await page.evaluate(() => { reportView.workspace.emails[0].lifecycleStatus = 'paused'; reportView.renderEmails(); });
+    await expect(page.getByRole('button', {name: 'Resume delivery', exact: true})).toHaveCount(1);
+    await expect(page.getByRole('button', {name: 'Pause delivery', exact: true})).toHaveCount(0);
+    await page.evaluate(() => { reportView.workspace.permissions.approve = false; reportView.renderEmails(); });
+    await expect(page.locator('[data-action="control-delivery"]')).toHaveCount(0);
+    await page.evaluate(async () => {
+        window.Espo = {Ui: {success() {}, error(message) {throw new Error(message);}}, Ajax: {
+            getRequest: async url => url.endsWith('/versions') ? {currentVersion: 2, canRestore: true, versions: [
+                {version: 2, createdAt: '2026-10-05 10:00:00', createdByName: 'Tenant author'},
+                {version: 1, createdAt: '2026-10-04 10:00:00', createdByName: 'Tenant author'},
+            ]} : {subject: 'Historical newsletter', bodyHtml: '<p>Saved historical content</p><script>parent.historyCompromised=true</script>'},
+            postRequest: async url => { window.restoredVersionUrl = url; },
+        }};
+        reportView.confirm = (options, callback) => callback();
+        reportView.load = async () => {};
+        await reportView.openVersionHistory({currentTarget: reportView.element.querySelector('[data-action="version-history"]')});
+        const modal = reportView.element.querySelector('[data-email-history]');
+        modal.querySelector('select').addEventListener('change', () => reportView.loadHistoryVersion());
+        modal.querySelector('[data-action="restore-version"]').addEventListener('click', () => reportView.restoreHistoryVersion());
+    });
+    const history = page.getByRole('dialog', {name: 'Content versions'});
+    await expect(history).toBeVisible();
+    await expect(history.getByRole('button', {name: 'Restore as draft'})).toBeDisabled();
+    await history.getByRole('combobox', {name: 'Content version'}).selectOption('1');
+    await expect(history.getByRole('button', {name: 'Restore as draft'})).toBeEnabled();
+    await expect(page.frameLocator('iframe[title="Content version preview"]').getByText('Saved historical content')).toBeVisible();
+    expect(await page.evaluate(() => window.historyCompromised)).toBeUndefined();
+    await testInfo.attach('email-content-history.png', {body: await page.screenshot(), contentType: 'image/png'});
+    await history.getByRole('button', {name: 'Restore as draft'}).click();
+    await expect(history).toBeHidden();
+    expect(await page.evaluate(() => window.restoredVersionUrl)).toBe('Nexa/marketing-emails/report/versions/1/restore');
 });
 
 test('Contact activity displays marketing delivery and unsubscribe history', async ({page}) => {
