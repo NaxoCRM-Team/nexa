@@ -26,6 +26,7 @@ final class MarketingEmailWorkspaceService
         private EntityManager $entityManager,
         private ServiceContainer $recordServices,
         private TenantContextStore $tenantContextStore,
+        private MarketingDeliveryService $delivery,
         private Acl $acl,
         private User $user,
     ) {}
@@ -37,6 +38,7 @@ final class MarketingEmailWorkspaceService
         $context = $this->tenantContextStore->require();
         $this->ensureProfiles($context);
 
+        $delivery = $this->delivery->readiness();
         return [
             'emails' => $this->emails($context),
             'campaigns' => $this->campaigns($context),
@@ -47,8 +49,9 @@ final class MarketingEmailWorkspaceService
                 'edit' => $this->canWrite(Table::ACTION_EDIT),
                 'approve' => $this->user->isAdmin() && $this->acl->checkScope('MassEmail', Table::ACTION_EDIT),
             ],
-            'deliveryEnabled' => false,
-            'deliveryMessage' => 'Scheduling unlocks after a verified sending domain and marketing delivery provider are configured.',
+            'delivery' => $delivery,
+            'deliveryEnabled' => $delivery['ready'],
+            'deliveryMessage' => $delivery['ready'] ? 'Delivery prerequisites are ready.' : 'Scheduling unlocks after a verified sending domain and marketing delivery provider are configured.',
         ];
     }
 

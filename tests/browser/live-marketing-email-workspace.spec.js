@@ -25,6 +25,14 @@ test('marketing email workspace is governed, responsive and native-backed', asyn
     await expect(page.locator('[data-delivery-message]')).toContainText('verified sending domain');
     await expect(page.locator('[data-email-search]')).toBeVisible();
 
+    await page.locator('[data-action="delivery-setup"]').click();
+    const delivery = page.locator('[data-delivery-editor]');
+    await expect(delivery.getByRole('heading', {name: 'Sending domain and provider'})).toBeVisible();
+    await expect(delivery.locator('[name="apiBaseUrl"]')).toBeVisible();
+    await expect(delivery.locator('[name="domainName"]')).toBeVisible();
+    await delivery.locator('[data-action="close-delivery"]').click();
+    await expect(delivery).toBeHidden();
+
     await page.locator('[data-action="new-email"]').first().click();
     const dialog = page.locator('[data-email-editor]');
     await expect(dialog).toBeVisible();

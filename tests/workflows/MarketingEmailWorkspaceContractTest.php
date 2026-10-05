@@ -31,7 +31,7 @@ $assert(str_contains($service, 'targetListsIds') && str_contains($service, 'excl
 $assert(str_contains($service, 'nexa_campaign_profile') && str_contains($service, 'purpose_id'), 'Marketing email must inherit governed campaign audience and consent purpose.');
 $assert(str_contains($service, 'tenant_id=?') && str_contains($service, 'service_id=?'), 'Marketing email queries must scope tenant and service ownership.');
 $assert(str_contains($service, "'draft'") && str_contains($service, "'review'") && str_contains($service, "'approved'"), 'Draft, review and approval states must be governed.');
-$assert(str_contains($service, "'deliveryEnabled' => false"), 'Delivery must remain locked until provider and domain governance is implemented.');
+$assert(str_contains($service, "'deliveryEnabled' => \$delivery['ready']"), 'Delivery must follow tenant provider and verified-domain readiness.');
 $assert(str_contains($view, 'data-email-search') && str_contains($view, 'renderEmails'), 'Marketing email must provide live search.');
 $assert(str_contains($template, 'Delivery remains locked') && str_contains($template, 'Create marketing email'), 'The workspace must explain delivery readiness and support draft creation.');
 $assert(str_contains($registry, "'#NexaMarketingEmail'"), 'Marketing navigation must open the governed marketing email workspace.');

@@ -788,6 +788,37 @@
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostTransition"
     },
     {
+        "route": "/Nexa/marketing-delivery/settings",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDeliverySettings"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/provider",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PutDeliveryProvider"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/callback/rotate",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDeliveryCallbackRotate"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/domains",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDeliveryDomain"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/domains/:id/verify",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDeliveryDomainVerify"
+    },
+    {
+        "route": "/Nexa/public/marketing-delivery/postal/:token",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostPostalCallback",
+        "noAuth": true
+    },
+    {
         "route": "/Nexa/assets/workspace",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetWorkspace"
