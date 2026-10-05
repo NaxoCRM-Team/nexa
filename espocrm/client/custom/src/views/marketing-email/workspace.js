@@ -20,10 +20,13 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         'click [data-action="copy-callback"]': 'copyCallback',
         'click [data-action="rotate-callback"]': 'rotateCallback',
         'input [data-email-search]': 'renderEmails',
-        'input [name="bodyHtml"], input [name="subject"], input [name="preheader"]': 'renderContentPreview',
+        'input [name="bodyHtml"], input [name="subject"], input [name="preheader"]': 'contentChanged',
         'change [data-preview-width]': 'renderContentPreview',
         'click [data-action="preview-contact"]': 'choosePreviewContact',
         'click [data-action="preview-design"]': 'clearRecipientPreview',
+        'click [data-action="choose-template"]': 'chooseEmailTemplate',
+        'click [data-action="apply-template"]': 'applyEmailTemplate',
+        'click [data-action="cancel-template"]': 'cancelEmailTemplate',
         'change [data-email-status]': 'renderEmails',
         'change [name="campaignId"]': 'syncCampaign',
         'submit [data-email-form]': 'save',
@@ -88,7 +91,37 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     }
     actions(item) { const buttons = [`<button class="btn btn-icon" data-action="email-results" data-id="${this.escape(item.id)}" title="Delivery results"><span class="fas fa-chart-bar"></span></button>`]; if (['draft','review','approved'].includes(item.lifecycleStatus) && this.workspace.permissions?.edit) buttons.push(`<button class="btn btn-icon" data-action="edit-email" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>`); if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane')); if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check')); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled && this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="schedule-email" data-id="${this.escape(item.id)}" title="Schedule approved email"><span class="fas fa-clock"></span></button>`); if (['review','approved'].includes(item.lifecycleStatus)) buttons.push(this.transitionButton(item, 'return', 'Return to draft', 'fa-undo')); if (this.workspace.permissions.approve && ['scheduled','sending','paused'].includes(item.lifecycleStatus)) { const control=item.lifecycleStatus==='paused'?'resume':'pause'; buttons.push(`<button class="btn btn-icon" data-action="control-delivery" data-id="${this.escape(item.id)}" data-control="${control}" title="${control==='pause'?'Pause delivery':'Resume delivery'}"><span class="fas ${control==='pause'?'fa-pause':'fa-play'}"></span></button>`); } buttons.push(`<button class="btn btn-icon" data-action="version-history" data-id="${this.escape(item.id)}" title="Content versions"><span class="fas fa-history"></span></button>`); return buttons.join(''); }
     transitionButton(item, action, title, icon) { return `<button class="btn btn-icon" data-action="transition" data-id="${this.escape(item.id)}" data-transition="${action}" title="${title}"><span class="fas ${icon}"></span></button>`; }
-    newEmail() { this.previewRequest = (this.previewRequest || 0) + 1; this.recipientPreview = null; this.openEditor(null); }
+    newEmail() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.previewRequest = (this.previewRequest || 0) + 1; this.recipientPreview = null; this.openEditor(null); }
+    contentChanged() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.renderContentPreview(); }
+    chooseEmailTemplate() {
+        const editor = this.element.querySelector('[data-email-editor]'); editor.style.display = 'none';
+        this.createView('marketingTemplateSelector', 'views/modals/select-records', {
+            scope: 'EmailTemplate', multiple: false, createButton: false, headerText: 'Choose an email template',
+        }, view => {
+            this.listenToOnce(view, 'remove', () => { editor.style.display = 'grid'; });
+            this.listenToOnce(view, 'select', model => this.loadEmailTemplate(model.id)); view.render();
+        });
+    }
+    async loadEmailTemplate(id) {
+        const request = this.templateRequest = (this.templateRequest || 0) + 1;
+        try {
+            const template = await Espo.Ajax.getRequest(`EmailTemplate/${encodeURIComponent(id)}`);
+            if (request !== this.templateRequest || this.element.querySelector('[data-email-editor]').hidden) return;
+            if (template.attachmentsIds?.length) throw new Error('This template includes attachments. Attachment copying is not supported in marketing email yet.');
+            if (typeof template.body !== 'string' || !template.body.trim()) throw new Error('The template has no accessible content.');
+            this.pendingTemplate = {id, name: template.name || 'Email template', subject: template.subject || '',
+                bodyHtml: template.isHtml === false ? `<p>${this.escape(template.body).replace(/\r?\n/g, '<br>')}</p>` : template.body};
+            this.renderContentPreview();
+        } catch (error) { Espo.Ui.error(error?.message || 'The template could not be loaded.'); }
+    }
+    applyEmailTemplate() {
+        if (!this.pendingTemplate) return;
+        const form = this.element.querySelector('[data-email-form]');
+        form.elements.subject.value = this.pendingTemplate.subject; form.elements.bodyHtml.value = this.pendingTemplate.bodyHtml;
+        this.pendingTemplate = null; this.recipientPreview = null; this.previewRequest = (this.previewRequest || 0) + 1;
+        this.renderContentPreview(); form.elements.bodyHtml.focus();
+    }
+    cancelEmailTemplate() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.renderContentPreview(); }
     async openVersionHistory(event) {
         const id = event.currentTarget.dataset.id;
         this.historyTrigger = event.currentTarget;
@@ -164,6 +197,13 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     }
     renderContentPreview() {
         const form = this.element.querySelector('[data-email-form]');
+        if (!form.querySelector('[data-template-toolbar]')) {
+            const tools = document.createElement('div'); tools.dataset.templateToolbar = ''; tools.className = 'nexa-template-toolbar';
+            tools.innerHTML = '<button class="btn btn-default" type="button" data-action="choose-template"><span class="fas fa-file-alt" aria-hidden="true"></span>Use template</button><span data-template-name aria-live="polite"></span><button class="btn btn-primary" type="button" data-action="apply-template" hidden><span class="fas fa-check" aria-hidden="true"></span>Apply template</button><button class="btn btn-icon" type="button" data-action="cancel-template" title="Cancel template selection" aria-label="Cancel template selection" hidden><span class="fas fa-times" aria-hidden="true"></span></button>';
+            form.querySelector('.nexa-email-code').before(tools);
+        }
+        form.querySelector('[data-template-name]').textContent = this.pendingTemplate ? this.pendingTemplate.name : '';
+        ['apply-template','cancel-template'].forEach(action => { form.querySelector(`[data-action="${action}"]`).hidden = !this.pendingTemplate; });
         let preview = form.querySelector('[data-content-preview]');
         if (!preview) {
             preview = document.createElement('section');
@@ -173,8 +213,9 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             form.querySelector('.nexa-marketing-email-grid').append(preview);
         }
         const key = JSON.stringify([form.elements.subject.value, form.elements.bodyHtml.value]);
-        const rendered = this.recipientPreview?.key === key ? this.recipientPreview : null;
-        preview.querySelector('[data-preview-subject]').textContent = rendered?.subject || form.elements.subject.value || 'No subject';
+        const rendered = !this.pendingTemplate && this.recipientPreview?.key === key ? this.recipientPreview : null;
+        preview.querySelector('[data-preview-subject]').textContent = this.pendingTemplate?.subject || rendered?.subject || form.elements.subject.value || 'No subject';
+        preview.querySelector('[data-action="preview-contact"]').disabled = !!this.pendingTemplate;
         preview.querySelector('[data-preview-recipient]').textContent = rendered ? `Preview for ${rendered.name}` : '';
         preview.querySelector('[data-action="preview-design"]').hidden = !rendered;
         preview.querySelector('[data-preview-preheader]').textContent = form.elements.preheader.value;
@@ -182,7 +223,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         frame.classList.toggle('is-mobile', preview.querySelector('select').value === 'mobile');
         // The preview is deliberately inert, including remote images and stylesheets.
         const policy = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
-        frame.srcdoc = `<html><head><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:20px;color:#17211f;font:14px Arial,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style></head><body>${rendered?.bodyHtml ?? form.elements.bodyHtml.value}</body></html>`;
+        frame.srcdoc = `<html><head><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:20px;color:#17211f;font:14px Arial,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style></head><body>${this.pendingTemplate?.bodyHtml ?? rendered?.bodyHtml ?? form.elements.bodyHtml.value}</body></html>`;
     }
     clearRecipientPreview() { this.previewRequest = (this.previewRequest || 0) + 1; this.recipientPreview = null; this.renderContentPreview(); }
     choosePreviewContact() {
@@ -218,6 +259,8 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         if (!['draft','review','approved'].includes(item.lifecycleStatus) || !this.workspace.permissions?.edit) return this.openResults(event);
         this.previewRequest = (this.previewRequest || 0) + 1;
         this.recipientPreview = null;
+        this.pendingTemplate = null;
+        this.templateRequest = (this.templateRequest || 0) + 1;
         this.openEditor(item);
     }
     openEditor(item) { this.current = item || null; const form = this.element.querySelector('[data-email-form]'); form.reset(); form.elements.name.value=item?.name||''; form.elements.campaignId.value=item?.campaignId||''; form.elements.subject.value=item?.subject||''; form.elements.preheader.value=item?.preheader||''; form.elements.fromAddress.value=item?.fromAddress||''; form.elements.fromName.value=item?.fromName||''; form.elements.replyToAddress.value=item?.replyToAddress||''; form.elements.replyToName.value=item?.replyToName||''; form.elements.startAt.value=this.inputDateTime(item?.startAt); form.elements.bodyHtml.value=item?.bodyHtml||'<p>Hello {Contact.firstName},</p><p></p><p>Kind regards,<br>{User.name}</p>'; this.syncCampaign(); this.text('[data-editor-title]', item ? `Edit ${item.name}` : 'Create marketing email'); const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); setTimeout(()=>form.elements.name.focus(),0); }

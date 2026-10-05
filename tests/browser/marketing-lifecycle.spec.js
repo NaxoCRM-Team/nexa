@@ -48,6 +48,28 @@ test('Email preview updates content without executing scripts or requesting remo
     await page.locator('[name="bodyHtml"]').fill('<h2>Edited after personalization</h2>');
     await expect(frame.getByRole('heading', {name: 'Edited after personalization'})).toBeVisible();
     await expect(page.locator('[data-preview-recipient]')).toBeEmpty();
+    await page.evaluate(async () => {
+        Espo.Ajax.getRequest = async url => {
+            if (url !== 'EmailTemplate/tenant-template') throw new Error('The native template API must be used.');
+            return {name: 'Tenant newsletter', subject: 'Template subject', body: '<h2>Template news</h2><script>parent.previewCompromised=true</script>', isHtml: true};
+        };
+        await previewView.loadEmailTemplate('tenant-template');
+    });
+    await expect(frame.getByRole('heading', {name: 'Template news'})).toBeVisible();
+    await expect(page.locator('[name="bodyHtml"]')).toHaveValue('<h2>Edited after personalization</h2>');
+    expect(await page.evaluate(() => window.previewCompromised)).toBeUndefined();
+    await page.evaluate(() => previewView.cancelEmailTemplate());
+    await expect(frame.getByRole('heading', {name: 'Edited after personalization'})).toBeVisible();
+    await page.evaluate(async () => { await previewView.loadEmailTemplate('tenant-template'); previewView.applyEmailTemplate(); });
+    await expect(page.locator('[name="subject"]')).toHaveValue('Template subject');
+    await expect(page.locator('[name="bodyHtml"]')).toHaveValue('<h2>Template news</h2><script>parent.previewCompromised=true</script>');
+    await page.evaluate(async () => {
+        Espo.Ui.error = message => { window.templateError = message; };
+        Espo.Ajax.getRequest = async () => ({name: 'Attachment template', body: '<p>Attachment content</p>', isHtml: true, attachmentsIds: ['file']});
+        await previewView.loadEmailTemplate('attached-template');
+    });
+    expect(await page.evaluate(() => window.templateError)).toContain('Attachment copying is not supported');
+    await expect(page.locator('[name="subject"]')).toHaveValue('Template subject');
     await testInfo.attach('marketing-content-preview.png', {body: await page.screenshot(), contentType: 'image/png'});
 });
 

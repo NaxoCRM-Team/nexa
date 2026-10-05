@@ -75,6 +75,9 @@ try {
     $nativeRow = $native->fetch(PDO::FETCH_ASSOC);
     $assert($nativeRow && $nativeRow['tenant_id'] === $tenantA->tenantId && $nativeRow['service_id'] === $tenantA->serviceId, 'Native MassEmail is not tenant and service scoped.');
     $assert($nativeRow['template_tenant'] === $tenantA->tenantId && $nativeRow['template_service'] === $tenantA->serviceId, 'Native EmailTemplate is not tenant and service scoped.');
+    $templateA = $store->runWith($tenantA, fn () => $container->getByClass(\Espo\Core\Record\ServiceContainer::class)->get('EmailTemplate')->getEntity($nativeRow['email_template_id']));
+    $templateB = $store->runWith($tenantB, fn () => $container->getByClass(\Espo\Core\Record\ServiceContainer::class)->get('EmailTemplate')->getEntity($nativeRow['email_template_id']));
+    $assert($templateA !== null && $templateB === null, 'Native template selection must retain tenant isolation.');
 
     $workspaceA = $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->getWorkspace());
     $workspaceB = $store->runWith($tenantB, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->getWorkspace());
