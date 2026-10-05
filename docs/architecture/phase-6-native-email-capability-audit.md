@@ -4,7 +4,7 @@ Nexa retains EspoCRM's native `EmailTemplate`, `MassEmail`, `EmailQueueItem`, `C
 
 M10 adds governance that the native model does not provide: content versions, review and approval state, consent-purpose binding, delivery modes, sending-domain ownership, provider reconciliation, plan limits and canonical Phase 5 delivery events. The first slice stores those additions in `nexa_marketing_email_*` tables linked one-to-one with native Mass Email records.
 
-The Nexa Marketing Email workspace replaces the old user experience but does not introduce another template, queue or campaign-log system. Draft creation writes through EspoCRM record services. Scheduling requires approval, provider/domain readiness and sufficient tenant allowance; live Postal acceptance is still pending.
+The Nexa Marketing Email workspace replaces the old user experience but does not introduce another template, queue or campaign-log system. Draft creation writes through EspoCRM record services. Scheduling requires approval, provider/domain readiness and sufficient tenant allowance; local Postal acceptance is verified below, while external-delivery acceptance remains pending.
 
 Postal is the initial marketing-delivery adapter, not a domain model. Provider identifiers and payloads stay behind an adapter boundary so tenants and future deployments are not coupled to Postal.
 
@@ -44,7 +44,13 @@ The existing per-tenant `ProcessMarketingDelivery` job revisits up to 100 unmatc
 
 Marketing Email now exposes a per-email delivery-results dialog, with current message outcomes and unique recipient opens, clicks and unsubscribes. Administrators also see the current calendar month's effective limit, reserved usage and remaining capacity. The limit is 20 times the tenant's marketing-contact tier, using its tenant override or subscribed plan hard limit. A lower configured provider cap remains an additional ceiling. Missing, disabled or expired service entitlements block sending; a zero provider cap does not bypass the plan allowance. Scheduling and transactional per-message reservations use the same calculation. Reports do not reveal provider credentials or callback URLs. Native queue/profile scheduling and completion remain separate from actual delivery success.
 
-Local tests cover callback arrival before the provider response is persisted, repeated reconciliation, report/ledger reconciliation and two-tenant isolation. Live Postal delivery, provider-side resolution of uncertain sends, and the remaining Phase 6 editor/automation deliverables are still pending.
+Local tests cover callback arrival before the provider response is persisted, repeated reconciliation, report/ledger reconciliation and two-tenant isolation. External Postal delivery, provider-side resolution of uncertain sends, and the remaining Phase 6 editor/automation deliverables are still pending.
+
+## Local Postal campaign acceptance
+
+The separate capture-only Docker stack runs real Postal web, worker and SMTP services with verified local HTTPS. `PostalGovernedDispatchTest.php` extends the existing native dispatcher fixture without replacing the production queue or renderer. It verifies consented enrollment, approval/scheduling, Contact personalization, unsubscribe content, real API submission and SMTP capture, exactly one monthly reservation, repeated-worker idempotency and tenant control isolation. Fixture database changes are rolled back. Local test-domain verification is not production domain readiness. Public webhook acceptance, external inbox deliverability and uncertain-send resolution remain pending. See `docs/development/postal-local-setup.md` for reproducible commands.
+
+`PostalWebhookAcceptanceTest.php` verifies actual Postal HTTP delivery to the isolated capture receiver, then authenticated reconciliation of that unchanged event envelope through Nexa's callback service. Assertions cover delivered status, retries, Contact timeline/outbox idempotency and invalid-token rejection. No public endpoint is bypassed in production; the local fixture calls the service directly because its database transaction is intentionally uncommitted. Public ingress and external delivery remain pending acceptance gates.
 
 ## Interrupted submission guard
 

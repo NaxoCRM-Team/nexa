@@ -6,6 +6,7 @@ namespace Espo\Custom\Tools\MarketingEmail\Delivery;
 
 use Espo\Core\ORM\EntityManager;
 use Espo\Core\Tenant\TenantContextStore;
+use Espo\Core\Utils\Config;
 use Espo\Custom\Tools\Security\ManagedSecretService;
 use JsonException;
 
@@ -20,6 +21,7 @@ final class PostalDeliveryProvider implements MarketingDeliveryProvider
         private EntityManager $entityManager,
         private TenantContextStore $tenantContextStore,
         private ManagedSecretService $secrets,
+        private Config $config,
     ) {}
 
     public function send(DeliveryRequest $request): DeliveryResult
@@ -100,6 +102,14 @@ final class PostalDeliveryProvider implements MarketingDeliveryProvider
                 return strlen($chunk);
             },
         ]);
+        $localCa = $this->config->get('nexaPostalLocalCaFile');
+        if (in_array(strtolower((string) parse_url($url, PHP_URL_HOST)), ['localhost', '127.0.0.1'], true) && is_string($localCa) && $localCa !== '') {
+            if (!is_readable($localCa)) {
+                curl_close($curl);
+                throw new DeliveryProviderException('The local Postal CA certificate is unavailable.');
+            }
+            curl_setopt($curl, CURLOPT_CAINFO, $localCa);
+        }
         $ok = curl_exec($curl);
         $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
         $error = curl_error($curl);

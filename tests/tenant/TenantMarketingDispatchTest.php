@@ -3,6 +3,11 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
+$postalCapture = defined('NEXA_POSTAL_CAPTURE_ACCEPTANCE') && NEXA_POSTAL_CAPTURE_ACCEPTANCE === true;
+$postalSettings = $postalCapture ? json_decode(file_get_contents($root . '/.local/postal/config/local-credentials.json'), true, 512, JSON_THROW_ON_ERROR) : null;
+if ($postalCapture && ($postalSettings['apiBaseUrl'] !== 'https://localhost:8443' || $postalSettings['sender'] !== 'newsletter@nexa.local.test')) {
+    throw new RuntimeException('Only the isolated Postal capture fixture is allowed.');
+}
 require $root . '/espocrm/bootstrap.php';
 
 use Espo\Core\Application;
@@ -28,6 +33,9 @@ $tenantB = new TenantContext('30000000-0000-4000-8000-000000000002', 'isolation-
 $application = new Application();
 $application->setupSystemUser();
 $container = $application->getContainer();
+if ($postalCapture) {
+    $container->getByClass(\Espo\Core\Utils\Config::class)->set('nexaPostalLocalCaFile', $root . '/.local/postal/root.crt');
+}
 $entityManager = $container->getByClass(EntityManager::class);
 $store = $container->getByClass(TenantContextStore::class);
 $factory = $container->getByClass(InjectableFactory::class);
@@ -37,6 +45,10 @@ $transactions = $entityManager->getTransactionManager();
 $transactions->start();
 
 try {
+    if ($postalCapture) {
+        // Isolate worker execution from pre-existing schedules, within this rollback-only fixture.
+        $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='paused' WHERE tenant_id=? AND service_id=? AND lifecycle_status IN ('scheduled','sending')")->execute([$tenantA->tenantId, $tenantA->serviceId]);
+    }
     $pdo->prepare("INSERT INTO nexa_tenant_service (tenant_id,service_id,status) SELECT ?,id,'active' FROM nexa_service_definition WHERE service_key='marketing.contacts' ON DUPLICATE KEY UPDATE status='active'")->execute([$tenantA->tenantId]);
     $allowance = \Espo\Custom\Tools\MarketingEmail\MarketingAllowance::class;
     $pdo->prepare("UPDATE nexa_tenant_service ts INNER JOIN nexa_service_definition sd ON sd.id=ts.service_id SET ts.hard_limit_override=1000 WHERE ts.tenant_id=? AND sd.service_key='marketing.contacts'")->execute([$tenantA->tenantId]);
@@ -79,19 +91,21 @@ try {
 
     $draft = $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->save((object) [
         'name' => 'Governed dispatcher email', 'campaignId' => $campaign['id'], 'purposeId' => $purposeId,
-        'subject' => 'Governed delivery test', 'fromAddress' => 'news@example.test', 'fromName' => 'Example team',
-        'bodyHtml' => '<p>Hello {{contact.firstName}},</p><p>Dispatcher test.</p>',
+        'subject' => $postalCapture ? 'Nexa governed Postal ' . bin2hex(random_bytes(8)) : 'Governed delivery test',
+        'fromAddress' => $postalCapture ? $postalSettings['sender'] : 'news@example.test', 'fromName' => 'Example team',
+        'bodyHtml' => '<p>Hello {Contact.firstName},</p><p>Dispatcher test.</p>',
         'startAt' => gmdate('Y-m-d H:i:s', time() + 3600),
     ]));
     $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->transition((string) $draft['id'], (object) ['action' => 'submit']));
     $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->transition((string) $draft['id'], (object) ['action' => 'approve']));
 
     $settings = $store->runWith($tenantA, fn (): array => $factory->create(MarketingDeliveryService::class)->saveProvider((object) [
-        'apiBaseUrl' => 'https://postal.example.test', 'serverName' => 'Dispatch test',
-        'apiKey' => 'dispatch-acceptance-key', 'monthlySendLimit' => 100,
+        'apiBaseUrl' => $postalCapture ? $postalSettings['apiBaseUrl'] : 'https://postal.example.test', 'serverName' => 'Dispatch test',
+        'apiKey' => $postalCapture ? $postalSettings['apiKey'] : 'dispatch-acceptance-key', 'monthlySendLimit' => 100,
     ]));
-    $settings = $store->runWith($tenantA, fn (): array => $factory->create(MarketingDeliveryService::class)->saveDomain((object) ['domainName' => 'example.test']));
-    $domainId = (string) $settings['domains'][0]['id'];
+    $domainName = $postalCapture ? 'nexa.local.test' : 'example.test';
+    $settings = $store->runWith($tenantA, fn (): array => $factory->create(MarketingDeliveryService::class)->saveDomain((object) ['domainName' => $domainName]));
+    $domainId = (string) array_values(array_filter($settings['domains'], static fn (array $domain): bool => $domain['domainName'] === $domainName))[0]['id'];
     $pdo->prepare("UPDATE nexa_marketing_sending_domain SET ownership_status='verified',spf_status='verified',dkim_status='verified',dmarc_status='verified',return_path_status='verified',verified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")
         ->execute([$domainId, $tenantA->tenantId, $tenantA->serviceId]);
 
@@ -115,6 +129,82 @@ try {
     $assert($blocked, 'Another tenant must not resume this email.');
     $resumed = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'resume'));
     $assert($resumed['status'] === 'scheduled', 'A paused schedule must resume without recreating its queue.');
+
+    if ($postalCapture) {
+        $usage = $pdo->prepare("SELECT COALESCE(SUM(accepted_count),0) FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
+        $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $usageBefore = (int) $usage->fetchColumn();
+        $pdo->prepare('UPDATE mass_email SET start_at=? WHERE id=? AND tenant_id=? AND service_id=?')
+            ->execute([gmdate('Y-m-d H:i:s', time() - 60), $draft['massEmailId'], $tenantA->tenantId, $tenantA->serviceId]);
+        $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+        $receipt = $pdo->prepare('SELECT status,provider_message_id,last_error FROM nexa_marketing_delivery_message WHERE profile_id=? AND tenant_id=? AND service_id=?');
+        $receipt->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $message = $receipt->fetch(PDO::FETCH_ASSOC);
+        $assert(is_array($message) && $message['status'] === 'submitted' && $message['provider_message_id'] !== '', 'The governed queue did not receive Postal acceptance.');
+        $subjectQuery = $pdo->prepare('SELECT subject FROM email_template WHERE id=(SELECT email_template_id FROM mass_email WHERE id=?)');
+        $subjectQuery->execute([$draft['massEmailId']]);
+        $subject = $subjectQuery->fetchColumn();
+        $captured = false;
+        for ($attempt = 0; $attempt < 60; $attempt++) {
+            $messages = json_decode(file_get_contents('http://localhost:8026/api/v1/messages'), true, 512, JSON_THROW_ON_ERROR);
+            foreach ($messages['messages'] ?? [] as $mail) {
+                if (($mail['Subject'] ?? '') !== $subject) { continue; }
+                $detail = json_decode(file_get_contents('http://localhost:8026/api/v1/message/' . rawurlencode($mail['ID'])), true, 512, JSON_THROW_ON_ERROR);
+                $assert(str_contains($detail['HTML'] ?? '', 'Hello Governed'), 'Native Contact personalization was not rendered.');
+                $assert(str_contains($detail['HTML'] ?? '', 'unsubscribe'), 'The governed unsubscribe link is missing.');
+                $captured = true;
+            }
+            if ($captured) { break; }
+            sleep(2);
+        }
+        $assert($captured, 'Postal did not deliver the governed campaign to SMTP capture.');
+        if (defined('NEXA_POSTAL_CALLBACK_ACCEPTANCE') && NEXA_POSTAL_CALLBACK_ACCEPTANCE === true) {
+            $event = null;
+            for ($attempt = 0; $attempt < 60; $attempt++) {
+                $lines = @file($root . '/.local/postal/config/captured-events.jsonl', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+                foreach ($lines as $line) {
+                    $candidate = json_decode($line, false, 512, JSON_THROW_ON_ERROR);
+                    if (($candidate->event ?? '') === 'MessageSent' && ($candidate->payload->message->subject ?? '') === $subject) {
+                        $event = $candidate;
+                    }
+                }
+                if ($event !== null) { break; }
+                sleep(2);
+            }
+            $assert($event !== null, 'Postal did not deliver its actual MessageSent webhook.');
+            $callbackSettings = $store->runWith($tenantA, fn () => $factory->create(MarketingDeliveryService::class)->rotateCallbackToken());
+            $callback = $factory->create(\Espo\Custom\Tools\MarketingEmail\PostalCallbackService::class);
+            $result = $callback->receive($callbackSettings['callbackToken'], $event);
+            $assert($result['accepted'] && !$result['duplicate'], 'The real Postal webhook was not accepted.');
+            $receipt->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+            $assert($receipt->fetch(PDO::FETCH_ASSOC)['status'] === 'delivered', 'The real Postal event did not reconcile delivery.');
+            $assert($callback->receive($callbackSettings['callbackToken'], $event)['duplicate'], 'A real webhook retry must be idempotent.');
+            $count = $pdo->prepare("SELECT COUNT(*) FROM nexa_timeline_event WHERE tenant_id=? AND service_id=? AND contact_id=? AND event_type='email.delivered'");
+            $count->execute([$tenantA->tenantId, $tenantA->serviceId, $contact->getId()]);
+            $assert((int) $count->fetchColumn() === 1, 'A real webhook must project exactly one Contact delivery activity.');
+            $count = $pdo->prepare("SELECT COUNT(*) FROM nexa_outbox_event o INNER JOIN nexa_marketing_delivery_event e ON e.id=o.aggregate_id WHERE e.profile_id=? AND o.tenant_id=? AND o.service_id=? AND o.event_type='email.delivered'");
+            $count->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+            $assert((int) $count->fetchColumn() === 1, 'A repeated real webhook must not duplicate downstream delivery events.');
+            $blocked = false;
+            try { $callback->receive(str_repeat('0', 48), $event); } catch (\Espo\Core\Exceptions\Forbidden) { $blocked = true; }
+            $assert($blocked, 'A real Postal payload must not bypass callback authentication.');
+            echo "Actual Postal HTTP webhook capture and authenticated reconciliation passed.\n";
+        }
+        $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $usage->fetchColumn() === $usageBefore + 1, 'A real submission must consume exactly one monthly send.');
+        $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+        $receipt->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $assert(count($receipt->fetchAll()) === 1, 'A repeated worker created duplicate delivery receipts.');
+        $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $usage->fetchColumn() === $usageBefore + 1, 'A repeated worker must not consume another monthly send.');
+        $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $assert($profile->fetchColumn() === 'completed', 'The campaign queue must finish after submission.');
+        $blocked = false;
+        try { $store->runWith($tenantB, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'pause')); } catch (NotFound) { $blocked = true; }
+        $assert($blocked, 'Another tenant must not control the real Postal campaign.');
+        echo "Governed campaign, native personalization, unsubscribe and actual Postal SMTP capture passed.\n";
+        return;
+    }
 
     // Eligibility is deliberately changed after scheduling. The worker must
     // suppress the recipient at send time and must not contact the provider.
