@@ -52,6 +52,7 @@ final class MarketingDispatchService
         }
         $context = $this->tenantContextStore->require();
         $profile = $this->profile($context, $profileId, true);
+        if ($profile['delivery_mode'] === 'single_send') throw new BadRequest('Use the single-send API to select exactly one Contact.');
         if ($profile['lifecycle_status'] !== 'approved') {
             throw new BadRequest('Approve this marketing email before scheduling it.');
         }
@@ -97,6 +98,57 @@ final class MarketingDispatchService
         }
 
         return ['id' => $profileId, 'status' => 'scheduled', 'eligibleCount' => $eligibleCount, 'scheduledAt' => (string) $profile['start_at']];
+    }
+
+    /** One approved profile is one dispatch identity. Locking reads and a conditional state claim prevent duplicate sends. */
+    public function singleSend(string $id, string $contactId): array
+    {
+        if ($contactId === '' || strlen($contactId) > 64) throw new BadRequest('Choose a valid Contact.');
+        $context = $this->tenantContextStore->require();
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            // requireReviewAccess acquires SELECT ... FOR UPDATE on the profile inside this transaction.
+            $profile = $this->requireReviewAccess($context, $id);
+            if ($profile['delivery_mode'] !== 'single_send') throw new BadRequest('This email is not configured for single-send delivery.');
+            $contact = $this->entityManager->getEntityById('Contact', $contactId);
+            if (!$contact || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId || !$this->acl->checkScope('Contact', 'read') || !$this->acl->checkEntity($contact, 'read')) throw new NotFound('Contact not found.');
+            $existing = $pdo->prepare("SELECT id,target_id,status FROM email_queue_item WHERE mass_email_id=? AND tenant_id=? AND service_id=? AND is_test=0 ORDER BY created_at,id LIMIT 1 FOR UPDATE");
+            $existing->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId]);
+            $row = $existing->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                if ($row['target_id'] !== $contactId) throw new BadRequest('This single-send email already belongs to another Contact. Create a new approved email for another send.');
+                if ($ownsTransaction) $pdo->commit();
+                return ['id' => $id, 'queueItemId' => $row['id'], 'status' => $row['status'], 'replayed' => true];
+            }
+            if ($profile['lifecycle_status'] !== 'approved') throw new BadRequest('Approve this email before requesting single-send delivery.');
+            if ($profile['campaign_status'] !== 'active') throw new BadRequest('Activate the selected campaign before sending its email.');
+            if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete provider and sending-domain setup before sending.');
+            $this->requireVerifiedSender($context, (string) $profile['from_address']);
+            if (!$this->eligibleRecipient($context, $profile, $contactId)) throw new BadRequest('This Contact must be enrolled, consented and eligible for email delivery.');
+            $this->requireCapacity($context, 1);
+            $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
+            if (!$template instanceof EmailTemplate || !$this->acl->checkEntity($template, 'read')) throw new NotFound('Email template not found.');
+            if (!$this->acl->checkField('EmailTemplate', 'subject') || !$this->acl->checkField('EmailTemplate', 'body')) throw new Forbidden('Email content is not available for delivery.');
+            $this->attachments->approvedFiles($profile, $template, true);
+            $this->images->requireApproved($profile, $template);
+            // Claim the one-shot profile atomically before creating any recipient queue item.
+            $claim = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='sending',modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status='approved' AND delivery_mode='single_send'");
+            $claim->execute([$this->user->getId(), $id, $context->tenantId, $context->serviceId]);
+            if ($claim->rowCount() !== 1) throw new BadRequest('This single-send email has already been claimed.');
+            $item = $this->entityManager->getNewEntity(EmailQueueItem::ENTITY_TYPE);
+            $item->set(['massEmailId' => $profile['mass_email_id'], 'status' => EmailQueueItem::STATUS_PENDING, 'targetId' => $contactId, 'targetType' => 'Contact', 'isTest' => false]);
+            $this->entityManager->saveEntity($item);
+            $pdo->prepare("UPDATE mass_email SET status='Nexa Sending',modified_at=NOW() WHERE id=? AND tenant_id=? AND service_id=?")
+                ->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId]);
+            $this->event($context, $id, 'single_send_queued', (int) $profile['version_number'], ['contactId' => $contactId, 'queueItemId' => $item->getId()]);
+            if ($ownsTransaction) $pdo->commit();
+            return ['id' => $id, 'queueItemId' => $item->getId(), 'status' => EmailQueueItem::STATUS_PENDING, 'replayed' => false];
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
     }
 
     /** @return array{id:string,status:string} */

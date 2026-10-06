@@ -18,5 +18,7 @@ $assert(str_contains($service, 'FOR UPDATE') && str_contains($service, 'accepted
 $unsubscribe = $read('espocrm/custom/Espo/Custom/Tools/MarketingEmail/MarketingUnsubscribeService.php');
 $assert(str_contains($service, 'List-Unsubscribe-Post') && str_contains($service, '/Nexa/public/marketing-unsubscribe/') && str_contains($unsubscribe, '$this->native->unsubscribe'), 'Every governed send must offer signed unsubscribe links backed by native opt-out handling.');
 $assert(str_contains($routes, '/Nexa/marketing-emails/:id/schedule') && str_contains($client, 'schedule-email'), 'Approved email scheduling must be available through the API and workspace.');
+$assert(str_contains($routes, '/Nexa/marketing-emails/:id/single-send') && str_contains($client, 'chooseSingleSendContact') && str_contains($client, 'data-single-send-form'), 'Approved single-send emails must expose Contact selection and explicit confirmation through the governed API.');
+$assert(str_contains($client, "multiple: false, createButton: false, headerText: 'Choose email recipient'") && str_contains($client, 'dialog.busy') && str_contains($client, 'dialog !== this.singleSendDialog'), 'Single-send selection must be singular and protect in-flight requests and stale responses.');
 $assert(str_contains($scheduled, 'ProcessMarketingDelivery') && str_contains($job, 'runScheduled'), 'The tenant-aware marketing delivery job is not registered.');
 echo "Marketing dispatch contracts passed.\n";

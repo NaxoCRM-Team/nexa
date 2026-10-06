@@ -48,10 +48,12 @@ $attachmentCleanup = [];
 $attachmentGovernance = defined('NEXA_MARKETING_ATTACHMENT_GOVERNANCE_TEST');
 $attachmentDelivery = defined('NEXA_MARKETING_ATTACHMENT_DELIVERY_TEST');
 $imageGovernance = defined('NEXA_MARKETING_IMAGE_GOVERNANCE_TEST');
+$conditionalGovernance = defined('NEXA_MARKETING_CONDITIONAL_GOVERNANCE_TEST');
+$singleSendGovernance = defined('NEXA_MARKETING_SINGLE_SEND_TEST');
 $hostedPublication = null;
 
 try {
-    if ($postalCapture || $imageGovernance) {
+    if ($postalCapture || $imageGovernance || $conditionalGovernance || $singleSendGovernance) {
         // Isolate worker execution from pre-existing schedules, within this rollback-only fixture.
         $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='paused' WHERE tenant_id=? AND service_id=? AND lifecycle_status IN ('scheduled','sending')")->execute([$tenantA->tenantId, $tenantA->serviceId]);
     }
@@ -137,16 +139,47 @@ try {
         $snapshotId = $query->fetchColumn();
         $attachmentCleanup[] = ['tenant'=>$tenantA,'attachment'=>$store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $snapshotId))];
     }
-    $draft = $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->save((object) [
+    $conditionalBody = $conditionalGovernance ? $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingConditionalContentService::class)->compose((object) ['field'=>'firstName','operator'=>'equals','value'=>'Governed','matchingText'=>'Conditional welcome {Contact.firstName}','fallbackText'=>'General welcome']))['bodyHtml'] : '';
+    $draftInput = (object) [
+        'deliveryMode' => $singleSendGovernance ? 'single_send' : 'campaign',
         'name' => 'Governed dispatcher email', 'campaignId' => $campaign['id'], 'purposeId' => $purposeId,
         'subject' => $postalCapture ? 'Nexa governed Postal ' . bin2hex(random_bytes(8)) : 'Governed delivery test',
         'fromAddress' => $postalCapture ? $postalSettings['sender'] : 'news@example.test', 'fromName' => 'Example team',
-        'bodyHtml' => '<p>Hello {Contact.firstName},</p><p>Dispatcher test.</p>' . ($hostedPublication ? '<img src="' . htmlspecialchars($hostedPublication['url'], ENT_QUOTES) . '">' : ''),
+        'bodyHtml' => '<p>Hello {Contact.firstName},</p><p>Dispatcher test.</p>' . $conditionalBody . ($hostedPublication ? '<img src="' . htmlspecialchars($hostedPublication['url'], ENT_QUOTES) . '">' : ''),
         'preheader' => 'Preview for {Contact.firstName} <offer>',
         'startAt' => gmdate('Y-m-d H:i:s', time() + 3600),
         ...(($attachmentGovernance || $attachmentDelivery) ? ['attachmentsIds' => [$attachmentFixtures[0]->getId()]] : []),
-    ]));
+    ];
+    if ($conditionalGovernance) {
+        $before=(int) $pdo->query('SELECT COUNT(*) FROM nexa_marketing_email_profile')->fetchColumn();
+        $invalid=clone $draftInput; $invalid->bodyHtml='{{#if firstName}}Unclosed'; $blocked=false;
+        try {$store->runWith($tenantA,fn ()=>$factory->create(MarketingEmailWorkspaceService::class)->save($invalid));}
+        catch (\Espo\Core\Exceptions\BadRequest) {$blocked=true;}
+        $assert($blocked && (int) $pdo->query('SELECT COUNT(*) FROM nexa_marketing_email_profile')->fetchColumn()===$before,'Invalid conditions must reject saving without creating a partial email profile.');
+    }
+    if ($singleSendGovernance) {
+        $before = (int) $pdo->query('SELECT COUNT(*) FROM nexa_marketing_email_profile')->fetchColumn();
+        foreach (['single', '', ['single_send']] as $invalidMode) {
+            $invalid = clone $draftInput; $invalid->deliveryMode = $invalidMode;
+            $blocked = false;
+            try { $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->save($invalid)); }
+            catch (\Espo\Core\Exceptions\BadRequest) {$blocked = true;}
+            $assert($blocked, 'Invalid delivery modes must not silently become campaign-wide sends.');
+        }
+        $assert((int) $pdo->query('SELECT COUNT(*) FROM nexa_marketing_email_profile')->fetchColumn() === $before, 'Invalid delivery modes must not create partial email drafts.');
+    }
+    $draft = $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->save($draftInput));
     $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->transition((string) $draft['id'], (object) ['action' => 'submit']));
+    if ($conditionalGovernance) {
+        $templateQuery=$pdo->prepare('SELECT email_template_id FROM mass_email WHERE id=? AND tenant_id=? AND service_id=?');
+        $templateQuery->execute([$draft['massEmailId'],$tenantA->tenantId,$tenantA->serviceId]); $templateId=$templateQuery->fetchColumn();
+        $pdo->prepare('UPDATE email_template SET body=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['{{#if firstName}}Broken',$templateId,$tenantA->tenantId,$tenantA->serviceId]);
+        $blocked=false;
+        try {$store->runWith($tenantA,fn ()=>$factory->create(MarketingEmailWorkspaceService::class)->transition($draft['id'],(object) ['action'=>'approve']));}
+        catch (\Espo\Core\Exceptions\BadRequest) {$blocked=true;}
+        $assert($blocked,'Malformed conditional content in the native template must block approval.');
+        $pdo->prepare('UPDATE email_template SET body=? WHERE id=? AND tenant_id=? AND service_id=?')->execute([$draftInput->bodyHtml,$templateId,$tenantA->tenantId,$tenantA->serviceId]);
+    }
     if ($attachmentGovernance) {
         $attachmentService = $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingAttachmentService::class);
         $manifest = $store->runWith($tenantA, fn () => $attachmentService->versionManifest($draft['id'], 1));
@@ -175,6 +208,15 @@ try {
         $pdo->prepare("UPDATE nexa_marketing_image_publication SET status='published' WHERE id=?")->execute([$publicationId]);
     }
     $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->transition((string) $draft['id'], (object) ['action' => 'approve']));
+    if ($conditionalGovernance) {
+        $history=$pdo->prepare('SELECT body_html FROM nexa_marketing_email_version WHERE profile_id=? AND tenant_id=? AND service_id=? AND version_number=1');
+        $history->execute([$draft['id'],$tenantA->tenantId,$tenantA->serviceId]);
+        $assert($history->fetchColumn()===$draftInput->bodyHtml,'Immutable native-backed content versions must retain the condition and both branches.');
+        $rendered=$store->runWith($tenantA,fn ()=>$factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingPreviewService::class)->preview((object) ['contactId'=>$contact->getId(),'subject'=>$draftInput->subject,'bodyHtml'=>$draftInput->bodyHtml]));
+        $assert(str_contains($rendered['bodyHtml'],'Conditional welcome Governed') && !str_contains($rendered['bodyHtml'],'General welcome'),'The approved native-backed template must render only its matching branch.');
+        echo "Conditional content save, immutable version and approval governance tests passed.\n";
+        return;
+    }
     if ($attachmentGovernance) {
         $templateQuery = $pdo->prepare('SELECT email_template_id FROM mass_email WHERE id=?');
         $templateQuery->execute([$draft['massEmailId']]);
@@ -227,6 +269,73 @@ try {
     $domainId = (string) array_values(array_filter($settings['domains'], static fn (array $domain): bool => $domain['domainName'] === $domainName))[0]['id'];
     $pdo->prepare("UPDATE nexa_marketing_sending_domain SET ownership_status='verified',spf_status='verified',dkim_status='verified',dmarc_status='verified',return_path_status='verified',verified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")
         ->execute([$domainId, $tenantA->tenantId, $tenantA->serviceId]);
+
+    if ($singleSendGovernance) {
+        $dispatch = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class));
+        $expectBlocked = static function (callable $operation, string $message) use ($assert): void {
+            $blocked = false;
+            try { $operation(); } catch (\Espo\Core\Exceptions\BadRequest|NotFound|\Espo\Core\Exceptions\Forbidden) { $blocked = true; }
+            $assert($blocked, $message);
+        };
+        $expectBlocked(fn () => $store->runWith($tenantA, fn () => $dispatch->schedule($draft['id'])), 'Single-send must never schedule the entire audience.');
+        $expectBlocked(fn () => $store->runWith($tenantB, fn () => $dispatch->singleSend($draft['id'], $contact->getId())), 'Another tenant must not claim the email.');
+        $otherService = new TenantContext($tenantA->tenantId, $tenantA->slug, 'single-send-test', '', '20000000-0000-4000-8000-000000000099');
+        $expectBlocked(fn () => $store->runWith($otherService, fn () => $dispatch->singleSend($draft['id'], $contact->getId())), 'Another service must not claim the email.');
+        $expectBlocked(fn () => $store->runWith($tenantA, fn () => $dispatch->singleSend($draft['id'], 'missing-contact')), 'Unknown Contact must be rejected.');
+        $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='draft' WHERE id=?")->execute([$draft['id']]);
+        $expectBlocked(fn () => $store->runWith($tenantA, fn () => $dispatch->singleSend($draft['id'], $contact->getId())), 'Unapproved single-send must be rejected.');
+        $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='approved' WHERE id=?")->execute([$draft['id']]);
+        $pdo->prepare('UPDATE contact SET do_not_contact=1 WHERE id=?')->execute([$contact->getId()]);
+        $expectBlocked(fn () => $store->runWith($tenantA, fn () => $dispatch->singleSend($draft['id'], $contact->getId())), 'Do not contact must block queue creation.');
+        $pdo->prepare('UPDATE contact SET do_not_contact=0 WHERE id=?')->execute([$contact->getId()]);
+        $first = $store->runWith($tenantA, fn () => $dispatch->singleSend($draft['id'], $contact->getId()));
+        $api = $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\Api\PostSingleSend::class));
+        $request = static function (array $body) use ($draft): \Espo\Core\Api\RequestWrapper {
+            $psr = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', '/api/v1/Nexa/marketing-emails/' . $draft['id'] . '/single-send')
+                ->withHeader('Content-Type', 'application/json')
+                ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream(json_encode($body, JSON_THROW_ON_ERROR)));
+            return new \Espo\Core\Api\RequestWrapper($psr, '', ['id' => $draft['id']]);
+        };
+        foreach ([[], ['contactId'=>123], ['contactId'=>$contact->getId(),'to'=>'override@example.test'], ['contactId'=>$contact->getId(),'bodyHtml'=>'Unapproved']] as $invalid) {
+            $expectBlocked(fn () => $store->runWith($tenantA, fn () => $api->process($request($invalid))), 'The API must reject incomplete requests and recipient/content overrides.');
+        }
+        $user = $container->getByClass(\Espo\Entities\User::class);
+        $originalType = $user->get('type');
+        try {
+            $user->set('type', 'regular');
+            $expectBlocked(fn () => $store->runWith($tenantA, fn () => $dispatch->singleSend($draft['id'], $contact->getId())), 'Non-administrators must not invoke single-send.');
+        } finally { $user->set('type', $originalType); }
+        $response = $store->runWith($tenantA, fn () => $api->process($request(['contactId'=>$contact->getId()])));
+        $again = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+        // A second connection cannot claim the profile while this transaction owns its row lock.
+        $database = $container->getByClass(\Espo\Core\Utils\Config::class)->get('database');
+        $concurrent = new PDO('mysql:host=' . ($database['host'] ?? '127.0.0.1') . ';port=' . ($database['port'] ?? 3306) . ';dbname=' . $database['dbname'] . ';charset=utf8mb4', $database['user'], $database['password'] ?? '', [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+        $concurrent->exec('SET SESSION innodb_lock_wait_timeout=1');
+        $concurrent->beginTransaction();
+        $lockBlocked = false;
+        try {
+            $claim = $concurrent->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='sending' WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status='approved' AND delivery_mode='single_send'");
+            $claim->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        } catch (PDOException $error) { $lockBlocked = (int) ($error->errorInfo[1] ?? 0) === 1205; }
+        finally { $concurrent->rollBack(); }
+        $assert($lockBlocked, 'Concurrent state claims must wait for the locked profile, not create a second queue item.');
+        $assert(!$first['replayed'] && $again['replayed'] && $first['queueItemId'] === $again['queueItemId'], 'Repeated requests must return the same native queue identity.');
+        $queue = $pdo->prepare('SELECT COUNT(*) FROM email_queue_item WHERE mass_email_id=? AND tenant_id=? AND service_id=? AND is_test=0');
+        $queue->execute([$draft['massEmailId'], $tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $queue->fetchColumn() === 1, 'Exactly one customer queue item must exist.');
+        $other = $store->runWith($tenantA, fn () => $services->get('Contact')->create((object) ['firstName'=>'Other', 'lastName'=>'Recipient'], CreateParams::create()));
+        $expectBlocked(fn () => $store->runWith($tenantA, fn () => $dispatch->singleSend($draft['id'], $other->getId())), 'A retry cannot change the recipient.');
+        // Revoke eligibility before running the real worker: no provider call or real email is allowed.
+        $pdo->prepare('UPDATE contact SET do_not_contact=1 WHERE id=?')->execute([$contact->getId()]);
+        $store->runWith($tenantA, fn () => $dispatch->runScheduled());
+        $replay = $store->runWith($tenantA, fn () => $dispatch->singleSend($draft['id'], $contact->getId()));
+        $assert($replay['replayed'] && $replay['status'] === 'Failed', 'Worker eligibility recheck must fail safely; retries must not recreate failed deliveries.');
+        $submissions = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_delivery_message WHERE profile_id=? AND tenant_id=? AND service_id=?');
+        $submissions->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $submissions->fetchColumn() === 0, 'Rejected single-send must never reserve or submit provider delivery.');
+        echo "Native single-send queue, replay, tenant/service and worker consent governance passed.\n";
+        return;
+    }
 
     if (defined('NEXA_POSTAL_TEST_SEND_ACCEPTANCE') && NEXA_POSTAL_TEST_SEND_ACCEPTANCE === true) {
         $admin = $store->runWith($tenantA, function () use ($entityManager) {

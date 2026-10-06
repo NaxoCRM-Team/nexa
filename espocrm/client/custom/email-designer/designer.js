@@ -24,7 +24,8 @@
         if (session === data.session && data.type === 'nexa-email-designer-image-result') {
             const image = data.image;
             const insert = pendingImage?.insert;
-            const approved = images.find(item => item.id === pendingImage?.id && (
+            const uploaded = pendingImage?.upload && data.requestedId === pendingImage.id && typeof image?.assetId === 'string' && typeof image?.url === 'string' && image.id?.startsWith('mail-');
+            const approved = uploaded || images.find(item => item.id === pendingImage?.id && (
                 (item.requiresPublication === true && data.requestedId === item.id && item.assetId === image?.assetId && typeof image.url === 'string' && image.id?.startsWith('mail-')) ||
                 (item.id === image?.id && item.url === image.url)
             ));
@@ -33,7 +34,7 @@
                 document.querySelector('#image-status').textContent = 'Image unavailable'; return;
             }
             imageSources.set(image.id, image.url);
-            if (approved.requiresPublication && !images.some(item => item.id === image.id)) images.unshift(image);
+            if ((uploaded || approved.requiresPublication) && !images.some(item => item.id === image.id)) images.unshift(image);
             const existing = editor.getWrapper().find('img').filter(component => component.getAttributes().src === image.url);
             existing.forEach(component => component.addAttributes({src: image.preview, 'data-nexa-email-image': image.id}));
             if (insert) {
@@ -51,7 +52,10 @@
             renderImages(); document.querySelector('#image-status').textContent = 'Email image revoked. Remove it from drafts that use it.';
         }
         if (session === data.session && data.type === 'nexa-email-designer-image-error') {
-            pendingImage = null; document.querySelector('#image-status').textContent = 'Images unavailable. Try again.';
+            pendingImage = null; document.querySelector('#image-upload').disabled = false;
+            document.querySelector('#image-status').textContent = data.reason === 'uploaded-not-published'
+                ? 'Image saved in Asset Library, but publication failed. Select it there or retry publication from Email images.'
+                : 'Image unavailable. Use a PNG, JPEG, GIF or WebP up to 8 MB and try again.';
         }
         if (data.type === 'nexa-email-designer-init' && !editor) {
             if (typeof data.html !== 'string' || data.html.length > 2_000_000) return;
@@ -111,6 +115,7 @@
         }
     });
     const renderImages = () => {
+        document.querySelector('#image-upload').disabled = !!pendingImage;
         const list = document.querySelector('#images'); list.replaceChildren();
         const search = document.querySelector('#image-search').value.trim().toLocaleLowerCase();
         images.filter(image => !image.legacy && image.name.toLocaleLowerCase().includes(search)).forEach(image => {
@@ -138,11 +143,13 @@
     };
     const showImageConfirmation = (image, action) => {
         confirmImage = {image, action};
-        document.querySelector('#image-confirm-title').textContent = action === 'publish' ? 'Publish an email image copy?' : 'Revoke this email image?';
-        document.querySelector('#image-confirm-text').textContent = action === 'publish'
+        document.querySelector('#image-confirm-title').textContent = action === 'upload' ? 'Upload and publish this image?' : action === 'publish' ? 'Publish an email image copy?' : 'Revoke this email image?';
+        document.querySelector('#image-confirm-text').textContent = action === 'upload'
+            ? `${image.name} will be saved as a Public asset in your tenant's Asset Library, with a separate publicly viewable email copy. Both remain even if you cancel this design. Revoke stops serving the email copy, not the original asset.`
+            : action === 'publish'
             ? 'Anyone with the new image link can view this public copy. It remains available even if you cancel this design, archive the original, or make the original Internal. Use Revoke to stop serving the email copy. The original file is not changed.'
             : 'This stops serving the copy in all emails and drafts that use its link, including emails already sent. The original asset is not deleted. Images already cached by an email provider cannot be recalled.';
-        document.querySelector('#image-confirm-accept').textContent = action === 'publish' ? 'Publish and insert' : 'Revoke image';
+        document.querySelector('#image-confirm-accept').textContent = action === 'upload' ? 'Upload, publish and insert' : action === 'publish' ? 'Publish and insert' : 'Revoke image';
         document.querySelector('#image-confirm').showModal(); document.querySelector('#image-confirm-cancel').focus();
     };
     document.querySelector('#image-confirm-cancel').addEventListener('click', () => {confirmImage = null; document.querySelector('#image-confirm').close();});
@@ -150,11 +157,33 @@
         const confirmation = confirmImage; confirmImage = null; document.querySelector('#image-confirm').close();
         if (!confirmation || pendingImage) return;
         const {image, action} = confirmation;
+        if (action === 'upload') {
+            pendingImage = {id: 'upload-' + Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join(''), insert: true, upload: true};
+            document.querySelector('#image-upload').disabled = true;
+            document.querySelector('#image-status').textContent = 'Uploading email image';
+            const requestId = pendingImage.id;
+            const reader = new FileReader();
+            reader.onload = () => {
+                if (pendingImage?.id !== requestId) return;
+                reply('nexa-email-designer-image-upload', {id: requestId, name: image.name, mimeType: image.type, data: reader.result.split(',')[1], confirmPublicCopy: true});
+            };
+            reader.onerror = () => {pendingImage = null; document.querySelector('#image-upload').disabled = false; document.querySelector('#image-status').textContent = 'The image could not be read. Try again.';};
+            reader.readAsDataURL(image); return;
+        }
         pendingImage = {id: image.id, insert: action === 'publish'};
         document.querySelector('#image-status').textContent = action === 'publish' ? 'Publishing email image' : 'Revoking email image';
         reply(action === 'publish' ? 'nexa-email-designer-image-publish' : 'nexa-email-designer-image-revoke', {id: image.id, assetId: image.assetId});
     });
     document.querySelector('#image-confirm').addEventListener('cancel', event => {event.stopPropagation(); confirmImage = null;});
+    document.querySelector('#image-upload').addEventListener('click', () => {if (!pendingImage) document.querySelector('#image-file').click();});
+    document.querySelector('#image-file').addEventListener('change', event => {
+        const file = event.target.files[0]; event.target.value = '';
+        if (!file || pendingImage) return;
+        if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type) || file.size === 0 || file.size > 8 * 1024 * 1024) {
+            document.querySelector('#image-status').textContent = 'Choose a PNG, JPEG, GIF or WebP up to 8 MB.'; return;
+        }
+        showImageConfirmation(file, 'upload');
+    });
     const loadNextPreview = () => {
         if (!editor || pendingImage) return;
         const components = editor.getWrapper()?.find('img') || [];

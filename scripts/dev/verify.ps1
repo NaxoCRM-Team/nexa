@@ -75,6 +75,14 @@ $required = @(
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/MarketingImageService.php',
     'espocrm/custom/Espo/Custom/EntryPoints/NexaMarketingImage.php',
     'tests/tenant/TenantMarketingImagePublicationTest.php',
+    'tests/tenant/TenantMarketingImageUploadTest.php',
+    'tests/tenant/TenantMarketingConditionalContentTest.php',
+    'tests/tenant/TenantMarketingConditionalGovernanceTest.php',
+    'tests/tenant/TenantMarketingSingleSendTest.php',
+    'tests/browser/marketing-single-send.spec.js',
+    'docs/development/marketing-single-send.md',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/MarketingConditionalContentService.php',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/ValueLiteral.php',
     'tests/tenant/TenantMarketingImageDispatchTest.php',
     'docs/operations/security-governance.md',
     'tests/auth/Sprint6SecurityGovernanceTest.php',
@@ -530,12 +538,20 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Tenant and service scoped marketing designer images' } else { Fail 'Marketing designer image isolation suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingImagePublicationTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Independent public image snapshot and revocation suite' } else { Fail 'Independent image publication suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingImageUploadTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Native image upload and independent publication API chain' } else { Fail 'Marketing image upload API suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingImageDispatchTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Hosted image approval and pre-dispatch enforcement' } else { Fail 'Hosted image dispatch governance suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingLifecycleTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Lifecycle runtime suite' } else { Fail 'Two-tenant Marketing Lifecycle runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingPreviewTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Preview runtime suite' } else { Fail 'Two-tenant Marketing Preview runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingConditionalContentTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Native conditional rendering and tenant-scoped preview' } else { Fail 'Conditional content rendering suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingConditionalGovernanceTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Conditional content save and approval governance' } else { Fail 'Conditional content governance suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingSingleSendTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Native single-send queue and isolation governance' } else { Fail 'Single-send governance suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantPhase4SecurityTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')

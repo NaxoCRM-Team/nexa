@@ -33,7 +33,19 @@ test('Real newsletter block designer stages, edits and exports without remote co
             throw new Error('Unexpected designer request');
         }, postRequest: async (url, payload) => {
             imageActions.push({url, payload});
+            if (url === 'Nexa/assets') {
+                if (window.deferUpload) return new Promise(resolve => {window.releaseUpload = () => resolve({id:'uploaded-image'});});
+                return {id:'uploaded-image'};
+            }
             if (url === 'Nexa/marketing-email-images') {
+                if (payload.assetId === 'uploaded-image') {
+                    if (window.failPublication) {
+                        currentImages.push({id:'asset-uploaded-image',assetId:'uploaded-image',name:'Uploaded artwork',requiresPublication:true});
+                        throw new Error('Publication failed');
+                    }
+                    const uploaded = {id:'mail-uploaded-image',assetId:'uploaded-image',name:'Uploaded artwork',alt:'Uploaded artwork',url:'https://designer-attacker.example/uploaded-image'};
+                    currentImages.push(uploaded); return {...uploaded, preview};
+                }
                 const published = {id:'mail-new-image', assetId:'new-image', name:'Campaign artwork copy', alt:'Artwork', url:'https://designer-attacker.example/new-image'};
                 currentImages.push(published); return {...published, preview};
             }
@@ -47,7 +59,7 @@ test('Real newsletter block designer stages, edits and exports without remote co
         view.workspace = {permissions: {attachments: true}}; view.selectedAttachments = [{id: 'keep-file', name: 'guide.txt', size: 10}];
         document.querySelector('[data-email-editor]').hidden = false;
         document.querySelector('[data-email-editor]').style.display = 'grid';
-        document.querySelector('[name="bodyHtml"]').value = '<p>Hello {Contact.firstName}</p><script>parent.compromised=true</script><img src="https://designer-attacker.example/pixel" onerror="parent.compromised=true"><form action="https://designer-attacker.example/send"><input></form>';
+        document.querySelector('[name="bodyHtml"]').value = '<p>Hello {Contact.firstName}</p><script>parent.compromised=true</script><img src="https://designer-attacker.example/pixel" onerror="parent.compromised=true"><form action="https://designer-attacker.example/send"><input></form>{{#ifEqual leadStatus_RAW (nexaEmailValue "TmV3")}}<p>New lead offer</p>{{else}}<p>Customer offer</p>{{/ifEqual}}';
         view.renderContentPreview();
         view.element.addEventListener('click', event => {
             const action = event.target.closest('[data-action]')?.dataset.action;
@@ -79,7 +91,10 @@ test('Real newsletter block designer stages, edits and exports without remote co
     await page.evaluate(() => window.postMessage({type: 'nexa-email-designer-content', session: view.blockDesigner.session, html: '<p>Wrong source</p>'}, location.origin));
     await expect(page.locator('[name="bodyHtml"]')).toHaveValue(original);
     if (testInfo.project.name === 'desktop') {
+        await designer.getByRole('combobox', {name:'Preview device'}).selectOption('Desktop');
+        await expect.poll(async () => (await designer.locator('.gjs-frame').boundingBox()).width).toBeGreaterThan(500);
         await iframe.evaluate(() => grapesjs.editors[0].Blocks.get('text').set('content', '<p>Dragged email block</p>'));
+        await designer.getByRole('button', {name:'Text',exact:true}).scrollIntoViewIfNeeded();
         const block = await designer.getByRole('button', {name: 'Text', exact: true}).boundingBox();
         const canvas = await designer.locator('.gjs-frame').boundingBox();
         await page.mouse.move(block.x + block.width / 2, block.y + block.height / 2);
@@ -122,6 +137,24 @@ test('Real newsletter block designer stages, edits and exports without remote co
     await designer.getByRole('button', {name:'Publish and insert', exact:true}).click();
     await expect.poll(() => nextFrame.evaluate(() => [...grapesjs.editors[0].Canvas.getDocument().images].some(image => image.alt === 'Artwork' && image.naturalWidth === 1))).toBe(true);
     expect(await page.evaluate(() => imageActions)).toEqual([{url:'Nexa/marketing-email-images', payload:{assetId:'new-image', confirmPublicCopy:true}}]);
+    const upload = {name:'uploaded-artwork.png', mimeType:'image/png', buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')};
+    await designer.locator('#image-file').setInputFiles({name:'unsafe.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg></svg>')});
+    await expect(designer.locator('#image-status')).toContainText('up to 8 MB');
+    expect(await page.evaluate(() => imageActions.length)).toBe(1);
+    await designer.locator('#image-file').setInputFiles(upload);
+    await expect(designer.getByRole('dialog', {name:'Upload and publish this image?'})).toBeVisible();
+    await designer.getByRole('button', {name:'Cancel',exact:true}).click();
+    expect(await page.evaluate(() => imageActions.length)).toBe(1);
+    await designer.locator('#image-file').setInputFiles(upload);
+    await designer.locator('#image-confirm').press('Escape');
+    expect(await page.evaluate(() => imageActions.length)).toBe(1);
+    await designer.locator('#image-file').setInputFiles(upload);
+    await designer.getByRole('button', {name:'Upload, publish and insert',exact:true}).click();
+    await expect.poll(() => nextFrame.evaluate(() => [...grapesjs.editors[0].Canvas.getDocument().images].some(image => image.alt === 'Uploaded artwork' && image.naturalWidth === 1))).toBe(true);
+    expect(await page.evaluate(() => imageActions.slice(1))).toEqual([
+        {url:'Nexa/assets',payload:{displayName:upload.name,fileName:upload.name,mimeType:'image/png',data:upload.buffer.toString('base64'),accessScope:'public'}},
+        {url:'Nexa/marketing-email-images',payload:{assetId:'uploaded-image',confirmPublicCopy:true}},
+    ]);
     await testInfo.attach('email-block-designer.png', {body: await page.screenshot({path: path.join(root, `test-results/email-designer-${testInfo.project.name}.png`)}), contentType: 'image/png'});
     const bounds = await page.locator('[data-block-designer]').boundingBox();
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize().width + 1);
@@ -130,8 +163,11 @@ test('Real newsletter block designer stages, edits and exports without remote co
     const exported = await page.locator('[name="bodyHtml"]').inputValue();
     expect(exported).toContain('Approved designer content'); expect(exported).toContain('style=');
     expect(exported).toContain('{Contact.firstName}'); expect(exported).not.toContain('<script'); expect(exported).not.toContain('onerror');
+    expect(exported).toContain('{{#ifEqual leadStatus_RAW (nexaEmailValue "TmV3")}}');
+    expect(exported).toContain('{{else}}'); expect(exported).toContain('{{/ifEqual}}');
     expect(exported).toContain('https://designer-attacker.example/approved-image');
     expect(exported).toContain('https://designer-attacker.example/new-image');
+    expect(exported).toContain('https://designer-attacker.example/uploaded-image');
     expect(exported).not.toContain('data-nexa-email-image');
     expect(exported).not.toContain('data:image/png');
     expect(await page.evaluate(() => view.selectedAttachments.map(item => item.id))).toEqual(['keep-file']);
@@ -143,7 +179,7 @@ test('Real newsletter block designer stages, edits and exports without remote co
     await expect.poll(() => reopened.evaluate(() => [...grapesjs.editors[0].Canvas.getDocument().images].some(image => image.alt === 'Artwork' && image.naturalWidth === 1))).toBe(true);
     await designer.getByRole('button', {name:'Revoke Campaign artwork copy', exact:true}).click();
     await designer.getByRole('button', {name:'Cancel', exact:true}).click();
-    expect(await page.evaluate(() => imageActions.length)).toBe(1);
+    expect(await page.evaluate(() => imageActions.length)).toBe(3);
     await designer.getByRole('button', {name:'Revoke Campaign artwork copy', exact:true}).click();
     await designer.getByRole('button', {name:'Revoke image', exact:true}).click();
     await expect(designer.locator('#image-status')).toContainText('revoked');
@@ -153,5 +189,27 @@ test('Real newsletter block designer stages, edits and exports without remote co
     await page.evaluate(() => {view.contentEditorRequest = (view.contentEditorRequest || 0) + 1;});
     await page.getByRole('button', {name: 'Apply design', exact: true}).click();
     await expect(page.locator('[data-block-designer]')).toHaveCount(0);
+    await expect(page.locator('[name="bodyHtml"]')).toHaveValue(exported);
+    await page.getByRole('button', {name:'Design blocks',exact:true}).click();
+    await expect(designer.locator('#status')).toHaveText('Ready');
+    await page.evaluate(() => {window.failPublication = true;});
+    await designer.locator('#image-file').setInputFiles(upload);
+    await designer.getByRole('button', {name:'Upload, publish and insert',exact:true}).click();
+    await expect(designer.locator('#image-status')).toContainText('saved in Asset Library');
+    await expect(designer.getByRole('button', {name:'Upload image',exact:true})).toBeEnabled();
+    await expect(page.locator('[name="bodyHtml"]')).toHaveValue(exported);
+    await page.getByRole('button', {name:'Cancel design',exact:true}).click();
+    await page.getByRole('button', {name:'Design blocks',exact:true}).click();
+    await expect(designer.locator('#status')).toHaveText('Ready');
+    await page.evaluate(() => {window.failPublication = false; window.deferUpload = true;});
+    const mutationsBefore = await page.evaluate(() => imageActions.length);
+    await designer.locator('#image-file').setInputFiles(upload);
+    await designer.getByRole('button', {name:'Upload, publish and insert',exact:true}).click();
+    await expect.poll(() => page.evaluate(() => typeof window.releaseUpload)).toBe('function');
+    await expect(page.getByRole('button', {name:'Apply design',exact:true})).toBeDisabled();
+    await page.getByRole('button', {name:'Cancel design',exact:true}).click();
+    await page.evaluate(() => window.releaseUpload());
+    await expect(page.locator('[data-block-designer]')).toHaveCount(0);
+    expect(await page.evaluate(() => imageActions.length)).toBe(mutationsBefore + 1);
     await expect(page.locator('[name="bodyHtml"]')).toHaveValue(exported);
 });

@@ -24,6 +24,7 @@ final class MarketingPreviewService
         private TenantContextStore $contexts,
         private Acl $acl,
         private Processor $processor,
+        private MarketingConditionalContentService $conditionalContent,
     ) {}
 
     /** @return array{subject:string,bodyHtml:string} */
@@ -38,6 +39,7 @@ final class MarketingPreviewService
         $subject = (string) ($input->subject ?? '');
         if ($id === '' || strlen($id) > 64) throw new BadRequest('Choose a Contact for the preview.');
         if (strlen($body) > 2_000_000 || mb_strlen($subject) > 255) throw new BadRequest('Preview content is too large.');
+        $this->conditionalContent->validate($subject, $body);
         $contact = $this->services->get('Contact')->getEntity($id);
         if (!$contact || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId) {
             throw new NotFound('Contact not found.');

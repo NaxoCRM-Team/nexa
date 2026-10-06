@@ -7,6 +7,8 @@ body{display:flex;flex-direction:column}
 .designer-tools label{display:flex;align-items:center;gap:6px}.designer-tools #status{margin-left:auto;color:#55665d;font-size:12px}
 #panel{display:none}
 #image-search{width:calc(100% - 16px);margin:8px;padding:8px;border:1px solid #98aaa2;border-radius:4px;color:#172b23;background:#fff}
+#image-upload{display:block;width:calc(100% - 16px);margin:8px;padding:8px;font:12px Arial,sans-serif;color:#fff;background:#087763;border:1px solid #056451;border-radius:4px;cursor:pointer;overflow-wrap:anywhere}
+#image-upload:hover{background:#056451}#image-upload:focus-visible{outline:2px solid #087763;outline-offset:2px}#image-upload:disabled{opacity:.6;cursor:wait}
 #images{display:grid;gap:6px;padding:8px}#images button{padding:8px;text-align:left;font:12px Arial,sans-serif;color:#172b23;background:#fff;border:1px solid #bfcec6;border-radius:4px;overflow-wrap:anywhere;cursor:pointer}
 #images button:hover{background:#e7f3ed}#images button:focus-visible{outline:2px solid #087763}#image-status{padding:0 8px;font-size:12px;color:#55665d}
 .image-row{display:grid;grid-template-columns:minmax(0,1fr);gap:4px}.image-row button+button{padding:4px;font-size:11px;color:#b42318}

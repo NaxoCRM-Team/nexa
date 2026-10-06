@@ -34,6 +34,7 @@ final class MarketingEmailWorkspaceService
         private \Espo\Core\Utils\Config $config,
         private \Espo\Custom\Tools\Asset\AssetWorkspaceService $assetLibrary,
         private MarketingImageService $images,
+        private MarketingConditionalContentService $conditionalContent,
     ) {}
 
     public function designerImages(?string $id = null): array
@@ -261,6 +262,7 @@ final class MarketingEmailWorkspaceService
             if ($action === 'approve') {
                 $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
                 if (!$template instanceof \Espo\Entities\EmailTemplate) throw new NotFound('Email template not found.');
+                $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
                 $manifest = $this->attachments->manifest($this->attachments->templateIds($template));
                 if ($manifest !== $this->attachments->versionManifest($id, (int) $profile['version_number'])) throw new BadRequest('Attachments changed since the draft was saved. Save the draft again before approval.');
                 $imageManifest = $this->images->manifest((string) $template->get('body'));
@@ -288,6 +290,11 @@ final class MarketingEmailWorkspaceService
         if ($subject === '') throw new BadRequest('Subject is required.');
         if ($bodyHtml === '') throw new BadRequest('Email content is required.');
         if (strlen($bodyHtml) > 2_000_000) throw new BadRequest('Email content is too large.');
+        $this->conditionalContent->validate($subject, $bodyHtml);
+        $deliveryMode = $input->deliveryMode ?? 'campaign';
+        if (!is_string($deliveryMode) || !in_array($deliveryMode, ['campaign', 'transactional', 'single_send'], true)) {
+            throw new BadRequest('Choose a supported email delivery mode.');
+        }
         $campaignId = trim((string) ($input->campaignId ?? ''));
         $campaign = $this->campaign($context, $campaignId);
         $purposeId = trim((string) ($input->purposeId ?? $campaign['purpose_id'] ?? ''));
@@ -299,7 +306,7 @@ final class MarketingEmailWorkspaceService
             'campaignId' => $campaignId, 'purposeId' => $purposeId,
             'audienceIds' => $this->decodeIds($campaign['audience_ids_json']),
             'exclusionIds' => $this->decodeIds($campaign['exclusion_ids_json']),
-            'deliveryMode' => in_array(($input->deliveryMode ?? ''), ['campaign', 'transactional', 'single_send'], true) ? $input->deliveryMode : 'campaign',
+            'deliveryMode' => $deliveryMode,
             'startAt' => $this->dateTime($input->startAt ?? null),
             'fromAddress' => $this->email($input->fromAddress ?? null, true),
             'fromName' => $this->text($input->fromName ?? null, 255),

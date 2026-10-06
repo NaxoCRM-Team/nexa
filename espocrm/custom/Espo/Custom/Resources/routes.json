@@ -773,6 +773,16 @@
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostAttachment"
     },
     {
+        "route": "/Nexa/marketing-email-conditions/fields",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetConditionalFields"
+    },
+    {
+        "route": "/Nexa/marketing-email-conditions",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostConditionalContent"
+    },
+    {
         "route": "/Nexa/marketing-email-images",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDesignerImage"
@@ -861,6 +871,11 @@
         "route": "/Nexa/marketing-emails/:id/control",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostControl"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/single-send",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSingleSend"
     },
     {
         "route": "/Nexa/marketing-emails/:id/schedule",
