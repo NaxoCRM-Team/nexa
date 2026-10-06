@@ -38,6 +38,9 @@ final class MarketingDispatchService
         private ApplicationConfig $applicationConfig,
         private User $user,
         private MarketingUnsubscribeService $unsubscribe,
+        private \Espo\Core\Acl $acl,
+        private \Espo\Modules\Crm\Tools\MassEmail\QueueCreator $queueCreator,
+        private MarketingAttachmentService $attachments,
     ) {}
 
     /** @return array{id:string,status:string,eligibleCount:int,scheduledAt:string} */
@@ -58,6 +61,9 @@ final class MarketingDispatchService
             throw new BadRequest('Activate the selected campaign before scheduling its email.');
         }
         $this->requireVerifiedSender($context, (string) $profile['from_address']);
+        $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
+        if (!$template instanceof EmailTemplate) throw new NotFound('Email template not found.');
+        $this->attachments->approvedFiles($profile, $template, true);
         $eligibleCount = $this->eligibleCount($context, $profile);
         if ($eligibleCount === 0) {
             throw new BadRequest('No contacts are currently eligible for this marketing email.');
@@ -114,7 +120,7 @@ final class MarketingDispatchService
                 if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete delivery setup before resuming.');
                 if ($profile['campaign_status'] !== 'active') throw new BadRequest('Activate the campaign before resuming.');
                 $this->requireVerifiedSender($context, (string) $profile['from_address']);
-                $queue = $pdo->prepare('SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND deleted=0');
+                $queue = $pdo->prepare('SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND is_test=0 AND deleted=0');
                 $queue->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id']]);
                 $next = (int) $queue->fetchColumn() > 0 ? 'sending' : 'scheduled';
             }
@@ -129,6 +135,115 @@ final class MarketingDispatchService
             if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
             throw $error;
         }
+    }
+
+    private function requireReviewAccess(TenantContext $context, string $id): array
+    {
+        if (!$this->user->isAdmin() || !$this->acl->checkScope('MassEmail', 'edit')) throw new Forbidden('Only an authorized tenant administrator can review delivery.');
+        $profile = $this->profile($context, $id, true);
+        $native = $this->entityManager->getEntityById('MassEmail', $profile['mass_email_id']);
+        if (!$native || !$this->acl->checkEntity($native, 'edit')) throw new Forbidden('This email cannot be reviewed.');
+        return $profile;
+    }
+
+    public function reviewSubmissions(string $id): array
+    {
+        $context = $this->tenantContextStore->require();
+        $profile = $this->requireReviewAccess($context, $id);
+        $query = $this->entityManager->getPDO()->prepare("SELECT d.id,d.recipient,d.status,d.provider_message_id AS providerMessageId,d.created_at AS createdAt FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.profile_id=? AND d.tenant_id=? AND d.service_id=? AND q.mass_email_id=? AND q.status='Sending' AND q.deleted=0 ORDER BY d.created_at,d.id LIMIT 100");
+        $query->execute([$id, $context->tenantId, $context->serviceId, $profile['mass_email_id']]);
+        return ['items' => $query->fetchAll(PDO::FETCH_ASSOC)];
+    }
+
+    public function resolveSubmission(string $id, \stdClass $input): array
+    {
+        $decision = (string) ($input->decision ?? '');
+        $note = trim((string) ($input->evidenceNote ?? ''));
+        $messageId = trim((string) ($input->providerMessageId ?? ''));
+        if (!in_array($decision, ['accepted', 'not_accepted'], true)) throw new BadRequest('Choose a provider evidence outcome.');
+        if (mb_strlen($note) < 10 || mb_strlen($note) > 2000) throw new BadRequest('Record provider evidence in 10 to 2,000 characters.');
+        if ($decision === 'accepted' && ($messageId === '' || strlen($messageId) > 255 || preg_match('/[\x00-\x1f]/', $messageId))) throw new BadRequest('Enter the confirmed Postal message ID.');
+        $context = $this->tenantContextStore->require();
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $profile = $this->requireReviewAccess($context, $id);
+            if ($profile['lifecycle_status'] !== 'paused') throw new BadRequest('Pause this email before reviewing submissions.');
+            $query = $pdo->prepare("SELECT d.*,q.status AS queue_status FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.id=? AND d.profile_id=? AND d.tenant_id=? AND d.service_id=? AND q.mass_email_id=? AND q.deleted=0 FOR UPDATE");
+            $query->execute([(string) ($input->messageId ?? ''), $id, $context->tenantId, $context->serviceId, $profile['mass_email_id']]);
+            $message = $query->fetch(PDO::FETCH_ASSOC);
+            if (!$message) throw new NotFound('Submission not found.');
+            if ($message['queue_status'] !== 'Sending') throw new BadRequest('This submission has already been resolved.');
+            if ($message['status'] === 'submitting' && !str_starts_with((string) $message['last_error'], 'Postal acceptance is uncertain.') && strtotime($message['modified_at']) > time() - 900) {
+                throw new BadRequest('This submission is still in flight. Wait for its response before reviewing it.');
+            }
+            if ($decision === 'not_accepted') {
+                if ($message['status'] !== 'submitting' || $message['provider_message_id']) throw new BadRequest('A confirmed provider submission cannot be marked not accepted.');
+                $pdo->prepare("UPDATE nexa_marketing_delivery_message SET status='failed',last_error='Provider non-acceptance confirmed by administrator',reconciled_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")->execute([$message['id'], $context->tenantId, $context->serviceId]);
+                $pdo->prepare("UPDATE nexa_marketing_monthly_usage SET accepted_count=GREATEST(accepted_count-1,0) WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(?,'%Y-%m-01')")->execute([$context->tenantId, $context->serviceId, $message['created_at']]);
+            } else {
+                if ($message['provider_message_id'] && $message['provider_message_id'] !== $messageId) throw new BadRequest('The provider message ID conflicts with existing evidence.');
+                $conflict = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_delivery_message WHERE tenant_id=? AND service_id=? AND provider_message_id=? AND id<>?');
+                $conflict->execute([$context->tenantId, $context->serviceId, $messageId, $message['id']]);
+                if ((int) $conflict->fetchColumn() > 0) throw new BadRequest('This provider message ID belongs to another submission.');
+                $pdo->prepare("UPDATE nexa_marketing_delivery_message SET provider_message_id=?,status=IF(status='submitting','submitted',status),last_error=NULL,submitted_at=COALESCE(submitted_at,NOW(6)),modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")->execute([$messageId, $message['id'], $context->tenantId, $context->serviceId]);
+            }
+            $pdo->prepare("UPDATE email_queue_item SET status=?,sent_at=IF(?='Sent',COALESCE(sent_at,NOW()),sent_at) WHERE id=? AND tenant_id=? AND service_id=? AND status='Sending'")->execute([$decision === 'accepted' ? 'Sent' : 'Failed', $decision === 'accepted' ? 'Sent' : 'Failed', $message['email_queue_item_id'], $context->tenantId, $context->serviceId]);
+            $this->event($context, $id, 'submission_review_resolved', (int) $profile['version_number'], ['messageId' => $message['id'], 'decision' => $decision, 'providerMessageId' => $decision === 'accepted' ? $messageId : null, 'evidenceNote' => $note]);
+            if ($ownsTransaction) $pdo->commit();
+            return ['resolved' => true, 'decision' => $decision];
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+    }
+
+    public function sendTest(string $id, string $contactId): array
+    {
+        $context = $this->tenantContextStore->require();
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $profile = $this->requireReviewAccess($context, $id);
+            if ($profile['lifecycle_status'] !== 'approved') throw new BadRequest('Approve the saved email before sending a provider test.');
+            if ($this->user->get('tenantId') !== $context->tenantId || $this->user->get('serviceId') !== $context->serviceId || !filter_var($this->user->get('emailAddress'), FILTER_VALIDATE_EMAIL)) throw new Forbidden('A tenant-owned administrator email address is required for test delivery.');
+            if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete Postal and sending-domain setup before testing delivery.');
+            $this->requireVerifiedSender($context, $profile['from_address']);
+            $this->requireCapacity($context, 1);
+            $contact = $this->entityManager->getEntityById('Contact', $contactId);
+            if (!$contact || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId || !$this->acl->checkScope('Contact', 'read') || !$this->acl->checkEntity($contact, 'read')) throw new NotFound('Preview Contact not found.');
+            $recent = $pdo->prepare("SELECT COUNT(*) FROM email_queue_item WHERE mass_email_id=? AND tenant_id=? AND service_id=? AND is_test=1 AND target_type='User' AND target_id=? AND deleted=0 AND (status='Sending' OR created_at>DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 MINUTE))");
+            $recent->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId, $this->user->getId()]);
+            if ((int) $recent->fetchColumn() > 0) throw new BadRequest('Wait one minute between tests and resolve any unconfirmed test first.');
+            $massEmail = $this->entityManager->getEntityById('MassEmail', $profile['mass_email_id']);
+            $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
+            if (!$massEmail instanceof MassEmail || !$template instanceof EmailTemplate || !$this->acl->checkEntity($template, 'read')) throw new NotFound('Email template not found.');
+            if (!$this->acl->checkField('EmailTemplate', 'subject') || !$this->acl->checkField('EmailTemplate', 'body')) throw new Forbidden('Email content is not available for test delivery.');
+            $testAttachments = $this->attachments->approvedFiles($profile, $template, true);
+            $this->queueCreator->create($massEmail, true, [$this->user]);
+            $queue = $pdo->prepare("SELECT id FROM email_queue_item WHERE mass_email_id=? AND tenant_id=? AND service_id=? AND is_test=1 AND target_type='User' AND target_id=? AND status='Pending' AND deleted=0 ORDER BY created_at DESC,id DESC LIMIT 1");
+            $queue->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId, $this->user->getId()]);
+            $queueId = $queue->fetchColumn();
+            if (!$queueId) throw new BadRequest('The administrator email is invalid or opted out of native delivery.');
+            if (!$this->reserveItem($context, $profile, $queueId, $this->user->get('emailAddress'), true)) throw new BadRequest('The test could not reserve monthly delivery capacity.');
+            if ($ownsTransaction) $pdo->commit();
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+        try {
+            $this->dispatchItem($context, $profile, $massEmail, $template, $queueId, $contactId, $this->user, $testAttachments);
+        } catch (\Throwable $error) {
+            $this->holdUncertainSubmission($context, $profile, $queueId);
+            throw $error;
+        }
+        $status = $pdo->prepare('SELECT status FROM nexa_marketing_delivery_message WHERE email_queue_item_id=? AND tenant_id=? AND service_id=?');
+        $status->execute([$queueId, $context->tenantId, $context->serviceId]);
+        $outcome = (string) $status->fetchColumn();
+        $this->event($context, $id, 'test_delivery', (int) $profile['version_number'], ['queueItemId' => $queueId, 'status' => $outcome]);
+        return ['status' => $outcome, 'recipient' => $this->user->get('emailAddress')];
     }
 
     /** Process due profiles for the current tenant and service. */
@@ -212,15 +327,15 @@ final class MarketingDispatchService
             throw new DeliveryProviderException('The native email or template record is unavailable.');
         }
 
-        $statement = $this->entityManager->getPDO()->prepare("SELECT q.id,q.target_id FROM email_queue_item q LEFT JOIN nexa_marketing_delivery_message d ON d.tenant_id=q.tenant_id AND d.service_id=q.service_id AND d.email_queue_item_id=q.id WHERE q.tenant_id=? AND q.service_id=? AND q.mass_email_id=? AND q.status='Pending' AND q.deleted=0 AND d.id IS NULL ORDER BY q.created_at,q.id LIMIT " . self::BATCH_SIZE);
+        $statement = $this->entityManager->getPDO()->prepare("SELECT q.id,q.target_id FROM email_queue_item q LEFT JOIN nexa_marketing_delivery_message d ON d.tenant_id=q.tenant_id AND d.service_id=q.service_id AND d.email_queue_item_id=q.id WHERE q.tenant_id=? AND q.service_id=? AND q.mass_email_id=? AND q.is_test=0 AND q.status='Pending' AND q.deleted=0 AND d.id IS NULL ORDER BY q.created_at,q.id LIMIT " . self::BATCH_SIZE);
         $statement->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id']]);
         foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $this->dispatchItem($context, $profile, $massEmail, $template, (string) $row['id'], (string) $row['target_id']);
         }
-        $remaining = $this->entityManager->getPDO()->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND status IN ('Pending','Sending') AND deleted=0");
+        $remaining = $this->entityManager->getPDO()->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND is_test=0 AND status IN ('Pending','Sending') AND deleted=0");
         $remaining->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id']]);
         if ((int) $remaining->fetchColumn() === 0) {
-            $failed = $this->entityManager->getPDO()->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND status='Failed' AND deleted=0");
+            $failed = $this->entityManager->getPDO()->prepare("SELECT COUNT(*) FROM email_queue_item WHERE tenant_id=? AND service_id=? AND mass_email_id=? AND is_test=0 AND status='Failed' AND deleted=0");
             $failed->execute([$context->tenantId, $context->serviceId, $profile['mass_email_id']]);
             if ((int) $failed->fetchColumn() > 0) {
                 $this->failProfile($context, $profile, 'One or more recipients could not be submitted.');
@@ -237,7 +352,7 @@ final class MarketingDispatchService
         if ($ownsTransaction) $pdo->beginTransaction();
         try {
             $query = $pdo->prepare("SELECT p.id,p.mass_email_id,p.version_number FROM nexa_marketing_email_profile p
-                WHERE p.tenant_id=? AND p.service_id=? AND p.lifecycle_status='sending'
+                WHERE p.tenant_id=? AND p.service_id=? AND p.lifecycle_status IN ('sending','approved')
                 AND EXISTS (SELECT 1 FROM nexa_marketing_delivery_message d
                     WHERE d.profile_id=p.id AND d.tenant_id=p.tenant_id AND d.service_id=p.service_id
                     AND d.status='submitting' AND d.modified_at<DATE_SUB(NOW(),INTERVAL 15 MINUTE))
@@ -259,9 +374,11 @@ final class MarketingDispatchService
     }
 
     /** @param array<string, mixed> $profile */
-    private function dispatchItem(TenantContext $context, array $profile, MassEmail $massEmail, EmailTemplate $template, string $queueItemId, string $contactId): void
+    private function dispatchItem(TenantContext $context, array $profile, MassEmail $massEmail, EmailTemplate $template, string $queueItemId, string $contactId, ?User $testUser = null, ?array $validatedAttachments = null): void
     {
-        $recipient = $this->eligibleRecipient($context, $profile, $contactId);
+        // Tests retain the exact bytes validated before reserving delivery capacity.
+        $files = $validatedAttachments ?? $this->attachments->approvedFiles($profile, $template, $testUser !== null);
+        $recipient = $testUser ? ['email' => $testUser->get('emailAddress')] : $this->eligibleRecipient($context, $profile, $contactId);
         if ($recipient === null) {
             $this->markQueueFailed($context, $queueItemId, 'Recipient became ineligible before delivery.');
             return;
@@ -271,14 +388,24 @@ final class MarketingDispatchService
             $this->markQueueFailed($context, $queueItemId, 'Contact is unavailable.');
             return;
         }
-        $rendered = $this->templateProcessor->process($template, TemplateParams::create()->withApplyAcl(false)->withCopyAttachments(false), TemplateData::create()->withParent($contact));
+        $rendered = $this->templateProcessor->process($template, TemplateParams::create()->withApplyAcl($testUser !== null)->withCopyAttachments(false), TemplateData::create()->withParent($contact));
         $unsubscribeUrl = rtrim($this->applicationConfig->getSiteUrl(), '/') . '/api/v1/Nexa/public/marketing-unsubscribe/' . rawurlencode($queueItemId) . '/' . $this->unsubscribe->token($queueItemId);
         $body = str_replace(['{queueItemId}', '{optOutUrl}', '{optOutLink}'], [$queueItemId, $unsubscribeUrl, '<a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES) . '">Unsubscribe</a>'], $rendered->getBody());
         if (!str_contains($body, '/Nexa/public/marketing-unsubscribe/')) {
             $body .= $rendered->isHtml() ? '<br><br><a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES) . '">Unsubscribe</a>' : "\n\n" . $unsubscribeUrl;
         }
 
-        if (!$this->reserveItem($context, $profile, $queueItemId, (string) $recipient['email'])) {
+        $textBody = $rendered->isHtml() ? \Espo\Tools\Email\Util::stripHtml($body) : $body;
+        $htmlBody = $rendered->isHtml() ? $body : nl2br(htmlspecialchars($body, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+        $preheader = trim((string) ($profile['preheader'] ?? ''));
+        if ($preheader !== '') {
+            $previewTemplate = $this->entityManager->getNewEntity(EmailTemplate::ENTITY_TYPE);
+            $previewTemplate->set(['subject' => $preheader, 'body' => '', 'isHtml' => true]);
+            $preview = $this->templateProcessor->process($previewTemplate, TemplateParams::create()->withApplyAcl($testUser !== null)->withCopyAttachments(false), TemplateData::create()->withParent($contact));
+            $htmlBody = $this->withPreheader($htmlBody, $preview->getSubject());
+        }
+
+        if (!$testUser && !$this->reserveItem($context, $profile, $queueItemId, (string) $recipient['email'])) {
             return;
         }
         try {
@@ -287,11 +414,12 @@ final class MarketingDispatchService
                 fromAddress: (string) $profile['from_address'],
                 fromName: $profile['from_name'] ?: null,
                 replyToAddress: $profile['reply_to_address'] ?: null,
-                subject: $rendered->getSubject(),
-                htmlBody: $body,
-                textBody: null,
+                subject: ($testUser ? '[Test] ' : '') . $rendered->getSubject(),
+                htmlBody: $htmlBody,
+                textBody: $textBody,
                 queueItemId: $queueItemId,
                 headers: ['List-Unsubscribe' => '<' . $unsubscribeUrl . '>', 'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click'],
+                attachments: $files,
             ));
             $pdo = $this->entityManager->getPDO();
             $message = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET provider_message_id=?,provider_token=?,status='submitted',attempt_count=attempt_count+1,submitted_at=NOW(6),modified_at=NOW(6) WHERE tenant_id=? AND service_id=? AND email_queue_item_id=? AND status='submitting'");
@@ -299,12 +427,41 @@ final class MarketingDispatchService
             $queue = $pdo->prepare("UPDATE email_queue_item SET status='Sent',email_address=?,attempt_count=attempt_count+1,sent_at=NOW() WHERE id=? AND tenant_id=? AND service_id=? AND status='Sending'");
             $queue->execute([$recipient['email'], $queueItemId, $context->tenantId, $context->serviceId]);
         } catch (\Throwable $e) {
-            $this->markDeliveryFailed($context, $queueItemId, $e->getMessage());
+            if ($e instanceof DeliveryProviderException && !$e->isSubmissionUncertain()) {
+                $this->markDeliveryFailed($context, $queueItemId, $e->getMessage());
+            } else {
+                $this->holdUncertainSubmission($context, $profile, $queueItemId);
+            }
+        }
+    }
+
+    /** Keep the native queue and allowance reserved when acceptance cannot be disproved. */
+    private function holdUncertainSubmission(TenantContext $context, array $profile, string $queueItemId): void
+    {
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $update = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET last_error=?,modified_at=NOW(6) WHERE tenant_id=? AND service_id=? AND profile_id=? AND email_queue_item_id=? AND status IN ('submitting','submitted')");
+            $update->execute(['Postal acceptance is uncertain. Review provider delivery evidence before retrying.', $context->tenantId, $context->serviceId, $profile['id'], $queueItemId]);
+            if ($update->rowCount() > 0) {
+                $pause = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='paused',modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status IN ('sending','scheduled','approved')");
+                $pause->execute([$profile['id'], $context->tenantId, $context->serviceId]);
+                if ($pause->rowCount() === 1) {
+                    $pdo->prepare("UPDATE mass_email SET status='Nexa Paused',modified_at=NOW() WHERE id=? AND tenant_id=? AND service_id=?")
+                        ->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId]);
+                    $this->event($context, $profile['id'], 'submission_review_required', (int) $profile['version_number'], ['message' => 'Postal acceptance is uncertain. No automatic retry or allowance release was performed.']);
+                }
+            }
+            if ($ownsTransaction) $pdo->commit();
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
         }
     }
 
     /** @param array<string, mixed> $profile */
-    private function reserveItem(TenantContext $context, array $profile, string $queueItemId, string $email): bool
+    private function reserveItem(TenantContext $context, array $profile, string $queueItemId, string $email, bool $isTest = false): bool
     {
         $pdo = $this->entityManager->getPDO();
         $ownsTransaction = !$pdo->inTransaction();
@@ -318,7 +475,7 @@ final class MarketingDispatchService
             $capacity->execute([$context->tenantId, $context->serviceId]);
             $usageRow = $capacity->fetch(PDO::FETCH_ASSOC);
             $locked = $this->profile($context, (string) $profile['id'], true);
-            if ($locked['lifecycle_status'] !== 'sending') {
+            if ($locked['lifecycle_status'] !== ($isTest ? 'approved' : 'sending')) {
                 if ($ownsTransaction) $pdo->rollBack();
                 return false;
             }
@@ -329,8 +486,8 @@ final class MarketingDispatchService
                 }
                 return false;
             }
-            $queue = $pdo->prepare("UPDATE email_queue_item SET status='Sending' WHERE id=? AND tenant_id=? AND service_id=? AND status='Pending'");
-            $queue->execute([$queueItemId, $context->tenantId, $context->serviceId]);
+            $queue = $pdo->prepare("UPDATE email_queue_item SET status='Sending' WHERE id=? AND tenant_id=? AND service_id=? AND status='Pending' AND is_test=?");
+            $queue->execute([$queueItemId, $context->tenantId, $context->serviceId, (int) $isTest]);
             if ($queue->rowCount() !== 1) {
                 if ($ownsTransaction) {
                     $pdo->rollBack();
@@ -475,6 +632,24 @@ final class MarketingDispatchService
     {
         $statement = $this->entityManager->getPDO()->prepare('INSERT INTO nexa_marketing_email_event (id,tenant_id,service_id,profile_id,event_type,version_number,payload_json,actor_user_id) VALUES (?,?,?,?,?,?,?,?)');
         $statement->execute([$this->uuid(), $context->tenantId, $context->serviceId, $profileId, $type, $version, json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), $this->user->getId()]);
+    }
+
+    private function withPreheader(string $html, string $text): string
+    {
+        $document = new \DOMDocument();
+        $document->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        foreach (iterator_to_array($document->childNodes) as $node) {
+            if ($node instanceof \DOMProcessingInstruction) $document->removeChild($node);
+        }
+        $body = $document->getElementsByTagName('body')->item(0);
+        if (!$body) throw new DeliveryProviderException('The email HTML body could not be prepared.');
+        $preview = $document->createElement('div');
+        $preview->setAttribute('data-nexa-preheader', 'true');
+        $preview->setAttribute('aria-hidden', 'true');
+        $preview->setAttribute('style', 'display:none!important;max-height:0;max-width:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;mso-hide:all;');
+        $preview->appendChild($document->createTextNode($text));
+        $body->insertBefore($preview, $body->firstChild);
+        return $document->saveHTML();
     }
 
     private function uuid(): string

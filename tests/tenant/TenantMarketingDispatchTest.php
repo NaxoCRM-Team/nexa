@@ -43,6 +43,10 @@ $services = $container->getByClass(ServiceContainer::class);
 $pdo = $entityManager->getPDO();
 $transactions = $entityManager->getTransactionManager();
 $transactions->start();
+$attachmentFixtures = [];
+$attachmentCleanup = [];
+$attachmentGovernance = defined('NEXA_MARKETING_ATTACHMENT_GOVERNANCE_TEST');
+$attachmentDelivery = defined('NEXA_MARKETING_ATTACHMENT_DELIVERY_TEST');
 
 try {
     if ($postalCapture) {
@@ -89,15 +93,65 @@ try {
     $enrollment = $store->runWith($tenantA, fn (): array => $factory->create(CampaignWorkspaceService::class)->enroll((string) $campaign['id']));
     $assert($enrollment['eligibleCount'] === 1, 'The dispatcher fixture did not produce one eligible recipient.');
 
+    if ($attachmentGovernance || $attachmentDelivery) {
+        foreach ([$tenantA, $tenantB] as $tenant) {
+            $file = $store->runWith($tenant, fn () => $factory->create(\Espo\Custom\Tools\TenantFile\TenantImageLibrary::class)->uploadFile('marketing-guide.txt', 'text/plain', base64_encode("Approved marketing guide.\n")));
+            $attachmentFixtures[] = $store->runWith($tenant, fn () => $entityManager->getEntityById('Attachment', $file['id']));
+            $attachmentCleanup[] = ['tenant' => $tenant, 'attachment' => end($attachmentFixtures)];
+        }
+    }
     $draft = $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->save((object) [
         'name' => 'Governed dispatcher email', 'campaignId' => $campaign['id'], 'purposeId' => $purposeId,
         'subject' => $postalCapture ? 'Nexa governed Postal ' . bin2hex(random_bytes(8)) : 'Governed delivery test',
         'fromAddress' => $postalCapture ? $postalSettings['sender'] : 'news@example.test', 'fromName' => 'Example team',
         'bodyHtml' => '<p>Hello {Contact.firstName},</p><p>Dispatcher test.</p>',
+        'preheader' => 'Preview for {Contact.firstName} <offer>',
         'startAt' => gmdate('Y-m-d H:i:s', time() + 3600),
+        ...(($attachmentGovernance || $attachmentDelivery) ? ['attachmentsIds' => [$attachmentFixtures[0]->getId()]] : []),
     ]));
     $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->transition((string) $draft['id'], (object) ['action' => 'submit']));
+    if ($attachmentGovernance) {
+        $attachmentService = $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingAttachmentService::class);
+        $manifest = $store->runWith($tenantA, fn () => $attachmentService->versionManifest($draft['id'], 1));
+        $original = $store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $attachmentCleanup[0]['attachment']->getId()));
+        $assert($original->get('field') === 'nexaTenantFile' && !$original->get('parentId'), 'Library originals must not be moved into the template.');
+        $assert(count($manifest) === 1 && $manifest[0]['sha256'] === hash('sha256', "Approved marketing guide.\n"), 'Saved files must have an immutable version manifest.');
+        $attachmentFixtures[0] = $store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $manifest[0]['id']));
+        $attachmentCleanup[] = ['tenant' => $tenantA, 'attachment' => $attachmentFixtures[0]];
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $attachmentService->files([$attachmentFixtures[1]->getId()])); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+        $assert($blocked, 'Another tenant file must not be selected.');
+        $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['changed-guide.txt', $attachmentFixtures[0]->getId(), $tenantA->tenantId, $tenantA->serviceId]);
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->transition($draft['id'], (object) ['action' => 'approve'])); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+        $assert($blocked, 'Files changed since saving must not be approved.');
+        $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['marketing-guide.txt', $attachmentFixtures[0]->getId(), $tenantA->tenantId, $tenantA->serviceId]);
+    }
     $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->transition((string) $draft['id'], (object) ['action' => 'approve']));
+    if ($attachmentGovernance) {
+        $templateQuery = $pdo->prepare('SELECT email_template_id FROM mass_email WHERE id=?');
+        $templateQuery->execute([$draft['massEmailId']]);
+        $templateId = $templateQuery->fetchColumn();
+        $template = $store->runWith($tenantA, fn () => $entityManager->getEntityById('EmailTemplate', $templateId));
+        $files = $store->runWith($tenantA, fn () => $attachmentService->approvedFiles(['id' => $draft['id'], 'version_number' => 1], $template, true));
+        $assert(count($files) === 1 && $files[0]->contents === "Approved marketing guide.\n", 'Native template files must match approval checksums.');
+        $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['changed-guide.txt', $attachmentFixtures[0]->getId(), $tenantA->tenantId, $tenantA->serviceId]);
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $attachmentService->approvedFiles(['id' => $draft['id'], 'version_number' => 1], $template, true)); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+        $assert($blocked, 'Files changed after approval must fail verification.');
+        $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['marketing-guide.txt', $attachmentFixtures[0]->getId(), $tenantA->tenantId, $tenantA->serviceId]);
+        $restored = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->restoreVersion($draft['id'], 1));
+        $assert($restored['version'] === 2 && count($store->runWith($tenantA, fn () => $attachmentService->versionManifest($draft['id'], 2))) === 1, 'Restoring a version must preserve its attachments in a fresh draft.');
+        foreach ($store->runWith($tenantA, fn () => $attachmentService->versionManifest($draft['id'], 2)) as $file) $attachmentCleanup[] = ['tenant' => $tenantA, 'attachment' => $store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $file['id']))];
+        echo "Tenant marketing attachment selection, approval and restoration passed.\n";
+        return;
+    }
+
+    if (defined('NEXA_POSTAL_PLAIN_TEXT_ACCEPTANCE') && NEXA_POSTAL_PLAIN_TEXT_ACCEPTANCE === true) {
+        // Exercise the existing native template type, without changing production draft storage.
+        $pdo->prepare('UPDATE email_template SET is_html=0,body=? WHERE id=(SELECT email_template_id FROM mass_email WHERE id=?) AND tenant_id=? AND service_id=?')
+            ->execute(["Hello {Contact.firstName},\nPlain-text <customer> content.", $draft['massEmailId'], $tenantA->tenantId, $tenantA->serviceId]);
+    }
 
     $settings = $store->runWith($tenantA, fn (): array => $factory->create(MarketingDeliveryService::class)->saveProvider((object) [
         'apiBaseUrl' => $postalCapture ? $postalSettings['apiBaseUrl'] : 'https://postal.example.test', 'serverName' => 'Dispatch test',
@@ -108,6 +162,75 @@ try {
     $domainId = (string) array_values(array_filter($settings['domains'], static fn (array $domain): bool => $domain['domainName'] === $domainName))[0]['id'];
     $pdo->prepare("UPDATE nexa_marketing_sending_domain SET ownership_status='verified',spf_status='verified',dkim_status='verified',dmarc_status='verified',return_path_status='verified',verified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")
         ->execute([$domainId, $tenantA->tenantId, $tenantA->serviceId]);
+
+    if (defined('NEXA_POSTAL_TEST_SEND_ACCEPTANCE') && NEXA_POSTAL_TEST_SEND_ACCEPTANCE === true) {
+        $admin = $store->runWith($tenantA, function () use ($entityManager) {
+            $user = $entityManager->getNewEntity('User');
+            $user->set(['userName' => 'postal-test-' . bin2hex(random_bytes(6)), 'type' => 'admin', 'isActive' => true, 'emailAddress' => 'postal-test-admin@nexa.local.test']);
+            $entityManager->saveEntity($user);
+            return $entityManager->getEntityById('User', $user->getId());
+        });
+        $dispatcher = $factory->createWith(MarketingDispatchService::class, ['user' => $admin]);
+        $admin->set('type', 'regular');
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $dispatcher->sendTest($draft['id'], $contact->getId())); } catch (\Espo\Core\Exceptions\Forbidden) { $blocked = true; }
+        $assert($blocked, 'A non-administrator must not send provider tests.');
+        $admin->set('type', 'admin');
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $dispatcher->sendTest($draft['id'], 'missing-contact')); } catch (NotFound) { $blocked = true; }
+        $assert($blocked, 'Unavailable personalization records must not create a send.');
+        $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='draft' WHERE id=? AND tenant_id=? AND service_id=?")->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $dispatcher->sendTest($draft['id'], $contact->getId())); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+        $assert($blocked, 'Unapproved email must not be sent through the test endpoint.');
+        $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='approved' WHERE id=? AND tenant_id=? AND service_id=?")->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $usage = $pdo->prepare("SELECT COALESCE(SUM(accepted_count),0) FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
+        $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $before = (int) $usage->fetchColumn();
+        $result = $store->runWith($tenantA, fn () => $dispatcher->sendTest($draft['id'], $contact->getId()));
+        $assert($result['status'] === 'submitted' && $result['recipient'] === 'postal-test-admin@nexa.local.test', 'Postal must accept a test to the authenticated administrator only.');
+        $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $usage->fetchColumn() === $before + 1, 'The test must consume one monthly send.');
+        $queue = $pdo->prepare('SELECT status,target_type,target_id,is_test FROM email_queue_item WHERE mass_email_id=? AND tenant_id=? AND service_id=?');
+        $queue->execute([$draft['massEmailId'], $tenantA->tenantId, $tenantA->serviceId]);
+        $items = $queue->fetchAll(PDO::FETCH_ASSOC);
+        $assert(count($items) === 1 && $items[0]['status'] === 'Sent' && $items[0]['target_type'] === 'User' && $items[0]['target_id'] === $admin->getId() && (int) $items[0]['is_test'] === 1, 'The test must reuse the native User test queue.');
+        $workspace = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->getWorkspace());
+        $email = array_values(array_filter($workspace['emails'], fn ($item) => $item['id'] === $draft['id']))[0];
+        $assert($email['lifecycleStatus'] === 'approved' && $email['queuedCount'] === 0 && $email['deliveryMetrics']['submitted'] === 0, 'A test must not advance the campaign or contaminate customer metrics.');
+        $report = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->deliveryMessages($draft['id']));
+        $assert($report['items'] === [], 'Customer reports must exclude administrator tests.');
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $dispatcher->sendTest($draft['id'], $contact->getId())); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+        $assert($blocked, 'Repeated tests within one minute must be rejected.');
+        $blocked = false;
+        try { $store->runWith($tenantB, fn () => $dispatcher->sendTest($draft['id'], $contact->getId())); } catch (NotFound) { $blocked = true; }
+        $assert($blocked, 'Another tenant must not send this test.');
+        $subjectQuery = $pdo->prepare('SELECT subject FROM email_template WHERE id=(SELECT email_template_id FROM mass_email WHERE id=?)');
+        $subjectQuery->execute([$draft['massEmailId']]);
+        $subject = '[Test] ' . $subjectQuery->fetchColumn();
+        $captured = false;
+        for ($attempt = 0; $attempt < 60 && !$captured; $attempt++) {
+            $messages = json_decode(file_get_contents('http://localhost:8026/api/v1/messages'), true, 512, JSON_THROW_ON_ERROR);
+            foreach ($messages['messages'] ?? [] as $mail) {
+                if (($mail['Subject'] ?? '') !== $subject) continue;
+                $detail = json_decode(file_get_contents('http://localhost:8026/api/v1/message/' . rawurlencode($mail['ID'])), true, 512, JSON_THROW_ON_ERROR);
+                $assert(str_contains($detail['HTML'] ?? '', 'Hello Governed') && str_contains($detail['Text'] ?? '', 'Hello Governed'), 'The real Postal test must contain native Contact personalization in both MIME alternatives.');
+                $assert(($detail['To'][0]['Address'] ?? '') === 'postal-test-admin@nexa.local.test', 'The preview Contact must never receive the test.');
+                if ($attachmentDelivery) {
+                    $assert(($detail['Attachments'][0]['FileName'] ?? '') === 'marketing-guide.txt', 'The approved attachment must arrive in the administrator capture inbox.');
+                    $raw = file_get_contents('http://localhost:8026/api/v1/message/' . rawurlencode($mail['ID']) . '/raw');
+                    $assert(str_contains($raw, base64_encode("Approved marketing guide.\n")) || str_contains($raw, 'Approved marketing guide.'), 'Captured attachment bytes must match the approved fixture.');
+                }
+                $captured = true;
+                break;
+            }
+            if (!$captured) usleep(500000);
+        }
+        $assert($captured, 'The Postal test did not reach the local capture inbox.');
+        echo "Postal administrator test-send acceptance passed.\n";
+        return;
+    }
 
     $scheduled = $store->runWith($tenantA, fn (): array => $factory->create(MarketingDispatchService::class)->schedule((string) $draft['id']));
     $assert($scheduled['status'] === 'scheduled' && $scheduled['eligibleCount'] === 1, 'The approved email was not scheduled with its eligible audience.');
@@ -141,6 +264,21 @@ try {
         $receipt->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
         $message = $receipt->fetch(PDO::FETCH_ASSOC);
         $assert(is_array($message) && $message['status'] === 'submitted' && $message['provider_message_id'] !== '', 'The governed queue did not receive Postal acceptance.');
+        $reportService = $factory->create(MarketingEmailWorkspaceService::class);
+        $report = $store->runWith($tenantA, fn () => $reportService->deliveryMessages($draft['id'], 'governed-recipient', 'submitted'));
+        $assert(count($report['items']) === 1 && $report['items'][0]['recipient'] === 'governed-recipient@example.test', 'The real submitted recipient must appear in the scoped report.');
+        $after = $store->runWith($tenantA, fn () => $reportService->deliveryMessages($draft['id'], '', '', $report['items'][0]['id']));
+        $assert(count($after['items']) === 0, 'The delivery cursor must advance without repeating the preceding message.');
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $reportService->deliveryMessages($draft['id'], '', '', 'invalid-cursor')); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+        $assert($blocked, 'Invalid recipient report cursors must be rejected.');
+        $report = $store->runWith($tenantA, fn () => $reportService->deliveryMessages($draft['id'], '', 'bounced'));
+        $assert(count($report['items']) === 0, 'Delivery status filters must not return other outcomes.');
+        $report = $store->runWith($tenantA, fn () => $reportService->deliveryMessages($draft['id'], '%'));
+        $assert(count($report['items']) === 0, 'Literal wildcard searches must not match every recipient.');
+        $blocked = false;
+        try { $store->runWith($tenantB, fn () => $reportService->deliveryMessages($draft['id'])); } catch (NotFound) { $blocked = true; }
+        $assert($blocked, 'Another tenant must not see delivery recipients.');
         $subjectQuery = $pdo->prepare('SELECT subject FROM email_template WHERE id=(SELECT email_template_id FROM mass_email WHERE id=?)');
         $subjectQuery->execute([$draft['massEmailId']]);
         $subject = $subjectQuery->fetchColumn();
@@ -152,6 +290,16 @@ try {
                 $detail = json_decode(file_get_contents('http://localhost:8026/api/v1/message/' . rawurlencode($mail['ID'])), true, 512, JSON_THROW_ON_ERROR);
                 $assert(str_contains($detail['HTML'] ?? '', 'Hello Governed'), 'Native Contact personalization was not rendered.');
                 $assert(str_contains($detail['HTML'] ?? '', 'unsubscribe'), 'The governed unsubscribe link is missing.');
+                $assert(str_contains($detail['Text'] ?? '', 'Hello Governed'), 'The plain-text alternative must contain personalized Contact content.');
+                $assert(str_contains($detail['Text'] ?? '', '/Nexa/public/marketing-unsubscribe/'), 'The plain-text alternative must preserve the unsubscribe URL.');
+                $assert(!str_contains($detail['Text'] ?? '', '<p>'), 'HTML markup must not leak into the text alternative.');
+                $assert(str_contains($detail['HTML'] ?? '', 'data-nexa-preheader="true"'), 'The inbox preheader must be included in delivered HTML.');
+                $assert(str_contains($detail['HTML'] ?? '', 'Preview for Governed &lt;offer&gt;'), 'The preheader must use native personalization and escape markup.');
+                $assert(!str_contains($detail['Text'] ?? '', 'Preview for'), 'The hidden inbox preheader must not pollute the text alternative.');
+                if (defined('NEXA_POSTAL_PLAIN_TEXT_ACCEPTANCE') && NEXA_POSTAL_PLAIN_TEXT_ACCEPTANCE === true) {
+                    $assert(str_contains($detail['Text'] ?? '', '<customer>'), 'Native plain-text content must remain literal.');
+                    $assert(str_contains($detail['HTML'] ?? '', '&lt;customer&gt;'), 'Native plain-text markup must be escaped in the HTML counterpart.');
+                }
                 $captured = true;
             }
             if ($captured) { break; }
@@ -178,6 +326,8 @@ try {
             $assert($result['accepted'] && !$result['duplicate'], 'The real Postal webhook was not accepted.');
             $receipt->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
             $assert($receipt->fetch(PDO::FETCH_ASSOC)['status'] === 'delivered', 'The real Postal event did not reconcile delivery.');
+            $deliveredReport = $store->runWith($tenantA, fn () => $reportService->deliveryMessages($draft['id'], '', 'delivered'));
+            $assert(count($deliveredReport['items']) === 1, 'Recipient reports must reflect the real reconciled delivery state.');
             $assert($callback->receive($callbackSettings['callbackToken'], $event)['duplicate'], 'A real webhook retry must be idempotent.');
             $count = $pdo->prepare("SELECT COUNT(*) FROM nexa_timeline_event WHERE tenant_id=? AND service_id=? AND contact_id=? AND event_type='email.delivered'");
             $count->execute([$tenantA->tenantId, $tenantA->serviceId, $contact->getId()]);
@@ -249,6 +399,77 @@ try {
     $audit->execute([$draft['id']]);
     $assert((int) $audit->fetchColumn() === 1, 'Recovery must emit one review event.');
 
+    $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='sending' WHERE id=?")->execute([$draft['id']]);
+    $hold = new ReflectionMethod(MarketingDispatchService::class, 'holdUncertainSubmission');
+    $fixtureProfile = ['id' => $draft['id'], 'mass_email_id' => $draft['massEmailId'], 'version_number' => 1];
+    $pdo->prepare("INSERT INTO nexa_marketing_monthly_usage (tenant_id,service_id,usage_month,accepted_count) VALUES (?,?,DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01'),3) ON DUPLICATE KEY UPDATE accepted_count=accepted_count+3")
+        ->execute([$tenantA->tenantId, $tenantA->serviceId]);
+    $usage = $pdo->prepare("SELECT COALESCE(SUM(accepted_count),0) FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=?");
+    $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+    $reservedBefore = (int) $usage->fetchColumn();
+    $hold->invoke($factory->create(MarketingDispatchService::class), $tenantB, $fixtureProfile, $item->getId());
+    $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($profile->fetchColumn() === 'sending', 'A foreign tenant cannot pause an uncertain submission.');
+    $hold->invoke($factory->create(MarketingDispatchService::class), $tenantA, $fixtureProfile, $item->getId());
+    $hold->invoke($factory->create(MarketingDispatchService::class), $tenantA, $fixtureProfile, $item->getId());
+    $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($profile->fetchColumn() === 'paused', 'Lost provider responses must pause immediately.');
+    $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+    $assert((int) $usage->fetchColumn() === $reservedBefore, 'An uncertain response must retain its monthly reservation.');
+    $queueStatus = $pdo->prepare('SELECT status FROM email_queue_item WHERE id=?');
+    $queueStatus->execute([$item->getId()]);
+    $assert($queueStatus->fetchColumn() === 'Sending', 'An uncertain queue item must remain held, not be reset for retry.');
+    $audit->execute([$draft['id']]);
+    $assert((int) $audit->fetchColumn() === 2, 'Repeated uncertain-response handling must emit only one additional review event.');
+
+    $reviewService = $factory->create(MarketingDispatchService::class);
+    $blocked = false;
+    try { $store->runWith($tenantB, fn () => $reviewService->reviewSubmissions($draft['id'])); } catch (NotFound) { $blocked = true; }
+    $assert($blocked, 'A foreign tenant cannot inspect held recipients.');
+    $review = $store->runWith($tenantA, fn () => $reviewService->reviewSubmissions($draft['id']));
+    $assert(count($review['items']) === 1, 'The held native queue item must be reviewable.');
+    $resolution = (object) ['messageId' => '70000000-0000-4000-8000-000000000001', 'decision' => 'not_accepted', 'evidenceNote' => 'Postal administrator confirmed no accepted message in the provider logs.'];
+    $blocked = false;
+    try { $store->runWith($tenantA, fn () => $reviewService->resolveSubmission($draft['id'], (object) ['decision' => 'not_accepted', 'evidenceNote' => ''])); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+    $assert($blocked, 'A resolution must require provider evidence.');
+    $store->runWith($tenantA, fn () => $reviewService->resolveSubmission($draft['id'], $resolution));
+    $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+    $assert((int) $usage->fetchColumn() === $reservedBefore - 1, 'Confirmed non-acceptance must release exactly one reservation.');
+    $blocked = false;
+    try { $store->runWith($tenantA, fn () => $reviewService->resolveSubmission($draft['id'], $resolution)); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+    $assert($blocked, 'Repeated resolution must not release the allowance twice.');
+    $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+    $assert($profile->fetchColumn() === 'paused', 'Review must not automatically resume delivery.');
+
+    $acceptedItem = $store->runWith($tenantA, function () use ($entityManager, $draft, $contact) {
+        $item = $entityManager->getNewEntity('EmailQueueItem');
+        $item->set(['massEmailId' => $draft['massEmailId'], 'targetId' => $contact->getId(), 'targetType' => 'Contact', 'status' => 'Sending']);
+        $entityManager->saveEntity($item);
+        return $item;
+    });
+    $pdo->prepare("INSERT INTO nexa_marketing_delivery_message (id,tenant_id,service_id,profile_id,email_queue_item_id,provider_key,recipient,status) VALUES (?,?,?,?,?,'postal','governed-recipient@example.test','submitting')")
+        ->execute(['70000000-0000-4000-8000-000000000002', $tenantA->tenantId, $tenantA->serviceId, $draft['id'], $acceptedItem->getId()]);
+    $acceptedResolution = (object) ['messageId' => '70000000-0000-4000-8000-000000000002', 'decision' => 'accepted', 'providerMessageId' => 'postal-reviewed-acceptance', 'evidenceNote' => 'Postal logs confirm acceptance for this exact recipient and queue header.'];
+    $user = $container->getByClass(\Espo\Entities\User::class);
+    $originalType = $user->get('type');
+    try {
+        $user->set('type', 'regular');
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $reviewService->resolveSubmission($draft['id'], $acceptedResolution)); } catch (\Espo\Core\Exceptions\Forbidden) { $blocked = true; }
+        $assert($blocked, 'A non-administrator cannot resolve held submissions.');
+    } finally { $user->set('type', $originalType); }
+    $blocked = false;
+    try { $store->runWith($tenantA, fn () => $reviewService->resolveSubmission($draft['id'], $acceptedResolution)); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+    $assert($blocked, 'A live in-flight request cannot be manually resolved before uncertainty or staleness is established.');
+    $hold->invoke($reviewService, $tenantA, $fixtureProfile, $acceptedItem->getId());
+    $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+    $acceptedUsage = (int) $usage->fetchColumn();
+    $store->runWith($tenantA, fn () => $reviewService->resolveSubmission($draft['id'], $acceptedResolution));
+    $queueStatus->execute([$acceptedItem->getId()]);
+    $assert($queueStatus->fetchColumn() === 'Sent', 'Confirmed acceptance must reconcile the held native queue, without resending.');
+    $usage->execute([$tenantA->tenantId, $tenantA->serviceId]);
+    $assert((int) $usage->fetchColumn() === $acceptedUsage, 'Confirmed acceptance must preserve allowance usage.');
+
     $isolated = false;
     try {
         $store->runWith($tenantB, fn (): array => $factory->create(MarketingDispatchService::class)->schedule((string) $draft['id']));
@@ -258,5 +479,7 @@ try {
     $assert($isolated, 'Tenant B could schedule Tenant A marketing email.');
     echo "Tenant marketing dispatch tests passed.\n";
 } finally {
-    $transactions->rollback();
+    try {
+        foreach ($attachmentCleanup as $item) $store->runWith($item['tenant'], fn () => $factory->create(\Espo\Core\FileStorage\Manager::class)->unlink($item['attachment']));
+    } finally { $transactions->rollback(); }
 }

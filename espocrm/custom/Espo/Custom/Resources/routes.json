@@ -808,6 +808,26 @@
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostRestoreVersion"
     },
     {
+        "route": "/Nexa/marketing-emails/:id/test",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostTestSend"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/messages",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDeliveryMessages"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/submission-review",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetSubmissionReview"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/submission-review",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSubmissionReview"
+    },
+    {
         "route": "/Nexa/marketing-emails/:id/control",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostControl"

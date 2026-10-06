@@ -133,6 +133,10 @@ $required = @(
     'tests/workflows/MarketingDeliveryGovernanceContractTest.php',
     'tests/tenant/TenantMarketingDeliveryGovernanceTest.php',
     'tests/workflows/MarketingDispatchContractTest.php',
+    'tests/workflows/MarketingPreheaderTest.php',
+    'tests/workflows/PostalSubmissionOutcomeTest.php',
+    'tests/workflows/MarketingDeliveryAttachmentTest.php',
+    'tests/tenant/TenantMarketingAttachmentTest.php',
     'tests/tenant/TenantMarketingDispatchTest.php', 'tests/workflows/MarketingAllowanceTest.php', 'tests/tenant/TenantMarketingPreviewTest.php',
     'tests/tenant/TenantMarketingLifecycleTest.php',
     'tests/browser/marketing-lifecycle.spec.js',
@@ -463,6 +467,12 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Marketing delivery governance contract suite' } else { Fail 'Marketing delivery governance contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\MarketingDispatchContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Marketing dispatch contract suite' } else { Fail 'Marketing dispatch contract suite failed.' }
+    & php (Join-Path $root 'tests\workflows\MarketingPreheaderTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Marketing inbox preheader suite' } else { Fail 'Marketing inbox preheader suite failed.' }
+    & php (Join-Path $root 'tests\workflows\PostalSubmissionOutcomeTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Postal submission certainty suite' } else { Fail 'Postal submission certainty suite failed.' }
+    & php (Join-Path $root 'tests\workflows\MarketingDeliveryAttachmentTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Marketing delivery attachment validation suite' } else { Fail 'Marketing delivery attachment validation suite failed.' }
     & php (Join-Path $root 'tests\workflows\MarketingAllowanceTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Marketing allowance suite' } else { Fail 'Marketing allowance suite failed.' }
     & php (Join-Path $root 'tests\workflows\AssetWorkspaceContractTest.php')
@@ -502,6 +512,8 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Delivery governance runtime suite' } else { Fail 'Two-tenant Marketing Delivery governance runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingDispatchTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Dispatch runtime suite' } else { Fail 'Two-tenant Marketing Dispatch runtime suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingAttachmentTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Attachment governance suite' } else { Fail 'Two-tenant Marketing Attachment governance suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingLifecycleTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Lifecycle runtime suite' } else { Fail 'Two-tenant Marketing Lifecycle runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingPreviewTest.php')

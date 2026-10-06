@@ -47,6 +47,9 @@ final class PostalDeliveryProvider implements MarketingDeliveryProvider
         if ($request->replyToAddress !== null) {
             $payload['reply_to'] = $request->replyToAddress;
         }
+        if ($request->attachments !== []) {
+            $payload['attachments'] = array_map(static fn (DeliveryAttachment $file): array => $file->toPostalPayload(), $request->attachments);
+        }
 
         $response = $this->request(rtrim($baseUrl, '/') . '/api/v1/send/message', $payload);
         $data = is_array($response['data'] ?? null) ? $response['data'] : [];
@@ -57,7 +60,7 @@ final class PostalDeliveryProvider implements MarketingDeliveryProvider
         $messageId = trim((string) ($data['message_id'] ?? $first['id'] ?? $first['message_id'] ?? ''));
         $token = trim((string) ($first['token'] ?? $data['token'] ?? ''));
         if ($messageId === '') {
-            throw new DeliveryProviderException('Postal accepted the request without returning a message ID.');
+            throw new DeliveryProviderException('Postal accepted the request without returning a message ID.', submissionUncertain: true);
         }
 
         return new DeliveryResult($messageId, $token !== '' ? $token : null);
@@ -118,10 +121,17 @@ final class PostalDeliveryProvider implements MarketingDeliveryProvider
         $decoded = json_decode($body, true);
         if ($ok === false || $error !== '' || !is_array($decoded) || $status < 200 || $status >= 300 || ($decoded['status'] ?? null) !== 'success') {
             $message = is_array($decoded) ? (string) ($decoded['message'] ?? $decoded['error'] ?? 'request failed') : ($error ?: 'invalid response');
-            throw new DeliveryProviderException("Postal API error ({$status}): {$message}");
+            // Only a completed, structured 4xx rejection proves non-acceptance.
+            $uncertain = $this->responseIsUncertain($ok !== false, $error, $status, $decoded);
+            throw new DeliveryProviderException("Postal API error ({$status}): {$message}", submissionUncertain: $uncertain);
         }
 
         return $decoded;
+    }
+
+    private function responseIsUncertain(bool $completed, string $error, int $status, mixed $decoded): bool
+    {
+        return !$completed || $error !== '' || !is_array($decoded) || $status < 400 || $status >= 500 || ($decoded['status'] ?? null) !== 'error';
     }
 
     private function mailbox(string $address, ?string $name): string

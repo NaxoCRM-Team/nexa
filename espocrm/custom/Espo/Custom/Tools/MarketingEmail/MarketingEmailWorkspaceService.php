@@ -29,6 +29,7 @@ final class MarketingEmailWorkspaceService
         private MarketingDeliveryService $delivery,
         private Acl $acl,
         private User $user,
+        private MarketingAttachmentService $attachments,
     ) {}
 
     /** @return array<string, mixed> */
@@ -48,6 +49,7 @@ final class MarketingEmailWorkspaceService
                 'create' => $this->canWrite(Table::ACTION_CREATE),
                 'edit' => $this->canWrite(Table::ACTION_EDIT),
                 'approve' => $this->user->isAdmin() && $this->acl->checkScope('MassEmail', Table::ACTION_EDIT),
+                'attachments' => $this->acl->checkField('EmailTemplate', 'attachments') && $this->acl->checkField('EmailTemplate', 'attachments', Table::ACTION_EDIT),
             ],
             'delivery' => $delivery,
             'usage' => $this->user->isAdmin() ? $this->delivery->usage() : null,
@@ -68,10 +70,22 @@ final class MarketingEmailWorkspaceService
         if ($ownsTransaction) $pdo->beginTransaction();
 
         try {
+            $attachmentIds = $input->attachmentsIds ?? null;
+            if ($attachmentIds === null && !$isNew) {
+                $existing = $this->requireProfile($context, $id, true);
+                $existingTemplate = $this->entityManager->getEntityById('EmailTemplate', $existing['email_template_id']);
+                if (!$existingTemplate instanceof \Espo\Entities\EmailTemplate) throw new NotFound('Email template not found.');
+                $attachmentIds = $this->attachments->templateIds($existingTemplate);
+            }
+            if ($attachmentIds === null) $attachmentIds = [];
+            if (!is_array($attachmentIds)) throw new BadRequest('Invalid attachment selection.');
+            if (isset($input->attachmentsIds) && !$this->acl->checkField('EmailTemplate', 'attachments', Table::ACTION_EDIT)) throw new Forbidden('Template attachment editing is not allowed.');
+            $manifest = $this->attachments->manifest($attachmentIds);
+            $attachmentIds = $this->attachments->copyForTemplate($attachmentIds);
             if ($isNew) {
                 $template = $this->recordServices->get('EmailTemplate')->create((object) [
                     'name' => $data['name'], 'subject' => $data['subject'], 'body' => $data['bodyHtml'],
-                    'isHtml' => true, 'oneOff' => false,
+                    'isHtml' => true, 'oneOff' => false, 'attachmentsIds' => $attachmentIds,
                 ], CreateParams::create());
                 $massEmail = $this->recordServices->get('MassEmail')->create((object) [
                     'name' => $data['name'], 'status' => 'Draft', 'startAt' => $data['startAt'],
@@ -92,7 +106,7 @@ final class MarketingEmailWorkspaceService
                 $nativeId = (string) $profile['mass_email_id'];
                 $templateId = (string) $profile['email_template_id'];
                 $version = (int) $profile['version_number'] + 1;
-                $this->recordServices->get('EmailTemplate')->update($templateId, (object) ['name' => $data['name'], 'subject' => $data['subject'], 'body' => $data['bodyHtml']], UpdateParams::create());
+                $this->recordServices->get('EmailTemplate')->update($templateId, (object) ['name' => $data['name'], 'subject' => $data['subject'], 'body' => $data['bodyHtml'], 'attachmentsIds' => $attachmentIds], UpdateParams::create());
                 $this->recordServices->get('MassEmail')->update($nativeId, (object) [
                     'name' => $data['name'], 'status' => 'Draft', 'startAt' => $data['startAt'],
                     'campaignId' => $data['campaignId'], 'targetListsIds' => $data['audienceIds'],
@@ -105,7 +119,8 @@ final class MarketingEmailWorkspaceService
             }
 
             $this->insertVersion($context, (string) $id, $version, $templateId, $data);
-            $this->insertEvent($context, (string) $id, $isNew ? 'created' : 'updated', $version, ['nativeId' => $nativeId]);
+            $manifest = $this->attachments->manifest($this->attachments->templateIds($this->entityManager->getEntityById('EmailTemplate', $templateId)));
+            $this->insertEvent($context, (string) $id, $isNew ? 'created' : 'updated', $version, ['nativeId' => $nativeId, 'attachments' => $manifest]);
             if ($ownsTransaction) $pdo->commit();
         } catch (\Throwable $e) {
             if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
@@ -135,10 +150,17 @@ final class MarketingEmailWorkspaceService
             };
             if ($next === null) throw new BadRequest('This email cannot make the requested status change.');
             if ($action === 'approve' && !$this->user->isAdmin()) throw new Forbidden('Only tenant administrators can approve marketing email.');
+            $manifest = [];
+            if ($action === 'approve') {
+                $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
+                if (!$template instanceof \Espo\Entities\EmailTemplate) throw new NotFound('Email template not found.');
+                $manifest = $this->attachments->manifest($this->attachments->templateIds($template));
+                if ($manifest !== $this->attachments->versionManifest($id, (int) $profile['version_number'])) throw new BadRequest('Attachments changed since the draft was saved. Save the draft again before approval.');
+            }
 
             $statement = $this->entityManager->getPDO()->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status=?,submitted_by_id=IF(?='review',?,submitted_by_id),submitted_at=IF(?='review',NOW(6),submitted_at),approved_by_id=IF(?='approved',?,NULL),approved_at=IF(?='approved',NOW(6),NULL),modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?");
             $statement->execute([$next, $next, $this->user->getId(), $next, $next, $this->user->getId(), $next, $this->user->getId(), $id, $context->tenantId, $context->serviceId]);
-            $this->insertEvent($context, $id, $next, (int) $profile['version_number'], ['previousStatus' => $current]);
+            $this->insertEvent($context, $id, $next, (int) $profile['version_number'], ['previousStatus' => $current, 'attachments' => $manifest]);
             if ($ownsTransaction) $pdo->commit();
             return ['id' => $id, 'status' => $next];
         } catch (\Throwable $error) {
@@ -191,12 +213,13 @@ final class MarketingEmailWorkspaceService
     /** @return array<int, array<string, mixed>> */
     private function emails(TenantContext $context): array
     {
-        $statement = $this->entityManager->getPDO()->prepare("SELECT p.id,p.mass_email_id AS massEmailId,p.delivery_mode AS deliveryMode,p.lifecycle_status AS lifecycleStatus,p.purpose_id AS purposeId,p.preheader,p.version_number AS version,p.submitted_at AS submittedAt,p.approved_at AS approvedAt,m.name,m.status AS nativeStatus,m.start_at AS startAt,m.from_address AS fromAddress,m.from_name AS fromName,m.reply_to_address AS replyToAddress,m.reply_to_name AS replyToName,m.campaign_id AS campaignId,m.email_template_id AS emailTemplateId,m.modified_at AS modifiedAt,t.subject,t.body AS bodyHtml,c.name AS campaignName,cp.name AS purposeName,(SELECT COUNT(*) FROM email_queue_item q WHERE q.mass_email_id=m.id AND q.tenant_id=m.tenant_id AND q.service_id=m.service_id AND q.deleted=0) AS queuedCount FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id INNER JOIN email_template t ON t.id=m.email_template_id AND t.tenant_id=m.tenant_id AND t.service_id=m.service_id LEFT JOIN campaign c ON c.id=m.campaign_id AND c.tenant_id=m.tenant_id AND c.service_id=m.service_id LEFT JOIN nexa_consent_purpose cp ON cp.id=p.purpose_id AND cp.tenant_id=p.tenant_id AND cp.service_id=p.service_id WHERE p.tenant_id=? AND p.service_id=? AND m.deleted=0 AND p.lifecycle_status<>'archived' ORDER BY p.modified_at DESC");
+        $statement = $this->entityManager->getPDO()->prepare("SELECT p.id,p.mass_email_id AS massEmailId,p.delivery_mode AS deliveryMode,p.lifecycle_status AS lifecycleStatus,p.purpose_id AS purposeId,p.preheader,p.version_number AS version,p.submitted_at AS submittedAt,p.approved_at AS approvedAt,m.name,m.status AS nativeStatus,m.start_at AS startAt,m.from_address AS fromAddress,m.from_name AS fromName,m.reply_to_address AS replyToAddress,m.reply_to_name AS replyToName,m.campaign_id AS campaignId,m.email_template_id AS emailTemplateId,m.modified_at AS modifiedAt,t.subject,t.body AS bodyHtml,c.name AS campaignName,cp.name AS purposeName,(SELECT COUNT(*) FROM email_queue_item q WHERE q.mass_email_id=m.id AND q.tenant_id=m.tenant_id AND q.service_id=m.service_id AND q.is_test=0 AND q.deleted=0) AS queuedCount FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id INNER JOIN email_template t ON t.id=m.email_template_id AND t.tenant_id=m.tenant_id AND t.service_id=m.service_id LEFT JOIN campaign c ON c.id=m.campaign_id AND c.tenant_id=m.tenant_id AND c.service_id=m.service_id LEFT JOIN nexa_consent_purpose cp ON cp.id=p.purpose_id AND cp.tenant_id=p.tenant_id AND cp.service_id=p.service_id WHERE p.tenant_id=? AND p.service_id=? AND m.deleted=0 AND p.lifecycle_status<>'archived' ORDER BY p.modified_at DESC");
         $statement->execute([$context->tenantId, $context->serviceId]);
         $metrics = $this->deliveryMetrics($context);
-        return array_map(static function (array $row) use ($metrics): array {
+        return array_map(function (array $row) use ($metrics): array {
             $row['version'] = (int) $row['version']; $row['queuedCount'] = (int) $row['queuedCount'];
             $row['deliveryMetrics'] = $metrics[$row['id']] ?? array_fill_keys(['submitted','delivered','deferred','bounced','complained','failed','opened','clicked','unsubscribed'], 0);
+            $row['attachments'] = $this->acl->checkField('EmailTemplate', 'attachments') ? array_map(static function ($file) { unset($file['sha256']); return $file; }, $this->attachments->versionManifest($row['id'], $row['version'])) : [];
             return $row;
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
     }
@@ -205,9 +228,9 @@ final class MarketingEmailWorkspaceService
     private function deliveryMetrics(TenantContext $context): array
     {
         $query = $this->entityManager->getPDO()->prepare(
-            "SELECT profile_id,SUM(submitted_at IS NOT NULL) AS submitted,SUM(status='delivered') AS delivered," .
-            "SUM(status='deferred') AS deferred,SUM(status='bounced') AS bounced,SUM(status='complained') AS complained," .
-            "SUM(status='failed') AS failed FROM nexa_marketing_delivery_message WHERE tenant_id=? AND service_id=? GROUP BY profile_id"
+            "SELECT d.profile_id,SUM(d.submitted_at IS NOT NULL) AS submitted,SUM(d.status='delivered') AS delivered," .
+            "SUM(d.status='deferred') AS deferred,SUM(d.status='bounced') AS bounced,SUM(d.status='complained') AS complained," .
+            "SUM(d.status='failed') AS failed FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.tenant_id=? AND d.service_id=? AND q.is_test=0 GROUP BY d.profile_id"
         );
         $query->execute([$context->tenantId,$context->serviceId]);
         $result = [];
@@ -216,9 +239,10 @@ final class MarketingEmailWorkspaceService
             $result[$id] = array_merge(array_fill_keys(['opened','clicked','unsubscribed'], 0), array_map('intval', $row));
         }
         $events = $this->entityManager->getPDO()->prepare(
-            "SELECT profile_id,event_type,COUNT(DISTINCT recipient) AS total FROM nexa_marketing_delivery_event " .
-            "WHERE tenant_id=? AND service_id=? AND profile_id IS NOT NULL AND event_type IN ('opened','clicked','unsubscribed') " .
-            "GROUP BY profile_id,event_type"
+            "SELECT e.profile_id,e.event_type,COUNT(DISTINCT e.recipient) AS total FROM nexa_marketing_delivery_event e " .
+            "WHERE e.tenant_id=? AND e.service_id=? AND e.profile_id IS NOT NULL AND e.event_type IN ('opened','clicked','unsubscribed') " .
+            "AND EXISTS (SELECT 1 FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.profile_id=e.profile_id AND d.tenant_id=e.tenant_id AND d.service_id=e.service_id AND d.provider_message_id=e.provider_message_id AND d.recipient=e.recipient AND q.is_test=0) " .
+            "GROUP BY e.profile_id,e.event_type"
         );
         $events->execute([$context->tenantId,$context->serviceId]);
         foreach ($events->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -291,6 +315,37 @@ final class MarketingEmailWorkspaceService
         return ['currentVersion'=>(int) $profile['version_number'], 'canRestore'=>$this->canWrite(Table::ACTION_EDIT) && in_array($profile['lifecycle_status'], ['draft','review','approved'], true), 'versions'=>$query->fetchAll(PDO::FETCH_ASSOC)];
     }
 
+    public function deliveryMessages(string $id, string $search = '', string $status = '', string $cursor = ''): array
+    {
+        $this->requireAccess(Table::ACTION_READ);
+        $context = $this->tenantContextStore->require();
+        $profile = $this->requireProfile($context, $id);
+        if (!$this->recordServices->get('MassEmail')->getEntity($profile['mass_email_id'])) throw new NotFound('Email not found.');
+        if (!$this->acl->checkScope('Contact', 'read') || !$this->acl->checkField('Contact', 'emailAddress')) throw new Forbidden('Recipient delivery details are not allowed.');
+        if (mb_strlen($search) > 255 || ($cursor !== '' && !preg_match('/^[a-f0-9-]{36}$/', $cursor))) throw new BadRequest('Invalid delivery search or cursor.');
+        if ($status !== '' && !in_array($status, ['submitting','submitted','delivered','deferred','bounced','complained','failed'], true)) throw new BadRequest('Choose a valid delivery status.');
+        $params = [$id, $context->tenantId, $context->serviceId, $profile['mass_email_id']];
+        $where = '';
+        if ($search !== '') {
+            $where .= ' AND d.recipient LIKE ?';
+            $params[] = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search) . '%';
+            $where .= " ESCAPE '!'";
+        }
+        if ($status !== '') { $where .= ' AND d.status=?'; $params[] = $status; }
+        if ($cursor !== '') { $where .= ' AND d.id>?'; $params[] = $cursor; }
+        $query = $this->entityManager->getPDO()->prepare("SELECT d.id,d.recipient,d.status,d.submitted_at AS submittedAt,d.modified_at AS updatedAt,q.target_id AS contactId FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.profile_id=? AND d.tenant_id=? AND d.service_id=? AND q.mass_email_id=? AND q.target_type='Contact' AND q.is_test=0 AND q.deleted=0" . $where . ' ORDER BY d.id LIMIT 100');
+        $query->execute($params);
+        $rows = $query->fetchAll(PDO::FETCH_ASSOC);
+        $visible = [];
+        foreach ($rows as $row) {
+            $contact = $this->entityManager->getEntityById('Contact', $row['contactId']);
+            if (!$contact || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId || !$this->acl->checkEntity($contact, 'read')) continue;
+            unset($row['contactId']);
+            $visible[] = $row;
+        }
+        return ['items' => $visible, 'nextCursor' => count($rows) === 100 ? $rows[array_key_last($rows)]['id'] : null];
+    }
+
     public function restoreVersion(string $id, int $version): array
     {
         $this->requireAccess(Table::ACTION_EDIT);
@@ -308,6 +363,9 @@ final class MarketingEmailWorkspaceService
             foreach (['name','campaignId','startAt','fromAddress','fromName','replyToAddress','replyToName'] as $field) $input->$field = $native->get($field);
             $input->purposeId = $profile['purpose_id'];
             $input->deliveryMode = $profile['delivery_mode'];
+            $manifest = $this->attachments->versionManifest($id, $version);
+            $input->attachmentsIds = array_column($manifest, 'id');
+            if ($this->attachments->manifest($input->attachmentsIds) !== $manifest) throw new BadRequest('Historical attachments changed or are unavailable. The version cannot be restored.');
             $result = $this->save($input, $id);
             $this->insertEvent($context, $id, 'version_restored', $result['version'], ['sourceVersion'=>$version]);
             if ($ownsTransaction) $pdo->commit();

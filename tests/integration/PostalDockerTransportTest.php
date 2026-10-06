@@ -30,7 +30,8 @@ try {
             new Espo\Custom\Tools\MarketingEmail\Delivery\DeliveryRequest(
                 recipient: 'acceptance@recipient.local.test', fromAddress: $settings['sender'], fromName: 'Nexa local acceptance',
                 replyToAddress: null, subject: $subject, htmlBody: '<p>Real Postal API and captured SMTP delivery.</p>',
-                textBody: 'Real Postal API and captured SMTP delivery.', queueItemId: 'postal-local-acceptance'
+                textBody: 'Real Postal API and captured SMTP delivery.', queueItemId: 'postal-local-acceptance',
+                attachments: defined('NEXA_POSTAL_ATTACHMENT_ACCEPTANCE') ? [new Espo\Custom\Tools\MarketingEmail\Delivery\DeliveryAttachment('customer-guide.txt', 'text/plain', "Nexa attachment acceptance\nExact customer guide bytes.\n")] : [],
             )
         );
     });
@@ -42,7 +43,17 @@ try {
         $body = @file_get_contents('http://localhost:8026/api/v1/messages');
         $messages = $body === false ? [] : json_decode($body, true, 512, JSON_THROW_ON_ERROR);
         foreach ($messages['messages'] ?? [] as $message) {
-            if (($message['Subject'] ?? '') === $subject) { $captured = true; }
+            if (($message['Subject'] ?? '') === $subject) {
+                if (defined('NEXA_POSTAL_ATTACHMENT_ACCEPTANCE')) {
+                    $id = rawurlencode($message['ID']);
+                    $detail = json_decode(file_get_contents('http://localhost:8026/api/v1/message/' . $id), true, 512, JSON_THROW_ON_ERROR);
+                    $files = $detail['Attachments'] ?? [];
+                    if (count($files) !== 1 || $files[0]['FileName'] !== 'customer-guide.txt' || $files[0]['ContentType'] !== 'text/plain') throw new RuntimeException('The actual MIME attachment filename/type was not preserved.');
+                    $raw = file_get_contents('http://localhost:8026/api/v1/message/' . $id . '/raw');
+                    if (!str_contains($raw, 'Exact customer guide bytes.') && !str_contains(preg_replace('/\s+/', '', $raw), base64_encode("Nexa attachment acceptance\nExact customer guide bytes.\n"))) throw new RuntimeException('The actual MIME attachment content was not preserved.');
+                }
+                $captured = true;
+            }
         }
         if ($captured) { break; }
         sleep(2);

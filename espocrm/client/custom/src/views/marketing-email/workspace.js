@@ -7,13 +7,23 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         'click [data-action="reload"]': 'load',
         'click [data-action="transition"]': 'transition',
         'click [data-action="schedule-email"]': 'scheduleEmail',
+        'click [data-action="test-email"]': 'chooseTestContact',
+        'click [data-action="content-mode"]': 'toggleContentMode',
+        'click [data-action="choose-attachment"]': 'chooseAttachment',
+        'click [data-action="remove-attachment"]': 'removeAttachment',
         'click [data-action="control-delivery"]': 'controlDelivery',
+        'click [data-action="review-submissions"]': 'openSubmissionReview',
+        'click [data-action="close-submission-review"]': 'closeSubmissionReview',
+        'submit [data-submission-review-form]': 'resolveSubmission',
+        'change [data-submission-review-form] [name="decision"]': 'updateReviewDecision',
         'click [data-action="version-history"]': 'openVersionHistory',
         'click [data-action="close-history"]': 'closeVersionHistory',
         'change [data-history-version]': 'loadHistoryVersion',
         'click [data-action="restore-version"]': 'restoreHistoryVersion',
         'click [data-action="email-results"]': 'openResults',
         'click [data-action="close-results"]': 'closeResults',
+        'input [data-recipient-search]': 'searchDeliveryRecipients',
+        'change [data-recipient-status]': 'searchDeliveryRecipients',
         'click [data-action="delivery-setup"]': 'openDelivery',
         'click [data-action="close-delivery"]': 'closeDelivery',
         'click [data-action="verify-domain"]': 'verifyDomain',
@@ -71,26 +81,152 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         close.focus();
         this.resultsKeyHandler = event => {
             if (event.key === 'Escape') { event.preventDefault(); this.closeResults(); }
-            if (event.key === 'Tab') { event.preventDefault(); close.focus(); }
+            if (event.key === 'Tab') {
+                const controls = [...dialog.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)')];
+                const index = controls.indexOf(document.activeElement);
+                event.preventDefault(); controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
+            }
         };
         dialog.addEventListener('keydown', this.resultsKeyHandler);
+        this.installRecipientResults(dialog);
+        this.recipientResultsId = item.id;
+        this.loadDeliveryRecipients(true);
     }
     closeResults() {
+        this.recipientRequest = (this.recipientRequest || 0) + 1;
+        clearTimeout(this.recipientSearchTimer);
+        this.recipientObserver?.disconnect();
         const dialog = this.element.querySelector('[data-email-results]');
         dialog.hidden = true; dialog.style.display = 'none';
         dialog.removeEventListener('keydown', this.resultsKeyHandler);
         document.body.classList.remove('nexa-modal-open');
         if (this.resultsTrigger?.isConnected) this.resultsTrigger.focus();
     }
+
+    installRecipientResults(dialog) {
+        if (!this.recipientRemovalHook) {
+            this.recipientRemovalHook = true;
+            this.once?.('remove', () => this.closeResults());
+        }
+        if (!dialog.querySelector('[data-recipient-results]')) {
+            dialog.querySelector('section').insertAdjacentHTML('beforeend', '<div data-recipient-results class="nexa-recipient-results"><div class="nexa-recipient-toolbar"><input class="form-control" data-recipient-search type="search" placeholder="Search recipients" aria-label="Search recipients"><select class="form-control" data-recipient-status aria-label="Delivery status"><option value="">All delivery statuses</option><option value="submitting">Awaiting confirmation</option><option value="submitted">Submitted</option><option value="delivered">Delivered</option><option value="deferred">Delayed</option><option value="bounced">Bounced</option><option value="complained">Complaint</option><option value="failed">Failed</option></select></div><div class="nexa-recipient-scroll"><table class="table"><thead><tr><th>Recipient</th><th>Status</th><th>Submitted</th><th>Updated</th></tr></thead><tbody data-recipient-rows></tbody></table><div data-recipient-sentinel role="status"></div></div></div>');
+        }
+        dialog.querySelector('[data-recipient-search]').value = '';
+        dialog.querySelector('[data-recipient-status]').value = '';
+        this.recipientObserver?.disconnect();
+        this.recipientObserver = new IntersectionObserver(entries => {
+            if (entries.some(entry => entry.isIntersecting) && this.recipientCursor && !this.recipientLoading) this.loadDeliveryRecipients(false);
+        }, {root: dialog.querySelector('.nexa-recipient-scroll'), rootMargin: '100px'});
+        this.recipientObserver.observe(dialog.querySelector('[data-recipient-sentinel]'));
+    }
+
+    searchDeliveryRecipients() {
+        this.recipientRequest = (this.recipientRequest || 0) + 1;
+        this.recipientCursor = null;
+        clearTimeout(this.recipientSearchTimer);
+        this.recipientSearchTimer = setTimeout(() => this.loadDeliveryRecipients(true), 200);
+    }
+
+    async loadDeliveryRecipients(reset) {
+        const dialog = this.element.querySelector('[data-email-results]');
+        if (!dialog || dialog.hidden || !this.recipientResultsId) return;
+        const request = this.recipientRequest = (this.recipientRequest || 0) + 1;
+        const rows = dialog.querySelector('[data-recipient-rows]');
+        const sentinel = dialog.querySelector('[data-recipient-sentinel]');
+        if (reset) { rows.innerHTML = ''; this.recipientCursor = null; }
+        const params = {search: dialog.querySelector('[data-recipient-search]').value.trim(), status: dialog.querySelector('[data-recipient-status]').value};
+        if (!reset && this.recipientCursor) params.cursor = this.recipientCursor;
+        this.recipientLoading = true; sentinel.textContent = 'Loading recipients...';
+        try {
+            const result = await Espo.Ajax.getRequest(`Nexa/marketing-emails/${encodeURIComponent(this.recipientResultsId)}/messages`, params);
+            if (request !== this.recipientRequest || dialog.hidden) return;
+            rows.insertAdjacentHTML('beforeend', (result.items || []).map(item => `<tr><td>${this.escape(item.recipient)}</td><td>${this.escape(this.label(item.status))}</td><td>${this.escape(this.dateTime(item.submittedAt))}</td><td>${this.escape(this.dateTime(item.updatedAt))}</td></tr>`).join(''));
+            this.recipientCursor = result.nextCursor || null;
+            sentinel.textContent = !rows.children.length && !this.recipientCursor ? 'No matching recipients.' : '';
+            this.recipientLoading = false;
+            if (this.recipientCursor && sentinel.getBoundingClientRect().top <= dialog.querySelector('.nexa-recipient-scroll').getBoundingClientRect().bottom + 100) this.loadDeliveryRecipients(false);
+        } catch (error) {
+            if (request !== this.recipientRequest || dialog.hidden) return;
+            this.recipientLoading = false; this.recipientCursor = null;
+            sentinel.textContent = error?.message || 'Recipient delivery results could not be loaded.';
+        }
+    }
     populateCampaigns() { const options = (this.workspace.campaigns || []).map(item => `<option value="${this.escape(item.id)}" data-purpose="${this.escape(item.purposeId || '')}">${this.escape(item.name)} (${Number(item.eligibleCount || 0)} eligible)</option>`).join(''); this.element.querySelector('[name="campaignId"]').innerHTML = `<option value="">Choose an email campaign</option>${options}`; }
     renderEmails() {
         const query = (this.element.querySelector('[data-email-search]')?.value || '').trim().toLowerCase(); const status = this.element.querySelector('[data-email-status]')?.value || '';
         const items = (this.workspace?.emails || []).filter(item => (!status || item.lifecycleStatus === status) && (!query || `${item.name} ${item.subject} ${item.campaignName || ''}`.toLowerCase().includes(query)));
         this.element.querySelector('[data-email-list]').innerHTML = items.map(item => `<tr><td><button class="nexa-email-name" data-action="edit-email" data-id="${this.escape(item.id)}"><span class="fas fa-envelope-open-text"></span><span><strong>${this.escape(item.name)}</strong><small>${this.escape(item.subject || 'No subject')}</small></span></button></td><td>${this.escape(item.campaignName || 'Not linked')}</td><td><span class="nexa-email-status is-${this.escape(item.lifecycleStatus)}">${this.escape(this.label(item.lifecycleStatus))}</span></td><td>v${Number(item.version || 1)}</td><td>${this.escape(item.fromAddress || 'Not set')}</td><td>${Number(item.queuedCount || 0)}</td><td>${this.escape(this.dateTime(item.modifiedAt))}</td><td><div class="nexa-email-actions">${this.actions(item)}</div></td></tr>`).join('');
+        if (this.workspace.permissions?.approve) {
+            this.element.querySelectorAll('[data-email-list] [data-action="control-delivery"][data-control="resume"]').forEach(button => {
+                button.insertAdjacentHTML('beforebegin', `<button class="btn btn-icon" data-action="review-submissions" data-id="${this.escape(button.dataset.id)}" title="Review held submissions" aria-label="Review held submissions"><span class="fas fa-clipboard-check"></span></button>`);
+            });
+        }
         this.text('[data-email-count]', `${items.length} email${items.length === 1 ? '' : 's'}`); const empty = this.element.querySelector('[data-email-empty]'); empty.hidden = items.length > 0; this.element.querySelector('[data-email-table]').hidden = !items.length;
     }
-    actions(item) { const buttons = [`<button class="btn btn-icon" data-action="email-results" data-id="${this.escape(item.id)}" title="Delivery results"><span class="fas fa-chart-bar"></span></button>`]; if (['draft','review','approved'].includes(item.lifecycleStatus) && this.workspace.permissions?.edit) buttons.push(`<button class="btn btn-icon" data-action="edit-email" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>`); if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane')); if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check')); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled && this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="schedule-email" data-id="${this.escape(item.id)}" title="Schedule approved email"><span class="fas fa-clock"></span></button>`); if (['review','approved'].includes(item.lifecycleStatus)) buttons.push(this.transitionButton(item, 'return', 'Return to draft', 'fa-undo')); if (this.workspace.permissions.approve && ['scheduled','sending','paused'].includes(item.lifecycleStatus)) { const control=item.lifecycleStatus==='paused'?'resume':'pause'; buttons.push(`<button class="btn btn-icon" data-action="control-delivery" data-id="${this.escape(item.id)}" data-control="${control}" title="${control==='pause'?'Pause delivery':'Resume delivery'}"><span class="fas ${control==='pause'?'fa-pause':'fa-play'}"></span></button>`); } buttons.push(`<button class="btn btn-icon" data-action="version-history" data-id="${this.escape(item.id)}" title="Content versions"><span class="fas fa-history"></span></button>`); return buttons.join(''); }
+    actions(item) { const buttons = [`<button class="btn btn-icon" data-action="email-results" data-id="${this.escape(item.id)}" title="Delivery results"><span class="fas fa-chart-bar"></span></button>`]; if (['draft','review','approved'].includes(item.lifecycleStatus) && this.workspace.permissions?.edit) buttons.push(`<button class="btn btn-icon" data-action="edit-email" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>`); if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane')); if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check')); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled && this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="schedule-email" data-id="${this.escape(item.id)}" title="Schedule approved email"><span class="fas fa-clock"></span></button>`); if (['review','approved'].includes(item.lifecycleStatus)) buttons.push(this.transitionButton(item, 'return', 'Return to draft', 'fa-undo')); if (this.workspace.permissions.approve && ['scheduled','sending','paused'].includes(item.lifecycleStatus)) { const control=item.lifecycleStatus==='paused'?'resume':'pause'; buttons.push(`<button class="btn btn-icon" data-action="control-delivery" data-id="${this.escape(item.id)}" data-control="${control}" title="${control==='pause'?'Pause delivery':'Resume delivery'}"><span class="fas ${control==='pause'?'fa-pause':'fa-play'}"></span></button>`); } buttons.push(`<button class="btn btn-icon" data-action="version-history" data-id="${this.escape(item.id)}" title="Content versions"><span class="fas fa-history"></span></button>`); if (item.lifecycleStatus === 'approved' && this.workspace.deliveryEnabled && this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="test-email" data-id="${this.escape(item.id)}" title="Send test to my email" aria-label="Send test to my email"><span class="fas fa-flask"></span></button>`); return buttons.join(''); }
     transitionButton(item, action, title, icon) { return `<button class="btn btn-icon" data-action="transition" data-id="${this.escape(item.id)}" data-transition="${action}" title="${title}"><span class="fas ${icon}"></span></button>`; }
+
+    async openSubmissionReview(event) {
+        const id = event.currentTarget.dataset.id;
+        const trigger = event.currentTarget;
+        try {
+            const result = await Espo.Ajax.getRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/submission-review`);
+            if (!result.items?.length) { Espo.Ui.notify('No held submissions to review.', 'info'); return; }
+            this.closeSubmissionReview();
+            const modal = document.createElement('div');
+            modal.className = 'nexa-marketing-email-editor';
+            modal.dataset.submissionReview = id;
+            modal.innerHTML = `<section class="nexa-marketing-email-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-submission-review-title"><header><h2 id="nexa-submission-review-title">Review held submission</h2><button type="button" class="btn btn-icon" data-action="close-submission-review" title="Close review" aria-label="Close review"><span class="fas fa-times"></span></button></header><form data-submission-review-form><section><label>Submission<select class="form-control" name="messageId" required>${result.items.map(item => `<option value="${this.escape(item.id)}">${this.escape(item.recipient)} - ${this.escape(this.dateTime(item.createdAt))}</option>`).join('')}</select></label><label>Provider evidence outcome<select class="form-control" name="decision" required><option value="">Choose an outcome</option><option value="accepted">Postal accepted it</option><option value="not_accepted">Postal did not accept it</option></select></label><label>Confirmed Postal message ID<input class="form-control" name="providerMessageId" maxlength="255" disabled></label><label>Provider evidence note<textarea class="form-control" name="evidenceNote" rows="4" minlength="10" maxlength="2000" required></textarea></label><p data-review-error role="alert"></p></section><footer><button type="button" class="btn btn-default" data-action="close-submission-review">Cancel</button><button type="submit" class="btn btn-primary"><span class="fas fa-check"></span>Record resolution</button></footer></form></section>`;
+            this.element.appendChild(modal);
+            this.reviewTrigger = trigger;
+            document.body.classList.add('nexa-modal-open');
+            modal.addEventListener('keydown', event => {
+                if (event.key === 'Escape') { event.preventDefault(); this.closeSubmissionReview(); }
+                if (event.key === 'Tab') {
+                    const controls = [...modal.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)')];
+                    const index = controls.indexOf(document.activeElement);
+                    event.preventDefault(); controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
+                }
+            });
+            modal.querySelector('select').focus();
+            this.once('remove', () => this.closeSubmissionReview());
+        } catch (error) { Espo.Ui.error(error?.message || 'Held submissions could not be loaded.'); }
+    }
+
+    updateReviewDecision() {
+        const form = this.element.querySelector('[data-submission-review-form]');
+        if (!form) return;
+        const accepted = form.elements.decision.value === 'accepted';
+        form.elements.providerMessageId.disabled = !accepted;
+        form.elements.providerMessageId.required = accepted;
+    }
+
+    closeSubmissionReview() {
+        const modal = this.element.querySelector('[data-submission-review]');
+        if (!modal) return;
+        modal.remove();
+        document.body.classList.remove('nexa-modal-open');
+        if (this.reviewTrigger?.isConnected) this.reviewTrigger.focus();
+    }
+
+    async resolveSubmission(event) {
+        event.preventDefault();
+        const form = event.currentTarget;
+        if (!form.reportValidity()) return;
+        const modal = form.closest('[data-submission-review]');
+        const button = form.querySelector('[type="submit"]');
+        if (button.disabled) return;
+        button.disabled = true;
+        try {
+            await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(modal.dataset.submissionReview)}/submission-review`, Object.fromEntries(new FormData(form)));
+            this.closeSubmissionReview();
+            Espo.Ui.success('Resolution recorded. Delivery remains paused.');
+            await this.load();
+        } catch (error) {
+            form.querySelector('[data-review-error]').textContent = error?.message || 'The submission could not be resolved.';
+            button.disabled = false;
+        }
+    }
     newEmail() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.previewRequest = (this.previewRequest || 0) + 1; this.recipientPreview = null; this.openEditor(null); }
     contentChanged() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.renderContentPreview(); }
     chooseEmailTemplate() {
@@ -118,8 +254,11 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         if (!this.pendingTemplate) return;
         const form = this.element.querySelector('[data-email-form]');
         form.elements.subject.value = this.pendingTemplate.subject; form.elements.bodyHtml.value = this.pendingTemplate.bodyHtml;
+        this.contentRichDirty = false;
+        this.contentModel?.set('body', this.pendingTemplate.bodyHtml);
         this.pendingTemplate = null; this.recipientPreview = null; this.previewRequest = (this.previewRequest || 0) + 1;
-        this.renderContentPreview(); form.elements.bodyHtml.focus();
+        this.renderContentPreview();
+        (this.contentSourceMode || !this.contentEditor ? form.elements.bodyHtml : form.querySelector('.note-editable'))?.focus();
     }
     cancelEmailTemplate() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.renderContentPreview(); }
     async openVersionHistory(event) {
@@ -226,6 +365,157 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         frame.srcdoc = `<html><head><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:20px;color:#17211f;font:14px Arial,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style></head><body>${this.pendingTemplate?.bodyHtml ?? rendered?.bodyHtml ?? form.elements.bodyHtml.value}</body></html>`;
     }
     clearRecipientPreview() { this.previewRequest = (this.previewRequest || 0) + 1; this.recipientPreview = null; this.renderContentPreview(); }
+    renderAttachments() {
+        const form = this.element.querySelector('[data-email-form]');
+        let panel = form.querySelector('[data-marketing-attachments]');
+        if (!panel) {
+            panel = document.createElement('div'); panel.dataset.marketingAttachments = '';
+            panel.className = 'nexa-marketing-attachments';
+            form.querySelector('.nexa-email-code').after(panel);
+        }
+        panel.hidden = !this.workspace?.permissions?.attachments;
+        panel.innerHTML = `<header><strong>Attachments</strong><button type="button" class="btn btn-default" data-action="choose-attachment" ${this.selectedAttachments?.length >= 10 ? 'disabled' : ''}><span class="fas fa-paperclip" aria-hidden="true"></span>Add file</button></header><small>PDF, TXT, CSV, JPG, PNG, GIF or WebP. Maximum 5 MB each, 10 MB total.</small><ul>${(this.selectedAttachments || []).map(file => `<li><span>${this.escape(file.name)}</span><button type="button" class="btn btn-icon" data-action="remove-attachment" data-id="${this.escape(file.id)}" title="Remove attachment" aria-label="Remove ${this.escape(file.name)}"><span class="fas fa-times" aria-hidden="true"></span></button></li>`).join('')}</ul>`;
+    }
+    chooseAttachment() {
+        if (!this.workspace?.permissions?.attachments) return;
+        const editor = this.element.querySelector('[data-email-editor]');
+        editor.style.display = 'none';
+        this.createView('marketingAttachmentSelector', 'custom:views/wysiwyg/modals/tenant-file', {
+            selectOnly: true,
+        }, view => {
+            this.listenToOnce(view, 'remove', () => {if (!editor.hidden) editor.style.display = 'grid';});
+            this.listenToOnce(view, 'insert', file => {
+                if (editor.hidden || this.selectedAttachments.some(item => item.id === file.id)) return;
+                if (!/\.(pdf|txt|csv|png|jpe?g|gif|webp)$/i.test(file.name)) return Espo.Ui.error('Choose a supported marketing attachment.');
+                if (file.size > 5 * 1024 * 1024) return Espo.Ui.error('Each marketing attachment must be no larger than 5 MB.');
+                if ((this.selectedAttachments.reduce((total, item) => total + Number(item.size || 0), 0) + Number(file.size || 0)) > 10 * 1024 * 1024) return Espo.Ui.error('Marketing attachments cannot exceed 10 MB in total.');
+                if (this.selectedAttachments.length >= 10) return Espo.Ui.error('An email can contain at most 10 attachments.');
+                this.selectedAttachments.push(file); this.renderAttachments();
+            });
+            view.render();
+        });
+    }
+    removeAttachment(event) {
+        this.selectedAttachments = (this.selectedAttachments || []).filter(file => file.id !== event.currentTarget.dataset.id);
+        this.renderAttachments();
+    }
+    async installContentEditor() {
+        const request = this.contentEditorRequest = (this.contentEditorRequest || 0) + 1;
+        const form = this.element.querySelector('[data-email-form]');
+        const source = form.elements.bodyHtml;
+        let holder = form.querySelector('[data-rich-content]');
+        if (!holder) {
+            holder = document.createElement('div');
+            holder.dataset.richContent = '';
+            holder.className = 'nexa-email-rich-content';
+            form.querySelector('.nexa-email-code').before(holder);
+            const toggle = document.createElement('button');
+            toggle.type = 'button'; toggle.className = 'btn btn-default';
+            toggle.dataset.action = 'content-mode'; toggle.disabled = true;
+            toggle.innerHTML = '<span class="fas fa-code" aria-hidden="true"></span> HTML source';
+            holder.before(toggle);
+        }
+        try {
+            const model = await this.getModelFactory().create('EmailTemplate');
+            if (request !== this.contentEditorRequest) return;
+            model.set({body: source.value, isHtml: true});
+            const editor = await this.createView('marketingContentEditor', 'views/fields/wysiwyg', {
+                fullSelector: '[data-rich-content]', model, name: 'body', mode: 'edit',
+                params: {height: 360, minHeight: 240, toolbar: [
+                    ['style', ['style', 'bold', 'italic', 'underline', 'clear']],
+                    ['text', ['fontsize', 'color']], ['para', ['ul', 'ol', 'paragraph']],
+                    ['insert', ['espoTable', 'espoLink', 'hr']], ['history', ['undo', 'redo']],
+                ]},
+            });
+            if (request !== this.contentEditorRequest) { editor.remove(); return; }
+            this.contentEditor = editor; this.contentModel = model;
+            await editor.render();
+            if (request !== this.contentEditorRequest) return;
+            this.listenTo(editor, 'change', () => {
+                if (this.contentSourceMode) return;
+                this.contentRichDirty = true;
+                this.syncRichContent(); this.contentChanged();
+            });
+            this.contentSourceMode = false;
+            this.contentRichDirty = false;
+            source.required = false;
+            form.querySelector('.nexa-email-code').hidden = true;
+            holder.hidden = false;
+            const toggle = form.querySelector('[data-action="content-mode"]');
+            toggle.disabled = false; toggle.setAttribute('aria-pressed', 'false');
+            if (!this.contentEditorRemovalHook) {
+                this.contentEditorRemovalHook = true;
+                this.once('remove', () => this.destroyContentEditor());
+            }
+        } catch (error) {
+            if (request !== this.contentEditorRequest) return;
+            holder.hidden = true;
+            source.required = true; form.querySelector('.nexa-email-code').hidden = false;
+            Espo.Ui.error('The visual editor could not be loaded. HTML source editing is still available.');
+        }
+    }
+    syncRichContent() {
+        if (!this.contentEditor || this.contentSourceMode || !this.contentRichDirty) return;
+        this.contentEditor.fetchToModel();
+        this.element.querySelector('[name="bodyHtml"]').value = this.contentModel.get('body') || '';
+        this.contentRichDirty = false;
+    }
+    toggleContentMode() {
+        const form = this.element.querySelector('[data-email-form]');
+        if (!this.contentEditor) return;
+        if (!this.contentSourceMode) this.syncRichContent();
+        else {
+            this.contentRichDirty = false;
+            this.contentModel.set('body', form.elements.bodyHtml.value);
+        }
+        this.contentSourceMode = !this.contentSourceMode;
+        form.querySelector('.nexa-email-code').hidden = !this.contentSourceMode;
+        form.querySelector('[data-rich-content]').hidden = this.contentSourceMode;
+        const toggle = form.querySelector('[data-action="content-mode"]');
+        toggle.innerHTML = this.contentSourceMode ? '<span class="fas fa-pen" aria-hidden="true"></span> Visual editor' : '<span class="fas fa-code" aria-hidden="true"></span> HTML source';
+        toggle.setAttribute('aria-pressed', String(this.contentSourceMode));
+        this.contentChanged();
+    }
+    destroyContentEditor() {
+        this.contentEditorRequest = (this.contentEditorRequest || 0) + 1;
+        if (this.contentEditor) this.stopListening(this.contentEditor);
+        this.clearView?.('marketingContentEditor');
+        this.contentEditor = null; this.contentModel = null; this.contentSourceMode = false;
+        this.contentRichDirty = false;
+        const form = this.element?.querySelector('[data-email-form]');
+        if (!form) return;
+        form.querySelector('.nexa-email-code').hidden = false;
+        form.elements.bodyHtml.required = true;
+        const holder = form.querySelector('[data-rich-content]');
+        if (holder) holder.hidden = true;
+        const toggle = form.querySelector('[data-action="content-mode"]');
+        if (toggle) { toggle.disabled = true; toggle.innerHTML = '<span class="fas fa-code" aria-hidden="true"></span> HTML source'; }
+    }
+    chooseTestContact(event) {
+        const button = event.currentTarget;
+        const id = button.dataset.id;
+        this.confirm({message: 'Send this approved email to your own email address? This uses one monthly send. Choose a Contact for personalization only.', confirmText: 'Choose Contact'}, () => {
+            this.createView('testContactSelector', 'views/modals/select-records', {
+                scope: 'Contact', multiple: false, createButton: false, headerText: 'Choose test personalization',
+            }, view => {
+                this.listenToOnce(view, 'select', async model => {
+                    button.disabled = true;
+                    Espo.Ui.notify('Submitting test to Postal...');
+                    try {
+                        const result = await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/test`, {contactId: model.id});
+                        Espo.Ui.notify(false);
+                        if (['submitted','delivered'].includes(result.status)) Espo.Ui.success(`Postal accepted the test for ${result.recipient}.`);
+                        else Espo.Ui.error(result.status === 'failed' ? 'Postal rejected the test. Check delivery settings.' : 'Acceptance is uncertain. Review the held submission before retrying.');
+                        await this.load();
+                    } catch (error) {
+                        Espo.Ui.notify(false);
+                        Espo.Ui.error(error?.message || 'The test could not be submitted.');
+                    } finally { button.disabled = false; }
+                });
+                view.render();
+            });
+        });
+    }
     choosePreviewContact() {
         const editor = this.element.querySelector('[data-email-editor]');
         editor.style.display = 'none';
@@ -263,8 +553,8 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         this.templateRequest = (this.templateRequest || 0) + 1;
         this.openEditor(item);
     }
-    openEditor(item) { this.current = item || null; const form = this.element.querySelector('[data-email-form]'); form.reset(); form.elements.name.value=item?.name||''; form.elements.campaignId.value=item?.campaignId||''; form.elements.subject.value=item?.subject||''; form.elements.preheader.value=item?.preheader||''; form.elements.fromAddress.value=item?.fromAddress||''; form.elements.fromName.value=item?.fromName||''; form.elements.replyToAddress.value=item?.replyToAddress||''; form.elements.replyToName.value=item?.replyToName||''; form.elements.startAt.value=this.inputDateTime(item?.startAt); form.elements.bodyHtml.value=item?.bodyHtml||'<p>Hello {Contact.firstName},</p><p></p><p>Kind regards,<br>{User.name}</p>'; this.syncCampaign(); this.text('[data-editor-title]', item ? `Edit ${item.name}` : 'Create marketing email'); const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); setTimeout(()=>form.elements.name.focus(),0); }
-    closeEditor() { this.previewRequest = (this.previewRequest || 0) + 1; const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=true; editor.style.display='none'; document.body.classList.remove('nexa-modal-open'); }
+    openEditor(item) { this.destroyContentEditor(); this.current = item || null; this.selectedAttachments = [...(item?.attachments || [])]; this.renderAttachments(); const form = this.element.querySelector('[data-email-form]'); form.reset(); form.elements.name.value=item?.name||''; form.elements.campaignId.value=item?.campaignId||''; form.elements.subject.value=item?.subject||''; form.elements.preheader.value=item?.preheader||''; form.elements.fromAddress.value=item?.fromAddress||''; form.elements.fromName.value=item?.fromName||''; form.elements.replyToAddress.value=item?.replyToAddress||''; form.elements.replyToName.value=item?.replyToName||''; form.elements.startAt.value=this.inputDateTime(item?.startAt); form.elements.bodyHtml.value=item?.bodyHtml||'<p>Hello {Contact.firstName},</p><p></p><p>Kind regards,<br>{User.name}</p>'; this.syncCampaign(); this.text('[data-editor-title]', item ? `Edit ${item.name}` : 'Create marketing email'); const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); this.installContentEditor(); setTimeout(()=>form.elements.name.focus(),0); }
+    closeEditor() { this.destroyContentEditor(); this.previewRequest = (this.previewRequest || 0) + 1; const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=true; editor.style.display='none'; document.body.classList.remove('nexa-modal-open'); }
     async openDelivery() { const editor=this.element.querySelector('[data-delivery-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); Espo.Ui.notify('Loading delivery settings...'); try { this.delivery=await Espo.Ajax.getRequest('Nexa/marketing-delivery/settings'); Espo.Ui.notify(false); this.renderDelivery(); } catch(error){this.closeDelivery();Espo.Ui.notify(false);Espo.Ui.error(error?.message||'Delivery settings could not be loaded.');} }
     closeDelivery() { const editor=this.element.querySelector('[data-delivery-editor]'); editor.hidden=true; editor.style.display='none'; document.body.classList.remove('nexa-modal-open'); }
     renderDelivery() { const provider=this.delivery?.provider||{}; const form=this.element.querySelector('[data-provider-form]'); form.elements.apiBaseUrl.value=provider.apiBaseUrl||''; form.elements.serverName.value=provider.serverName||''; form.elements.apiKey.value=''; form.elements.apiKey.required=!provider.hasCredential; form.elements.monthlySendLimit.value=Number(provider.monthlySendLimit||0); this.text('[data-credential-help]',provider.hasCredential?'An encrypted API key is configured. Leave blank to keep it.':'The key is encrypted and is never returned to the browser.'); const domains=this.delivery?.domains||[]; this.element.querySelector('[data-domain-list]').innerHTML=domains.length?domains.map(item=>`<article class="nexa-domain-card"><div><strong>${this.escape(item.domainName)}</strong><small>Ownership ${this.escape(item.ownershipStatus)} / SPF ${this.escape(item.spfStatus)} / DKIM ${this.escape(item.dkimStatus)} / DMARC ${this.escape(item.dmarcStatus)} / Return path ${this.escape(item.returnPathStatus)}</small><code>TXT @ nexa-verification=${this.escape(item.verificationToken)}</code></div><button class="btn btn-default" data-action="verify-domain" data-id="${this.escape(item.id)}"><span class="fas fa-sync"></span>Check DNS</button></article>`).join(''):'<p class="text-muted">No sending domain has been added.</p>'; }
@@ -277,7 +567,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     async saveDomain(event) { event.preventDefault(); const form=event.currentTarget; const payload=Object.fromEntries(['domainName','spfInclude','dkimHost','dkimValue','returnPathHost','returnPathValue'].map(name=>[name,form.elements[name].value.trim()])); Espo.Ui.notify('Saving sending domain...'); try{this.delivery=await Espo.Ajax.postRequest('Nexa/marketing-delivery/domains',payload);Espo.Ui.success('Sending domain saved. Add the DNS records, then check DNS.');form.reset();this.renderDelivery();await this.load();}catch(error){Espo.Ui.notify(false);Espo.Ui.error(error?.message||'Sending domain could not be saved.');} }
     async verifyDomain(event) { const id=event.currentTarget.dataset.id; Espo.Ui.notify('Checking public DNS...'); try{this.delivery=await Espo.Ajax.postRequest(`Nexa/marketing-delivery/domains/${encodeURIComponent(id)}/verify`,{});Espo.Ui.success(this.delivery.readiness?.ready?'Delivery prerequisites are ready.':'DNS check completed. Missing records remain listed.');this.renderDelivery();await this.load();}catch(error){Espo.Ui.notify(false);Espo.Ui.error(error?.message||'DNS could not be checked.');} }
     syncCampaign() { const form=this.element.querySelector('[data-email-form]'); const campaign=(this.workspace?.campaigns||[]).find(item=>item.id===form.elements.campaignId.value); form.elements.purposeId.value=campaign?.purposeId||''; this.text('[data-campaign-purpose]', campaign ? `${campaign.purposeName || 'Email consent'} / ${Number(campaign.eligibleCount || 0)} eligible / ${Number(campaign.suppressedCount || 0)} suppressed` : 'Choose the governed campaign audience for this email.'); this.renderContentPreview(); }
-    payload() { const form=this.element.querySelector('[data-email-form]'); return {name:form.elements.name.value.trim(),campaignId:form.elements.campaignId.value,purposeId:form.elements.purposeId.value,subject:form.elements.subject.value.trim(),preheader:form.elements.preheader.value.trim(),fromAddress:form.elements.fromAddress.value.trim(),fromName:form.elements.fromName.value.trim(),replyToAddress:form.elements.replyToAddress.value.trim(),replyToName:form.elements.replyToName.value.trim(),startAt:form.elements.startAt.value||null,deliveryMode:'campaign',bodyHtml:form.elements.bodyHtml.value,bodyText:''}; }
+    payload() { this.syncRichContent(); const form=this.element.querySelector('[data-email-form]'); return {name:form.elements.name.value.trim(),campaignId:form.elements.campaignId.value,purposeId:form.elements.purposeId.value,subject:form.elements.subject.value.trim(),preheader:form.elements.preheader.value.trim(),fromAddress:form.elements.fromAddress.value.trim(),fromName:form.elements.fromName.value.trim(),replyToAddress:form.elements.replyToAddress.value.trim(),replyToName:form.elements.replyToName.value.trim(),startAt:form.elements.startAt.value||null,deliveryMode:'campaign',bodyHtml:form.elements.bodyHtml.value,bodyText:'', ...(this.workspace?.permissions?.attachments ? {attachmentsIds:(this.selectedAttachments || []).map(file => file.id)} : {})}; }
     async save(event) { event.preventDefault(); const payload=this.payload(); if (!payload.name||!payload.campaignId||!payload.subject||!payload.fromAddress||!payload.bodyHtml.trim()) return Espo.Ui.error('Complete the required name, campaign, subject, sender and content fields.'); Espo.Ui.notify('Saving marketing email...'); try { if(this.current) await Espo.Ajax.putRequest(`Nexa/marketing-emails/${encodeURIComponent(this.current.id)}`,payload); else await Espo.Ajax.postRequest('Nexa/marketing-emails',payload); Espo.Ui.success('Marketing email draft saved.'); this.closeEditor(); await this.load(); } catch(error){Espo.Ui.notify(false);Espo.Ui.error(error?.message||'The marketing email could not be saved.');} }
     transition(event) { const id=event.currentTarget.dataset.id; const action=event.currentTarget.dataset.transition; const labels={submit:'Submit this email for review?',approve:'Approve this email content?',return:'Return this email to draft?'}; this.confirm({message:labels[action],confirmText:this.label(action)},async()=>{Espo.Ui.notify('Updating email...');try{await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/transition`,{action});Espo.Ui.success('Marketing email status updated.');await this.load();}catch(error){Espo.Ui.notify(false);Espo.Ui.error(error?.message||'The status could not be updated.');}}); }
     scheduleEmail(event) { const id=event.currentTarget.dataset.id; this.confirm({message:'Schedule this approved email for its proposed send time? Eligibility and monthly capacity will be checked again before delivery.',confirmText:'Schedule email'},async()=>{Espo.Ui.notify('Scheduling email...');try{const result=await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(id)}/schedule`,{});Espo.Ui.success(`Email scheduled for ${this.dateTime(result.scheduledAt)} with ${Number(result.eligibleCount)} eligible recipients.`);await this.load();}catch(error){Espo.Ui.notify(false);Espo.Ui.error(error?.message||'The email could not be scheduled.');}}); }
