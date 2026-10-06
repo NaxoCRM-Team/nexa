@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:; font-src 'self' data:; frame-src 'self' blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>Email block designer</title>
+    <link rel="stylesheet" href="../lib/email-designer/grapes.min.css">
+    <link rel="stylesheet" href="designer.css">
+    <script defer src="../lib/email-designer/grapes.min.js"></script>
+    <script defer src="../lib/email-designer/newsletter.js"></script>
+    <script defer src="../lib/email-designer/purify.min.js"></script>
+    <script defer src="designer.js"></script>
+</head>
+<body>
+    <header class="designer-tools">
+        <select aria-label="Preview device" id="device"><option value="Desktop">Desktop</option><option value="Mobile">Mobile</option></select>
+        <select aria-label="Designer panel" id="panel"><option value="blocks">Blocks</option><option value="settings">Settings</option></select>
+        <button id="undo" title="Undo" aria-label="Undo">&#8630;</button>
+        <button id="redo" title="Redo" aria-label="Redo">&#8631;</button>
+        <label><input type="checkbox" id="outlines" checked> Outlines</label>
+        <span id="status" role="status">Loading designer</span>
+    </header>
+    <main>
+        <aside aria-label="Email blocks"><h2>Blocks</h2><div id="blocks"></div><h2>Email images</h2><input id="image-search" type="search" aria-label="Search email images" placeholder="Search images"><div id="images"></div><p id="image-status" role="status">No email images</p></aside>
+        <div id="canvas" aria-label="Email canvas"></div>
+        <aside aria-label="Block settings"><h2>Styles</h2><div id="styles"></div><h2>Properties</h2><div id="traits"></div></aside>
+    </main>
+    <dialog id="image-confirm" aria-labelledby="image-confirm-title">
+        <h2 id="image-confirm-title"></h2><p id="image-confirm-text"></p>
+        <div><button id="image-confirm-cancel" type="button">Cancel</button><button id="image-confirm-accept" type="button"></button></div>
+    </dialog>
+</body>
+</html>

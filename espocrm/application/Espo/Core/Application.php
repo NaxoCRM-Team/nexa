@@ -166,6 +166,11 @@ class Application
 
     private function resolvePublicResourceTenant(TenantResolver $resolver, string $className): ?TenantContext
     {
+        if (str_ends_with($className, '\\ApplicationRunners\\EntryPoint') &&
+            strcasecmp((string) ($_GET['entryPoint'] ?? ''), 'NexaMarketingImage') === 0) {
+            return $resolver->resolveMarketingImageToken((string) ($_GET['token'] ?? ''));
+        }
+
         if (
             str_ends_with($className, '\\ApplicationRunners\\EntryPoint') &&
             strcasecmp((string) ($_GET['entryPoint'] ?? ''), 'LeadCaptureForm') === 0

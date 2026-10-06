@@ -78,7 +78,8 @@ test('Native visual editor integration preserves content through source, preview
         document.querySelector('[data-action="choose-attachment"]').addEventListener('click', () => view.chooseAttachment());
     });
     await page.getByRole('button', {name: 'Add file', exact: true}).click();
-    expect(await page.evaluate(() => fileSelectorOptions.selectOnly)).toBe(true);
+    expect(await page.evaluate(() => fileSelectorOptions.maxFileSize)).toBe(5 * 1024 * 1024);
+    expect(await page.evaluate(() => fileSelectorOptions.accept)).toContain('.pdf');
     await page.evaluate(() => selectFile({id: 'tenant-file', name: 'guide.txt', mimeType: 'text/plain', size: 100}));
     await expect(page.locator('[data-marketing-attachments]')).toContainText('guide.txt');
     expect(await page.evaluate(() => view.payload().attachmentsIds)).toEqual(['tenant-file']);
@@ -88,4 +89,35 @@ test('Native visual editor integration preserves content through source, preview
     expect(await page.evaluate(() => view.selectedAttachments.length)).toBe(1);
     await page.evaluate(() => view.removeAttachment({currentTarget: {dataset: {id: 'tenant-file'}}}));
     expect(await page.evaluate(() => view.payload().attachmentsIds)).toEqual([]);
+    await page.evaluate(async () => {
+        window.uploadRequests = [];
+        Espo.Ajax = {postRequest: async (url, input) => {
+            uploadRequests.push({url, input});
+            return {id: 'uploaded-file', name: input.name, mimeType: input.mimeType, size: 14};
+        }};
+        await view.uploadMarketingAttachment(new File(['Uploaded guide'], 'new-guide.txt', {type: 'text/plain'}));
+    });
+    await expect(page.locator('[data-marketing-attachments]')).toContainText('new-guide.txt');
+    expect(await page.evaluate(() => uploadRequests[0].url)).toBe('Nexa/marketing-email-attachments');
+    expect(await page.evaluate(() => atob(uploadRequests[0].input.data))).toBe('Uploaded guide');
+    expect(await page.evaluate(() => view.payload().attachmentsIds)).toEqual(['uploaded-file']);
+    await page.evaluate(async () => {
+        await view.uploadMarketingAttachment(new File(['bad'], 'script.exe'));
+        await view.uploadMarketingAttachment(new File([new Uint8Array(6 * 1024 * 1024)], 'too-large.txt', {type: 'text/plain'}));
+    });
+    expect(await page.evaluate(() => uploadRequests.length)).toBe(1);
+    await page.evaluate(async () => {
+        Espo.Ajax.postRequest = () => new Promise(resolve => {window.finishUpload = resolve;});
+        window.pendingUpload = view.uploadMarketingAttachment(new File(['Late guide'], 'late.txt', {type: 'text/plain'}));
+    });
+    await expect(page.locator('[data-email-form] [type="submit"]')).toBeDisabled();
+    await page.waitForFunction(() => !!window.finishUpload);
+    await page.evaluate(async () => {
+        view.contentEditorRequest = (view.contentEditorRequest || 0) + 1;
+        view.selectedAttachments = [];
+        finishUpload({id: 'late-file', name: 'late.txt', size: 10});
+        await pendingUpload;
+    });
+    expect(await page.evaluate(() => view.selectedAttachments)).toEqual([]);
+    await expect(page.locator('[data-email-form] [type="submit"]')).toBeEnabled();
 });

@@ -30,7 +30,76 @@ final class MarketingEmailWorkspaceService
         private Acl $acl,
         private User $user,
         private MarketingAttachmentService $attachments,
+        private \Espo\Custom\Tools\TenantFile\TenantImageLibrary $fileLibrary,
+        private \Espo\Core\Utils\Config $config,
+        private \Espo\Custom\Tools\Asset\AssetWorkspaceService $assetLibrary,
+        private MarketingImageService $images,
     ) {}
+
+    public function designerImages(?string $id = null): array
+    {
+        if ($id !== null && str_starts_with($id, 'mail-')) return $this->images->preview($id);
+        if ($id !== null) return $this->legacyDesignerImages($id);
+        $legacy = $this->legacyDesignerImages();
+        return ['images' => [...$this->images->catalog(), ...array_map(static fn (array $image) => $image + ['legacy' => true], $legacy['images'])]];
+    }
+
+    /** Preserve saved landing-page image URLs without creating new public resources. */
+    private function legacyDesignerImages(?string $id = null): array
+    {
+        $this->requireAccess(Table::ACTION_READ);
+        if (!$this->user->isAdmin() || !$this->acl->checkScope('Document', Table::ACTION_READ) ||
+            !$this->acl->checkScope('Attachment', Table::ACTION_READ)) {
+            throw new Forbidden('Marketing image access is not allowed.');
+        }
+        $context = $this->tenantContextStore->require();
+        $statement = $this->entityManager->getPDO()->prepare(
+            "SELECT p.public_key,p.slug,v.configuration_json FROM nexa_landing_page p " .
+            'INNER JOIN nexa_landing_page_version v ON v.landing_page_id=p.id AND v.tenant_id=p.tenant_id ' .
+            'AND v.service_id=p.service_id AND v.version_number=p.version_number ' .
+            "WHERE p.tenant_id=? AND p.service_id=? AND p.status='published' ORDER BY p.published_at DESC LIMIT 100"
+        );
+        $statement->execute([$context->tenantId, $context->serviceId]);
+        $assets = [];
+        $assetQuery = $this->entityManager->getPDO()->prepare(
+            "SELECT current_attachment_id,document_id,display_name,alt_text FROM nexa_asset_profile " .
+            "WHERE id=? AND tenant_id=? AND service_id=? AND status='active' AND access_scope='public' LIMIT 1"
+        );
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $page) {
+            $configuration = json_decode((string) $page['configuration_json'], true) ?: [];
+            foreach (($configuration['blocks'] ?? []) as $block) {
+                $assetId = (string) ($block['assetId'] ?? '');
+                if ($assetId === '' || isset($assets[$assetId]) || ($id !== null && $assetId !== $id)) continue;
+                $assetQuery->execute([$assetId, $context->tenantId, $context->serviceId]);
+                $asset = $assetQuery->fetch(PDO::FETCH_ASSOC);
+                if (!$asset || !$asset['document_id']) continue;
+                $document = $this->entityManager->getEntityById('Document', (string) $asset['document_id']);
+                $file = $this->entityManager->getEntityById('Attachment', (string) $asset['current_attachment_id']);
+                if (!$document || !$file instanceof \Espo\Entities\Attachment ||
+                    $document->get('deleted') || $document->get('tenantId') !== $context->tenantId || $document->get('serviceId') !== $context->serviceId ||
+                    !$this->acl->checkEntity($document) || !$this->acl->checkEntity($file) ||
+                    $file->get('deleted') || $file->isBeingUploaded() ||
+                    $file->get('tenantId') !== $context->tenantId || $file->get('serviceId') !== $context->serviceId ||
+                    !in_array($file->get('type'), ['image/png', 'image/jpeg', 'image/gif', 'image/webp'], true) ||
+                    (int) $file->get('size') > 8 * 1024 * 1024) continue;
+                $url = rtrim((string) $this->config->get('siteUrl'), '/') . '/?' . http_build_query([
+                    'entryPoint' => 'NexaLandingAsset', 'key' => $page['public_key'], 'slug' => $page['slug'], 'asset' => $assetId,
+                ], '', '&', PHP_QUERY_RFC3986);
+                $assets[$assetId] = ['id' => $assetId, 'name' => $asset['display_name'], 'alt' => $asset['alt_text'], 'url' => $url];
+            }
+        }
+        if ($id !== null) {
+            if (!isset($assets[$id])) throw new NotFound('The published image is unavailable.');
+            $preview = $this->assetLibrary->download($id);
+            $bytes = base64_decode($preview['data'], true);
+            if ($bytes === false || strlen($bytes) > 8 * 1024 * 1024 ||
+                !in_array((new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes), ['image/png', 'image/jpeg', 'image/gif', 'image/webp'], true)) {
+                throw new BadRequest('Choose a valid image no larger than 8 MB.');
+            }
+            return $assets[$id] + ['preview' => 'data:' . $preview['mimeType'] . ';base64,' . $preview['data']];
+        }
+        return ['images' => array_values($assets)];
+    }
 
     /** @return array<string, mixed> */
     public function getWorkspace(): array
@@ -58,6 +127,42 @@ final class MarketingEmailWorkspaceService
         ];
     }
 
+    /** Upload into the existing tenant library; selecting does not approve delivery. */
+    public function uploadAttachment(stdClass $input): array
+    {
+        $this->tenantContextStore->require();
+        $this->requireAccess(Table::ACTION_READ);
+        if (!$this->canWrite(Table::ACTION_CREATE) && !$this->canWrite(Table::ACTION_EDIT)) throw new Forbidden('Marketing email editing is not allowed.');
+        if (!$this->acl->checkField('EmailTemplate', 'attachments') || !$this->acl->checkField('EmailTemplate', 'attachments', Table::ACTION_EDIT)) throw new Forbidden('Template attachment editing is not allowed.');
+        $encoded = $input->data ?? null;
+        $name = $input->name ?? null;
+        $type = $input->mimeType ?? null;
+        if (!is_string($encoded) || !is_string($name) || !is_string($type) || strlen($encoded) > 4 * (int) ceil(\Espo\Custom\Tools\MarketingEmail\Delivery\DeliveryAttachment::MAX_BYTES / 3)) throw new BadRequest('Choose a supported marketing attachment no larger than 5 MB.');
+        $contents = base64_decode($encoded, true);
+        if ($contents === false) throw new BadRequest('The attachment payload is invalid.');
+        try { new \Espo\Custom\Tools\MarketingEmail\Delivery\DeliveryAttachment($name, $type, $contents); }
+        catch (\InvalidArgumentException $error) { throw new BadRequest($error->getMessage()); }
+        return $this->fileLibrary->uploadFile($name, $type, $encoded);
+    }
+
+    /** Read a reusable native template without copying files or creating a draft. */
+    public function reusableTemplate(string $id): array
+    {
+        $this->requireAccess(Table::ACTION_READ);
+        if (!$this->user->isAdmin()) throw new Forbidden('Only tenant administrators can configure marketing email.');
+        $context = $this->tenantContextStore->require();
+        $template = $this->recordServices->get('EmailTemplate')->getEntity($id);
+        if (!$template instanceof \Espo\Entities\EmailTemplate || $template->get('tenantId') !== $context->tenantId || $template->get('serviceId') !== $context->serviceId) throw new NotFound('Email template not found.');
+        foreach (['name', 'subject', 'body', 'isHtml'] as $field) {
+            if (!$this->acl->checkField('EmailTemplate', $field)) throw new Forbidden('Template content is not available.');
+        }
+        $ids = $this->attachments->templateIds($template);
+        $this->images->manifest((string) $template->get('body'));
+        if ($ids && !$this->acl->checkField('EmailTemplate', 'attachments', Table::ACTION_EDIT)) throw new Forbidden('Template attachment editing is not allowed.');
+        $files = array_map(static function ($file) { unset($file['sha256']); return $file; }, $this->attachments->manifest($ids));
+        return ['id' => $id, 'name' => $template->get('name'), 'subject' => $template->get('subject'), 'body' => $template->get('body'), 'isHtml' => $template->get('isHtml'), 'attachments' => $files];
+    }
+
     /** @return array<string, mixed> */
     public function save(stdClass $input, ?string $id = null): array
     {
@@ -81,6 +186,7 @@ final class MarketingEmailWorkspaceService
             if (!is_array($attachmentIds)) throw new BadRequest('Invalid attachment selection.');
             if (isset($input->attachmentsIds) && !$this->acl->checkField('EmailTemplate', 'attachments', Table::ACTION_EDIT)) throw new Forbidden('Template attachment editing is not allowed.');
             $manifest = $this->attachments->manifest($attachmentIds);
+            $imageManifest = $this->images->manifest($data['bodyHtml']);
             $attachmentIds = $this->attachments->copyForTemplate($attachmentIds);
             if ($isNew) {
                 $template = $this->recordServices->get('EmailTemplate')->create((object) [
@@ -120,7 +226,7 @@ final class MarketingEmailWorkspaceService
 
             $this->insertVersion($context, (string) $id, $version, $templateId, $data);
             $manifest = $this->attachments->manifest($this->attachments->templateIds($this->entityManager->getEntityById('EmailTemplate', $templateId)));
-            $this->insertEvent($context, (string) $id, $isNew ? 'created' : 'updated', $version, ['nativeId' => $nativeId, 'attachments' => $manifest]);
+            $this->insertEvent($context, (string) $id, $isNew ? 'created' : 'updated', $version, ['nativeId' => $nativeId, 'attachments' => $manifest, 'images' => $imageManifest]);
             if ($ownsTransaction) $pdo->commit();
         } catch (\Throwable $e) {
             if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
@@ -151,16 +257,19 @@ final class MarketingEmailWorkspaceService
             if ($next === null) throw new BadRequest('This email cannot make the requested status change.');
             if ($action === 'approve' && !$this->user->isAdmin()) throw new Forbidden('Only tenant administrators can approve marketing email.');
             $manifest = [];
+            $imageManifest = [];
             if ($action === 'approve') {
                 $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
                 if (!$template instanceof \Espo\Entities\EmailTemplate) throw new NotFound('Email template not found.');
                 $manifest = $this->attachments->manifest($this->attachments->templateIds($template));
                 if ($manifest !== $this->attachments->versionManifest($id, (int) $profile['version_number'])) throw new BadRequest('Attachments changed since the draft was saved. Save the draft again before approval.');
+                $imageManifest = $this->images->manifest((string) $template->get('body'));
+                if ($imageManifest !== $this->images->versionManifest($id, (int) $profile['version_number'])) throw new BadRequest('Hosted images changed since the draft was saved. Save the draft again before approval.');
             }
 
             $statement = $this->entityManager->getPDO()->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status=?,submitted_by_id=IF(?='review',?,submitted_by_id),submitted_at=IF(?='review',NOW(6),submitted_at),approved_by_id=IF(?='approved',?,NULL),approved_at=IF(?='approved',NOW(6),NULL),modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?");
             $statement->execute([$next, $next, $this->user->getId(), $next, $next, $this->user->getId(), $next, $this->user->getId(), $id, $context->tenantId, $context->serviceId]);
-            $this->insertEvent($context, $id, $next, (int) $profile['version_number'], ['previousStatus' => $current, 'attachments' => $manifest]);
+            $this->insertEvent($context, $id, $next, (int) $profile['version_number'], ['previousStatus' => $current, 'attachments' => $manifest, 'images' => $imageManifest]);
             if ($ownsTransaction) $pdo->commit();
             return ['id' => $id, 'status' => $next];
         } catch (\Throwable $error) {
@@ -366,6 +475,7 @@ final class MarketingEmailWorkspaceService
             $manifest = $this->attachments->versionManifest($id, $version);
             $input->attachmentsIds = array_column($manifest, 'id');
             if ($this->attachments->manifest($input->attachmentsIds) !== $manifest) throw new BadRequest('Historical attachments changed or are unavailable. The version cannot be restored.');
+            if ($this->images->manifest((string) $input->bodyHtml) !== $this->images->versionManifest($id, $version)) throw new BadRequest('Historical hosted images changed or are unavailable. The version cannot be restored.');
             $result = $this->save($input, $id);
             $this->insertEvent($context, $id, 'version_restored', $result['version'], ['sourceVersion'=>$version]);
             if ($ownsTransaction) $pdo->commit();

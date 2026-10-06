@@ -41,6 +41,7 @@ final class MarketingDispatchService
         private \Espo\Core\Acl $acl,
         private \Espo\Modules\Crm\Tools\MassEmail\QueueCreator $queueCreator,
         private MarketingAttachmentService $attachments,
+        private MarketingImageService $images,
     ) {}
 
     /** @return array{id:string,status:string,eligibleCount:int,scheduledAt:string} */
@@ -64,6 +65,7 @@ final class MarketingDispatchService
         $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
         if (!$template instanceof EmailTemplate) throw new NotFound('Email template not found.');
         $this->attachments->approvedFiles($profile, $template, true);
+        $this->images->requireApproved($profile, $template);
         $eligibleCount = $this->eligibleCount($context, $profile);
         if ($eligibleCount === 0) {
             throw new BadRequest('No contacts are currently eligible for this marketing email.');
@@ -222,6 +224,7 @@ final class MarketingDispatchService
             if (!$massEmail instanceof MassEmail || !$template instanceof EmailTemplate || !$this->acl->checkEntity($template, 'read')) throw new NotFound('Email template not found.');
             if (!$this->acl->checkField('EmailTemplate', 'subject') || !$this->acl->checkField('EmailTemplate', 'body')) throw new Forbidden('Email content is not available for test delivery.');
             $testAttachments = $this->attachments->approvedFiles($profile, $template, true);
+            $this->images->requireApproved($profile, $template);
             $this->queueCreator->create($massEmail, true, [$this->user]);
             $queue = $pdo->prepare("SELECT id FROM email_queue_item WHERE mass_email_id=? AND tenant_id=? AND service_id=? AND is_test=1 AND target_type='User' AND target_id=? AND status='Pending' AND deleted=0 ORDER BY created_at DESC,id DESC LIMIT 1");
             $queue->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId, $this->user->getId()]);
@@ -378,6 +381,7 @@ final class MarketingDispatchService
     {
         // Tests retain the exact bytes validated before reserving delivery capacity.
         $files = $validatedAttachments ?? $this->attachments->approvedFiles($profile, $template, $testUser !== null);
+        $this->images->requireApproved($profile, $template);
         $recipient = $testUser ? ['email' => $testUser->get('emailAddress')] : $this->eligibleRecipient($context, $profile, $contactId);
         if ($recipient === null) {
             $this->markQueueFailed($context, $queueItemId, 'Recipient became ineligible before delivery.');

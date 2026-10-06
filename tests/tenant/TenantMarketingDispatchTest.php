@@ -47,9 +47,11 @@ $attachmentFixtures = [];
 $attachmentCleanup = [];
 $attachmentGovernance = defined('NEXA_MARKETING_ATTACHMENT_GOVERNANCE_TEST');
 $attachmentDelivery = defined('NEXA_MARKETING_ATTACHMENT_DELIVERY_TEST');
+$imageGovernance = defined('NEXA_MARKETING_IMAGE_GOVERNANCE_TEST');
+$hostedPublication = null;
 
 try {
-    if ($postalCapture) {
+    if ($postalCapture || $imageGovernance) {
         // Isolate worker execution from pre-existing schedules, within this rollback-only fixture.
         $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='paused' WHERE tenant_id=? AND service_id=? AND lifecycle_status IN ('scheduled','sending')")->execute([$tenantA->tenantId, $tenantA->serviceId]);
     }
@@ -94,17 +96,52 @@ try {
     $assert($enrollment['eligibleCount'] === 1, 'The dispatcher fixture did not produce one eligible recipient.');
 
     if ($attachmentGovernance || $attachmentDelivery) {
+        if ($attachmentGovernance) {
+            foreach ([
+                ['name' => 'bad.exe', 'mimeType' => 'text/plain', 'data' => base64_encode('Not allowed')],
+                ['name' => 'bad.txt', 'mimeType' => 'image/png', 'data' => base64_encode('Wrong MIME')],
+                ['name' => 'empty.txt', 'mimeType' => 'text/plain', 'data' => ''],
+                ['name' => 'bad.txt', 'mimeType' => 'text/plain', 'data' => '%%%invalid%%%'],
+                ['name' => 'large.txt', 'mimeType' => 'text/plain', 'data' => str_repeat('A', 4 * (int) ceil(5 * 1024 * 1024 / 3) + 4)],
+            ] as $invalidUpload) {
+                $blocked = false;
+                try { $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->uploadAttachment((object) $invalidUpload)); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+                $assert($blocked, 'Unsafe marketing upload must be rejected before storage.');
+            }
+            $user = $container->getByClass(\Espo\Entities\User::class);
+            $originalType = $user->get('type');
+            try {
+                $user->set('type', 'regular');
+                $blocked = false;
+                try { $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->uploadAttachment((object) ['name' => 'blocked.txt', 'mimeType' => 'text/plain', 'data' => base64_encode('Blocked upload')])); } catch (\Espo\Core\Exceptions\Forbidden) { $blocked = true; }
+                $assert($blocked, 'Non-administrators must not upload marketing attachments.');
+            } finally { $user->set('type', $originalType); }
+        }
         foreach ([$tenantA, $tenantB] as $tenant) {
-            $file = $store->runWith($tenant, fn () => $factory->create(\Espo\Custom\Tools\TenantFile\TenantImageLibrary::class)->uploadFile('marketing-guide.txt', 'text/plain', base64_encode("Approved marketing guide.\n")));
+            $file = $store->runWith($tenant, fn () => $factory->create(MarketingEmailWorkspaceService::class)->uploadAttachment((object) ['name' => 'marketing-guide.txt', 'mimeType' => 'text/plain', 'data' => base64_encode("Approved marketing guide.\n")]));
             $attachmentFixtures[] = $store->runWith($tenant, fn () => $entityManager->getEntityById('Attachment', $file['id']));
             $attachmentCleanup[] = ['tenant' => $tenant, 'attachment' => end($attachmentFixtures)];
         }
+    }
+    if ($imageGovernance) {
+        $encoded = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+        $file = $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\TenantFile\TenantImageLibrary::class)->uploadFile('dispatch-image.png', 'image/png', $encoded));
+        $attachment = $store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $file['id']));
+        $attachmentCleanup[] = ['tenant'=>$tenantA,'attachment'=>$attachment];
+        $document = $store->runWith($tenantA, fn () => $services->get('Document')->create((object) ['name'=>'Dispatch image','fileId'=>$file['id'],'publishDate'=>gmdate('Y-m-d')], CreateParams::create()));
+        $assetId = 'dispatch-' . bin2hex(random_bytes(12));
+        $pdo->prepare('INSERT INTO nexa_asset_profile (id,tenant_id,service_id,current_attachment_id,document_id,display_name,access_scope) VALUES (?,?,?,?,?,?,?)')->execute([$assetId,$tenantA->tenantId,$tenantA->serviceId,$file['id'],$document->getId(),'Dispatch image','public']);
+        $hostedPublication = $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingImageService::class)->publish((object) ['assetId'=>$assetId,'confirmPublicCopy'=>true]));
+        $publicationId = substr($hostedPublication['id'], 5);
+        $query = $pdo->prepare('SELECT attachment_id FROM nexa_marketing_image_publication WHERE id=?'); $query->execute([$publicationId]);
+        $snapshotId = $query->fetchColumn();
+        $attachmentCleanup[] = ['tenant'=>$tenantA,'attachment'=>$store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $snapshotId))];
     }
     $draft = $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->save((object) [
         'name' => 'Governed dispatcher email', 'campaignId' => $campaign['id'], 'purposeId' => $purposeId,
         'subject' => $postalCapture ? 'Nexa governed Postal ' . bin2hex(random_bytes(8)) : 'Governed delivery test',
         'fromAddress' => $postalCapture ? $postalSettings['sender'] : 'news@example.test', 'fromName' => 'Example team',
-        'bodyHtml' => '<p>Hello {Contact.firstName},</p><p>Dispatcher test.</p>',
+        'bodyHtml' => '<p>Hello {Contact.firstName},</p><p>Dispatcher test.</p>' . ($hostedPublication ? '<img src="' . htmlspecialchars($hostedPublication['url'], ENT_QUOTES) . '">' : ''),
         'preheader' => 'Preview for {Contact.firstName} <offer>',
         'startAt' => gmdate('Y-m-d H:i:s', time() + 3600),
         ...(($attachmentGovernance || $attachmentDelivery) ? ['attachmentsIds' => [$attachmentFixtures[0]->getId()]] : []),
@@ -127,6 +164,16 @@ try {
         $assert($blocked, 'Files changed since saving must not be approved.');
         $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['marketing-guide.txt', $attachmentFixtures[0]->getId(), $tenantA->tenantId, $tenantA->serviceId]);
     }
+    if ($imageGovernance) {
+        $savedImages = $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingImageService::class)->versionManifest($draft['id'], 1));
+        $assert(count($savedImages) === 1, 'Saved image URLs must be included in version evidence.');
+        $pdo->prepare("UPDATE nexa_marketing_image_publication SET status='revoked' WHERE id=?")->execute([$publicationId]);
+        $blocked = false;
+        try {$store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->transition($draft['id'], (object) ['action'=>'approve']));}
+        catch (\Espo\Core\Exceptions\BadRequest) {$blocked = true;}
+        $assert($blocked, 'A revoked image must block native marketing approval.');
+        $pdo->prepare("UPDATE nexa_marketing_image_publication SET status='published' WHERE id=?")->execute([$publicationId]);
+    }
     $store->runWith($tenantA, fn (): array => $factory->create(MarketingEmailWorkspaceService::class)->transition((string) $draft['id'], (object) ['action' => 'approve']));
     if ($attachmentGovernance) {
         $templateQuery = $pdo->prepare('SELECT email_template_id FROM mass_email WHERE id=?');
@@ -135,6 +182,12 @@ try {
         $template = $store->runWith($tenantA, fn () => $entityManager->getEntityById('EmailTemplate', $templateId));
         $files = $store->runWith($tenantA, fn () => $attachmentService->approvedFiles(['id' => $draft['id'], 'version_number' => 1], $template, true));
         $assert(count($files) === 1 && $files[0]->contents === "Approved marketing guide.\n", 'Native template files must match approval checksums.');
+        $reusable = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->reusableTemplate($templateId));
+        $assert(count($reusable['attachments']) === 1 && $reusable['attachments'][0]['name'] === 'marketing-guide.txt' && !isset($reusable['attachments'][0]['sha256']), 'Reusable templates must expose validated file metadata without private checksums.');
+        $blocked = false;
+        try { $store->runWith($tenantB, fn () => $factory->create(MarketingEmailWorkspaceService::class)->reusableTemplate($templateId)); } catch (\Espo\Core\Exceptions\NotFound|\Espo\Core\Exceptions\Forbidden) { $blocked = true; }
+        $assert($blocked, 'Another tenant must not load reusable template content or files.');
+        $assert($template->get('name') === $reusable['name'], 'Staging a template must not modify its source record.');
         $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['changed-guide.txt', $attachmentFixtures[0]->getId(), $tenantA->tenantId, $tenantA->serviceId]);
         $blocked = false;
         try { $store->runWith($tenantA, fn () => $attachmentService->approvedFiles(['id' => $draft['id'], 'version_number' => 1], $template, true)); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
@@ -143,7 +196,19 @@ try {
         $restored = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->restoreVersion($draft['id'], 1));
         $assert($restored['version'] === 2 && count($store->runWith($tenantA, fn () => $attachmentService->versionManifest($draft['id'], 2))) === 1, 'Restoring a version must preserve its attachments in a fresh draft.');
         foreach ($store->runWith($tenantA, fn () => $attachmentService->versionManifest($draft['id'], 2)) as $file) $attachmentCleanup[] = ['tenant' => $tenantA, 'attachment' => $store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $file['id']))];
-        echo "Tenant marketing attachment selection, approval and restoration passed.\n";
+        $reusable = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->reusableTemplate($templateId));
+        $applied = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->save((object) [
+            'name' => 'Reusable attachment draft', 'campaignId' => $campaign['id'], 'purposeId' => $purposeId,
+            'subject' => $reusable['subject'], 'bodyHtml' => $reusable['body'], 'fromAddress' => 'news@example.test',
+            'attachmentsIds' => array_column($reusable['attachments'], 'id'),
+            'startAt' => gmdate('Y-m-d H:i:s', time() + 3600),
+        ]));
+        $appliedFiles = $store->runWith($tenantA, fn () => $attachmentService->versionManifest($applied['id'], 1));
+        foreach ($appliedFiles as $file) $attachmentCleanup[] = ['tenant' => $tenantA, 'attachment' => $store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $file['id']))];
+        $assert(count($appliedFiles) === 1 && $appliedFiles[0]['id'] !== $reusable['attachments'][0]['id'] && $appliedFiles[0]['sha256'] === $manifest[0]['sha256'], 'Applying a reusable template must create independent native attachment relationships with the same validated bytes.');
+        $sourceAfter = $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->reusableTemplate($templateId));
+        $assert($sourceAfter === $reusable, 'Applying and saving must not change the reusable source template.');
+        echo "Tenant marketing attachment selection, template application, approval and restoration passed.\n";
         return;
     }
 
@@ -232,6 +297,36 @@ try {
         return;
     }
 
+    if ($attachmentDelivery) {
+        $sourceQuery = $pdo->prepare('SELECT email_template_id FROM mass_email WHERE id=?');
+        $sourceQuery->execute([$draft['massEmailId']]);
+        $template = $store->runWith($tenantA, fn () => $entityManager->getEntityById('EmailTemplate', $sourceQuery->fetchColumn()));
+        $attachmentId = $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingAttachmentService::class)->templateIds($template))[0];
+        $usageCheck = $pdo->prepare("SELECT COALESCE(SUM(accepted_count),0) FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
+        $usageCheck->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $uncharged = (int) $usageCheck->fetchColumn();
+        $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['changed-after-approval.txt', $attachmentId, $tenantA->tenantId, $tenantA->serviceId]);
+        $blocked = false;
+        try { $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->schedule($draft['id'])); } catch (\Espo\Core\Exceptions\BadRequest) { $blocked = true; }
+        $assert($blocked, 'A changed attachment must block scheduling before any queue reservation or provider submission.');
+        $usageCheck->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $usageCheck->fetchColumn() === $uncharged, 'Attachment preflight rejection must not charge the monthly allowance.');
+        $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['marketing-guide.txt', $attachmentId, $tenantA->tenantId, $tenantA->serviceId]);
+    }
+    if ($imageGovernance) {
+        $approvedImages = $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingImageService::class)->versionManifest($draft['id'], 1, true));
+        $assert($approvedImages === $savedImages, 'Approval must preserve the saved image checksum evidence.');
+        $usageCheck = $pdo->prepare("SELECT COALESCE(SUM(accepted_count),0) FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
+        $usageCheck->execute([$tenantA->tenantId,$tenantA->serviceId]); $uncharged = (int) $usageCheck->fetchColumn();
+        $pdo->prepare('UPDATE nexa_marketing_image_publication SET checksum_sha256=? WHERE id=?')->execute([str_repeat('0',64),$publicationId]);
+        $blocked = false;
+        try {$store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->schedule($draft['id']));}
+        catch (\Espo\Core\Exceptions\BadRequest) {$blocked = true;}
+        $assert($blocked, 'Image corruption must block scheduling before queue creation.');
+        $usageCheck->execute([$tenantA->tenantId,$tenantA->serviceId]);
+        $assert((int) $usageCheck->fetchColumn() === $uncharged, 'An image preflight failure must not charge monthly allowance.');
+        $pdo->prepare('UPDATE nexa_marketing_image_publication SET checksum_sha256=? WHERE id=?')->execute([$savedImages[0]['sha256'],$publicationId]);
+    }
     $scheduled = $store->runWith($tenantA, fn (): array => $factory->create(MarketingDispatchService::class)->schedule((string) $draft['id']));
     $assert($scheduled['status'] === 'scheduled' && $scheduled['eligibleCount'] === 1, 'The approved email was not scheduled with its eligible audience.');
     $profile = $pdo->prepare('SELECT lifecycle_status FROM nexa_marketing_email_profile WHERE id=? AND tenant_id=? AND service_id=?');
@@ -252,6 +347,38 @@ try {
     $assert($blocked, 'Another tenant must not resume this email.');
     $resumed = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->control((string) $draft['id'], 'resume'));
     $assert($resumed['status'] === 'scheduled', 'A paused schedule must resume without recreating its queue.');
+    if ($imageGovernance) {
+        $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingImageService::class)->revoke($hostedPublication['id']));
+        $pdo->prepare('UPDATE mass_email SET start_at=? WHERE id=? AND tenant_id=? AND service_id=?')->execute([gmdate('Y-m-d H:i:s', time()-60),$draft['massEmailId'],$tenantA->tenantId,$tenantA->serviceId]);
+        $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+        $profile->execute([$draft['id'],$tenantA->tenantId,$tenantA->serviceId]);
+        $assert($profile->fetchColumn() === 'failed', 'Revoking a scheduled image must fail the campaign before provider submission.');
+        $query = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_delivery_message WHERE profile_id=? AND tenant_id=? AND service_id=?');
+        $query->execute([$draft['id'],$tenantA->tenantId,$tenantA->serviceId]);
+        $assert((int) $query->fetchColumn() === 0, 'Revoked image delivery must not produce provider submissions.');
+        $usageCheck->execute([$tenantA->tenantId,$tenantA->serviceId]);
+        $assert((int) $usageCheck->fetchColumn() === $uncharged, 'Revocation before dispatch must not consume monthly allowance.');
+        echo "Hosted image approval, scheduling and worker-failure tests passed.\n";
+        return;
+    }
+
+    if (defined('NEXA_MARKETING_ATTACHMENT_SCHEDULED_FAILURE_TEST')) {
+        $pdo->prepare('UPDATE attachment SET name=? WHERE id=? AND tenant_id=? AND service_id=?')->execute(['changed-after-scheduling.txt', $attachmentId, $tenantA->tenantId, $tenantA->serviceId]);
+        $pdo->prepare('UPDATE mass_email SET start_at=? WHERE id=? AND tenant_id=? AND service_id=?')->execute([gmdate('Y-m-d H:i:s', time() - 60), $draft['massEmailId'], $tenantA->tenantId, $tenantA->serviceId]);
+        $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+        $profile->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $assert($profile->fetchColumn() === 'failed', 'A changed scheduled attachment must fail the campaign before provider submission.');
+        $submissionCheck = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_delivery_message WHERE profile_id=? AND tenant_id=? AND service_id=?');
+        $submissionCheck->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $submissionCheck->fetchColumn() === 0, 'A failed attachment preflight must not create a provider submission reservation.');
+        $usageCheck->execute([$tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $usageCheck->fetchColumn() === $uncharged, 'Post-scheduling attachment changes must not consume monthly allowance.');
+        $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class)->runScheduled());
+        $submissionCheck->execute([$draft['id'], $tenantA->tenantId, $tenantA->serviceId]);
+        $assert((int) $submissionCheck->fetchColumn() === 0, 'The failed campaign must not silently retry on the next worker run.');
+        echo "Scheduled attachment integrity failure, no-send and no-charge acceptance passed.\n";
+        return;
+    }
 
     if ($postalCapture) {
         $usage = $pdo->prepare("SELECT COALESCE(SUM(accepted_count),0) FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
@@ -296,6 +423,12 @@ try {
                 $assert(str_contains($detail['HTML'] ?? '', 'data-nexa-preheader="true"'), 'The inbox preheader must be included in delivered HTML.');
                 $assert(str_contains($detail['HTML'] ?? '', 'Preview for Governed &lt;offer&gt;'), 'The preheader must use native personalization and escape markup.');
                 $assert(!str_contains($detail['Text'] ?? '', 'Preview for'), 'The hidden inbox preheader must not pollute the text alternative.');
+                if ($attachmentDelivery) {
+                    $assert(count($detail['Attachments'] ?? []) === 1 && ($detail['Attachments'][0]['FileName'] ?? '') === 'marketing-guide.txt', 'Scheduled campaign delivery must include the approved attachment exactly once.');
+                    $assert(($detail['To'][0]['Address'] ?? '') === 'governed-recipient@example.test', 'Only the synthetic consented campaign Contact may receive the capture message.');
+                    $raw = file_get_contents('http://localhost:8026/api/v1/message/' . rawurlencode($mail['ID']) . '/raw');
+                    $assert(str_contains($raw, base64_encode("Approved marketing guide.\n")) || str_contains($raw, 'Approved marketing guide.'), 'Campaign attachment bytes must match the approved fixture.');
+                }
                 if (defined('NEXA_POSTAL_PLAIN_TEXT_ACCEPTANCE') && NEXA_POSTAL_PLAIN_TEXT_ACCEPTANCE === true) {
                     $assert(str_contains($detail['Text'] ?? '', '<customer>'), 'Native plain-text content must remain literal.');
                     $assert(str_contains($detail['HTML'] ?? '', '&lt;customer&gt;'), 'Native plain-text markup must be escaped in the HTML counterpart.');

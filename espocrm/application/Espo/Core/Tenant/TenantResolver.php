@@ -194,6 +194,19 @@ final class TenantResolver
         return count($rows) === 1 ? $this->contextFromRow($rows[0], 'landing-page') : null;
     }
 
+    public function resolveMarketingImageToken(string $token): ?TenantContext
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/', $token)) return null;
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT DISTINCT t.id,t.slug,t.display_name,ts.service_id FROM nexa_marketing_image_publication p ' .
+            'INNER JOIN nexa_tenant t ON t.id=p.tenant_id ' . $this->crmServiceJoin() .
+            "WHERE p.public_token=:token AND p.status='published' AND p.service_id=ts.service_id AND t.status=:tenantStatus LIMIT 2"
+        );
+        $statement->execute(['token'=>$token,'tenantStatus'=>'active','tenantServiceStatus'=>'active','serviceStatus'=>'active','serviceKey'=>'crm']);
+        $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
+        return count($rows) === 1 ? $this->contextFromRow($rows[0], 'marketing-image') : null;
+    }
+
     private function crmServiceJoin(): string
     {
         return 'INNER JOIN nexa_tenant_service ts ON ts.tenant_id = t.id AND ts.status = :tenantServiceStatus ' .

@@ -13,6 +13,9 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
 
     afterRender() {
         super.afterRender();
+        const upload = this.element.querySelector('[data-nexa-file-upload]');
+        if (this.options.accept) upload.accept = this.options.accept;
+        if (this.options.helpText) this.element.querySelector('.nexa-image-library-meta span').textContent = this.options.helpText;
         if (this.options.selectOnly) {
             this.element.querySelector('[data-nexa-file-upload]').closest('label').style.display = 'none';
             this.element.querySelector('.nexa-image-library-meta span').textContent = 'Choose an existing tenant file';
@@ -32,13 +35,17 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
             event.target.value = '';
             if (!file) return;
             const isImage = /^image\//i.test(file.type) || /\.(?:png|jpe?g|gif|webp)$/i.test(file.name);
-            const maxSize = isImage ? 8 * 1024 * 1024 : 25 * 1024 * 1024;
+            const maxSize = this.options.maxFileSize || (isImage ? 8 * 1024 * 1024 : 25 * 1024 * 1024);
             if (file.size > maxSize) {
-                this.showError(isImage ? 'Images cannot be larger than 8 MB.' : 'Files cannot be larger than 25 MB.');
+                this.showError(this.options.maxFileSize ? `Files cannot be larger than ${Math.round(maxSize / 1024 / 1024)} MB.` : (isImage ? 'Images cannot be larger than 8 MB.' : 'Files cannot be larger than 25 MB.'));
                 return;
             }
             if (!/\.(?:pdf|docx?|xlsx?|pptx?|csv|txt|rtf|zip|png|jpe?g|gif|webp)$/i.test(file.name)) {
                 this.showError('Choose a supported image, PDF, Office, CSV, TXT, RTF or ZIP file.');
+                return;
+            }
+            if (this.options.accept && !this.options.accept.split(',').some(extension => file.name.toLowerCase().endsWith(extension.trim().toLowerCase()))) {
+                this.showError('Choose a supported file type.');
                 return;
             }
             this.trigger('upload', file);

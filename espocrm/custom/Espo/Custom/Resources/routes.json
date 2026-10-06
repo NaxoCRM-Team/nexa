@@ -768,6 +768,36 @@
         "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostStatus"
     },
     {
+        "route": "/Nexa/marketing-email-attachments",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostAttachment"
+    },
+    {
+        "route": "/Nexa/marketing-email-images",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDesignerImage"
+    },
+    {
+        "route": "/Nexa/marketing-email-images/:id/revoke",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostRevokeImage"
+    },
+    {
+        "route": "/Nexa/marketing-email-images",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDesignerImages"
+    },
+    {
+        "route": "/Nexa/marketing-email-images/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDesignerImages"
+    },
+    {
+        "route": "/Nexa/marketing-email-templates/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetReusableTemplate"
+    },
+    {
         "route": "/Nexa/marketing-emails/preview",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostPreview"

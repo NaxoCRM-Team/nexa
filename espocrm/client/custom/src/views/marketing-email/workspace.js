@@ -9,6 +9,9 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         'click [data-action="schedule-email"]': 'scheduleEmail',
         'click [data-action="test-email"]': 'chooseTestContact',
         'click [data-action="content-mode"]': 'toggleContentMode',
+        'click [data-action="open-block-designer"]': 'openBlockDesigner',
+        'click [data-action="close-block-designer"]': 'closeBlockDesigner',
+        'click [data-action="apply-block-design"]': 'applyBlockDesign',
         'click [data-action="choose-attachment"]': 'chooseAttachment',
         'click [data-action="remove-attachment"]': 'removeAttachment',
         'click [data-action="control-delivery"]': 'controlDelivery',
@@ -241,12 +244,12 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     async loadEmailTemplate(id) {
         const request = this.templateRequest = (this.templateRequest || 0) + 1;
         try {
-            const template = await Espo.Ajax.getRequest(`EmailTemplate/${encodeURIComponent(id)}`);
+            const template = await Espo.Ajax.getRequest(`Nexa/marketing-email-templates/${encodeURIComponent(id)}`);
             if (request !== this.templateRequest || this.element.querySelector('[data-email-editor]').hidden) return;
-            if (template.attachmentsIds?.length) throw new Error('This template includes attachments. Attachment copying is not supported in marketing email yet.');
             if (typeof template.body !== 'string' || !template.body.trim()) throw new Error('The template has no accessible content.');
             this.pendingTemplate = {id, name: template.name || 'Email template', subject: template.subject || '',
-                bodyHtml: template.isHtml === false ? `<p>${this.escape(template.body).replace(/\r?\n/g, '<br>')}</p>` : template.body};
+                bodyHtml: template.isHtml === false ? `<p>${this.escape(template.body).replace(/\r?\n/g, '<br>')}</p>` : template.body,
+                attachments: template.attachments || []};
             this.renderContentPreview();
         } catch (error) { Espo.Ui.error(error?.message || 'The template could not be loaded.'); }
     }
@@ -254,6 +257,8 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         if (!this.pendingTemplate) return;
         const form = this.element.querySelector('[data-email-form]');
         form.elements.subject.value = this.pendingTemplate.subject; form.elements.bodyHtml.value = this.pendingTemplate.bodyHtml;
+        this.selectedAttachments = [...(this.pendingTemplate.attachments || [])];
+        this.renderAttachments();
         this.contentRichDirty = false;
         this.contentModel?.set('body', this.pendingTemplate.bodyHtml);
         this.pendingTemplate = null; this.recipientPreview = null; this.previewRequest = (this.previewRequest || 0) + 1;
@@ -261,6 +266,99 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         (this.contentSourceMode || !this.contentEditor ? form.elements.bodyHtml : form.querySelector('.note-editable'))?.focus();
     }
     cancelEmailTemplate() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.renderContentPreview(); }
+    openBlockDesigner() {
+        if (this.attachmentUploading || this.blockDesigner) return;
+        this.syncRichContent();
+        const form = this.element.querySelector('[data-email-form]');
+        const overlay = document.createElement('section');
+        overlay.className = 'nexa-block-designer'; overlay.dataset.blockDesigner = '';
+        overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'nexa-block-designer-title');
+        overlay.innerHTML = '<header><h2 id="nexa-block-designer-title">Email designer</h2><span data-designer-status role="status">Loading designer</span><button type="button" class="btn btn-primary" data-action="apply-block-design" disabled><span class="fas fa-check" aria-hidden="true"></span>Apply design</button><button type="button" class="btn btn-icon" data-action="close-block-designer" title="Cancel design" aria-label="Cancel design"><span class="fas fa-times" aria-hidden="true"></span></button></header><iframe title="Email block designer" sandbox="allow-scripts allow-same-origin"></iframe>';
+        this.element.append(overlay);
+        const frame = overlay.querySelector('iframe');
+        const session = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+        const origin = location.origin;
+        const draftGeneration = this.contentEditorRequest;
+        this.blockDesigner = {overlay, frame, session, draftGeneration};
+        this.blockDesigner.timer = setTimeout(() => {
+            if (this.blockDesigner?.session === session) overlay.querySelector('[data-designer-status]').textContent = 'Designer unavailable. Close and try again.';
+        }, 15000);
+        overlay.addEventListener('keydown', event => {if (event.key === 'Escape') {event.preventDefault(); this.closeBlockDesigner();}});
+        this.blockDesignerListener = event => {
+            if (!this.blockDesigner || event.source !== frame.contentWindow || event.origin !== origin || event.data?.session !== session) return;
+            if (draftGeneration !== this.contentEditorRequest || this.element.querySelector('[data-email-editor]').hidden) return this.closeBlockDesigner();
+            if (event.data.type === 'nexa-email-designer-ready') {
+                clearTimeout(this.blockDesigner.timer);
+                overlay.querySelector('[data-designer-status]').textContent = '';
+                overlay.querySelector('[data-action="apply-block-design"]').disabled = false;
+            }
+            if (event.data.type === 'nexa-email-designer-error') {
+                const revoked = event.data.reason === 'revoked-image';
+                overlay.querySelector('[data-designer-status]').textContent = revoked ? 'Remove the revoked image' : 'Designer unavailable';
+                Espo.Ui.error(revoked ? 'Remove the revoked email image before applying this design. Your saved draft is unchanged.' : 'The design could not be loaded or exported. Your draft is unchanged.');
+            }
+            if (event.data.type === 'nexa-email-designer-cancel') this.closeBlockDesigner();
+            if (event.data.type === 'nexa-email-designer-image-publish' && typeof event.data.assetId === 'string' && typeof event.data.id === 'string') {
+                Espo.Ajax.postRequest('Nexa/marketing-email-images', {assetId: event.data.assetId, confirmPublicCopy: true}).then(image => {
+                    if (this.blockDesigner?.session !== session || draftGeneration !== this.contentEditorRequest) return;
+                    frame.contentWindow.postMessage({type: 'nexa-email-designer-image-result', session, image, requestedId: event.data.id}, origin);
+                }).catch(() => {
+                    if (this.blockDesigner?.session === session) frame.contentWindow.postMessage({type: 'nexa-email-designer-image-error', session}, origin);
+                });
+            }
+            if (event.data.type === 'nexa-email-designer-image-revoke' && typeof event.data.id === 'string') {
+                Espo.Ajax.postRequest(`Nexa/marketing-email-images/${encodeURIComponent(event.data.id)}/revoke`, {}).then(() => {
+                    if (this.blockDesigner?.session === session && draftGeneration === this.contentEditorRequest) {
+                        frame.contentWindow.postMessage({type: 'nexa-email-designer-image-revoked', session, id: event.data.id}, origin);
+                    }
+                }).catch(() => {
+                    if (this.blockDesigner?.session === session) frame.contentWindow.postMessage({type: 'nexa-email-designer-image-error', session}, origin);
+                });
+            }
+            if (event.data.type === 'nexa-email-designer-image' && typeof event.data.id === 'string') {
+                Espo.Ajax.getRequest(`Nexa/marketing-email-images/${encodeURIComponent(event.data.id)}`).then(image => {
+                    if (this.blockDesigner?.session !== session || draftGeneration !== this.contentEditorRequest) return;
+                    frame.contentWindow.postMessage({type: 'nexa-email-designer-image-result', session, image}, origin);
+                }).catch(() => {
+                    if (this.blockDesigner?.session === session) frame.contentWindow.postMessage({type: 'nexa-email-designer-image-error', session}, origin);
+                });
+            }
+            if (event.data.type === 'nexa-email-designer-content' && typeof event.data.html === 'string' && event.data.html.length <= 2_000_000) {
+                if (draftGeneration !== this.contentEditorRequest || this.element.querySelector('[data-email-editor]').hidden) return this.closeBlockDesigner();
+                form.elements.bodyHtml.value = event.data.html;
+                this.contentModel?.set('body', event.data.html); this.contentRichDirty = false;
+                this.contentChanged(); this.closeBlockDesigner();
+            }
+        };
+        window.addEventListener('message', this.blockDesignerListener);
+        frame.addEventListener('load', () => {
+            if (this.blockDesigner?.session === session) frame.contentWindow.postMessage({type: 'nexa-email-designer-init', session, html: form.elements.bodyHtml.value}, origin);
+            if (Espo.Ajax) Espo.Ajax.getRequest('Nexa/marketing-email-images').then(result => {
+                if (this.blockDesigner?.session === session && draftGeneration === this.contentEditorRequest) {
+                    frame.contentWindow.postMessage({type: 'nexa-email-designer-images', session, images: result.images}, origin);
+                }
+            }).catch(() => {
+                if (this.blockDesigner?.session === session) frame.contentWindow.postMessage({type: 'nexa-email-designer-image-error', session}, origin);
+            });
+        });
+        frame.src = `${this.getBasePath()}client/custom/email-designer/index.html`;
+        overlay.querySelector('[data-action="close-block-designer"]').focus();
+        if (!this.blockDesignerRemovalHook) {this.blockDesignerRemovalHook = true; this.once('remove', () => this.closeBlockDesigner());}
+    }
+    applyBlockDesign() {
+        const designer = this.blockDesigner;
+        if (!designer) return;
+        if (designer.draftGeneration !== this.contentEditorRequest || this.element.querySelector('[data-email-editor]').hidden) return this.closeBlockDesigner();
+        designer.frame.contentWindow.postMessage({type: 'nexa-email-designer-export', session: designer.session}, location.origin);
+    }
+    closeBlockDesigner() {
+        if (!this.blockDesigner) return;
+        clearTimeout(this.blockDesigner.timer);
+        window.removeEventListener('message', this.blockDesignerListener);
+        this.blockDesigner.overlay.remove(); this.blockDesigner = null; this.blockDesignerListener = null;
+        this.element.querySelector('[data-action="open-block-designer"]')?.focus();
+    }
     async openVersionHistory(event) {
         const id = event.currentTarget.dataset.id;
         this.historyTrigger = event.currentTarget;
@@ -341,7 +439,12 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             tools.innerHTML = '<button class="btn btn-default" type="button" data-action="choose-template"><span class="fas fa-file-alt" aria-hidden="true"></span>Use template</button><span data-template-name aria-live="polite"></span><button class="btn btn-primary" type="button" data-action="apply-template" hidden><span class="fas fa-check" aria-hidden="true"></span>Apply template</button><button class="btn btn-icon" type="button" data-action="cancel-template" title="Cancel template selection" aria-label="Cancel template selection" hidden><span class="fas fa-times" aria-hidden="true"></span></button>';
             form.querySelector('.nexa-email-code').before(tools);
         }
-        form.querySelector('[data-template-name]').textContent = this.pendingTemplate ? this.pendingTemplate.name : '';
+        form.querySelector('[data-template-name]').textContent = this.pendingTemplate ? `${this.pendingTemplate.name}${this.pendingTemplate.attachments?.length ? ' - ' + this.pendingTemplate.attachments.map(file => file.name).join(', ') : ''}` : '';
+        if (!form.querySelector('[data-action="open-block-designer"]')) {
+            const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-default'; button.dataset.action = 'open-block-designer';
+            button.innerHTML = '<span class="fas fa-th-large" aria-hidden="true"></span>Design blocks';
+            form.querySelector('[data-template-toolbar]').append(button);
+        }
         ['apply-template','cancel-template'].forEach(action => { form.querySelector(`[data-action="${action}"]`).hidden = !this.pendingTemplate; });
         let preview = form.querySelector('[data-content-preview]');
         if (!preview) {
@@ -377,13 +480,15 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         panel.innerHTML = `<header><strong>Attachments</strong><button type="button" class="btn btn-default" data-action="choose-attachment" ${this.selectedAttachments?.length >= 10 ? 'disabled' : ''}><span class="fas fa-paperclip" aria-hidden="true"></span>Add file</button></header><small>PDF, TXT, CSV, JPG, PNG, GIF or WebP. Maximum 5 MB each, 10 MB total.</small><ul>${(this.selectedAttachments || []).map(file => `<li><span>${this.escape(file.name)}</span><button type="button" class="btn btn-icon" data-action="remove-attachment" data-id="${this.escape(file.id)}" title="Remove attachment" aria-label="Remove ${this.escape(file.name)}"><span class="fas fa-times" aria-hidden="true"></span></button></li>`).join('')}</ul>`;
     }
     chooseAttachment() {
-        if (!this.workspace?.permissions?.attachments) return;
+        if (!this.workspace?.permissions?.attachments || this.attachmentUploading) return;
         const editor = this.element.querySelector('[data-email-editor]');
         editor.style.display = 'none';
         this.createView('marketingAttachmentSelector', 'custom:views/wysiwyg/modals/tenant-file', {
-            selectOnly: true,
+            accept: '.pdf,.txt,.csv,.png,.jpg,.jpeg,.gif,.webp', maxFileSize: 5 * 1024 * 1024,
+            helpText: 'PDF, TXT, CSV, JPG, PNG, GIF or WebP. Maximum 5 MB each.',
         }, view => {
             this.listenToOnce(view, 'remove', () => {if (!editor.hidden) editor.style.display = 'grid';});
+            this.listenToOnce(view, 'upload', file => this.uploadMarketingAttachment(file));
             this.listenToOnce(view, 'insert', file => {
                 if (editor.hidden || this.selectedAttachments.some(item => item.id === file.id)) return;
                 if (!/\.(pdf|txt|csv|png|jpe?g|gif|webp)$/i.test(file.name)) return Espo.Ui.error('Choose a supported marketing attachment.');
@@ -398,6 +503,39 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     removeAttachment(event) {
         this.selectedAttachments = (this.selectedAttachments || []).filter(file => file.id !== event.currentTarget.dataset.id);
         this.renderAttachments();
+    }
+    async uploadMarketingAttachment(file) {
+        if (!this.workspace?.permissions?.attachments || this.attachmentUploading) return;
+        const editor = this.element.querySelector('[data-email-editor]');
+        if (editor.hidden) return;
+        if (!/\.(pdf|txt|csv|png|jpe?g|gif|webp)$/i.test(file.name) || file.size <= 0 || file.size > 5 * 1024 * 1024) return Espo.Ui.error('Choose a supported marketing attachment no larger than 5 MB.');
+        if ((this.selectedAttachments || []).length >= 10 || (this.selectedAttachments || []).reduce((total, item) => total + Number(item.size || 0), 0) + file.size > 10 * 1024 * 1024) return Espo.Ui.error('An email can contain at most 10 attachments and 10 MB in total.');
+        const generation = this.contentEditorRequest;
+        this.attachmentUploading = true;
+        const button = this.element.querySelector('[data-action="choose-attachment"]');
+        const saveButton = this.element.querySelector('[data-email-form] [type="submit"]');
+        button.disabled = true; button.setAttribute('aria-busy', 'true');
+        saveButton.disabled = true;
+        try {
+            const data = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result).split(',')[1]);
+                reader.onerror = () => reject(new Error('The attachment could not be read.'));
+                reader.readAsDataURL(file);
+            });
+            const mimeType = {txt: 'text/plain', csv: 'text/csv', pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp'}[file.name.split('.').pop().toLowerCase()];
+            const uploaded = await Espo.Ajax.postRequest('Nexa/marketing-email-attachments', {name: file.name, mimeType, data});
+            if (generation !== this.contentEditorRequest || editor.hidden) return;
+            if (this.selectedAttachments.length >= 10 || this.selectedAttachments.reduce((total, item) => total + Number(item.size || 0), 0) + uploaded.size > 10 * 1024 * 1024) throw new Error('The file is in your library, but the current draft attachment limit has been reached.');
+            this.selectedAttachments.push(uploaded); this.renderAttachments();
+        } catch (error) {
+            if (generation === this.contentEditorRequest && !editor.hidden) Espo.Ui.error(error?.message || 'The attachment could not be uploaded.');
+        } finally {
+            this.attachmentUploading = false;
+            saveButton.disabled = false;
+            button.removeAttribute('aria-busy');
+            if (generation === this.contentEditorRequest && !editor.hidden) this.renderAttachments();
+        }
     }
     async installContentEditor() {
         const request = this.contentEditorRequest = (this.contentEditorRequest || 0) + 1;
@@ -554,7 +692,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         this.openEditor(item);
     }
     openEditor(item) { this.destroyContentEditor(); this.current = item || null; this.selectedAttachments = [...(item?.attachments || [])]; this.renderAttachments(); const form = this.element.querySelector('[data-email-form]'); form.reset(); form.elements.name.value=item?.name||''; form.elements.campaignId.value=item?.campaignId||''; form.elements.subject.value=item?.subject||''; form.elements.preheader.value=item?.preheader||''; form.elements.fromAddress.value=item?.fromAddress||''; form.elements.fromName.value=item?.fromName||''; form.elements.replyToAddress.value=item?.replyToAddress||''; form.elements.replyToName.value=item?.replyToName||''; form.elements.startAt.value=this.inputDateTime(item?.startAt); form.elements.bodyHtml.value=item?.bodyHtml||'<p>Hello {Contact.firstName},</p><p></p><p>Kind regards,<br>{User.name}</p>'; this.syncCampaign(); this.text('[data-editor-title]', item ? `Edit ${item.name}` : 'Create marketing email'); const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); this.installContentEditor(); setTimeout(()=>form.elements.name.focus(),0); }
-    closeEditor() { this.destroyContentEditor(); this.previewRequest = (this.previewRequest || 0) + 1; const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=true; editor.style.display='none'; document.body.classList.remove('nexa-modal-open'); }
+    closeEditor() { this.closeBlockDesigner(); this.destroyContentEditor(); this.previewRequest = (this.previewRequest || 0) + 1; const editor=this.element.querySelector('[data-email-editor]'); editor.hidden=true; editor.style.display='none'; document.body.classList.remove('nexa-modal-open'); }
     async openDelivery() { const editor=this.element.querySelector('[data-delivery-editor]'); editor.hidden=false; editor.style.display='grid'; document.body.classList.add('nexa-modal-open'); Espo.Ui.notify('Loading delivery settings...'); try { this.delivery=await Espo.Ajax.getRequest('Nexa/marketing-delivery/settings'); Espo.Ui.notify(false); this.renderDelivery(); } catch(error){this.closeDelivery();Espo.Ui.notify(false);Espo.Ui.error(error?.message||'Delivery settings could not be loaded.');} }
     closeDelivery() { const editor=this.element.querySelector('[data-delivery-editor]'); editor.hidden=true; editor.style.display='none'; document.body.classList.remove('nexa-modal-open'); }
     renderDelivery() { const provider=this.delivery?.provider||{}; const form=this.element.querySelector('[data-provider-form]'); form.elements.apiBaseUrl.value=provider.apiBaseUrl||''; form.elements.serverName.value=provider.serverName||''; form.elements.apiKey.value=''; form.elements.apiKey.required=!provider.hasCredential; form.elements.monthlySendLimit.value=Number(provider.monthlySendLimit||0); this.text('[data-credential-help]',provider.hasCredential?'An encrypted API key is configured. Leave blank to keep it.':'The key is encrypted and is never returned to the browser.'); const domains=this.delivery?.domains||[]; this.element.querySelector('[data-domain-list]').innerHTML=domains.length?domains.map(item=>`<article class="nexa-domain-card"><div><strong>${this.escape(item.domainName)}</strong><small>Ownership ${this.escape(item.ownershipStatus)} / SPF ${this.escape(item.spfStatus)} / DKIM ${this.escape(item.dkimStatus)} / DMARC ${this.escape(item.dmarcStatus)} / Return path ${this.escape(item.returnPathStatus)}</small><code>TXT @ nexa-verification=${this.escape(item.verificationToken)}</code></div><button class="btn btn-default" data-action="verify-domain" data-id="${this.escape(item.id)}"><span class="fas fa-sync"></span>Check DNS</button></article>`).join(''):'<p class="text-muted">No sending domain has been added.</p>'; }

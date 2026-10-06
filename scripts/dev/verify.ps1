@@ -71,6 +71,11 @@ $required = @(
     'database/shared/migrations/0062_add_marketing_email_governance.sql',
     'database/shared/migrations/0063_add_marketing_delivery_governance.sql',
     'database/shared/migrations/0064_add_marketing_delivery_runtime.sql',
+    'database/shared/migrations/0065_marketing_image_publications.sql',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/MarketingImageService.php',
+    'espocrm/custom/Espo/Custom/EntryPoints/NexaMarketingImage.php',
+    'tests/tenant/TenantMarketingImagePublicationTest.php',
+    'tests/tenant/TenantMarketingImageDispatchTest.php',
     'docs/operations/security-governance.md',
     'tests/auth/Sprint6SecurityGovernanceTest.php',
     'espocrm/bin/rotate-managed-secrets.php',
@@ -140,6 +145,13 @@ $required = @(
     'tests/tenant/TenantMarketingDispatchTest.php', 'tests/workflows/MarketingAllowanceTest.php', 'tests/tenant/TenantMarketingPreviewTest.php',
     'tests/tenant/TenantMarketingLifecycleTest.php',
     'tests/browser/marketing-lifecycle.spec.js',
+    'tests/browser/marketing-block-designer.spec.js',
+    'scripts/dev/build-email-designer-assets.cjs',
+    'espocrm/client/custom/email-designer/index.html',
+    'espocrm/client/custom/email-designer/designer.js',
+    'espocrm/client/custom/lib/email-designer/grapes.min.js',
+    'espocrm/client/custom/lib/email-designer/newsletter.js',
+    'espocrm/client/custom/lib/email-designer/purify.min.js',
     'tests/browser/live-marketing-email-workspace.spec.js',
     'tests/tenant/TenantBehaviorEventTest.php', 'tests/tenant/TenantBehaviorEventReplayTest.php',
     'tests/tenant/TenantPublicEventCollectorTest.php', 'tests/tenant/TenantBehaviorIdentityBackfillTest.php',
@@ -514,6 +526,12 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Dispatch runtime suite' } else { Fail 'Two-tenant Marketing Dispatch runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingAttachmentTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Attachment governance suite' } else { Fail 'Two-tenant Marketing Attachment governance suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingDesignerImagesTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Tenant and service scoped marketing designer images' } else { Fail 'Marketing designer image isolation suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingImagePublicationTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Independent public image snapshot and revocation suite' } else { Fail 'Independent image publication suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingImageDispatchTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Hosted image approval and pre-dispatch enforcement' } else { Fail 'Hosted image dispatch governance suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingLifecycleTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Marketing Lifecycle runtime suite' } else { Fail 'Two-tenant Marketing Lifecycle runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingPreviewTest.php')

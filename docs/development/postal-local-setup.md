@@ -14,6 +14,8 @@ $php = 'C:\wamp64\bin\php\php8.2.29\php.exe'
 & $php tests/integration/PostalGovernedDispatchTest.php
 & $php tests/integration/PostalWebhookAcceptanceTest.php
 & $php tests/integration/PostalPlainTextAcceptanceTest.php
+& $php tests/integration/PostalCampaignAttachmentAcceptanceTest.php
+& $php tests/integration/PostalCampaignAttachmentFailureTest.php
 ```
 
 The setup is repeatable: existing credentials are preserved and Postal runs missing schema migrations when its database already exists.
@@ -43,11 +45,15 @@ Do not delete Docker volumes to restart the stack: they contain its configuratio
 
 ## Administrator Test Sends
 
+In the Marketing Email draft editor, use Add file to select an existing tenant file or upload a new supported file. Uploads remain in the tenant library (Cloudflare R2 when configured); saving copies the native attachment relationship into the draft and approval validates its file manifest. Supported marketing types are PDF, TXT, CSV, JPG, PNG, GIF and WebP, limited to 5 MiB per file, 10 MiB combined and 10 attachments. Uploading alone never sends mail.
+
 In Marketing Email, approve a saved email and use the flask icon (Send test to my email). Choose a Contact only for personalization; the recipient is the authenticated tenant administrator's own email address, selected on the server. A test uses one monthly send, reuses native `EmailQueueItem.isTest`, and does not change campaign approval or appear in customer delivery totals. Tests are limited to one per minute for each administrator/email pair. Selected attachments must match the approved file manifest before delivery.
 
 Run `php tests/integration/PostalTestSendAcceptanceTest.php` with the local Postal stack running to verify real HTTPS-to-SMTP test delivery, personalized HTML/text, allowance accounting, cooldown and tenant isolation. CRM fixture records are rolled back. An uncertain response holds the submission and pauses the email for evidence review; it is never automatically retried. Local Mailpit delivery is not proof of external inbox delivery.
 
 ## External Delivery Requirements
+
+The campaign attachment acceptance commands above verify the complete local scheduled-send path, approved file bytes, consented recipient, pause/resume, single allowance charge and repeat-worker safety. The failure fixture changes an attachment after scheduling and verifies that no provider submission or allowance charge occurs. These require the local capture-only Docker stack; they do not enable external mail delivery.
 
 `php tests/integration/PostalAttachmentAcceptanceTest.php` tests the attachment transport foundation against the local capture stack. It sends a small TXT MIME attachment, then checks its filename, content type and received bytes using Mailpit's message API and raw MIME source. The editor allows existing tenant-file selection and approval snapshots; `php tests/tenant/TenantMarketingAttachmentTest.php` verifies their tenant scope and restoration. After explicit user approval, campaign and administrator-test dispatch now include approved attachments. Run `php tests/integration/PostalGovernedAttachmentAcceptanceTest.php` to verify the governed administrator path with a synthetic attachment. These local capture tests send no external email and do not establish real-customer deliverability.
 
