@@ -15,9 +15,21 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         'click [data-action="content-mode"]': 'toggleContentMode',
         'click [data-action="open-block-designer"]': 'openBlockDesigner',
         'click [data-action="conditional-content"]': 'openConditionalContent',
+        'click [data-action="integration-access"]': 'openIntegrationAccess',
+        'click [data-action="close-integration-access"]': 'closeIntegrationAccess',
+        'click [data-action="choose-integration-user"]': 'chooseIntegrationUser',
+        'click [data-action="revoke-integration"]': 'revokeIntegration',
+        'submit [data-integration-form]': 'grantIntegration',
+        'click [data-action="insert-parameter"]': 'openParameterDialog',
+        'click [data-action="close-parameter"]': 'closeParameterDialog',
+        'submit [data-parameter-form]': 'insertParameter',
+        'click [data-action="close-parameter-preview"]': 'closeParameterPreview',
+        'submit [data-parameter-preview-form]': 'submitParameterPreview',
         'click [data-action="close-conditional-content"]': 'closeConditionalContent',
         'change [data-conditional-form] [name="field"], change [data-conditional-form] [name="operator"]': 'updateConditionalValue',
         'submit [data-conditional-form]': 'insertConditionalContent',
+        'click [data-action="add-conditional-rule"]': 'addConditionalRule',
+        'click [data-action="remove-conditional-rule"]': 'removeConditionalRule',
         'click [data-action="close-block-designer"]': 'closeBlockDesigner',
         'click [data-action="apply-block-design"]': 'applyBlockDesign',
         'click [data-action="choose-attachment"]': 'chooseAttachment',
@@ -177,6 +189,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     actions(item) {
         const id = this.escape(item.id);
         const buttons = [`<button class="btn btn-icon" data-action="email-results" data-id="${id}" title="Delivery results"><span class="fas fa-chart-bar"></span></button>`];
+        if (this.workspace.permissions?.approve) buttons.push(`<button class="btn btn-icon" data-action="integration-access" data-id="${id}" title="Integration access" aria-label="Integration access"><span class="fas fa-key" aria-hidden="true"></span></button>`);
         if (['draft','review','approved'].includes(item.lifecycleStatus) && this.workspace.permissions?.edit) buttons.push(`<button class="btn btn-icon" data-action="edit-email" data-id="${id}" title="Edit"><span class="fas fa-pen"></span></button>`);
         if (item.lifecycleStatus === 'draft') buttons.push(this.transitionButton(item, 'submit', 'Submit for review', 'fa-paper-plane'));
         if (item.lifecycleStatus === 'review' && this.workspace.permissions?.approve) buttons.push(this.transitionButton(item, 'approve', 'Approve', 'fa-check'));
@@ -293,7 +306,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     }
     cancelEmailTemplate() { this.pendingTemplate = null; this.templateRequest = (this.templateRequest || 0) + 1; this.renderContentPreview(); }
     async openConditionalContent(event) {
-        if (this.conditionalDialog) return;
+        if (this.conditionalDialog || this.parameterDialog) return;
         const generation = this.contentEditorRequest;
         const request = this.conditionalRequest = (this.conditionalRequest || 0) + 1;
         const trigger = event?.currentTarget;
@@ -304,7 +317,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             modal.dataset.conditionalDialog = '';
             modal.innerHTML = `<section class="nexa-marketing-email-dialog nexa-conditional-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-conditional-title"><header><h2 id="nexa-conditional-title">Conditional content</h2><button type="button" class="btn btn-icon" data-action="close-conditional-content" title="Close conditional content" aria-label="Close conditional content"><span class="fas fa-times" aria-hidden="true"></span></button></header><form data-conditional-form><section><label>Contact property<select class="form-control" name="field" required>${result.fields.map(field => `<option value="${this.escape(field.name)}">${this.escape(field.label)}</option>`).join('')}</select></label><label>Condition<select class="form-control" name="operator"><option value="equals">Is equal to</option><option value="not_equals">Is not equal to</option><option value="has_value">Has a value</option><option value="no_value">Has no value</option></select></label><label data-conditional-value>Value<input class="form-control" name="value" maxlength="255" required></label><label>Content when matched<textarea class="form-control" name="matchingText" rows="5" maxlength="10000" required></textarea></label><label>Fallback content<textarea class="form-control" name="fallbackText" rows="5" maxlength="10000" required></textarea></label><p data-conditional-error role="alert"></p></section><footer><button type="button" class="btn btn-default" data-action="close-conditional-content">Cancel</button><button type="submit" class="btn btn-primary"><span class="fas fa-plus" aria-hidden="true"></span>Insert content</button></footer></form></section>`;
             this.conditionalDialog = {modal,generation,fields:result.fields,trigger};
-            this.element.append(modal); this.updateConditionalValue();
+            this.element.append(modal); this.installConditionalRules(); this.updateConditionalValue();
             modal.addEventListener('keydown', key => {
                 if (key.key === 'Escape') {key.preventDefault(); this.closeConditionalContent();}
                 if (key.key === 'Tab') {
@@ -313,33 +326,83 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
                     controls[(index + (key.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
                 }
             });
-            modal.querySelector('select').focus();
+            modal.querySelector('[name="field"]').focus();
             if (!this.conditionalRemovalHook) {this.conditionalRemovalHook = true; this.once?.('remove', () => this.closeConditionalContent());}
         } catch (error) {
             if (request === this.conditionalRequest && generation === this.contentEditorRequest) Espo.Ui.error(error?.message || 'Conditional content could not be opened.');
         }
     }
+    installConditionalRules() {
+        const form = this.conditionalDialog.modal.querySelector('form');
+        const section = form.querySelector('section');
+        const row = document.createElement('fieldset'); row.dataset.conditionalRule = '';
+        const legend = document.createElement('legend'); legend.textContent = 'Condition 1'; row.append(legend);
+        ['field','operator','value'].forEach(name => row.append(form.elements[name].closest('label')));
+        row.insertAdjacentHTML('beforeend','<button type="button" class="btn btn-icon" data-action="remove-conditional-rule" title="Remove condition" aria-label="Remove condition"><span class="fas fa-trash" aria-hidden="true"></span></button>');
+        section.prepend(row);
+        section.insertAdjacentHTML('afterbegin','<label>Match<select class="form-control" name="matchMode"><option value="all">All conditions</option><option value="any">Any condition</option></select></label>');
+        row.insertAdjacentHTML('afterend','<button type="button" class="btn btn-default" data-action="add-conditional-rule"><span class="fas fa-plus" aria-hidden="true"></span>Add condition</button>');
+        this.refreshConditionalRules();
+    }
+    refreshConditionalRules() {
+        const modal = this.conditionalDialog.modal;
+        const rows = [...modal.querySelectorAll('[data-conditional-rule]')];
+        rows.forEach((row,index) => {
+            row.querySelector('legend').textContent = `Condition ${index + 1}`;
+            row.querySelector('[data-action="remove-conditional-rule"]').disabled = rows.length === 1;
+        });
+        modal.querySelector('[data-action="add-conditional-rule"]').disabled = rows.length >= 6;
+    }
+    addConditionalRule() {
+        const dialog = this.conditionalDialog; if (!dialog) return;
+        const rows = dialog.modal.querySelectorAll('[data-conditional-rule]'); if (rows.length >= 6) return;
+        const row = rows[0].cloneNode(true); row.dataset.valueField = '';
+        row.querySelector('[name="field"]').selectedIndex = 0;
+        row.querySelector('[name="operator"]').value = 'equals';
+        dialog.modal.querySelector('[data-action="add-conditional-rule"]').before(row);
+        this.updateConditionalValue(); this.refreshConditionalRules(); row.querySelector('select').focus();
+    }
+    removeConditionalRule(event) {
+        const dialog = this.conditionalDialog; if (!dialog || dialog.modal.querySelectorAll('[data-conditional-rule]').length <= 1) return;
+        event.currentTarget.closest('[data-conditional-rule]').remove(); this.refreshConditionalRules();
+        dialog.modal.querySelector('[data-action="add-conditional-rule"]').focus();
+    }
     updateConditionalValue() {
         const dialog = this.conditionalDialog;
         if (!dialog) return;
-        const form = dialog.modal.querySelector('form');
-        const options = dialog.fields.find(field => field.name === form.elements.field.value)?.options || [];
-        const previous = dialog.valueField === form.elements.field.value ? form.elements.value.value : null;
-        dialog.valueField = form.elements.field.value;
+        dialog.modal.querySelectorAll('[data-conditional-rule]').forEach(row => {
+        const field = row.querySelector('[name="field"]');
+        const value = row.querySelector('[name="value"]');
+        const definition = dialog.fields.find(item => item.name === field.value);
+        const options = definition?.options || [];
+        const numeric = definition?.type === 'int';
+        const operator = row.querySelector('[name="operator"]');
+        const selectedOperator = row.dataset.valueField === field.value ? operator.value : 'equals';
+        const operators = [['equals','Is equal to'],['not_equals','Is not equal to'],...(numeric ? [['greater_than','Is greater than'],['at_least','Is at least'],['less_than','Is less than'],['at_most','Is at most']] : []),['has_value','Has a value'],['no_value','Has no value']];
+        operator.replaceChildren(...operators.map(([value,label]) => new Option(label,value)));
+        operator.value = operators.some(([value]) => value === selectedOperator) ? selectedOperator : 'equals';
+        const previous = row.dataset.valueField === field.value ? value.value : null;
+        row.dataset.valueField = field.value;
         const control = options.length ? document.createElement('select') : document.createElement('input');
         control.name = 'value'; control.className = 'form-control'; control.required = true;
         if (options.length) options.forEach(option => control.add(new Option(option.label,option.value)));
-        else control.maxLength = 255;
+        else {control.maxLength = 255; if (numeric) {control.type = 'number'; control.min = '0'; control.max = '2147483647'; control.step = '1';}}
         if (previous !== null && (!options.length || options.some(option => option.value === previous))) control.value = previous;
-        form.elements.value.replaceWith(control);
-        const needsValue = ['equals','not_equals'].includes(form.elements.operator.value);
-        form.querySelector('[data-conditional-value]').hidden = !needsValue;
+        value.replaceWith(control);
+        const needsValue = !['has_value','no_value'].includes(operator.value);
+        row.querySelector('[data-conditional-value]').hidden = !needsValue;
         control.disabled = !needsValue; control.required = needsValue;
+        });
     }
     closeConditionalContent() {
         this.conditionalRequest = (this.conditionalRequest || 0) + 1;
         const dialog = this.conditionalDialog; this.conditionalDialog = null;
         dialog?.modal.remove(); if (dialog?.trigger?.isConnected) dialog.trigger.focus();
+    }
+    conditionalPayload(form) {
+        const conditions = [...form.querySelectorAll('[data-conditional-rule]')].map(row => ({field:row.querySelector('[name="field"]').value,operator:row.querySelector('[name="operator"]').value,value:row.querySelector('[name="value"]').disabled ? '' : row.querySelector('[name="value"]').value}));
+        const content = {matchingText:form.elements.matchingText.value,fallbackText:form.elements.fallbackText.value};
+        return conditions.length === 1 ? {...conditions[0],...content} : {conditions,matchMode:form.elements.matchMode.value,...content};
     }
     async insertConditionalContent(event) {
         event.preventDefault();
@@ -352,8 +415,10 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         const source = this.element.querySelector('[name="bodyHtml"]'); const previous = source.value;
         button.disabled = true; form.querySelector('[data-conditional-error]').textContent = '';
         try {
-            const result = await Espo.Ajax.postRequest('Nexa/marketing-email-conditions',Object.fromEntries(new FormData(form)));
+            const payload = this.conditionalPayload(form);
+            const result = await Espo.Ajax.postRequest('Nexa/marketing-email-conditions',payload);
             if (this.conditionalDialog !== dialog || dialog.generation !== this.contentEditorRequest || this.element.querySelector('[data-email-editor]').hidden) return;
+            if (JSON.stringify(payload) !== JSON.stringify(this.conditionalPayload(form))) throw new Error('Conditions changed. Review them and insert the content again.');
             this.syncRichContent();
             if (source.value !== previous) throw new Error('Email content changed. Review your condition and insert it again.');
             if (typeof result.bodyHtml !== 'string' || previous.length + result.bodyHtml.length > 2_000_000) throw new Error('Conditional content is too large.');
@@ -362,6 +427,97 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         } catch (error) {
             if (this.conditionalDialog === dialog) form.querySelector('[data-conditional-error]').textContent = error?.message || 'Conditional content could not be inserted.';
         } finally {button.disabled = false;}
+    }
+    async openIntegrationAccess(event) {
+        if (this.integrationDialog) return;
+        const item = this.workspace.emails.find(item => item.id === event.currentTarget.dataset.id); if (!item) return;
+        const modal = document.createElement('div'); modal.className = 'nexa-marketing-email-editor nexa-conditional-overlay';
+        modal.innerHTML = `<section class="nexa-marketing-email-dialog nexa-conditional-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-integration-title"><header><h2 id="nexa-integration-title">Integration access</h2><button type="button" class="btn btn-icon" data-action="close-integration-access" title="Close integration access" aria-label="Close integration access"><span class="fas fa-times" aria-hidden="true"></span></button></header><form data-integration-form><section><strong>${this.escape(item.name)}</strong><span role="status">Version ${Number(item.version)}</span><label>API user<button type="button" class="btn btn-default" data-action="choose-integration-user">Select API user</button></label><label>Expires in hours<input class="form-control" type="number" name="hours" min="1" max="720" step="1" value="24" required></label><p role="alert"></p><div data-integration-list></div></section><footer><button type="button" class="btn btn-default" data-action="close-integration-access">Close</button><button type="submit" class="btn btn-primary" ${item.lifecycleStatus === 'approved' ? '' : 'disabled'}><span class="fas fa-key" aria-hidden="true"></span>Grant access</button></footer></form></section>`;
+        const dialog = this.integrationDialog = {modal,item,trigger:event.currentTarget}; this.element.append(modal);
+        modal.querySelector('[role="dialog"]').tabIndex=-1;
+        modal.addEventListener('keydown',event => {
+            if (event.key === 'Escape') {event.preventDefault(); this.closeIntegrationAccess();}
+            if (event.key === 'Tab') {const controls=[...modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')]; event.preventDefault(); controls[(controls.indexOf(document.activeElement)+(event.shiftKey?controls.length-1:1))%controls.length]?.focus();}
+        });
+        modal.querySelector('[data-action="choose-integration-user"]').focus();
+        if (!this.integrationRemovalHook) {this.integrationRemovalHook=true; this.once?.('remove',()=>this.closeIntegrationAccess());}
+        await this.refreshIntegrationAccess(dialog);
+    }
+    closeIntegrationAccess() {const dialog=this.integrationDialog; this.integrationDialog=null; dialog?.modal.remove(); if(dialog?.trigger?.isConnected) dialog.trigger.focus();}
+    async refreshIntegrationAccess(dialog) {
+        const request=dialog.request=(dialog.request || 0)+1;
+        try {
+            const result=await Espo.Ajax.getRequest(`Nexa/marketing-emails/${encodeURIComponent(dialog.item.id)}/integration-grants`);
+            if(this.integrationDialog!==dialog || request!==dialog.request) return;
+            const restoreFocus=dialog.modal.querySelector('[data-integration-list]').contains(document.activeElement);
+            dialog.modal.querySelector('[data-integration-list]').innerHTML=result.grants.length ? result.grants.map(grant=>`<div class="nexa-integration-grant"><strong>${this.escape(grant.userName || grant.userId)}</strong><span>Version ${Number(grant.sourceVersion)} · ${this.escape(grant.expiresAt)} UTC</span>${grant.revokedAt ? '<span>Revoked</span>' : `<button type="button" class="btn btn-icon" data-action="revoke-integration" data-user="${this.escape(grant.userId)}" data-version="${Number(grant.sourceVersion)}" title="Revoke access" aria-label="Revoke access"><span class="fas fa-ban" aria-hidden="true"></span></button>`}</div>`).join('') : '<p>No integration grants</p>';
+            if(restoreFocus) dialog.modal.querySelector('[data-action="choose-integration-user"]').focus();
+        } catch(error) {if(this.integrationDialog===dialog && request===dialog.request) dialog.modal.querySelector('[role="alert"]').textContent=error?.message || 'Access could not be loaded.';}
+    }
+    chooseIntegrationUser() {
+        const dialog=this.integrationDialog; if(!dialog) return; dialog.modal.style.display='none';
+        this.createView('integrationUserSelector','views/modals/select-records',{scope:'User',multiple:false,createButton:false,headerText:'Choose an API user'},view=>{
+            this.listenToOnce(view,'remove',()=>{if(this.integrationDialog===dialog) {dialog.modal.style.display='grid'; dialog.modal.querySelector('[data-action="choose-integration-user"]').focus();}});
+            this.listenToOnce(view,'select',model=>{if(this.integrationDialog===dialog) {dialog.userId=model.id; dialog.modal.querySelector('[data-action="choose-integration-user"]').textContent=model.get('name') || model.get('userName') || 'Selected user';}}); view.render();
+        });
+    }
+    async grantIntegration(event) {
+        event.preventDefault(); const dialog=this.integrationDialog; if(!dialog) return; const form=dialog.modal.querySelector('form'); if(!form.reportValidity()) return;
+        if(!dialog.userId) {form.querySelector('[role="alert"]').textContent='Select an active API user.'; return;}
+        const button=form.querySelector('[type="submit"]'); if(button.disabled) return; button.disabled=true;
+        try {await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(dialog.item.id)}/integration-grants`,{action:'grant',userId:dialog.userId,sourceVersion:dialog.item.version,hours:Number(form.elements.hours.value)}); if(this.integrationDialog===dialog) {form.querySelector('[role="alert"]').textContent=''; await this.refreshIntegrationAccess(dialog);}}
+        catch(error) {if(this.integrationDialog===dialog) form.querySelector('[role="alert"]').textContent=error?.message || 'Access could not be granted.';} finally {button.disabled=false;}
+    }
+    revokeIntegration(event) {
+        const dialog=this.integrationDialog; if(!dialog) return; const userId=event.currentTarget.dataset.user,sourceVersion=Number(event.currentTarget.dataset.version);
+        this.confirm({message:'Revoke this integration grant?',confirmText:'Revoke access'},async()=>{if(this.integrationDialog!==dialog) return; try {await Espo.Ajax.postRequest(`Nexa/marketing-emails/${encodeURIComponent(dialog.item.id)}/integration-grants`,{action:'revoke',userId,sourceVersion}); await this.refreshIntegrationAccess(dialog);} catch(error) {if(this.integrationDialog===dialog) dialog.modal.querySelector('[role="alert"]').textContent=error?.message || 'Access could not be revoked.';}});
+    }
+    openParameterDialog(event) {
+        if (this.parameterDialog || this.conditionalDialog || this.element.querySelector('[data-email-editor]').hidden) return;
+        this.syncRichContent();
+        const modal = document.createElement('div'); modal.className = 'nexa-marketing-email-editor nexa-conditional-overlay';
+        modal.innerHTML = '<section class="nexa-marketing-email-dialog nexa-conditional-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-parameter-title"><header><h2 id="nexa-parameter-title">Insert parameter</h2><button type="button" class="btn btn-icon" data-action="close-parameter" title="Close parameter" aria-label="Close parameter"><span class="fas fa-times" aria-hidden="true"></span></button></header><form data-parameter-form><section><label>Parameter name<input class="form-control" name="parameterName" maxlength="40" pattern="[a-z][a-z0-9_]{0,39}" placeholder="appointment_reference" required></label><label>Maximum characters<input class="form-control" name="parameterLimit" type="number" min="1" max="255" step="1" value="40" required></label><label>Insert into<select class="form-control" name="parameterTarget"><option value="bodyHtml">Email body</option><option value="subject">Subject</option><option value="preheader">Preheader</option></select></label><p role="alert" data-parameter-error></p></section><footer><button type="button" class="btn btn-default" data-action="close-parameter">Cancel</button><button type="submit" class="btn btn-primary"><span class="fas fa-plus" aria-hidden="true"></span>Insert</button></footer></form></section>';
+        this.parameterDialog = {modal,generation:this.contentEditorRequest,trigger:event.currentTarget};
+        this.element.append(modal);
+        modal.addEventListener('keydown', key => {
+            if (key.key === 'Escape') {key.preventDefault(); this.closeParameterDialog();}
+            if (key.key === 'Tab') {
+                const controls = [...modal.querySelectorAll('button,input,select')].filter(control => !control.disabled);
+                const first = controls[0], last = controls[controls.length - 1];
+                if (key.shiftKey && document.activeElement === first) {key.preventDefault(); last.focus();}
+                else if (!key.shiftKey && document.activeElement === last) {key.preventDefault(); first.focus();}
+            }
+        });
+        modal.querySelector('[name="parameterName"]').focus();
+        if (!this.parameterRemovalHook) {this.parameterRemovalHook = true; this.once?.('remove', () => this.closeParameterDialog());}
+    }
+    closeParameterDialog() {
+        const dialog = this.parameterDialog; this.parameterDialog = null;
+        dialog?.modal.remove(); if (dialog?.trigger?.isConnected) dialog.trigger.focus();
+    }
+    insertParameter(event) {
+        event.preventDefault();
+        const dialog = this.parameterDialog;
+        if (!dialog) return;
+        if (dialog.generation !== this.contentEditorRequest || this.element.querySelector('[data-email-editor]').hidden) return this.closeParameterDialog();
+        const form = dialog.modal.querySelector('form'); if (!form.reportValidity()) return;
+        const error = form.querySelector('[data-parameter-error]'); error.textContent = '';
+        const name = form.elements.parameterName.value, limit = Number(form.elements.parameterLimit.value);
+        if (!/^[a-z][a-z0-9_]{0,39}$/.test(name) || !Number.isInteger(limit) || limit < 1 || limit > 255) {error.textContent = 'Use a lowercase name and a whole-number limit from 1 to 255.'; return;}
+        this.syncRichContent();
+        const editor = this.element.querySelector('[data-email-form]');
+        const text = ['subject','bodyHtml','preheader'].map(field => editor.elements[field].value).join('\n');
+        const declarations = [...text.matchAll(/\[\[nexa:([a-z][a-z0-9_]{0,39}):([1-9][0-9]{0,2})\]\]/g)];
+        if (declarations.some(match => match[1] === name && Number(match[2]) !== limit)) {error.textContent = 'This parameter already uses a different character limit.'; return;}
+        if (!declarations.some(match => match[1] === name) && new Set(declarations.map(match => match[1])).size >= 20) {error.textContent = 'This email already has 20 parameters.'; return;}
+        const target = form.elements.parameterTarget.value;
+        if (!['subject','bodyHtml','preheader'].includes(target)) return;
+        const control = editor.elements[target], token = `[[nexa:${name}:${limit}]]`;
+        const next = target === 'bodyHtml' ? control.value + `<p>${token}</p>` : control.value + (control.value ? ' ' : '') + token;
+        if (next.length > (target === 'bodyHtml' ? 2_000_000 : 255)) {error.textContent = 'The selected field is too long to add this parameter.'; return;}
+        control.value = next;
+        if (target === 'bodyHtml') {this.contentModel?.set('body',next); this.contentRichDirty = false;}
+        this.contentChanged(); this.closeParameterDialog();
     }
     openBlockDesigner() {
         if (this.attachmentUploading || this.blockDesigner) return;
@@ -584,6 +740,11 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             button.innerHTML = '<span class="fas fa-code-branch" aria-hidden="true"></span>Conditional content';
             form.querySelector('[data-template-toolbar]').append(button);
         }
+        if (!form.querySelector('[data-action="insert-parameter"]')) {
+            const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-default'; button.dataset.action = 'insert-parameter';
+            button.innerHTML = '<span class="fas fa-terminal" aria-hidden="true"></span>Insert parameter';
+            form.querySelector('[data-template-toolbar]').append(button);
+        }
         ['apply-template','cancel-template'].forEach(action => { form.querySelector(`[data-action="${action}"]`).hidden = !this.pendingTemplate; });
         let preview = form.querySelector('[data-content-preview]');
         if (!preview) {
@@ -593,13 +754,13 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             preview.innerHTML = '<header><h3>Preview</h3><div class="nexa-preview-controls"><button class="btn btn-default" type="button" data-action="preview-contact"><span class="fas fa-user" aria-hidden="true"></span>Preview as Contact</button><button class="btn btn-icon" type="button" data-action="preview-design" title="Return to design preview" aria-label="Return to design preview" hidden><span class="fas fa-times" aria-hidden="true"></span></button><select class="form-control" data-preview-width aria-label="Preview width"><option value="desktop">Desktop</option><option value="mobile">Mobile</option></select></div></header><p data-preview-recipient aria-live="polite"></p><strong data-preview-subject></strong><p data-preview-preheader></p><div class="nexa-email-preview-viewport"><iframe title="Email content preview" sandbox="" referrerpolicy="no-referrer"></iframe></div>';
             form.querySelector('.nexa-marketing-email-grid').append(preview);
         }
-        const key = JSON.stringify([form.elements.subject.value, form.elements.bodyHtml.value]);
+        const key = JSON.stringify([form.elements.subject.value, form.elements.bodyHtml.value,form.elements.preheader.value]);
         const rendered = !this.pendingTemplate && this.recipientPreview?.key === key ? this.recipientPreview : null;
         preview.querySelector('[data-preview-subject]').textContent = this.pendingTemplate?.subject || rendered?.subject || form.elements.subject.value || 'No subject';
         preview.querySelector('[data-action="preview-contact"]').disabled = !!this.pendingTemplate;
         preview.querySelector('[data-preview-recipient]').textContent = rendered ? `Preview for ${rendered.name}` : '';
         preview.querySelector('[data-action="preview-design"]').hidden = !rendered;
-        preview.querySelector('[data-preview-preheader]').textContent = form.elements.preheader.value;
+        preview.querySelector('[data-preview-preheader]').textContent = rendered?.preheader ?? form.elements.preheader.value;
         const frame = preview.querySelector('iframe');
         frame.classList.toggle('is-mobile', preview.querySelector('select').value === 'mobile');
         // The preview is deliberately inert, including remote images and stylesheets.
@@ -755,6 +916,8 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     }
     destroyContentEditor() {
         this.closeConditionalContent();
+        this.closeParameterDialog();
+        this.closeParameterPreview();
         this.contentEditorRequest = (this.contentEditorRequest || 0) + 1;
         if (this.contentEditor) this.stopListening(this.contentEditor);
         this.clearView?.('marketingContentEditor');
@@ -897,20 +1060,65 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             view.render();
         });
     }
-    async previewContact(model) {
+    openParameterPreview(model, input) {
+        if (this.parameterPreview) return;
+        const declarations = [...[input.subject,input.bodyHtml,input.preheader].join('\n').matchAll(/\[\[nexa:([a-z][a-z0-9_]{0,39}):([1-9][0-9]{0,2})\]\]/g)];
+        const limits = new Map();
+        for (const match of declarations) {
+            if (Number(match[2]) > 255 || (limits.has(match[1]) && limits.get(match[1]) !== Number(match[2]))) return Espo.Ui.error('Review the parameter declarations and their character limits.');
+            limits.set(match[1],Number(match[2]));
+        }
+        if (limits.size > 20 || !limits.size) return Espo.Ui.error('Review the parameter declarations before previewing.');
+        const modal = document.createElement('div'); modal.className = 'nexa-marketing-email-editor nexa-conditional-overlay';
+        modal.innerHTML = `<section class="nexa-marketing-email-dialog nexa-conditional-dialog" role="dialog" aria-modal="true" aria-labelledby="nexa-parameter-preview-title"><header><h2 id="nexa-parameter-preview-title">Preview parameters</h2><button type="button" class="btn btn-icon" data-action="close-parameter-preview" title="Close preview parameters" aria-label="Close preview parameters"><span class="fas fa-times" aria-hidden="true"></span></button></header><form data-parameter-preview-form><section><strong>${this.escape(model.get('name') || 'Contact')}</strong>${[...limits].map(([name,limit]) => `<label>${this.escape(name)}<input class="form-control" data-parameter-value="${name}" maxlength="${limit}" required></label>`).join('')}<p role="alert" data-parameter-preview-error></p></section><footer><button type="button" class="btn btn-default" data-action="close-parameter-preview">Cancel</button><button type="submit" class="btn btn-primary"><span class="fas fa-eye" aria-hidden="true"></span>Preview</button></footer></form></section>`;
+        this.parameterPreview = {modal,model,key:JSON.stringify([input.subject,input.bodyHtml,input.preheader]),generation:this.contentEditorRequest};
+        this.element.append(modal); modal.querySelector('input').focus();
+        modal.addEventListener('keydown',event => {
+            if (event.key === 'Escape') {event.preventDefault(); this.closeParameterPreview();}
+            if (event.key === 'Tab') {
+                const controls = [...modal.querySelectorAll('button:not(:disabled),input:not(:disabled)')];
+                event.preventDefault(); controls[(controls.indexOf(document.activeElement) + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
+            }
+        });
+    }
+    closeParameterPreview() {
+        const dialog = this.parameterPreview; this.parameterPreview = null; dialog?.modal.remove();
+        if (dialog) {this.previewRequest = (this.previewRequest || 0) + 1; this.element?.querySelector('[data-action="preview-contact"]')?.focus();}
+    }
+    async submitParameterPreview(event) {
+        event.preventDefault(); const dialog = this.parameterPreview; if (!dialog) return;
+        const form = dialog.modal.querySelector('form'); if (!form.reportValidity()) return;
+        const button = form.querySelector('[type="submit"]'); if (button.disabled) return;
+        this.syncRichContent(); const editor = this.element.querySelector('[data-email-form]');
+        if (dialog.generation !== this.contentEditorRequest || dialog.key !== JSON.stringify([editor.elements.subject.value,editor.elements.bodyHtml.value,editor.elements.preheader.value])) {form.querySelector('[role="alert"]').textContent = 'The draft changed. Close this dialog and preview it again.'; return;}
+        const values = Object.fromEntries([...form.querySelectorAll('[data-parameter-value]')].map(input => [input.dataset.parameterValue,input.value]));
+        button.disabled = true; form.querySelector('[role="alert"]').textContent = '';
+        form.querySelectorAll('input').forEach(input => {input.disabled = true;});
+        try {if (await this.previewContact(dialog.model,values)) this.closeParameterPreview();}
+        finally {button.disabled = false; form.querySelectorAll('input').forEach(input => {input.disabled = false;});}
+    }
+    async previewContact(model, parameters = null) {
+        this.syncRichContent();
         const form = this.element.querySelector('[data-email-form]');
-        const input = {contactId: model.id, subject: form.elements.subject.value, bodyHtml: form.elements.bodyHtml.value};
-        const key = JSON.stringify([input.subject, input.bodyHtml]);
+        const input = {contactId: model.id, subject: form.elements.subject.value, bodyHtml: form.elements.bodyHtml.value,preheader:form.elements.preheader.value};
+        if (parameters === null && [input.subject,input.bodyHtml,input.preheader].some(text => text.includes('[[nexa:'))) return this.openParameterPreview(model,input);
+        if (parameters !== null) input.parameters = parameters;
+        const key = JSON.stringify([input.subject, input.bodyHtml,input.preheader]);
         const request = this.previewRequest = (this.previewRequest || 0) + 1;
         Espo.Ui.notify('Rendering preview...');
         try {
             const result = await Espo.Ajax.postRequest('Nexa/marketing-emails/preview', input);
             Espo.Ui.notify(false);
-            if (request !== this.previewRequest || this.element.querySelector('[data-email-editor]').hidden) return;
+            if (request !== this.previewRequest || this.element.querySelector('[data-email-editor]').hidden || key !== JSON.stringify([form.elements.subject.value,form.elements.bodyHtml.value,form.elements.preheader.value])) return false;
             this.recipientPreview = {...result, key, name: model.get('name') || 'Contact'};
             Espo.Ui.notify(false); this.renderContentPreview();
+            return true;
         } catch (error) {
-            Espo.Ui.notify(false); Espo.Ui.error(error?.message || 'The recipient preview could not be rendered.');
+            Espo.Ui.notify(false);
+            if (request !== this.previewRequest) return false;
+            if (this.parameterPreview) this.parameterPreview.modal.querySelector('[role="alert"]').textContent = error?.message || 'The recipient preview could not be rendered.';
+            else Espo.Ui.error(error?.message || 'The recipient preview could not be rendered.');
+            return false;
         }
     }
     editEmail(event) {

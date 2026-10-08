@@ -39,7 +39,7 @@ The response includes `id`, `queueItemId`, the native queue `status` and `replay
 
 The approved **profile ID is the idempotency identity**. The endpoint locks that profile, performs a conditional approved-to-sending state claim, inserts one native queue item and appends the actor/version/Contact audit event in the same transaction. A repeat request for the same Contact returns the existing queue identity/status, including failed or completed deliveries. Deleted queue rows are also considered so soft deletion cannot reopen the send.
 
-Another Contact cannot reuse this identity. A new intentional send needs a new separately approved profile. Failed or uncertain sends are not automatically recreated. This version does not provide a repeatedly callable reusable-template API with independent external idempotency keys, programmable input parameters, or transactional-mode consent rules; those remain separate Phase 6 work.
+Another Contact cannot reuse this identity. A new intentional send needs a new separately approved profile. Failed or uncertain sends are not automatically recreated. For repeated use of an approved source with separate external request keys, use the [reusable-send API](marketing-reusable-send.md). Arbitrary programmable input parameters and transactional-mode consent rules remain separate Phase 6 work.
 
 Campaign-wide scheduling rejects `single_send` profiles. Editing a draft in the workspace preserves its API-created delivery mode. The supplied start time is not a scheduling delay for this endpoint: the explicit request queues the Contact for the next worker run.
 

@@ -35,6 +35,9 @@ final class MarketingEmailWorkspaceService
         private \Espo\Custom\Tools\Asset\AssetWorkspaceService $assetLibrary,
         private MarketingImageService $images,
         private MarketingConditionalContentService $conditionalContent,
+        private MarketingParameterTemplate $parameters,
+        private MarketingContentIntegrity $contentIntegrity,
+        private MarketingIntegrationAccess $integrationAccess,
     ) {}
 
     public function designerImages(?string $id = null): array
@@ -237,6 +240,63 @@ final class MarketingEmailWorkspaceService
         return ['id' => $id, 'massEmailId' => $nativeId, 'version' => $version, 'created' => $isNew];
     }
 
+    /** A grant authorizes only a derived copy, never arbitrary workspace edits or approval. */
+    public function approvedIntegrationCopy(string $sourceId, int $version, string $requestHash, stdClass $parameters): array
+    {
+        $context = $this->tenantContextStore->require();
+        $pdo = $this->entityManager->getPDO();
+        if (!$pdo->inTransaction()) throw new \LogicException('An integration copy requires the request transaction.');
+        if (!preg_match('/^[a-f0-9]{64}$/D', $requestHash)) throw new BadRequest('Invalid request identity.');
+        $source = $this->requireProfile($context,$sourceId,true);
+        $this->integrationAccess->requireGrant($sourceId,$version);
+        $template = $this->entityManager->getEntityById('EmailTemplate',$source['email_template_id']);
+        $mass = $this->entityManager->getEntityById('MassEmail',$source['mass_email_id']);
+        if (!$template instanceof \Espo\Entities\EmailTemplate || !$mass instanceof \Espo\Modules\Crm\Entities\MassEmail || !$this->acl->checkEntity($template,'read') || !$this->acl->checkEntity($mass,'read')) throw new Forbidden('Approved source content is not available.');
+        $this->contentIntegrity->requireSnapshot($source,$template,$mass);
+        $saved = $this->versions($sourceId,$version);
+        $resolved = $this->parameters->resolve($saved['subject'],$saved['bodyHtml'],(string) ($saved['preheader'] ?? ''),$parameters);
+        $this->parameters->requireResolved($resolved['subject'],$resolved['bodyHtml'],$resolved['preheader']);
+        $this->conditionalContent->validate($resolved['subject'],$resolved['bodyHtml']);
+        $this->attachments->approvedFiles($source,$template,true);
+        $this->images->requireApproved($source,$template);
+        $images = $this->images->manifest($resolved['bodyHtml']);
+        $campaign = $this->campaign($context,(string) $mass->get('campaignId'));
+        if ($campaign['workflow_status'] !== 'active' || $campaign['purpose_id'] !== $source['purpose_id'] || !$source['approved_by_id'] || !$source['approved_at']) throw new BadRequest('The source approval or campaign is no longer available.');
+        $data = [
+            'name'=>mb_substr((string) $mass->get('name') . ' / ' . substr($requestHash,0,12),0,255),
+            'subject'=>$resolved['subject'],'bodyHtml'=>$resolved['bodyHtml'],'bodyText'=>null,'preheader'=>$resolved['preheader'] ?: null,
+            'campaignId'=>$mass->get('campaignId'),'purposeId'=>$source['purpose_id'],'deliveryMode'=>'single_send',
+            'fromAddress'=>$mass->get('fromAddress'),'fromName'=>$mass->get('fromName'),
+            'replyToAddress'=>$mass->get('replyToAddress'),'replyToName'=>$mass->get('replyToName'),
+        ];
+        // Native ORM persistence is deliberately bounded by the grant and immutable source above.
+        $copy = $this->entityManager->getNewEntity('EmailTemplate');
+        $copy->set(['name'=>$data['name'],'subject'=>$data['subject'],'body'=>$data['bodyHtml'],'isHtml'=>true,'oneOff'=>false,'createdById'=>$this->user->getId()]);
+        $this->entityManager->saveEntity($copy);
+        foreach ($this->attachments->copyForTemplate($this->attachments->templateIds($template)) as $attachmentId) {
+            $attachment = $this->entityManager->getEntityById('Attachment',$attachmentId);
+            $attachment->set(['parentId'=>$copy->getId(),'parentType'=>'EmailTemplate','field'=>'attachments']);
+            $this->entityManager->saveEntity($attachment);
+        }
+        $native = $this->entityManager->getNewEntity('MassEmail');
+        $native->set([
+            'name'=>$data['name'],'status'=>'Draft','emailTemplateId'=>$copy->getId(),'campaignId'=>$data['campaignId'],
+            'fromAddress'=>$data['fromAddress'],'fromName'=>$data['fromName'],
+            'replyToAddress'=>$data['replyToAddress'],'replyToName'=>$data['replyToName'],
+            'createdById'=>$this->user->getId(),
+        ]);
+        $this->entityManager->saveEntity($native);
+        $id = $this->uuid();
+        $pdo->prepare("INSERT INTO nexa_marketing_email_profile (id,tenant_id,service_id,mass_email_id,delivery_mode,lifecycle_status,purpose_id,preheader,version_number,created_by_id,modified_by_id,approved_by_id,approved_at) VALUES (?,?,?,?,'single_send','approved',?,?,1,?,?,?,?)")
+            ->execute([$id,$context->tenantId,$context->serviceId,$native->getId(),$data['purposeId'],$data['preheader'],$this->user->getId(),$this->user->getId(),$source['approved_by_id'],$source['approved_at']]);
+        $this->insertVersion($context,$id,1,$copy->getId(),$data);
+        $files = $this->attachments->manifest($this->attachments->templateIds($copy));
+        $evidence = ['sourceId'=>$sourceId,'sourceVersion'=>$version,'sourceApprovedById'=>$source['approved_by_id'],'sourceApprovedAt'=>$source['approved_at'],'requestHash'=>$requestHash,'parameterFingerprint'=>$resolved['fingerprint'],'attachments'=>$files,'images'=>$images,'approvalInherited'=>true];
+        $this->insertEvent($context,$id,'created',1,$evidence + ['nativeId'=>$native->getId()]);
+        $this->insertEvent($context,$id,'approved',1,$evidence);
+        return ['id'=>$id,'massEmailId'=>$native->getId(),'version'=>1,'created'=>true];
+    }
+
     /** @return array<string, mixed> */
     public function transition(string $id, stdClass $input): array
     {
@@ -262,7 +322,9 @@ final class MarketingEmailWorkspaceService
             if ($action === 'approve') {
                 $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
                 if (!$template instanceof \Espo\Entities\EmailTemplate) throw new NotFound('Email template not found.');
+                $this->contentIntegrity->requireSnapshot($profile, $template);
                 $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
+                $this->parameters->schema((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
                 $manifest = $this->attachments->manifest($this->attachments->templateIds($template));
                 if ($manifest !== $this->attachments->versionManifest($id, (int) $profile['version_number'])) throw new BadRequest('Attachments changed since the draft was saved. Save the draft again before approval.');
                 $imageManifest = $this->images->manifest((string) $template->get('body'));
@@ -291,6 +353,7 @@ final class MarketingEmailWorkspaceService
         if ($bodyHtml === '') throw new BadRequest('Email content is required.');
         if (strlen($bodyHtml) > 2_000_000) throw new BadRequest('Email content is too large.');
         $this->conditionalContent->validate($subject, $bodyHtml);
+        $this->parameters->schema($subject, $bodyHtml, (string) ($input->preheader ?? ''));
         $deliveryMode = $input->deliveryMode ?? 'campaign';
         if (!is_string($deliveryMode) || !in_array($deliveryMode, ['campaign', 'transactional', 'single_send'], true)) {
             throw new BadRequest('Choose a supported email delivery mode.');
@@ -505,8 +568,13 @@ final class MarketingEmailWorkspaceService
     private function insertVersion(TenantContext $context, string $profileId, int $version, string $templateId, array $data): void
     {
         $content = $data['subject'] . "\0" . ($data['preheader'] ?? '') . "\0" . $data['bodyHtml'] . "\0" . ($data['bodyText'] ?? '');
-        $statement = $this->entityManager->getPDO()->prepare('INSERT INTO nexa_marketing_email_version (id,tenant_id,service_id,profile_id,version_number,email_template_id,subject,preheader,body_html,body_text,content_hash,created_by_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
-        $statement->execute([$this->uuid(), $context->tenantId, $context->serviceId, $profileId, $version, $templateId, $data['subject'], $data['preheader'], $data['bodyHtml'], $data['bodyText'], hash('sha256', $content), $this->user->getId()]);
+        $policy = [];
+        foreach (['fromAddress','fromName','replyToAddress','replyToName','campaignId','purposeId','deliveryMode'] as $field) $policy[$field] = (string) ($data[$field] ?? '');
+        ksort($policy, SORT_STRING);
+        $policyJson = json_encode($policy, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $manifest = json_encode(['policy'=>$policy,'sha256'=>hash('sha256',$policyJson)], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $statement = $this->entityManager->getPDO()->prepare('INSERT INTO nexa_marketing_email_version (id,tenant_id,service_id,profile_id,version_number,email_template_id,subject,preheader,body_html,body_text,content_hash,created_by_id,delivery_manifest_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $statement->execute([$this->uuid(), $context->tenantId, $context->serviceId, $profileId, $version, $templateId, $data['subject'], $data['preheader'], $data['bodyHtml'], $data['bodyText'], hash('sha256', $content), $this->user->getId(), $manifest]);
     }
 
     private function insertEvent(TenantContext $context, string $profileId, string $type, int $version, array $payload): void

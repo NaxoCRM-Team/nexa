@@ -79,10 +79,15 @@ $required = @(
     'tests/tenant/TenantMarketingConditionalContentTest.php',
     'tests/tenant/TenantMarketingConditionalGovernanceTest.php',
     'tests/tenant/TenantMarketingSingleSendTest.php',
+    'tests/tenant/TenantMarketingReusableSendTest.php',
+    'tests/tenant/TenantMarketingParameterContractTest.php',
+    'database/shared/migrations/0066_marketing_reusable_send_requests.sql',
+    'docs/development/marketing-reusable-send.md',
     'tests/browser/marketing-single-send.spec.js',
     'docs/development/marketing-single-send.md',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/MarketingConditionalContentService.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/ValueLiteral.php',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/NumericComparison.php',
     'tests/tenant/TenantMarketingImageDispatchTest.php',
     'docs/operations/security-governance.md',
     'tests/auth/Sprint6SecurityGovernanceTest.php',
@@ -196,7 +201,7 @@ $required = @(
     'espocrm/client/custom/res/templates/global-search/panel.tpl',
     'database/shared/seeds/0002_two_tenant_isolation.sql', 'espocrm/bin/provision-demo-tenants.php',
     'database/shared/table-ownership-manifest.json', 'espocrm/application/Espo/Resources/tenant-table-ownership.json',
-    'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/OrmTenantPersistenceTest.php', 'tests/tenant/InstallationBootstrapTest.php',
+    'tests/tenant/TenantRuntimeTest.php', 'tests/tenant/OrmTenantPersistenceTest.php', 'tests/tenant/TenantApiKeyAuthenticationTest.php', 'tests/tenant/TenantApiKeyHttpTest.php', 'tests/tenant/InstallationBootstrapTest.php',
     'tests/tenant/CrmDatabaseSmokeTest.php', 'tests/tenant/ServiceOwnershipDatabaseTest.php', 'tests/architecture/ModuleConventionTest.php',
     'tests/tenant/CustomerFoundationDatabaseTest.php',
     'tests/architecture/ProductRequirementsAlignmentTest.php',
@@ -299,6 +304,8 @@ $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\configure-auth-
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'scripts\dev\install-native-application.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\CrmDatabaseSmokeTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\OrmTenantPersistenceTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantApiKeyAuthenticationTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantApiKeyHttpTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\ServiceOwnershipDatabaseTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ModuleConventionTest.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\architecture\ProductRequirementsAlignmentTest.php')
@@ -398,6 +405,8 @@ if ($php) {
     if (-not $Ci) {
         & php (Join-Path $root 'tests\tenant\OrmTenantPersistenceTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'ORM tenant persistence suite' } else { Fail 'ORM tenant persistence suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantApiKeyAuthenticationTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Native API-key tenant authentication suite' } else { Fail 'Native API-key tenant authentication suite failed.' }
     }
     & php (Join-Path $root 'tests\tenant\InstallationBootstrapTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Installation bootstrap suite' } else { Fail 'Installation bootstrap suite failed.' }
@@ -552,6 +561,10 @@ if ($php) {
         if ($LASTEXITCODE -eq 0) { Pass 'Conditional content save and approval governance' } else { Fail 'Conditional content governance suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantMarketingSingleSendTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Native single-send queue and isolation governance' } else { Fail 'Single-send governance suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingReusableSendTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Reusable approved sends and scoped request keys' } else { Fail 'Reusable send governance suite failed.' }
+        & php (Join-Path $root 'tests\tenant\TenantMarketingParameterContractTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Bounded programmable-email parameter contract' } else { Fail 'Marketing parameter contract suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantPhase4SecurityTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Two-tenant Phase 4 public security runtime suite' } else { Fail 'Two-tenant Phase 4 public security runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantBehaviorEventTest.php')

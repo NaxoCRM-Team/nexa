@@ -1,5 +1,15 @@
 [
     {
+        "route": "/Nexa/marketing-emails/:id/integration-grants",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetIntegrationGrants"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/integration-grants",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostIntegrationGrant"
+    },
+    {
         "route": "/Nexa/security/impersonation/request",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\PostImpersonationRequest"
@@ -871,6 +881,11 @@
         "route": "/Nexa/marketing-emails/:id/control",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostControl"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/reusable-send",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostReusableSend"
     },
     {
         "route": "/Nexa/marketing-emails/:id/single-send",

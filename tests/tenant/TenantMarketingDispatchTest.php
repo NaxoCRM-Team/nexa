@@ -50,10 +50,11 @@ $attachmentDelivery = defined('NEXA_MARKETING_ATTACHMENT_DELIVERY_TEST');
 $imageGovernance = defined('NEXA_MARKETING_IMAGE_GOVERNANCE_TEST');
 $conditionalGovernance = defined('NEXA_MARKETING_CONDITIONAL_GOVERNANCE_TEST');
 $singleSendGovernance = defined('NEXA_MARKETING_SINGLE_SEND_TEST');
+$reusableSendGovernance = defined('NEXA_MARKETING_REUSABLE_SEND_TEST');
 $hostedPublication = null;
 
 try {
-    if ($postalCapture || $imageGovernance || $conditionalGovernance || $singleSendGovernance) {
+    if ($postalCapture || $imageGovernance || $conditionalGovernance || $singleSendGovernance || $reusableSendGovernance) {
         // Isolate worker execution from pre-existing schedules, within this rollback-only fixture.
         $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='paused' WHERE tenant_id=? AND service_id=? AND lifecycle_status IN ('scheduled','sending')")->execute([$tenantA->tenantId, $tenantA->serviceId]);
     }
@@ -140,6 +141,7 @@ try {
         $attachmentCleanup[] = ['tenant'=>$tenantA,'attachment'=>$store->runWith($tenantA, fn () => $entityManager->getEntityById('Attachment', $snapshotId))];
     }
     $conditionalBody = $conditionalGovernance ? $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingConditionalContentService::class)->compose((object) ['field'=>'firstName','operator'=>'equals','value'=>'Governed','matchingText'=>'Conditional welcome {Contact.firstName}','fallbackText'=>'General welcome']))['bodyHtml'] : '';
+    if ($conditionalGovernance) $conditionalBody .= $store->runWith($tenantA, fn () => $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingConditionalContentService::class)->compose((object) ['field'=>'leadScore','operator'=>'at_least','value'=>'50','matchingText'=>'High score message','fallbackText'=>'Standard score message']))['bodyHtml'];
     $draftInput = (object) [
         'deliveryMode' => $singleSendGovernance ? 'single_send' : 'campaign',
         'name' => 'Governed dispatcher email', 'campaignId' => $campaign['id'], 'purposeId' => $purposeId,
@@ -214,6 +216,7 @@ try {
         $assert($history->fetchColumn()===$draftInput->bodyHtml,'Immutable native-backed content versions must retain the condition and both branches.');
         $rendered=$store->runWith($tenantA,fn ()=>$factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingPreviewService::class)->preview((object) ['contactId'=>$contact->getId(),'subject'=>$draftInput->subject,'bodyHtml'=>$draftInput->bodyHtml]));
         $assert(str_contains($rendered['bodyHtml'],'Conditional welcome Governed') && !str_contains($rendered['bodyHtml'],'General welcome'),'The approved native-backed template must render only its matching branch.');
+        $assert(str_contains($rendered['bodyHtml'],'Standard score message') && !str_contains($rendered['bodyHtml'],'High score message'),'Saved and approved numeric conditions must use the same native recipient renderer.');
         echo "Conditional content save, immutable version and approval governance tests passed.\n";
         return;
     }
@@ -270,6 +273,274 @@ try {
     $pdo->prepare("UPDATE nexa_marketing_sending_domain SET ownership_status='verified',spf_status='verified',dkim_status='verified',dmarc_status='verified',return_path_status='verified',verified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")
         ->execute([$domainId, $tenantA->tenantId, $tenantA->serviceId]);
 
+    if ($reusableSendGovernance) {
+        $dispatch = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class));
+        $denied = static function (callable $call, string $message) use ($assert): void {
+            $blocked = false;
+            try {$call();} catch (\Espo\Core\Exceptions\BadRequest|NotFound|\Espo\Core\Exceptions\Forbidden) {$blocked = true;}
+            $assert($blocked,$message);
+        };
+        $send = fn (string $key, int $version=1) => $store->runWith($tenantA,fn ()=>$dispatch->reusableSend($draft['id'],$contact->getId(),$key,$version));
+        $denied(fn ()=>$send('short'),'Request keys must be bounded and explicit.');
+        $denied(fn ()=>$send('wrong-version',2),'Unapproved versions must be rejected.');
+        $denied(fn ()=>$store->runWith($tenantB,fn ()=>$dispatch->reusableSend($draft['id'],$contact->getId(),'foreign-tenant',1)),'Another tenant must not reuse the approved source.');
+        $api = $store->runWith($tenantA,fn ()=>$factory->create(\Espo\Custom\Tools\MarketingEmail\Api\PostReusableSend::class));
+        $request = static function (array $body, ?string $profileId = null) use ($draft): \Espo\Core\Api\RequestWrapper {
+            $psr = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST','/api/v1/Nexa/marketing-emails/' . $draft['id'] . '/reusable-send')
+                ->withHeader('Content-Type','application/json')->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream(json_encode($body,JSON_THROW_ON_ERROR)));
+            return new \Espo\Core\Api\RequestWrapper($psr,'',['id'=>$profileId ?? $draft['id']]);
+        };
+        $body = ['contactId'=>$contact->getId(),'requestKey'=>'event-request-one','sourceVersion'=>1];
+        foreach ([array_replace($body,['sourceVersion'=>'1']), $body + ['subject'=>'Unapproved override'], $body + ['parameters'=>[]], $body + ['parameters'=>null]] as $invalid) $denied(fn ()=>$store->runWith($tenantA,fn ()=>$api->process($request($invalid))),'The real reusable API must reject wrong types and unapproved overrides.');
+        $user = $container->getByClass(\Espo\Entities\User::class); $originalType = $user->get('type');
+        try {$user->set('type','regular'); $denied(fn ()=>$send('staff-request-one'),'Non-administrators cannot authorize reusable sends.');}
+        finally {$user->set('type',$originalType);}
+        $otherService = new TenantContext($tenantA->tenantId,$tenantA->slug,'reusable-test','','20000000-0000-4000-8000-000000000099');
+        $denied(fn ()=>$store->runWith($otherService,fn ()=>$dispatch->reusableSend($draft['id'],$contact->getId(),'foreign-service',1)),'Another service must not reuse the source.');
+        $response = $store->runWith($tenantA,fn ()=>$api->process($request($body)));
+        $first = json_decode((string) $response->getBody(),true,512,JSON_THROW_ON_ERROR);
+        $retry = $send('event-request-one'); $second = $send('event-request-two');
+        $assert(!$first['replayed'] && $retry['replayed'] && $first['queueItemId'] === $retry['queueItemId'],'Repeating an external request key must return the same queue identity.');
+        $assert($first['id'] !== $second['id'] && $first['queueItemId'] !== $second['queueItemId'],'A different intentional key must receive an independent native email and queue identity.');
+        $database = $container->getByClass(\Espo\Core\Utils\Config::class)->get('database');
+        $concurrent = new PDO('mysql:host=' . ($database['host'] ?? '127.0.0.1') . ';port=' . ($database['port'] ?? 3306) . ';dbname=' . $database['dbname'] . ';charset=utf8mb4',$database['user'],$database['password'] ?? '',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+        $concurrent->exec('SET SESSION innodb_lock_wait_timeout=1'); $concurrent->beginTransaction(); $locked = false;
+        try {
+            $collision = $concurrent->prepare('INSERT IGNORE INTO nexa_marketing_send_request (tenant_id,service_id,request_hash,source_profile_id,source_version,contact_id,created_by_id) VALUES (?,?,?,?,?,?,?)');
+            $collision->execute([$tenantA->tenantId,$tenantA->serviceId,hash('sha256','event-request-one'),$draft['id'],1,$contact->getId(),$user->getId()]);
+        } catch (PDOException $error) {$locked = (int) ($error->errorInfo[1] ?? 0) === 1205;}
+        finally {$concurrent->rollBack();}
+        $assert($locked,'Competing request keys must be serialized by the database unique key.');
+        $sourceCheck = $pdo->prepare('SELECT lifecycle_status FROM nexa_marketing_email_profile WHERE id=?');
+        $sourceCheck->execute([$draft['id']]); $assert($sourceCheck->fetchColumn() === 'approved','Reusable source approval must remain unchanged.');
+        $apiUser = $store->runWith($tenantA,function () use ($entityManager) {
+            $record = $entityManager->getNewEntity('User'); $record->set(['userName'=>'grant-' . bin2hex(random_bytes(5)),'firstName'=>'Integration','lastName'=>'Fixture','type'=>'api','isActive'=>true]); $entityManager->saveEntity($record); return $entityManager->getEntityById('User',$record->getId());
+        });
+        $access = $store->runWith($tenantA,fn ()=>$factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingIntegrationAccess::class));
+        $apiAccess = new \Espo\Custom\Tools\MarketingEmail\MarketingIntegrationAccess($entityManager,$store,$apiUser,$container->getByClass(\Espo\Core\Acl::class),new \Espo\Custom\Tools\MarketingEmail\MarketingContentIntegrity($entityManager,$store));
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$apiAccess->requireGrant($draft['id'],1)),'API users must have an explicit grant.');
+        $grantApi = $store->runWith($tenantA,fn ()=>$factory->create(\Espo\Custom\Tools\MarketingEmail\Api\PostIntegrationGrant::class));
+        $grantPayload = ['action'=>'grant','userId'=>$apiUser->getId(),'sourceVersion'=>1,'hours'=>24];
+        $store->runWith($tenantA,fn ()=>$grantApi->process($request($grantPayload)));
+        foreach ([array_replace($grantPayload,['hours'=>'24']),$grantPayload + ['isAdmin'=>true],array_replace($grantPayload,['sourceVersion'=>'1'])] as $invalid) $denied(fn ()=>$store->runWith($tenantA,fn ()=>$grantApi->process($request($invalid))),'Grant API must reject permission overrides and incorrect types.');
+        $catalog = $store->runWith($tenantA,fn ()=>$access->catalog($draft['id']));
+        $assert(count($catalog['grants']) === 1 && $catalog['grants'][0]['userId'] === $apiUser->getId(),'Administrator grant catalogue must show only the scoped source grant.');
+        $denied(fn ()=>$store->runWith($tenantB,fn ()=>$access->catalog($draft['id'])),'Foreign tenants cannot list another source grants.');
+        $store->runWith($tenantA,fn ()=>$apiAccess->requireGrant($draft['id'],1));
+        $ownedRequest = ['tenant_id'=>$tenantA->tenantId,'service_id'=>$tenantA->serviceId,'source_profile_id'=>$draft['id'],'source_version'=>1,'created_by_id'=>$apiUser->getId()];
+        $store->runWith($tenantA,fn ()=>$apiAccess->requireRequestOwner($ownedRequest));
+        $wrongOwner = $ownedRequest; $wrongOwner['created_by_id'] = 'another-api-user';
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$apiAccess->requireRequestOwner($wrongOwner)),'A valid template grant must not authorize another callers request key.');
+        $wrongService = $ownedRequest; $wrongService['service_id'] = '20000000-0000-4000-8000-000000000099';
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$apiAccess->requireRequestOwner($wrongService)),'Request ownership must preserve service boundaries.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$apiAccess->grant($apiUser->getId(),$draft['id'],1,24)),'API users cannot grant themselves access.');
+        $denied(fn ()=>$store->runWith($tenantB,fn ()=>$apiAccess->requireGrant($draft['id'],1)),'Integration grants must not cross tenant boundaries.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$draft['id'],2,24)),'Grants cannot authorize another source version.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$draft['id'],1,721)),'Grant duration must be bounded.');
+        $store->runWith($tenantA,fn ()=>$access->revoke($apiUser->getId(),$draft['id'],1));
+        $store->runWith($tenantA,fn ()=>$access->revoke($apiUser->getId(),$draft['id'],1));
+        $grantAudit = $pdo->prepare("SELECT event_type,actor_user_id,payload_json FROM nexa_marketing_email_event WHERE profile_id=? AND tenant_id=? AND service_id=? AND event_type IN ('integration_granted','integration_revoked') ORDER BY occurred_at,id");
+        $grantAudit->execute([$draft['id'],$tenantA->tenantId,$tenantA->serviceId]); $grantEvents = $grantAudit->fetchAll(PDO::FETCH_ASSOC);
+        $assert(count($grantEvents) === 2 && $grantEvents[0]['actor_user_id'] === $user->getId() && json_decode($grantEvents[0]['payload_json'],true)['userId'] === $apiUser->getId(),'Grant audit must retain the administrator and target API user; duplicate revocations append no misleading event.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$apiAccess->requireGrant($draft['id'],1)),'Revocation must take effect immediately.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$apiAccess->requireRequestOwner($ownedRequest)),'Revocation must also prevent integration replay access.');
+        $store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$draft['id'],1,24));
+        $grantState = $pdo->prepare('SELECT expires_at,modified_at,revoked_at FROM nexa_marketing_integration_grant WHERE tenant_id=? AND service_id=? AND user_id=? AND source_profile_id=? AND source_version=1');
+        $grantState->execute([$tenantA->tenantId,$tenantA->serviceId,$apiUser->getId(),$draft['id']]); $beforeRejectedRenewals = $grantState->fetch(PDO::FETCH_ASSOC);
+        $grantTemplate = $pdo->prepare('SELECT email_template_id FROM mass_email WHERE id=?');
+        $grantTemplate->execute([$draft['massEmailId']]); $grantTemplateId = $grantTemplate->fetchColumn();
+        $pdo->prepare('UPDATE email_template SET subject=? WHERE id=?')->execute(['Changed outside approval',$grantTemplateId]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$draft['id'],1,24)),'Grant renewal must reject native content changed outside its approved snapshot.');
+        $pdo->prepare('UPDATE email_template SET subject=? WHERE id=?')->execute([$draftInput->subject,$grantTemplateId]);
+        $pdo->prepare('UPDATE mass_email SET from_address=? WHERE id=?')->execute(['changed@example.test',$draft['massEmailId']]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$draft['id'],1,24)),'Grant renewal must reject a sender changed outside its approved delivery policy.');
+        $pdo->prepare('UPDATE mass_email SET from_address=? WHERE id=?')->execute([$draftInput->fromAddress,$draft['massEmailId']]);
+        $pdo->prepare('UPDATE user SET is_active=0 WHERE id=?')->execute([$apiUser->getId()]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$draft['id'],1,24)),'Grant renewal must recheck the persisted API user, not a cached active flag.');
+        $pdo->prepare('UPDATE user SET is_active=1 WHERE id=?')->execute([$apiUser->getId()]);
+        $grantState->execute([$tenantA->tenantId,$tenantA->serviceId,$apiUser->getId(),$draft['id']]);
+        $assert($grantState->fetch(PDO::FETCH_ASSOC) === $beforeRejectedRenewals,'Rejected renewals must leave the existing grant expiry and state unchanged.');
+        $grantAudit->execute([$draft['id'],$tenantA->tenantId,$tenantA->serviceId]);
+        $assert(count($grantAudit->fetchAll(PDO::FETCH_ASSOC)) === 3,'Rejected renewals must not append successful grant audit events.');
+        $pdo->prepare('UPDATE nexa_marketing_integration_grant SET expires_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND) WHERE tenant_id=? AND service_id=? AND user_id=?')->execute([$tenantA->tenantId,$tenantA->serviceId,$apiUser->getId()]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$apiAccess->requireGrant($draft['id'],1)),'Expired grants must not authorize sending.');
+        $other = $store->runWith($tenantA,fn ()=>$services->get('Contact')->create((object) ['firstName'=>'Other','lastName'=>'Recipient'],CreateParams::create()));
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$dispatch->reusableSend($draft['id'],$other->getId(),'event-request-one',1)),'An existing request key cannot change its Contact.');
+        $rows = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND source_profile_id=?');
+        $rows->execute([$tenantA->tenantId,$tenantA->serviceId,$draft['id']]); $assert((int) $rows->fetchColumn() === 2,'Only successful distinct requests must create ledger rows.');
+        $templateQuery = $pdo->prepare('SELECT email_template_id FROM mass_email WHERE id=?'); $templateQuery->execute([$draft['massEmailId']]); $sourceTemplateId = $templateQuery->fetchColumn();
+        $pdo->prepare('UPDATE email_template SET body=? WHERE id=?')->execute(['<p>Unapproved source change</p>',$sourceTemplateId]);
+        $denied(fn ()=>$send('tampered-source-key'),'Content changed outside the versioned approval path must not be copied.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$dispatch->schedule($draft['id'])),'Campaign scheduling must reject content changed outside its governed version.');
+        $pdo->prepare('UPDATE email_template SET body=? WHERE id=?')->execute([$draftInput->bodyHtml,$sourceTemplateId]);
+        $insertLimit = $pdo->prepare('INSERT INTO nexa_marketing_send_request (tenant_id,service_id,request_hash,source_profile_id,source_version,contact_id,created_by_id) VALUES (?,?,?,?,?,?,?)');
+        for ($index=0;$index<58;$index++) $insertLimit->execute([$tenantA->tenantId,$tenantA->serviceId,hash('sha256','rate-fixture-' . $index),$draft['id'],1,$contact->getId(),$user->getId()]);
+        $denied(fn ()=>$send('rate-limited-key'),'New requests must respect the per-source rate limit.');
+        $assert($send('event-request-one')['replayed'],'A retry must remain available at the request rate limit.');
+        $pdo->prepare('DELETE FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND source_profile_id=? AND profile_id IS NULL')->execute([$tenantA->tenantId,$tenantA->serviceId,$draft['id']]);
+        $parameterInput = clone $draftInput;
+        $integrationFile = $store->runWith($tenantA,function () use ($entityManager,$factory) {
+            $file = $entityManager->getNewEntity('Attachment');
+            $contents = "Approved integration attachment.\n";
+            $file->set(['name'=>'integration-guide.txt','type'=>'text/plain','size'=>strlen($contents),'storage'=>'EspoUploadDir']);
+            $entityManager->saveEntity($file);
+            $factory->create(\Espo\Core\FileStorage\Manager::class)->putContents($file,$contents);
+            return $entityManager->getEntityById('Attachment',$file->getId());
+        });
+        $attachmentCleanup[] = ['tenant'=>$tenantA,'attachment'=>$integrationFile];
+        $parameterInput->attachmentsIds = [$integrationFile->getId()];
+        $workspace = $store->runWith($tenantA,fn ()=>$factory->create(MarketingEmailWorkspaceService::class));
+        $parameterInput->subject = 'Reference [[nexa:reference:40]]';
+        $parameterInput->bodyHtml = '<p>[[nexa:message:255]] {Contact.firstName}</p>';
+        $parameterInput->preheader = '[[nexa:reference:40]]';
+        $parameterSource = $store->runWith($tenantA,fn ()=>$workspace->save($parameterInput));
+        $store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'submit']));
+        $templateQuery->execute([$parameterSource['massEmailId']]); $parameterTemplateId = $templateQuery->fetchColumn();
+        $pdo->prepare('UPDATE email_template SET subject=? WHERE id=?')->execute(['Changed outside editor',$parameterTemplateId]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Approval must reject native subject tampering.');
+        $pdo->prepare('UPDATE email_template SET subject=? WHERE id=?')->execute([$parameterInput->subject,$parameterTemplateId]);
+        $pdo->prepare('UPDATE nexa_marketing_email_profile SET preheader=? WHERE id=?')->execute(['Changed preheader',$parameterSource['id']]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Approval must reject profile preheader tampering.');
+        $pdo->prepare('UPDATE nexa_marketing_email_profile SET preheader=? WHERE id=?')->execute([$parameterInput->preheader,$parameterSource['id']]);
+        $originalHash = hash('sha256',$parameterInput->subject . "\0" . $parameterInput->preheader . "\0" . $parameterInput->bodyHtml . "\0" . ($parameterInput->bodyText ?? ''));
+        $pdo->prepare('UPDATE nexa_marketing_email_version SET content_hash=? WHERE profile_id=?')->execute([str_repeat('0',64),$parameterSource['id']]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Approval must verify the immutable version hash.');
+        $pdo->prepare('UPDATE nexa_marketing_email_version SET content_hash=? WHERE profile_id=?')->execute([$originalHash,$parameterSource['id']]);
+        $nativePolicyQuery = $pdo->prepare('SELECT from_address,from_name,reply_to_address,reply_to_name,campaign_id FROM mass_email WHERE id=?');
+        $nativePolicyQuery->execute([$parameterSource['massEmailId']]); $nativePolicy = $nativePolicyQuery->fetch(PDO::FETCH_ASSOC);
+        foreach (['from_address'=>'changed@example.test','from_name'=>'Changed sender','reply_to_address'=>'reply@example.test','reply_to_name'=>'Changed reply name','campaign_id'=>null] as $column=>$changed) {
+            $pdo->prepare('UPDATE mass_email SET ' . $column . '=? WHERE id=?')->execute([$changed,$parameterSource['massEmailId']]);
+            $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Approval must reject delivery policy changes: ' . $column);
+            $pdo->prepare('UPDATE mass_email SET ' . $column . '=? WHERE id=?')->execute([$nativePolicy[$column],$parameterSource['massEmailId']]);
+        }
+        $pdo->prepare('UPDATE nexa_marketing_email_profile SET delivery_mode=? WHERE id=?')->execute(['single_send',$parameterSource['id']]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Approval must reject delivery-mode changes outside the saved version.');
+        $pdo->prepare('UPDATE nexa_marketing_email_profile SET delivery_mode=? WHERE id=?')->execute([$parameterInput->deliveryMode ?? 'campaign',$parameterSource['id']]);
+        $manifestQuery = $pdo->prepare('SELECT delivery_manifest_json FROM nexa_marketing_email_version WHERE profile_id=? AND version_number=1');
+        $manifestQuery->execute([$parameterSource['id']]); $policyManifest = $manifestQuery->fetchColumn();
+        $pdo->prepare('UPDATE nexa_marketing_email_version SET delivery_manifest_json=NULL WHERE profile_id=?')->execute([$parameterSource['id']]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Historical versions without policy evidence must require a new save.');
+        $corruptManifest = json_decode($policyManifest,true,512,JSON_THROW_ON_ERROR); $corruptManifest['sha256'] = str_repeat('0',64);
+        $pdo->prepare('UPDATE nexa_marketing_email_version SET delivery_manifest_json=? WHERE profile_id=?')->execute([json_encode($corruptManifest,JSON_THROW_ON_ERROR),$parameterSource['id']]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Corrupt policy hashes cannot authorize sending.');
+        $reorderedManifest = json_decode($policyManifest,true,512,JSON_THROW_ON_ERROR); $reorderedManifest['policy'] = array_reverse($reorderedManifest['policy'],true);
+        $pdo->prepare('UPDATE nexa_marketing_email_version SET delivery_manifest_json=? WHERE profile_id=?')->execute([json_encode($reorderedManifest,JSON_THROW_ON_ERROR),$parameterSource['id']]);
+        $store->runWith($tenantA,fn ()=>$workspace->transition($parameterSource['id'],(object) ['action'=>'approve']));
+        $legacy = $store->runWith($tenantA,fn ()=>$workspace->save($parameterInput));
+        $pdo->prepare('UPDATE nexa_marketing_email_version SET delivery_manifest_json=NULL WHERE profile_id=?')->execute([$legacy['id']]);
+        $store->runWith($tenantA,fn ()=>$workspace->transition($legacy['id'],(object) ['action'=>'submit']));
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$workspace->transition($legacy['id'],(object) ['action'=>'approve'])),'A historical version must not be approved without a new saved policy snapshot.');
+        $store->runWith($tenantA,fn ()=>$workspace->transition($legacy['id'],(object) ['action'=>'return']));
+        $resaved = $store->runWith($tenantA,fn ()=>$workspace->save($parameterInput,$legacy['id']));
+        $assert($resaved['version'] === 2,'Resaving a historical email must append a new version rather than rewriting historical approval evidence.');
+        $store->runWith($tenantA,fn ()=>$workspace->transition($legacy['id'],(object) ['action'=>'submit']));
+        $store->runWith($tenantA,fn ()=>$workspace->transition($legacy['id'],(object) ['action'=>'approve']));
+        $values = (object) ['reference'=>'ORDER-42','message'=>'A & B confirmed'];
+        $parameterSend = fn (\stdClass $input) => $store->runWith($tenantA,fn ()=>$dispatch->reusableSend($parameterSource['id'],$contact->getId(),'parameter-request-one',1,$input));
+        $denied(fn ()=>$parameterSend((object) ['reference'=>'ORDER-42']),'Missing declared parameters must not queue a send.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$dispatch->singleSend($parameterSource['id'],$contact->getId())),'Unresolved source content cannot bypass parameter delivery.');
+        $parameterResponse = $store->runWith($tenantA,fn ()=>$api->process($request(['contactId'=>$contact->getId(),'sourceVersion'=>1,'requestKey'=>'parameter-request-one','parameters'=>$values],$parameterSource['id'])));
+        $parameterFirst = json_decode((string) $parameterResponse->getBody(),true,512,JSON_THROW_ON_ERROR);
+        $parameterRetry = $parameterSend((object) ['message'=>'A & B confirmed','reference'=>'ORDER-42']);
+        $assert($parameterRetry['queueItemId'] === $parameterFirst['queueItemId'] && $parameterRetry['replayed'],'Equivalent parameters must replay the same native queue item.');
+        $denied(fn ()=>$parameterSend((object) ['reference'=>'ORDER-43','message'=>'A & B confirmed']),'Changed parameter values must not reuse the request key.');
+        $snapshot = $store->runWith($tenantA,fn ()=>$workspace->versions($parameterFirst['id'],1));
+        $assert($snapshot['subject'] === 'Reference ORDER-42' && $snapshot['preheader'] === 'ORDER-42' && str_contains($snapshot['bodyHtml'],'A &amp; B confirmed') && str_contains($snapshot['bodyHtml'],'{Contact.firstName}'),'The native immutable child version must contain safely resolved text and retain native personalization.');
+        $previewService = $store->runWith($tenantA,fn ()=>$factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingPreviewService::class));
+        $renderedParameters = $store->runWith($tenantA,fn ()=>$previewService->preview((object) ['contactId'=>$contact->getId(),'subject'=>$snapshot['subject'],'bodyHtml'=>$snapshot['bodyHtml']]));
+        $assert(str_contains($renderedParameters['bodyHtml'],(string) $contact->get('firstName')) && !str_contains($renderedParameters['bodyHtml'],'{Contact.firstName}'),'Native preview must render Contact personalization after safe parameter resolution.');
+        $role = $store->runWith($tenantA,function () use ($entityManager,$apiUser) {
+            $role = $entityManager->getNewEntity('Role'); $permissions = new \stdClass();
+            foreach (['MassEmail','EmailTemplate','Contact','Attachment','Campaign'] as $scope) $permissions->{$scope} = (object) ['read'=>'all','create'=>'no','edit'=>'no','delete'=>'no','stream'=>'no'];
+            $role->set(['name'=>'Read-only integration fixture','data'=>$permissions]); $entityManager->saveEntity($role);
+            $entityManager->getRDBRepository('User')->getRelation($apiUser,'roles')->relate($role);
+            return $role;
+        });
+        $nativeApiAcl = new \Espo\Core\Acl($container->getByClass(\Espo\Core\AclManager::class),$apiUser);
+        $assert($store->runWith($tenantA,fn () => !$nativeApiAcl->checkScope('MassEmail','create') && !$nativeApiAcl->checkScope('MassEmail','edit') && $nativeApiAcl->checkScope('MassEmail','read')),'Integration fixture must use real native read-only role permissions.');
+        $restrictedAccess = $store->runWith($tenantA,fn ()=>$factory->createWith(\Espo\Custom\Tools\MarketingEmail\MarketingIntegrationAccess::class,['actor'=>$apiUser,'acl'=>$nativeApiAcl]));
+        $restrictedFiles = $store->runWith($tenantA,fn ()=>$factory->createWith(\Espo\Custom\Tools\MarketingEmail\MarketingAttachmentService::class,['acl'=>$nativeApiAcl]));
+        $restrictedImages = $store->runWith($tenantA,fn ()=>$factory->createWith(\Espo\Custom\Tools\MarketingEmail\MarketingImageService::class,['user'=>$apiUser,'acl'=>$nativeApiAcl]));
+        $restrictedWorkspace = $store->runWith($tenantA,fn ()=>$factory->createWith(MarketingEmailWorkspaceService::class,['user'=>$apiUser,'acl'=>$nativeApiAcl,'integrationAccess'=>$restrictedAccess,'attachments'=>$restrictedFiles,'images'=>$restrictedImages]));
+        $restrictedDispatch = $store->runWith($tenantA,fn ()=>$factory->createWith(MarketingDispatchService::class,['user'=>$apiUser,'acl'=>$nativeApiAcl,'integrationAccess'=>$restrictedAccess,'workspace'=>$restrictedWorkspace,'attachments'=>$restrictedFiles,'images'=>$restrictedImages]));
+        $restrictedApi = new \Espo\Custom\Tools\MarketingEmail\Api\PostReusableSend($restrictedDispatch);
+        $integrationPayload = ['contactId'=>$contact->getId(),'sourceVersion'=>1,'requestKey'=>'api-parameter-send-one','parameters'=>$values];
+        $integrationKey = bin2hex(random_bytes(20));
+        $pdo->prepare("UPDATE user SET api_key=?,auth_method='ApiKey' WHERE id=?")->execute([$integrationKey,$apiUser->getId()]);
+        $integrationMiddleware = $factory->create(\Espo\Core\Tenant\Api\TenantContextMiddleware::class);
+        $integrationHandler = new class($restrictedApi,$factory,$assert,$apiUser->getId(),$parameterSource['id']) implements \Psr\Http\Server\RequestHandlerInterface {
+            public function __construct(private \Espo\Custom\Tools\MarketingEmail\Api\PostReusableSend $api,private InjectableFactory $factory,private Closure $assert,private string $userId,private string $sourceId) {}
+            public function handle(\Psr\Http\Message\ServerRequestInterface $psr): \Psr\Http\Message\ResponseInterface {
+                $wrapped = new \Espo\Core\Api\RequestWrapper($psr,'',['id'=>$this->sourceId]);
+                $login = $this->factory->create(\Espo\Core\Authentication\Logins\ApiKey::class)->login(\Espo\Core\Authentication\Login\Data::createBuilder()->build(),$wrapped);
+                ($this->assert)($login->isSuccess() && $login->getUser()?->getId() === $this->userId,'The integration action must run only after native key authentication of its API actor.');
+                return $this->api->process($wrapped)->toPsr7();
+            }
+        };
+        $integrationSend = function () use ($integrationMiddleware,$integrationHandler,$integrationKey,$integrationPayload,$parameterSource) {
+            $psr = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST','http://localhost/nexa/api/v1/Nexa/marketing-emails/' . $parameterSource['id'] . '/reusable-send')->withHeader('X-Api-Key',$integrationKey)->withHeader('Content-Type','application/json');
+            $psr->getBody()->write(json_encode($integrationPayload,JSON_THROW_ON_ERROR));
+            $psr->getBody()->rewind();
+            return $integrationMiddleware->process($psr,$integrationHandler);
+        };
+        $denied($integrationSend,'A read-only API user without a grant must not create a native send.');
+        $store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$parameterSource['id'],1,24));
+        $integrationFirst = json_decode((string) $integrationSend()->getBody(),true,512,JSON_THROW_ON_ERROR);
+        $integrationRetry = json_decode((string) $integrationSend()->getBody(),true,512,JSON_THROW_ON_ERROR);
+        $assert(!$integrationFirst['replayed'] && $integrationRetry['replayed'] && $integrationFirst['queueItemId'] === $integrationRetry['queueItemId'],'Granted read-only native API users must create and replay exactly one queue item.');
+        $integrationEvidence = $pdo->prepare('SELECT p.created_by_id,p.approved_by_id,p.approved_at,v.subject,v.body_html FROM nexa_marketing_email_profile p INNER JOIN nexa_marketing_email_version v ON v.profile_id=p.id AND v.tenant_id=p.tenant_id AND v.service_id=p.service_id AND v.version_number=1 WHERE p.id=?');
+        $integrationEvidence->execute([$integrationFirst['id']]); $inherited = $integrationEvidence->fetch(PDO::FETCH_ASSOC);
+        $assert($inherited['created_by_id'] === $apiUser->getId() && $inherited['approved_by_id'] === $user->getId() && $inherited['approved_at'] && $inherited['subject'] === 'Reference ORDER-42' && str_contains($inherited['body_html'],'A &amp; B confirmed'),'Integration copies must retain the actual source approver and safely resolved immutable content.');
+        $store->runWith($tenantA,function () use ($entityManager,$pdo,$integrationFirst,$restrictedFiles,$restrictedImages,$factory,$assert) {
+            $query = $pdo->prepare('SELECT p.*,m.email_template_id FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id WHERE p.id=?');
+            $query->execute([$integrationFirst['id']]); $profile = $query->fetch(PDO::FETCH_ASSOC);
+            $template = $entityManager->getEntityById('EmailTemplate',$profile['email_template_id']);
+            $mass = $entityManager->getEntityById('MassEmail',$profile['mass_email_id']);
+            $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingContentIntegrity::class)->requireSnapshot($profile,$template,$mass);
+            $files = $restrictedFiles->approvedFiles($profile,$template,true);
+            $assert(count($files) === 1 && $files[0]->contents === "Approved integration attachment.\n",'Inherited native attachment aliases must retain usable approval manifests and original bytes.');
+            $restrictedImages->requireApproved($profile,$template);
+        });
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedWorkspace->save($parameterInput)),'Grants must not authorize ordinary workspace creation.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedWorkspace->save($parameterInput,$parameterSource['id'])),'Grants must not authorize source edits.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedWorkspace->transition($parameterSource['id'],(object) ['action'=>'approve'])),'Grants must not authorize source approval.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedDispatch->singleSend($integrationFirst['id'],$contact->getId())),'The ordinary single-send endpoint must remain administrator-only.');
+        $denied(fn ()=>$store->runWith($tenantB,fn ()=>$restrictedApi->process($request($integrationPayload,$parameterSource['id']))),'Granted integration sends must remain tenant scoped.');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedApi->process($request(['contactId'=>$contact->getId(),'sourceVersion'=>1,'requestKey'=>'parameter-request-one','parameters'=>$values],$parameterSource['id']))),'An API grant must not authorize replaying an administrators request.');
+        $store->runWith($tenantA,fn ()=>$access->revoke($apiUser->getId(),$parameterSource['id'],1));
+        $denied($integrationSend,'Revoked grants must prevent even owned replay.');
+        $store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$parameterSource['id'],1,24));
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedApi->process($request(array_replace($integrationPayload,['requestKey'=>'api-rejected-values','parameters'=>(object) ['reference'=>'ORDER-42']]),$parameterSource['id']))),'Granted API users must still provide every declared parameter.');
+        $failedLedger = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND request_hash=?');
+        $failedLedger->execute([$tenantA->tenantId,$tenantA->serviceId,hash('sha256','api-rejected-values')]);
+        $assert((int) $failedLedger->fetchColumn() === 0,'Rejected API input must not consume an intentional request key.');
+        $childProfileQuery = $pdo->prepare('SELECT p.*,m.email_template_id FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id WHERE p.id=?');
+        $childProfileQuery->execute([$parameterFirst['id']]); $childProfile = $childProfileQuery->fetch(PDO::FETCH_ASSOC);
+        $childMass = $store->runWith($tenantA,fn ()=>$entityManager->getEntityById('MassEmail',$childProfile['mass_email_id']));
+        $childTemplate = $store->runWith($tenantA,fn ()=>$entityManager->getEntityById('EmailTemplate',$childProfile['email_template_id']));
+        $pdo->prepare('UPDATE email_template SET body=? WHERE id=?')->execute(['<p>Changed after queueing</p>',$childProfile['email_template_id']]);
+        $dispatchBoundary = new ReflectionMethod($dispatch,'dispatchItem');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$dispatchBoundary->invoke($dispatch,$tenantA,$childProfile,$childMass,$childTemplate,$parameterFirst['queueItemId'],$contact->getId())),'Final dispatch must reject persisted tampering even if an ORM entity still holds cached approved content.');
+        $pdo->prepare('UPDATE email_template SET body=? WHERE id=?')->execute([$snapshot['bodyHtml'],$childProfile['email_template_id']]);
+        $pdo->prepare('UPDATE mass_email SET from_name=? WHERE id=?')->execute(['Changed after approval',$childProfile['mass_email_id']]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$dispatchBoundary->invoke($dispatch,$tenantA,$childProfile,$childMass,$childTemplate,$parameterFirst['queueItemId'],$contact->getId())),'Final dispatch must reject persisted sender changes even with cached approved native settings.');
+        $pdo->prepare('UPDATE mass_email SET from_name=? WHERE id=?')->execute([$childMass->get('fromName'),$childProfile['mass_email_id']]);
+        $previousReplyName = $childMass->get('replyToName'); $childMass->set('replyToName','Changed cached reply name');
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$dispatchBoundary->invoke($dispatch,$tenantA,$childProfile,$childMass,$childTemplate,$parameterFirst['queueItemId'],$contact->getId())),'Final dispatch must verify the actual in-memory sender settings used by the provider request.');
+        $childMass->set('replyToName',$previousReplyName);
+        $changedPurpose = $childProfile; $changedPurpose['purpose_id'] = 'unapproved-purpose';
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$dispatchBoundary->invoke($dispatch,$tenantA,$changedPurpose,$childMass,$childTemplate,$parameterFirst['queueItemId'],$contact->getId())),'Final dispatch must reject stale or changed consent purpose in memory.');
+        $pdo->prepare('UPDATE contact SET do_not_contact=1 WHERE id=?')->execute([$contact->getId()]);
+        $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedApi->process($request(array_replace($integrationPayload,['requestKey'=>'api-suppressed-send']),$parameterSource['id']))),'Granted integrations must not bypass contact suppression.');
+        $denied(fn ()=>$send('blocked-request-three'),'Ineligible recipients must not create another dispatch.');
+        $store->runWith($tenantA,fn ()=>$dispatch->runScheduled());
+        $assert($send('event-request-one')['status'] === 'Failed','The real worker must recheck consent; failed retries must never recreate delivery.');
+        $check = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_delivery_message WHERE profile_id IN (?,?)');
+        $check->execute([$first['id'],$second['id']]); $assert((int) $check->fetchColumn() === 0,'Revoked recipients must never reserve provider submissions.');
+        $check->execute([$integrationFirst['id'],$parameterFirst['id']]); $assert((int) $check->fetchColumn() === 0,'The native worker must also recheck suppression on inherited integration sends without provider submission.');
+        echo "Reusable approved source, native copies, scoped request keys and worker consent tests passed.\n";
+        return;
+    }
     if ($singleSendGovernance) {
         $dispatch = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class));
         $expectBlocked = static function (callable $operation, string $message) use ($assert): void {

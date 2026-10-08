@@ -30,6 +30,18 @@ try {
     $result = $store->runWith($a, fn () => $factory->create(MarketingPreviewService::class)->preview($input));
     $assert($result['subject'] === 'Hello Preview' && str_contains($result['bodyHtml'], 'Preview Customer'), 'Native Contact personalization must render.');
     $assert((int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn() === $count, 'Preview must not queue mail.');
+    $parameterInput = (object) ['contactId'=>$contact->getId(),'subject'=>'Reference [[nexa:reference:40]]','bodyHtml'=>'<p>[[nexa:message:255]] {Contact.firstName}</p>','preheader'=>'[[nexa:reference:40]] {Contact.lastName}','parameters'=>(object) ['reference'=>'APPT-42','message'=>'A & B confirmed']];
+    $parameterResult = $store->runWith($a,fn ()=>$factory->create(MarketingPreviewService::class)->preview($parameterInput));
+    $assert($parameterResult['subject'] === 'Reference APPT-42' && $parameterResult['preheader'] === 'APPT-42 Customer' && str_contains($parameterResult['bodyHtml'],'A &amp; B confirmed Preview'),'Safe parameter values and native Contact personalization must render together in every preview field.');
+    foreach ([[],null,(object) ['reference'=>'APPT-42'],(object) ['reference'=>'APPT-42','message'=>'{{firstName}}']] as $invalid) {
+        $bad = clone $parameterInput; $bad->parameters = $invalid; $denied = false;
+        try {$store->runWith($a,fn ()=>$factory->create(MarketingPreviewService::class)->preview($bad));} catch (BadRequest) {$denied = true;}
+        $assert($denied,'Invalid, missing or executable parameter values must not preview.');
+    }
+    $denied = false;
+    try {$store->runWith($b,fn ()=>$factory->create(MarketingPreviewService::class)->preview($parameterInput));} catch (NotFound) {$denied = true;}
+    $assert($denied,'Parameterized previews must retain tenant isolation.');
+    $assert((int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn() === $count,'Parameterized previews must not create queue records.');
     $blocked = false;
     try { $store->runWith($b, fn () => $factory->create(MarketingPreviewService::class)->preview($input)); } catch (NotFound) { $blocked = true; }
     $assert($blocked, 'Another tenant must not preview this Contact.');

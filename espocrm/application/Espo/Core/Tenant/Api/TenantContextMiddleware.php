@@ -49,7 +49,11 @@ final class TenantContextMiddleware implements MiddlewareInterface
         $resetRequestId = $this->extractPasswordResetRequestId($request);
         $identifier = $this->extractLoginIdentifier($request);
 
-        if ($resetRequestId !== null) {
+        if ($request->hasHeader('X-Api-Key')) {
+            $keys = $request->getHeader('X-Api-Key');
+            $tenant = count($keys) === 1 ? $this->tenantResolver->resolveApiKey($keys[0]) : null;
+            if ($tenant === null) return $this->errorResponse(401,'Unauthorized');
+        } elseif ($resetRequestId !== null) {
             $tenant = $this->tenantResolver->resolvePasswordChangeRequest($resetRequestId);
 
             if ($tenant === null) {

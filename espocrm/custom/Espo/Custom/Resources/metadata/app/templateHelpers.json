@@ -1,3 +1,4 @@
 {
-    "nexaEmailValue": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\ValueLiteral"
+    "nexaEmailValue": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\ValueLiteral",
+    "nexaEmailNumeric": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\NumericComparison"
 }

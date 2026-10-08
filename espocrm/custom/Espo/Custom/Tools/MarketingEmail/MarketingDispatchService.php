@@ -42,6 +42,10 @@ final class MarketingDispatchService
         private \Espo\Modules\Crm\Tools\MassEmail\QueueCreator $queueCreator,
         private MarketingAttachmentService $attachments,
         private MarketingImageService $images,
+        private MarketingEmailWorkspaceService $workspace,
+        private MarketingParameterTemplate $parameters,
+        private MarketingContentIntegrity $contentIntegrity,
+        private MarketingIntegrationAccess $integrationAccess,
     ) {}
 
     /** @return array{id:string,status:string,eligibleCount:int,scheduledAt:string} */
@@ -65,6 +69,8 @@ final class MarketingDispatchService
         $this->requireVerifiedSender($context, (string) $profile['from_address']);
         $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
         if (!$template instanceof EmailTemplate) throw new NotFound('Email template not found.');
+        $this->contentIntegrity->requireSnapshot($profile, $template);
+        $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
         $this->attachments->approvedFiles($profile, $template, true);
         $this->images->requireApproved($profile, $template);
         $eligibleCount = $this->eligibleCount($context, $profile);
@@ -100,8 +106,89 @@ final class MarketingDispatchService
         return ['id' => $profileId, 'status' => 'scheduled', 'eligibleCount' => $eligibleCount, 'scheduledAt' => (string) $profile['start_at']];
     }
 
+    /** Reuse approved content while retaining one durable native dispatch per scoped external request key. */
+    public function reusableSend(string $sourceId, string $contactId, string $key, int $version, ?\stdClass $parameters = null): array
+    {
+        if (!preg_match('/^[A-Za-z0-9._:-]{8,128}$/D', $key) || $version < 1 || $contactId === '' || strlen($contactId) > 24) throw new BadRequest('Provide a Contact, source version and request key of 8 to 128 letters, digits or . _ : - characters.');
+        $context = $this->tenantContextStore->require();
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        else $pdo->exec('SAVEPOINT nexa_reusable_send');
+        try {
+            if ($this->user->isAdmin()) {
+                $source = $this->requireReviewAccess($context,$sourceId);
+            } else {
+                $source = $this->profile($context,$sourceId,true);
+                $this->integrationAccess->requireGrant($sourceId,$version);
+                $nativeSource = $this->entityManager->getEntityById('MassEmail',$source['mass_email_id']);
+                if (!$nativeSource || !$this->acl->checkEntity($nativeSource,'read')) throw new Forbidden('The approved source is not available.');
+            }
+            $saved = $this->workspace->versions($sourceId,$version);
+            $resolved = $this->parameters->resolve($saved['subject'],$saved['bodyHtml'],(string) ($saved['preheader'] ?? ''),$parameters ?? new \stdClass());
+            $hash = hash('sha256', $key);
+            // The unique scoped key serializes competing requests even when they reference different sources.
+            $pdo->prepare('INSERT IGNORE INTO nexa_marketing_send_request (tenant_id,service_id,request_hash,source_profile_id,source_version,contact_id,created_by_id,parameter_fingerprint) VALUES (?,?,?,?,?,?,?,?)')
+                ->execute([$context->tenantId,$context->serviceId,$hash,$sourceId,$version,$contactId,$this->user->getId(),$resolved['fingerprint']]);
+            $query = $pdo->prepare('SELECT * FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND request_hash=? FOR UPDATE');
+            $query->execute([$context->tenantId,$context->serviceId,$hash]); $request = $query->fetch(PDO::FETCH_ASSOC);
+            if (!$request || $request['source_profile_id'] !== $sourceId || (int) $request['source_version'] !== $version || $request['contact_id'] !== $contactId) throw new BadRequest('This request key already belongs to another source, version or Contact.');
+            $this->integrationAccess->requireRequestOwner($request);
+            if (($request['parameter_fingerprint'] !== null && !hash_equals($request['parameter_fingerprint'],$resolved['fingerprint'])) || ($request['parameter_fingerprint'] === null && (array) ($parameters ?? new \stdClass()))) throw new BadRequest('This request key already belongs to different parameter values.');
+            if ($request['profile_id']) {
+                $result = $this->dispatchSingleSend($request['profile_id'],$contactId,$this->user->isAdmin() ? null : $request);
+                if ($ownsTransaction) $pdo->commit();
+                else $pdo->exec('RELEASE SAVEPOINT nexa_reusable_send');
+                return $result + ['sourceId'=>$sourceId,'sourceVersion'=>$version];
+            }
+            if ($source['lifecycle_status'] !== 'approved' || (int) $source['version_number'] !== $version) throw new BadRequest('Use the current approved source version.');
+            $recent = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND source_profile_id=? AND created_at>DATE_SUB(NOW(6),INTERVAL 1 MINUTE)');
+            $recent->execute([$context->tenantId,$context->serviceId,$sourceId]);
+            if ((int) $recent->fetchColumn() > 60) throw new BadRequest('This approved source has reached its 60-request-per-minute limit.');
+            if ($source['campaign_status'] !== 'active' || !$this->eligibleRecipient($context,$source,$contactId)) throw new BadRequest('The Contact must be eligible and enrolled in an active campaign.');
+            if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete provider and sending-domain setup before sending.');
+            $this->requireVerifiedSender($context,(string) $source['from_address']); $this->requireCapacity($context,1);
+            $template = $this->entityManager->getEntityById('EmailTemplate',$source['email_template_id']);
+            $mass = $this->entityManager->getEntityById('MassEmail',$source['mass_email_id']);
+            $contact = $this->entityManager->getEntityById('Contact',$contactId);
+            if (!$template instanceof EmailTemplate || !$mass instanceof MassEmail || !$contact || !$this->acl->checkEntity($template,'read') || !$this->acl->checkEntity($contact,'read') || !$this->acl->checkScope('Contact','read') || !$this->acl->checkField('EmailTemplate','subject') || !$this->acl->checkField('EmailTemplate','body')) throw new Forbidden('Source content or recipient is not available.');
+            $this->contentIntegrity->requireSnapshot($source, $template, $mass);
+            if ($saved['subject'] !== $template->get('subject') || $saved['bodyHtml'] !== $template->get('body') || ($saved['preheader'] ?? '') !== ($source['preheader'] ?? '')) throw new BadRequest('Source content changed after approval. Save and approve it again.');
+            $this->attachments->approvedFiles($source,$template,true); $this->images->requireApproved($source,$template);
+            $draft = $this->user->isAdmin() ? $this->workspace->save((object) [
+                'name'=>$mass->get('name') . ' / ' . substr($hash,0,12), 'deliveryMode'=>'single_send',
+                'campaignId'=>$source['campaign_id'], 'purposeId'=>$source['purpose_id'],
+                'subject'=>$resolved['subject'], 'bodyHtml'=>$resolved['bodyHtml'], 'preheader'=>$resolved['preheader'],
+                'fromAddress'=>$mass->get('fromAddress'), 'fromName'=>$mass->get('fromName'),
+                'replyToAddress'=>$mass->get('replyToAddress'), 'replyToName'=>$mass->get('replyToName'),
+                'attachmentsIds'=>$this->attachments->templateIds($template),
+            ]) : $this->workspace->approvedIntegrationCopy($sourceId,$version,$hash,$parameters ?? new \stdClass());
+            if ($this->user->isAdmin()) {
+                $this->workspace->transition($draft['id'],(object) ['action'=>'submit']);
+                $this->workspace->transition($draft['id'],(object) ['action'=>'approve']);
+            }
+            $request['profile_id'] = $draft['id'];
+            $result = $this->dispatchSingleSend($draft['id'],$contactId,$this->user->isAdmin() ? null : $request);
+            $pdo->prepare('UPDATE nexa_marketing_send_request SET profile_id=? WHERE tenant_id=? AND service_id=? AND request_hash=?')
+                ->execute([$draft['id'],$context->tenantId,$context->serviceId,$hash]);
+            $this->event($context,$draft['id'],'reusable_send_queued',1,['sourceId'=>$sourceId,'sourceVersion'=>$version,'requestHash'=>$hash,'parameterFingerprint'=>$resolved['fingerprint'],'queueItemId'=>$result['queueItemId']]);
+            if ($ownsTransaction) $pdo->commit();
+            else $pdo->exec('RELEASE SAVEPOINT nexa_reusable_send');
+            return $result + ['sourceId'=>$sourceId,'sourceVersion'=>$version];
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            elseif ($pdo->inTransaction()) {$pdo->exec('ROLLBACK TO SAVEPOINT nexa_reusable_send'); $pdo->exec('RELEASE SAVEPOINT nexa_reusable_send');}
+            throw $error;
+        }
+    }
+
     /** One approved profile is one dispatch identity. Locking reads and a conditional state claim prevent duplicate sends. */
     public function singleSend(string $id, string $contactId): array
+    {
+        return $this->dispatchSingleSend($id,$contactId);
+    }
+
+    private function dispatchSingleSend(string $id, string $contactId, ?array $request = null): array
     {
         if ($contactId === '' || strlen($contactId) > 64) throw new BadRequest('Choose a valid Contact.');
         $context = $this->tenantContextStore->require();
@@ -110,7 +197,14 @@ final class MarketingDispatchService
         if ($ownsTransaction) $pdo->beginTransaction();
         try {
             // requireReviewAccess acquires SELECT ... FOR UPDATE on the profile inside this transaction.
-            $profile = $this->requireReviewAccess($context, $id);
+            if ($request === null) {
+                $profile = $this->requireReviewAccess($context,$id);
+            } else {
+                $this->integrationAccess->requireRequestOwner($request);
+                if ($this->user->isAdmin() || ($request['profile_id'] ?? null) !== $id || ($request['contact_id'] ?? null) !== $contactId) throw new Forbidden('Invalid integration dispatch identity.');
+                $profile = $this->profile($context,$id,true);
+                if ($profile['created_by_id'] !== $this->user->getId()) throw new Forbidden('This integration copy belongs to another caller.');
+            }
             if ($profile['delivery_mode'] !== 'single_send') throw new BadRequest('This email is not configured for single-send delivery.');
             $contact = $this->entityManager->getEntityById('Contact', $contactId);
             if (!$contact || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId || !$this->acl->checkScope('Contact', 'read') || !$this->acl->checkEntity($contact, 'read')) throw new NotFound('Contact not found.');
@@ -130,6 +224,8 @@ final class MarketingDispatchService
             $this->requireCapacity($context, 1);
             $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
             if (!$template instanceof EmailTemplate || !$this->acl->checkEntity($template, 'read')) throw new NotFound('Email template not found.');
+            $this->contentIntegrity->requireSnapshot($profile, $template);
+            $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
             if (!$this->acl->checkField('EmailTemplate', 'subject') || !$this->acl->checkField('EmailTemplate', 'body')) throw new Forbidden('Email content is not available for delivery.');
             $this->attachments->approvedFiles($profile, $template, true);
             $this->images->requireApproved($profile, $template);
@@ -431,6 +527,8 @@ final class MarketingDispatchService
     /** @param array<string, mixed> $profile */
     private function dispatchItem(TenantContext $context, array $profile, MassEmail $massEmail, EmailTemplate $template, string $queueItemId, string $contactId, ?User $testUser = null, ?array $validatedAttachments = null): void
     {
+        $this->contentIntegrity->requireSnapshot($profile, $template, $massEmail);
+        $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
         // Tests retain the exact bytes validated before reserving delivery capacity.
         $files = $validatedAttachments ?? $this->attachments->approvedFiles($profile, $template, $testUser !== null);
         $this->images->requireApproved($profile, $template);

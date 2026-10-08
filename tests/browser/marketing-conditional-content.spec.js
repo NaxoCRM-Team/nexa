@@ -13,7 +13,7 @@ test('Conditional content stages safely with property values, fallback and stale
         window.requests = []; window.errors = [];
         window.Espo = {Ui:{error:message => errors.push(message)},Ajax:{getRequest:async url => {
             if (url !== 'Nexa/marketing-email-conditions/fields') throw new Error('Unexpected property request');
-            return {fields:[{name:'firstName',label:'First name',options:[]},{name:'leadStatus',label:'Lead status',options:[{value:'New',label:'New'},{value:'Connected',label:'Connected'}]}]};
+            return {fields:[{name:'firstName',label:'First name',options:[]},{name:'leadStatus',label:'Lead status',options:[{value:'New',label:'New'},{value:'Connected',label:'Connected'}]},{name:'leadScore',label:'Lead score',type:'int',options:[]}]};
         },postRequest:async (url,input) => {
             requests.push({url,input});
             if (window.failCondition) throw new Error('Choose an available Contact property.');
@@ -30,6 +30,8 @@ test('Conditional content stages safely with property values, fallback and stale
             const action = event.target.closest('[data-action]')?.dataset.action;
             if (action === 'conditional-content') view.openConditionalContent({currentTarget:event.target.closest('button')});
             if (action === 'close-conditional-content') view.closeConditionalContent();
+            if (action === 'add-conditional-rule') view.addConditionalRule();
+            if (action === 'remove-conditional-rule') view.removeConditionalRule({currentTarget:event.target.closest('button')});
         });
         view.element.addEventListener('change',event => {if (event.target.matches('[data-conditional-form] [name="field"], [data-conditional-form] [name="operator"]')) view.updateConditionalValue();});
         view.element.addEventListener('submit',event => {if (event.target.matches('[data-conditional-form]')) view.insertConditionalContent(event);});
@@ -38,6 +40,42 @@ test('Conditional content stages safely with property values, fallback and stale
     const dialog = page.getByRole('dialog',{name:'Conditional content',exact:true});
     await button.click(); await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('combobox',{name:'Contact property'})).toBeFocused();
+    await expect(dialog.getByRole('button',{name:'Remove condition',exact:true})).toBeDisabled();
+    await dialog.getByRole('button',{name:'Add condition',exact:true}).click();
+    const rules = dialog.locator('[data-conditional-rule]');
+    await rules.nth(0).getByRole('combobox',{name:'Contact property'}).selectOption('leadStatus');
+    await rules.nth(0).getByRole('combobox',{name:'Value',exact:true}).selectOption('Connected');
+    await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('firstName');
+    await rules.nth(1).getByRole('textbox',{name:'Value',exact:true}).fill('Morgan');
+    await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('leadScore');
+    await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('at_least');
+    await expect(rules.nth(1).getByRole('spinbutton',{name:'Value',exact:true})).toHaveAttribute('step','1');
+    await rules.nth(1).getByRole('spinbutton',{name:'Value',exact:true}).fill('50');
+    await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('has_value');
+    await expect(rules.nth(1).locator('[data-conditional-value]')).toBeHidden();
+    await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('at_least');
+    await expect(rules.nth(1).getByRole('spinbutton',{name:'Value',exact:true})).toHaveValue('50');
+    await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('firstName');
+    await expect(rules.nth(1).getByRole('combobox',{name:'Condition',exact:true})).toHaveValue('equals');
+    await rules.nth(1).getByRole('textbox',{name:'Value',exact:true}).fill('Morgan');
+    await dialog.getByRole('combobox',{name:'Match',exact:true}).selectOption('any');
+    await dialog.getByRole('textbox',{name:'Content when matched'}).fill('Grouped match');
+    await dialog.getByRole('textbox',{name:'Fallback content'}).fill('Grouped fallback');
+    await page.evaluate(() => {
+        const previous = Espo.Ajax.postRequest;
+        Espo.Ajax.postRequest = async (url,input) => {
+            if (input.conditions) {requests.push({url,input}); throw new Error('Group validation test');}
+            return previous(url,input);
+        };
+    });
+    await dialog.getByRole('button',{name:'Insert content',exact:true}).click();
+    await expect(dialog.getByRole('alert')).toHaveText('Group validation test');
+    expect(await page.evaluate(() => requests.pop().input)).toEqual({conditions:[{field:'leadStatus',operator:'equals',value:'Connected'},{field:'firstName',operator:'equals',value:'Morgan'}],matchMode:'any',matchingText:'Grouped match',fallbackText:'Grouped fallback'});
+    for (let index=0;index<4;index++) await dialog.getByRole('button',{name:'Add condition',exact:true}).click();
+    await expect(rules).toHaveCount(6); await expect(dialog.getByRole('button',{name:'Add condition',exact:true})).toBeDisabled();
+    for (let index=0;index<5;index++) await rules.last().getByRole('button',{name:'Remove condition',exact:true}).click();
+    await expect(rules).toHaveCount(1);
+    await expect(rules.first().getByRole('combobox',{name:'Value',exact:true})).toHaveValue('Connected');
     await dialog.getByRole('combobox',{name:'Contact property'}).selectOption('leadStatus');
     await dialog.getByRole('combobox',{name:'Value',exact:true}).selectOption('Connected');
     await dialog.getByRole('combobox',{name:'Condition',exact:true}).selectOption('has_value');

@@ -115,6 +115,15 @@ class Application
             $authToken = is_string($_COOKIE['auth-token'] ?? null) ? $_COOKIE['auth-token'] : '';
             $tenant = $this->resolvePublicResourceTenant($resolver, $className);
 
+            if ($tenant === null && str_ends_with($className,'\\ApplicationRunners\\Api') && isset($_SERVER['HTTP_X_API_KEY'])) {
+                $key = $_SERVER['HTTP_X_API_KEY'];
+                $tenant = is_string($key) ? $resolver->resolveApiKey($key) : null;
+                if ($tenant === null) {
+                    $this->container->getByClass(PlatformExecutionGateway::class)->run('API-key tenant discovery',$run);
+                    return;
+                }
+            }
+
             if ($tenant === null && $authToken !== '') {
                 $tenant = $resolver->resolveAuthToken($authToken);
             }

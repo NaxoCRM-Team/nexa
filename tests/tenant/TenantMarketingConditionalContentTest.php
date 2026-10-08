@@ -36,6 +36,31 @@ try {
     });
     $queueCount=(int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn();
     $render=fn ($contact,$html)=>$store->runWith($a,fn ()=>$preview->preview((object) ['contactId'=>$contact->getId(),'subject'=>'Hello {Contact.firstName}','bodyHtml'=>$html]));
+    $assert(in_array('leadScore',$fields,true),'Readable native lead score must be available for conditional rules.');
+    $numeric = (object) ['field'=>'leadScore','operator'=>'at_least','value'=>'50','matchingText'=>'Score match','fallbackText'=>'Score fallback'];
+    foreach ([0,49,50,51,null] as $score) {
+        $store->runWith($a,function () use ($em,$contacts,$score): void {$contacts[0]->set('leadScore',$score); $em->saveEntity($contacts[0]);});
+        foreach (['equals','not_equals','greater_than','at_least','less_than','at_most','has_value','no_value'] as $operator) {
+            $numeric->operator = $operator;
+            $html = $store->runWith($a,fn ()=>$conditional->compose($numeric))['bodyHtml'];
+            $expected = match ($operator) {
+                'equals'=>$score !== null && $score === 50, 'not_equals'=>$score !== null && $score !== 50,
+                'greater_than'=>$score !== null && $score > 50, 'at_least'=>$score !== null && $score >= 50,
+                'less_than'=>$score !== null && $score < 50, 'at_most'=>$score !== null && $score <= 50,
+                'has_value'=>$score !== null, 'no_value'=>$score === null,
+            };
+            $assert(str_contains($render($contacts[0],$html)['bodyHtml'],$expected ? 'Score match' : 'Score fallback'),'Numeric condition must respect boundaries, missing values and zero: ' . $operator);
+        }
+    }
+    $numeric->operator = 'at_least';
+    $store->runWith($a,function () use ($em,$contacts): void {$contacts[0]->set('leadScore',75); $em->saveEntity($contacts[0]);});
+    $mixedGroup = (object) ['matchMode'=>'all','conditions'=>[(object) ['field'=>'firstName','operator'=>'equals','value'=>'Conditional'],(object) ['field'=>'leadScore','operator'=>'at_least','value'=>'50']], 'matchingText'=>'Mixed match','fallbackText'=>'Mixed fallback'];
+    $mixedHtml = $store->runWith($a,fn ()=>$conditional->compose($mixedGroup))['bodyHtml'];
+    $assert(str_contains($render($contacts[0],$mixedHtml)['bodyHtml'],'Mixed match') && str_contains($render($contacts[1],$mixedHtml)['bodyHtml'],'Mixed fallback'),'Scalar and numeric conditions must compose and render together in a native group.');
+    foreach (['-1','1.5','NaN','1e2','2147483648','{{leadScore}}'] as $invalid) {
+        $numeric->value = $invalid;
+        $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($numeric)),'Invalid numeric thresholds must fail composition.');
+    }
     $matching=$render($contacts[0],$body); $fallback=$render($contacts[1],$body);
     $group = (object) ['matchMode'=>'all','conditions'=>[(object) ['field'=>'leadStatus','operator'=>'equals','value'=>'New'],(object) ['field'=>'department','operator'=>'has_value']], 'matchingText'=>'Group matched','fallbackText'=>'Group fallback'];
     foreach (['all','any'] as $mode) {

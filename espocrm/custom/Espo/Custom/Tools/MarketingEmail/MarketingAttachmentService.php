@@ -72,6 +72,8 @@ final class MarketingAttachmentService
             if (!$source instanceof Attachment || !$this->acl->checkEntity($source, 'read')) throw new BadRequest('A selected attachment is unavailable or not permitted.');
             $copy = $this->entityManager->getRepository('Attachment')->getCopiedAttachment($source);
             $copy->set('field', 'attachments');
+            // An alias must use the source backend, even after the tenant switches storage.
+            $copy->set('storage', $source->getStorage());
             $this->entityManager->saveEntity($copy);
             $result[] = $copy->getId();
         }

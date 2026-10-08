@@ -16,7 +16,7 @@ use stdClass;
 final class MarketingConditionalContentService
 {
     private const FIELDS = ['firstName','lastName','title','department','accountName','addressCity','addressState',
-        'addressCountry','website','contactSource','lifecycleStage','leadStatus','marketingStatus','customerStage','preferredTimezone'];
+        'addressCountry','website','contactSource','lifecycleStage','leadStatus','marketingStatus','customerStage','preferredTimezone','leadScore'];
 
     public function __construct(
         private TenantContextStore $contexts,
@@ -35,13 +35,13 @@ final class MarketingConditionalContentService
         foreach (self::FIELDS as $name) {
             $definition = $this->metadata->get(['entityDefs','Contact','fields',$name]);
             if (!is_array($definition) || !$this->acl->checkField('Contact',$name) ||
-                !in_array($definition['type'] ?? '', ['varchar','enum','url','link'], true)) continue;
+                !in_array($definition['type'] ?? '', ['varchar','enum','url','link','int'], true)) continue;
             $options = [];
             foreach (($definition['options'] ?? []) as $value) {
                 if (!is_string($value)) continue;
                 $options[] = ['value'=>$value,'label'=>$this->language->translateOption($value,$name,'Contact')];
             }
-            $fields[] = ['name'=>$name,'label'=>$this->language->translate($name,'fields','Contact'),'options'=>$options];
+            $fields[] = ['name'=>$name,'label'=>$this->language->translate($name,'fields','Contact'),'options'=>$options,'type'=>$definition['type']];
         }
         return ['fields'=>$fields];
     }
@@ -54,12 +54,21 @@ final class MarketingConditionalContentService
         $definition = null;
         foreach ($catalog['fields'] as $item) if ($item['name'] === $field) {$definition = $item; break;}
         if (!$definition) throw new BadRequest('Choose an available Contact property.');
-        if (!in_array($operator,['equals','not_equals','has_value','no_value'],true)) throw new BadRequest('Choose a supported condition.');
+        $numeric = $definition['type'] === 'int';
+        $operators = $numeric ? ['equals','not_equals','greater_than','at_least','less_than','at_most','has_value','no_value'] : ['equals','not_equals','has_value','no_value'];
+        if (!in_array($operator,$operators,true)) throw new BadRequest('Choose a supported condition.');
         $value = $input->value ?? ''; $yes = $input->matchingText ?? ''; $no = $input->fallbackText ?? '';
         if (!is_string($value) || mb_strlen($value) > 255 || preg_match('/[\x00-\x1f{}]/u',$value)) throw new BadRequest('Enter a comparison value of up to 255 characters without template markers.');
         if (!is_string($yes) || trim($yes) === '' || mb_strlen($yes) > 10000) throw new BadRequest('Enter matching content of up to 10,000 characters.');
         if (!is_string($no) || trim($no) === '' || mb_strlen($no) > 10000) throw new BadRequest('Enter fallback content of up to 10,000 characters.');
         if (str_contains($yes,'{{') || str_contains($no,'{{')) throw new BadRequest('Use Contact personalization tokens rather than nested conditions in this content.');
+        if ($numeric) {
+            $needsValue = !in_array($operator,['has_value','no_value'],true);
+            if ($needsValue && (!preg_match('/^(0|[1-9][0-9]{0,9})$/D',$value) || (float) $value > 2147483647)) throw new BadRequest('Enter a whole-number lead score between 0 and 2147483647.');
+            $body = '{{#nexaEmailNumeric ' . $field . '_RAW "' . $operator . '" "' . ($needsValue ? $value : '') . '"}}' . $this->paragraph($yes) . '{{else}}' . $this->paragraph($no) . '{{/nexaEmailNumeric}}';
+            $this->validate('', $body);
+            return ['bodyHtml'=>$body];
+        }
         if (in_array($operator,['equals','not_equals'],true)) {
             if ($value === '') throw new BadRequest('Choose a comparison value.');
             if ($definition['options'] && !in_array($value,array_column($definition['options'],'value'),true)) throw new BadRequest('Choose one of the property values.');
