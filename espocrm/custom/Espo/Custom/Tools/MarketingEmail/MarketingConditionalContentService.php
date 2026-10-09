@@ -27,6 +27,7 @@ final class MarketingConditionalContentService
         private Config $config,
         private EntityManager $em,
         private InjectableFactory $factory,
+        private \Espo\Custom\Tools\Customization\CustomizationService $customization,
     ) {}
 
     public function catalog(): array
@@ -43,6 +44,13 @@ final class MarketingConditionalContentService
             }
             $fields[] = ['name'=>$name,'label'=>$this->language->translate($name,'fields','Contact'),'options'=>$options,'type'=>$definition['type']];
         }
+        foreach ($this->customization->definitions('Contact')['fields'] as $field) {
+            if (!$field['is_enabled'] || !in_array($field['data_type'],['text','single_select','boolean','number','currency'],true)) continue;
+            $fields[] = ['name'=>'custom:' . $field['field_key'],'label'=>$field['label'] . ' (custom)',
+                'type'=>in_array($field['data_type'],['number','currency'],true) ? 'decimal' : (in_array($field['data_type'],['single_select','boolean'],true) ? 'enum' : 'varchar'),
+                'options'=>$field['data_type'] === 'boolean' ? [['value'=>'true','label'=>'True'],['value'=>'false','label'=>'False']] : array_map(static fn (string $value): array => ['value'=>$value,'label'=>$value],$field['options']),
+                'customKey'=>$field['field_key']];
+        }
         return ['fields'=>$fields];
     }
 
@@ -54,7 +62,7 @@ final class MarketingConditionalContentService
         $definition = null;
         foreach ($catalog['fields'] as $item) if ($item['name'] === $field) {$definition = $item; break;}
         if (!$definition) throw new BadRequest('Choose an available Contact property.');
-        $numeric = $definition['type'] === 'int';
+        $numeric = in_array($definition['type'],['int','decimal'],true);
         $operators = $numeric ? ['equals','not_equals','greater_than','at_least','less_than','at_most','has_value','no_value'] : ['equals','not_equals','has_value','no_value'];
         if (!in_array($operator,$operators,true)) throw new BadRequest('Choose a supported condition.');
         $value = $input->value ?? ''; $yes = $input->matchingText ?? ''; $no = $input->fallbackText ?? '';
@@ -64,8 +72,12 @@ final class MarketingConditionalContentService
         if (str_contains($yes,'{{') || str_contains($no,'{{')) throw new BadRequest('Use Contact personalization tokens rather than nested conditions in this content.');
         if ($numeric) {
             $needsValue = !in_array($operator,['has_value','no_value'],true);
-            if ($needsValue && (!preg_match('/^(0|[1-9][0-9]{0,9})$/D',$value) || (float) $value > 2147483647)) throw new BadRequest('Enter a whole-number lead score between 0 and 2147483647.');
-            $body = '{{#nexaEmailNumeric ' . $field . '_RAW "' . $operator . '" "' . ($needsValue ? $value : '') . '"}}' . $this->paragraph($yes) . '{{else}}' . $this->paragraph($no) . '{{/nexaEmailNumeric}}';
+            $decimal = $definition['type'] === 'decimal';
+            if ($needsValue && $decimal) TemplateHelpers\DecimalComparison::canonical($value);
+            elseif ($needsValue && (!preg_match('/^(0|[1-9][0-9]{0,9})$/D',$value) || (float) $value > 2147483647)) throw new BadRequest('Enter a whole-number lead score between 0 and 2147483647.');
+            $helper = $decimal ? 'nexaEmailDecimal' : 'nexaEmailNumeric';
+            $operand = $decimal ? '(nexaEmailCustomProperty id "' . $definition['customKey'] . '")' : $field . '_RAW';
+            $body = '{{#' . $helper . ' ' . $operand . ' "' . $operator . '" "' . ($needsValue ? $value : '') . '"}}' . $this->paragraph($yes) . '{{else}}' . $this->paragraph($no) . '{{/' . $helper . '}}';
             $this->validate('', $body);
             return ['bodyHtml'=>$body];
         }
@@ -75,7 +87,8 @@ final class MarketingConditionalContentService
         }
         $helper = match ($operator) {'equals'=>'ifEqual','not_equals'=>'ifNotEqual','has_value'=>'if','no_value'=>'unless'};
         $comparison = in_array($operator,['equals','not_equals'],true) ? ' (nexaEmailValue "' . base64_encode($value) . '")' : '';
-        $body = '{{#' . $helper . ' ' . $field . '_RAW' . $comparison . '}}' . $this->paragraph($yes) . '{{else}}' . $this->paragraph($no) . '{{/' . $helper . '}}';
+        $operand = isset($definition['customKey']) ? '(nexaEmailCustomProperty id "' . $definition['customKey'] . '")' : $field . '_RAW';
+        $body = '{{#' . $helper . ' ' . $operand . $comparison . '}}' . $this->paragraph($yes) . '{{else}}' . $this->paragraph($no) . '{{/' . $helper . '}}';
         $this->validate('', $body);
         return ['bodyHtml'=>$body];
     }
@@ -121,6 +134,15 @@ final class MarketingConditionalContentService
             if (substr_count($text,'{{') !== substr_count($text,'}}')) throw new BadRequest('Close each conditional content expression.');
         }
         $this->contexts->require();
+        if (str_contains($subject . $body,'nexaEmailCustomProperty')) {
+            preg_match_all('/\(nexaEmailCustomProperty id "([a-zA-Z0-9_]+)"\)/',$subject . $body,$references);
+            if (count($references[0]) !== substr_count($subject . $body,'nexaEmailCustomProperty')) throw new BadRequest('Use generated custom Contact property conditions.');
+            $available = [];
+            foreach ($this->customization->definitions('Contact')['fields'] as $field) {
+                if ($field['is_enabled'] && in_array($field['data_type'],['text','single_select','boolean','number','currency'],true)) $available[] = $field['field_key'];
+            }
+            if (array_diff($references[1],$available)) throw new BadRequest('A conditional Contact property is archived, disabled or unavailable.');
+        }
         try {
             $this->factory->create(TemplateRenderer::class)->setEntity($this->em->getNewEntity('Contact'))
                 ->setSkipRelations()->setSkipInlineAttachmentHandling()->renderMultipleTemplates($subject,$body);

@@ -36,6 +36,65 @@ try {
     });
     $queueCount=(int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn();
     $render=fn ($contact,$html)=>$store->runWith($a,fn ()=>$preview->preview((object) ['contactId'=>$contact->getId(),'subject'=>'Hello {Contact.firstName}','bodyHtml'=>$html]));
+    $customization=$factory->create(\Espo\Custom\Tools\Customization\CustomizationService::class);
+    $customKey='email_condition_' . bin2hex(random_bytes(4));
+    $custom=$store->runWith($a,fn ()=>$customization->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$customKey,'label'=>'Email condition ' . $customKey,'dataType'=>'single_select','options'=>['Premium','Standard']]));
+    // Seed only this optional fixture; installed required properties remain untouched.
+    $customValue=$em->getPDO()->prepare('INSERT INTO nexa_custom_field_value (id,tenant_id,service_id,field_definition_id,entity_type,entity_id,value_text,created_by_id,updated_by_id) VALUES (UUID(),?,?,?,?,?,?,?,?)');
+    $customValue->execute([$a->tenantId,$a->serviceId,$custom['id'],'Contact',$contacts[0]->getId(),'Premium',$user->getId(),$user->getId()]);
+    $customRule=(object) ['field'=>'custom:' . $customKey,'operator'=>'equals','value'=>'Premium','matchingText'=>'Premium welcome','fallbackText'=>'Standard welcome'];
+    $customHtml=$store->runWith($a,fn ()=>$conditional->compose($customRule))['bodyHtml'];
+    $assert(str_contains($render($contacts[0],$customHtml)['bodyHtml'],'Premium welcome'),'Custom Contact conditions must render stored tenant property values.');
+    $assert(str_contains($render($contacts[1],$customHtml)['bodyHtml'],'Standard welcome'),'Missing custom values must render the fallback.');
+    $blocked(fn ()=>$store->runWith($b,fn ()=>$conditional->compose($customRule)),'Another tenant must not compose a foreign custom property.');
+    $blocked(fn ()=>$store->runWith($otherService,fn ()=>$conditional->compose($customRule)),'Another service must not compose a foreign custom property.');
+    $badCustom=clone $customRule; $badCustom->value='Unknown';
+    $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($badCustom)),'Custom select comparisons must use declared options.');
+    $customTemplate=$em->getNewEntity(EmailTemplate::ENTITY_TYPE); $customTemplate->set(['subject'=>'Custom condition','body'=>$customHtml,'isHtml'=>true]);
+    $customResult=$store->runWith($a,fn ()=>$factory->create(Processor::class)->process($customTemplate,Params::create()->withApplyAcl(false)->withCopyAttachments(false),Data::create()->withParent($contacts[0])));
+    $assert(str_contains($customResult->getBody(),'Premium welcome'),'The delivery processor must resolve custom conditions like preview.');
+    $store->runWith($a,fn ()=>$customization->saveDefinition('propertyPreference',['entityType'=>'Contact','fieldKey'=>$customKey,'isEnabled'=>false]));
+    $blocked(fn ()=>$render($contacts[0],$customHtml),'Disabled custom properties must not be rendered from retained values.');
+    $store->runWith($a,fn ()=>$customization->saveDefinition('propertyPreference',['entityType'=>'Contact','fieldKey'=>$customKey,'isEnabled'=>true]));
+    $assert(str_contains($render($contacts[0],$customHtml)['bodyHtml'],'Premium welcome'),'Re-enabling a property must restore access to its retained value.');
+    $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->validate('',str_replace('nexaEmailCustomProperty id','nexaEmailCustomProperty accountId',$customHtml))),'Handwritten helpers must not redirect custom-property lookups to another record.');
+    $store->runWith($a,fn ()=>$customization->archive('field',$custom['id']));
+    $blocked(fn ()=>$render($contacts[0],$customHtml),'Archiving a referenced custom property must fail closed in preview.');
+    $booleanKey='email_boolean_' . bin2hex(random_bytes(4));
+    $boolean=$store->runWith($a,fn ()=>$customization->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$booleanKey,'label'=>'Email boolean ' . $booleanKey,'dataType'=>'boolean']));
+    $booleanValue=$em->getPDO()->prepare('INSERT INTO nexa_custom_field_value (id,tenant_id,service_id,field_definition_id,entity_type,entity_id,value_boolean,created_by_id,updated_by_id) VALUES (UUID(),?,?,?,?,?,?,?,?)');
+    $booleanValue->execute([$a->tenantId,$a->serviceId,$boolean['id'],'Contact',$contacts[0]->getId(),0,$user->getId(),$user->getId()]);
+    $booleanRule=(object) ['field'=>'custom:' . $booleanKey,'operator'=>'equals','value'=>'false','matchingText'=>'Boolean matched','fallbackText'=>'Boolean fallback'];
+    foreach (['equals','not_equals','has_value','no_value'] as $operator) {
+        $booleanRule->operator=$operator;
+        $html=$store->runWith($a,fn ()=>$conditional->compose($booleanRule))['bodyHtml'];
+        $expected=in_array($operator,['equals','has_value'],true) ? 'Boolean matched' : 'Boolean fallback';
+        $assert(str_contains($render($contacts[0],$html)['bodyHtml'],$expected),'Recorded false must be distinct from missing for ' . $operator);
+        $missing=in_array($operator,['not_equals','no_value'],true) ? 'Boolean matched' : 'Boolean fallback';
+        $assert(str_contains($render($contacts[1],$html)['bodyHtml'],$missing),'Missing boolean must remain distinct from true and false for ' . $operator);
+    }
+    $booleanRule->operator='equals'; $booleanRule->value='true';
+    $em->getPDO()->prepare('UPDATE nexa_custom_field_value SET value_boolean=1 WHERE field_definition_id=? AND tenant_id=? AND service_id=?')->execute([$boolean['id'],$a->tenantId,$a->serviceId]);
+    $trueHtml=$store->runWith($a,fn ()=>$conditional->compose($booleanRule))['bodyHtml'];
+    $assert(str_contains($render($contacts[0],$trueHtml)['bodyHtml'],'Boolean matched'),'Recorded true must satisfy a true comparison.');
+    $booleanRule->value='yes';
+    $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($booleanRule)),'Boolean comparison values must be exactly true or false.');
+    $numberKey='email_number_' . bin2hex(random_bytes(4));
+    $number=$store->runWith($a,fn ()=>$customization->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$numberKey,'label'=>'Email number ' . $numberKey,'dataType'=>'number']));
+    $numberValue=$em->getPDO()->prepare('INSERT INTO nexa_custom_field_value (id,tenant_id,service_id,field_definition_id,entity_type,entity_id,value_number,created_by_id,updated_by_id) VALUES (UUID(),?,?,?,?,?,?,?,?)');
+    $numberValue->execute([$a->tenantId,$a->serviceId,$number['id'],'Contact',$contacts[0]->getId(),'9007199254740993.12345678',$user->getId(),$user->getId()]);
+    $numberRule=(object) ['field'=>'custom:' . $numberKey,'operator'=>'greater_than','value'=>'9007199254740993.12345677','matchingText'=>'Decimal matched','fallbackText'=>'Decimal fallback'];
+    $numberHtml=$store->runWith($a,fn ()=>$conditional->compose($numberRule))['bodyHtml'];
+    $assert(str_contains($render($contacts[0],$numberHtml)['bodyHtml'],'Decimal matched'),'Decimal conditions must preserve precision beyond the floating-point integer boundary.');
+    $assert(str_contains($render($contacts[1],$numberHtml)['bodyHtml'],'Decimal fallback'),'Missing numeric custom values must not satisfy comparisons.');
+    $em->getPDO()->prepare('UPDATE nexa_custom_field_value SET value_number=? WHERE field_definition_id=? AND tenant_id=? AND service_id=?')->execute(['-0.12345678',$number['id'],$a->tenantId,$a->serviceId]);
+    $numberRule->operator='less_than'; $numberRule->value='-0.12345677';
+    $numberHtml=$store->runWith($a,fn ()=>$conditional->compose($numberRule))['bodyHtml'];
+    $assert(str_contains($render($contacts[0],$numberHtml)['bodyHtml'],'Decimal matched'),'Negative decimal comparisons must preserve sign and eight-place precision.');
+    foreach (['1e2','NaN','1.123456789','12345678901234567890123'] as $invalid) {
+        $numberRule->value=$invalid;
+        $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($numberRule)),'Out-of-storage-range and exponent numeric thresholds must be rejected.');
+    }
     $assert(in_array('leadScore',$fields,true),'Readable native lead score must be available for conditional rules.');
     $numeric = (object) ['field'=>'leadScore','operator'=>'at_least','value'=>'50','matchingText'=>'Score match','fallbackText'=>'Score fallback'];
     foreach ([0,49,50,51,null] as $score) {

@@ -1,4 +1,6 @@
 {
     "nexaEmailValue": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\ValueLiteral",
-    "nexaEmailNumeric": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\NumericComparison"
+    "nexaEmailNumeric": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\NumericComparison",
+    "nexaEmailCustomProperty": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\CustomPropertyValue",
+    "nexaEmailDecimal": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\DecimalComparison"
 }

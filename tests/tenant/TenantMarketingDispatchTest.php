@@ -488,6 +488,15 @@ try {
         $integrationFirst = json_decode((string) $integrationSend()->getBody(),true,512,JSON_THROW_ON_ERROR);
         $integrationRetry = json_decode((string) $integrationSend()->getBody(),true,512,JSON_THROW_ON_ERROR);
         $assert(!$integrationFirst['replayed'] && $integrationRetry['replayed'] && $integrationFirst['queueItemId'] === $integrationRetry['queueItemId'],'Granted read-only native API users must create and replay exactly one queue item.');
+        $concurrent->beginTransaction();
+        $sourceLocked = false;
+        try {
+            // Revocation takes this same source lock before touching the grant.
+            $sourceLock = $concurrent->prepare('SELECT id FROM nexa_marketing_email_profile WHERE id=? AND tenant_id=? AND service_id=? FOR UPDATE');
+            $sourceLock->execute([$parameterSource['id'],$tenantA->tenantId,$tenantA->serviceId]);
+        } catch (PDOException $error) {$sourceLocked = (int) ($error->errorInfo[1] ?? 0) === 1205;}
+        finally {$concurrent->rollBack();}
+        $assert($sourceLocked,'A competing revocation must wait on the source lock held by the approved-send transaction.');
         $integrationEvidence = $pdo->prepare('SELECT p.created_by_id,p.approved_by_id,p.approved_at,v.subject,v.body_html FROM nexa_marketing_email_profile p INNER JOIN nexa_marketing_email_version v ON v.profile_id=p.id AND v.tenant_id=p.tenant_id AND v.service_id=p.service_id AND v.version_number=1 WHERE p.id=?');
         $integrationEvidence->execute([$integrationFirst['id']]); $inherited = $integrationEvidence->fetch(PDO::FETCH_ASSOC);
         $assert($inherited['created_by_id'] === $apiUser->getId() && $inherited['approved_by_id'] === $user->getId() && $inherited['approved_at'] && $inherited['subject'] === 'Reference ORDER-42' && str_contains($inherited['body_html'],'A &amp; B confirmed'),'Integration copies must retain the actual source approver and safely resolved immutable content.');
@@ -509,6 +518,12 @@ try {
         $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedApi->process($request(['contactId'=>$contact->getId(),'sourceVersion'=>1,'requestKey'=>'parameter-request-one','parameters'=>$values],$parameterSource['id']))),'An API grant must not authorize replaying an administrators request.');
         $store->runWith($tenantA,fn ()=>$access->revoke($apiUser->getId(),$parameterSource['id'],1));
         $denied($integrationSend,'Revoked grants must prevent even owned replay.');
+        $retainedQueue = $pdo->prepare('SELECT status FROM email_queue_item WHERE id=? AND tenant_id=? AND service_id=? AND deleted=0');
+        $retainedQueue->execute([$integrationFirst['queueItemId'],$tenantA->tenantId,$tenantA->serviceId]);
+        $assert($retainedQueue->fetchColumn() === 'Pending','Grant revocation must not silently cancel an already accepted queue item.');
+        $integrationQueueCount = $pdo->prepare('SELECT COUNT(*) FROM email_queue_item q INNER JOIN nexa_marketing_email_profile p ON p.mass_email_id=q.mass_email_id AND p.tenant_id=q.tenant_id AND p.service_id=q.service_id WHERE p.id=? AND p.tenant_id=? AND p.service_id=? AND q.deleted=0');
+        $integrationQueueCount->execute([$integrationFirst['id'],$tenantA->tenantId,$tenantA->serviceId]);
+        $assert((int) $integrationQueueCount->fetchColumn() === 1,'Denied replay after revocation must not create another native queue item.');
         $store->runWith($tenantA,fn ()=>$access->grant($apiUser->getId(),$parameterSource['id'],1,24));
         $denied(fn ()=>$store->runWith($tenantA,fn ()=>$restrictedApi->process($request(array_replace($integrationPayload,['requestKey'=>'api-rejected-values','parameters'=>(object) ['reference'=>'ORDER-42']]),$parameterSource['id']))),'Granted API users must still provide every declared parameter.');
         $failedLedger = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND request_hash=?');

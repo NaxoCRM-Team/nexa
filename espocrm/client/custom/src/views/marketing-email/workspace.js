@@ -375,7 +375,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         const value = row.querySelector('[name="value"]');
         const definition = dialog.fields.find(item => item.name === field.value);
         const options = definition?.options || [];
-        const numeric = definition?.type === 'int';
+        const numeric = ['int','decimal'].includes(definition?.type);
         const operator = row.querySelector('[name="operator"]');
         const selectedOperator = row.dataset.valueField === field.value ? operator.value : 'equals';
         const operators = [['equals','Is equal to'],['not_equals','Is not equal to'],...(numeric ? [['greater_than','Is greater than'],['at_least','Is at least'],['less_than','Is less than'],['at_most','Is at most']] : []),['has_value','Has a value'],['no_value','Has no value']];
@@ -386,7 +386,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         const control = options.length ? document.createElement('select') : document.createElement('input');
         control.name = 'value'; control.className = 'form-control'; control.required = true;
         if (options.length) options.forEach(option => control.add(new Option(option.label,option.value)));
-        else {control.maxLength = 255; if (numeric) {control.type = 'number'; control.min = '0'; control.max = '2147483647'; control.step = '1';}}
+        else {control.maxLength = 255; if (definition?.type === 'decimal') {control.type = 'text'; control.inputMode = 'decimal'; control.maxLength = 32; control.pattern = '-?[0-9]{1,22}(\\.[0-9]{1,8})?';} else if (numeric) {control.type = 'number'; control.min = '0'; control.max = '2147483647'; control.step = '1';}}
         if (previous !== null && (!options.length || options.some(option => option.value === previous))) control.value = previous;
         value.replaceWith(control);
         const needsValue = !['has_value','no_value'].includes(operator.value);

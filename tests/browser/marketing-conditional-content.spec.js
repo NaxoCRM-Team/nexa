@@ -13,7 +13,7 @@ test('Conditional content stages safely with property values, fallback and stale
         window.requests = []; window.errors = [];
         window.Espo = {Ui:{error:message => errors.push(message)},Ajax:{getRequest:async url => {
             if (url !== 'Nexa/marketing-email-conditions/fields') throw new Error('Unexpected property request');
-            return {fields:[{name:'firstName',label:'First name',options:[]},{name:'leadStatus',label:'Lead status',options:[{value:'New',label:'New'},{value:'Connected',label:'Connected'}]},{name:'leadScore',label:'Lead score',type:'int',options:[]}]};
+            return {fields:[{name:'firstName',label:'First name',options:[]},{name:'leadStatus',label:'Lead status',options:[{value:'New',label:'New'},{value:'Connected',label:'Connected'}]},{name:'leadScore',label:'Lead score',type:'int',options:[]},{name:'custom:vip',label:'VIP (custom)',type:'enum',options:[{value:'true',label:'True'},{value:'false',label:'False'}]},{name:'custom:balance',label:'Balance (custom)',type:'decimal',options:[]}]};
         },postRequest:async (url,input) => {
             requests.push({url,input});
             if (window.failCondition) throw new Error('Choose an available Contact property.');
@@ -43,6 +43,17 @@ test('Conditional content stages safely with property values, fallback and stale
     await expect(dialog.getByRole('button',{name:'Remove condition',exact:true})).toBeDisabled();
     await dialog.getByRole('button',{name:'Add condition',exact:true}).click();
     const rules = dialog.locator('[data-conditional-rule]');
+    await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('custom:vip');
+    await rules.nth(1).getByRole('combobox',{name:'Value',exact:true}).selectOption('false');
+    await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('has_value');
+    await expect(rules.nth(1).locator('[data-conditional-value]')).toBeHidden();
+    await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('equals');
+    await expect(rules.nth(1).getByRole('combobox',{name:'Value',exact:true})).toHaveValue('false');
+    await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('custom:balance');
+    await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('less_than');
+    await rules.nth(1).getByRole('textbox',{name:'Value',exact:true}).fill('-0.12345678');
+    await expect(rules.nth(1).getByRole('textbox',{name:'Value',exact:true})).toHaveAttribute('inputmode','decimal');
+    expect(await rules.nth(1).getByRole('textbox',{name:'Value',exact:true}).evaluate(input => input.checkValidity())).toBe(true);
     await rules.nth(0).getByRole('combobox',{name:'Contact property'}).selectOption('leadStatus');
     await rules.nth(0).getByRole('combobox',{name:'Value',exact:true}).selectOption('Connected');
     await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('firstName');

@@ -63,12 +63,31 @@ try {
         $assert($authenticated['status'] === 200,'Native authenticated App/user must return HTTP 200 for ' . $slug . '; received ' . $authenticated['status'] . '.');
         $assert(($authenticated['body']['user']['id'] ?? null) === $fixture['userId'] && ($authenticated['body']['user']['type'] ?? null) === 'api','The live request must authenticate its exact non-admin API actor.');
         $assert(empty($authenticated['body']['token']),'API-key authentication must not create a browser login token.');
+        $baseline = ['contactId'=>'missing-contact','sourceVersion'=>1,'requestKey'=>'http-contract-' . $run];
+        foreach ([
+            [],
+            array_replace($baseline,['sourceVersion'=>'1']),
+            array_replace($baseline,['contactId'=>['missing-contact']]),
+            array_replace($baseline,['requestKey'=>123]),
+            $baseline + ['parameters'=>[]],
+            $baseline + ['parameters'=>null],
+            $baseline + ['subject'=>'Unapproved override'],
+            $baseline + ['tenantId'=>$tenantId],
+        ] as $invalid) {
+            $response = $request('POST','Nexa/marketing-emails/missing/reusable-send',$fixture['key'],$invalid);
+            $assert($response['status'] === 400,'Malformed reusable-send input must return HTTP 400, not a server error or redirect.');
+        }
+        $ledger = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND created_by_id=?');
+        $ledger->execute([$tenantId,$tenant->serviceId,$fixture['userId']]);
+        $assert((int) $ledger->fetchColumn() === 0,'Rejected HTTP payloads must create no reusable-send ledger entries.');
         $assert($request('GET','App/user',strtoupper($fixture['key']))['status'] === 401,'Case-changed API keys must fail live authentication.');
         foreach ([['POST','Nexa/marketing-emails',[]],['POST','Nexa/marketing-emails/missing/transition',['action'=>'approve']],['GET','Nexa/marketing-emails/missing/integration-grants',null],['POST','Contact',['firstName'=>'Must not create']]] as [$method,$path,$body]) {
             $assert($request($method,$path,$fixture['key'],$body)['status'] === 403,'A live read-only API user must be forbidden from ' . $path . '.');
         }
         $denied = $request('POST','Nexa/marketing-emails/missing/reusable-send',$fixture['key'],['contactId'=>'missing-contact','sourceVersion'=>1,'requestKey'=>'http-no-delivery-' . $run]);
         $assert(in_array($denied['status'],[403,404],true),'Missing source/grant must reject live reusable-send requests without creating a queue.');
+        $ledger->execute([$tenantId,$tenant->serviceId,$fixture['userId']]);
+        $assert((int) $ledger->fetchColumn() === 0,'Missing-source HTTP requests must leave no reusable-send ledger entries.');
         $pdo->prepare('UPDATE user SET is_active=0 WHERE id=? AND tenant_id=? AND service_id=?')->execute([$fixture['userId'],$tenantId,$tenant->serviceId]);
         $assert($request('GET','App/user',$fixture['key'])['status'] === 401,'Disabling a live API user must immediately block its key.');
         unset($fixture);

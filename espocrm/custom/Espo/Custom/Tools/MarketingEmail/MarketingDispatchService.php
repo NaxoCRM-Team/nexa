@@ -46,6 +46,7 @@ final class MarketingDispatchService
         private MarketingParameterTemplate $parameters,
         private MarketingContentIntegrity $contentIntegrity,
         private MarketingIntegrationAccess $integrationAccess,
+        private MarketingConditionalContentService $conditionalContent,
     ) {}
 
     /** @return array{id:string,status:string,eligibleCount:int,scheduledAt:string} */
@@ -528,6 +529,7 @@ final class MarketingDispatchService
     private function dispatchItem(TenantContext $context, array $profile, MassEmail $massEmail, EmailTemplate $template, string $queueItemId, string $contactId, ?User $testUser = null, ?array $validatedAttachments = null): void
     {
         $this->contentIntegrity->requireSnapshot($profile, $template, $massEmail);
+        $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
         $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
         // Tests retain the exact bytes validated before reserving delivery capacity.
         $files = $validatedAttachments ?? $this->attachments->approvedFiles($profile, $template, $testUser !== null);

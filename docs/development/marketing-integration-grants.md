@@ -32,6 +32,8 @@ The API user supplies only the source version, Contact, request key and declared
 
 The private integration queue path requires request ownership and a still-active version grant. The public single-send, workspace create/edit and approval paths remain administrator-only. Source locks serialize grant revocation and revision with a send request. Consent, opt-out, suppression, recipient ACL, provider readiness, capacity and the per-source request rate limit remain enforced; delivery is asynchronous through the native queue. Revocation blocks future requests and owned replay, but does not cancel an already accepted queue item. Existing pause/review controls apply to accepted work, and the worker rechecks recipient eligibility before submission.
 
+The rollback-only integration fixture now uses a second database connection to verify that a competing source lock (the first step of revocation) times out while the approved-send transaction holds it. After revocation, it verifies that owned replay is rejected, exactly one original native queue item remains, and its accepted Pending state is unchanged. This is database lock-boundary evidence, not a simultaneous live HTTP revoke/send race test.
+
 ## API-Key Tenant Routing
 
 On a shared installation such as `http://localhost/nexa/api/v1/`, send the native `X-Api-Key` header. The request bootstrap and tenant middleware resolve ownership from that persisted key rather than the host's default tenant. Resolution requires an exact case-sensitive match, an active undeleted API user using the ApiKey authentication method, an active tenant and the active CRM service. Missing matches and duplicate matching credentials fail closed. Caller-supplied tenant IDs are not trusted. Native API-key login still authenticates the request after ownership discovery; native role ACL and marketing grants still authorize its actions. API keys must never be included in query strings or logs, and production requests must use HTTPS.
@@ -43,6 +45,8 @@ On a shared installation such as `http://localhost/nexa/api/v1/`, send the nativ
 `TenantApiKeyHttpTest.php` is an opt-in loopback-only test through Apache and the full native authentication-hook pipeline. It creates uniquely named committed API-user/role fixtures for the two demo tenants because Apache cannot see rollback-only credentials. Both tenants use the same site URL and native `X-Api-Key` authentication. App/user returns HTTP 200 with the exact non-admin API actor and no browser login token; case-changed and disabled keys return 401. Marketing creation, approval, grant administration and native Contact creation return 403. Missing-source reusable requests fail without creating any mail queue.
 
 The live test exposed an empty NexaSegments scope that caused permission-map generation to return HTTP 500. Its metadata now follows the existing non-entity workspace scope pattern. This is a metadata correction, not a new entity or schema migration.
+
+The live HTTP contract also rejects missing fields, string versions, array Contact IDs, numeric request keys, array/null parameters and unapproved subject or tenant overrides with HTTP 400 for both tenants. It verifies that these requests and missing-source requests leave no reusable-send ledger entries. These checks passed on 8 October 2026 without creating delivery work. Successful live queued-send acceptance remains separate: committed eligible fixtures need protection from the concurrently running worker before that test is enabled.
 
 Run explicitly on WAMP:
 

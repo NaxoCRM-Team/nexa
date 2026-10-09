@@ -88,6 +88,8 @@ $required = @(
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/MarketingConditionalContentService.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/ValueLiteral.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/NumericComparison.php',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/CustomPropertyValue.php',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/DecimalComparison.php',
     'tests/tenant/TenantMarketingImageDispatchTest.php',
     'docs/operations/security-governance.md',
     'tests/auth/Sprint6SecurityGovernanceTest.php',
