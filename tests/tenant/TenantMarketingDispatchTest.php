@@ -275,6 +275,34 @@ try {
 
     if ($reusableSendGovernance) {
         $dispatch = $store->runWith($tenantA, fn () => $factory->create(MarketingDispatchService::class));
+        $customization=$factory->create(\Espo\Custom\Tools\Customization\CustomizationService::class);
+        $propertyKey='approval_property_' . bin2hex(random_bytes(4));
+        $property=$store->runWith($tenantA,fn ()=>$customization->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$propertyKey,'label'=>'Approval property ' . $propertyKey,'dataType'=>'text']));
+        $richBody=$store->runWith($tenantA,fn ()=>$factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingConditionalContentService::class)->compose((object) [
+            'matchMode'=>'all','conditions'=>[(object) ['field'=>'custom:' . $propertyKey,'operator'=>'has_value'],(object) ['field'=>'behavior:page.viewed','operator'=>'not_within_days','value'=>'30']],
+            'matchingHtml'=>'<p><strong>Combined matching branch</strong></p>','fallbackHtml'=>'<p><em>Combined fallback branch</em></p>',
+        ]))['bodyHtml'];
+        $conditionalInput=clone $draftInput; $conditionalInput->name='Combined personalization approval'; $conditionalInput->bodyHtml=$richBody;
+        $conditionalDrafts=[];
+        foreach (['campaign','single_send'] as $mode) {
+            $conditionalInput->deliveryMode=$mode;
+            $created=$store->runWith($tenantA,fn ()=>$factory->create(MarketingEmailWorkspaceService::class)->save($conditionalInput));
+            foreach (['submit','approve'] as $action) $store->runWith($tenantA,fn ()=>$factory->create(MarketingEmailWorkspaceService::class)->transition($created['id'],(object) ['action'=>$action]));
+            $conditionalDrafts[$mode]=$created;
+        }
+        $store->runWith($tenantA,fn ()=>$customization->archive('field',$property['id']));
+        $beforeQueues=(int)$pdo->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn();
+        $beforeProfiles=(int)$pdo->query('SELECT COUNT(*) FROM nexa_marketing_email_profile')->fetchColumn();
+        foreach ([fn ()=>$dispatch->schedule($conditionalDrafts['campaign']['id']),fn ()=>$dispatch->reusableSend($conditionalDrafts['campaign']['id'],$contact->getId(),'archived-property-request',1),fn ()=>$dispatch->singleSend($conditionalDrafts['single_send']['id'],$contact->getId())] as $attempt) {
+            $failure=null;
+            try {$store->runWith($tenantA,$attempt);} catch (\Espo\Core\Exceptions\BadRequest $error) {$failure=$error->getMessage();}
+            $assert($failure!==null && str_contains($failure,'archived'),'Archived conditional properties must reject scheduling and queue creation at preflight.');
+        }
+        $assert((int)$pdo->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn()===$beforeQueues,'Rejected personalization preflight must create no queue item.');
+        $assert((int)$pdo->query('SELECT COUNT(*) FROM nexa_marketing_email_profile')->fetchColumn()===$beforeProfiles,'Rejected reusable preflight must create no copied profile.');
+        $failedRequest=$pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND request_hash=?');
+        $failedRequest->execute([$tenantA->tenantId,$tenantA->serviceId,hash('sha256','archived-property-request')]);
+        $assert((int)$failedRequest->fetchColumn()===0,'Rejected personalization must not consume its request key.');
         $denied = static function (callable $call, string $message) use ($assert): void {
             $blocked = false;
             try {$call();} catch (\Espo\Core\Exceptions\BadRequest|NotFound|\Espo\Core\Exceptions\Forbidden) {$blocked = true;}

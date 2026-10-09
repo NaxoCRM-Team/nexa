@@ -36,6 +36,35 @@ try {
     });
     $queueCount=(int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn();
     $render=fn ($contact,$html)=>$store->runWith($a,fn ()=>$preview->preview((object) ['contactId'=>$contact->getId(),'subject'=>'Hello {Contact.firstName}','bodyHtml'=>$html]));
+    $behaviorInsert=$em->getPDO()->prepare("INSERT INTO nexa_timeline_event (id,tenant_id,service_id,contact_id,event_type,source_entity_type,source_entity_id,source_occurred_at,actor_type,visibility,summary,metadata_json) VALUES (UUID(),?,?,?,?,?,UUID(),?,'system',?,'Conditional behavior fixture','{}')");
+    foreach ([['page.viewed','BehaviorEvent'],['email.opened','MarketingDeliveryEvent'],['email.clicked','MarketingDeliveryEvent'],['email.replied','BehaviorEvent']] as [$event,$source]) {
+        $behaviorInsert->execute([$a->tenantId,$a->serviceId,$contacts[0]->getId(),$event,$source,gmdate('Y-m-d H:i:s',time()-86400),'internal']);
+        foreach ([[time()+86400,'internal'],[time()-100*86400,'internal'],[time()-86400,'restricted']] as [$when,$visibility]) $behaviorInsert->execute([$a->tenantId,$a->serviceId,$contacts[1]->getId(),$event,$source,gmdate('Y-m-d H:i:s',$when),$visibility]);
+        $rule=(object) ['field'=>'behavior:' . $event,'operator'=>'within_days','value'=>'30','matchingText'=>'Behavior matched','fallbackText'=>'Behavior fallback'];
+        $html=$store->runWith($a,fn ()=>$conditional->compose($rule))['bodyHtml'];
+        $assert(str_contains($render($contacts[0],$html)['bodyHtml'],'Behavior matched'),'Supported recent behavior must match: ' . $event);
+        $assert(str_contains($render($contacts[1],$html)['bodyHtml'],'Behavior fallback'),'Old, future and restricted behavior must not match: ' . $event);
+        $rule->operator='not_within_days';
+        $html=$store->runWith($a,fn ()=>$conditional->compose($rule))['bodyHtml'];
+        $assert(str_contains($render($contacts[1],$html)['bodyHtml'],'Behavior matched'),'Absent eligible recent evidence must satisfy the inverse condition.');
+    }
+    foreach (['0','366','1.5','-1','1e2'] as $invalid) {
+        $rule->value=$invalid;
+        $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($rule)),'Behavioral windows must be whole days from 1 through 365.');
+    }
+    $rich=(object) ['field'=>'leadStatus','operator'=>'equals','value'=>'New','matchingHtml'=>'<h2>Welcome {Contact.firstName}</h2><p><strong>Premium offer</strong> <a href="https://example.test/offer">View offer</a></p>','fallbackHtml'=>'<p><em>Standard offer</em></p>'];
+    $richHtml=$store->runWith($a,fn ()=>$conditional->compose($rich))['bodyHtml'];
+    $assert(str_contains($render($contacts[0],$richHtml)['bodyHtml'],'<strong>Premium offer</strong>') && str_contains($render($contacts[1],$richHtml)['bodyHtml'],'<em>Standard offer</em>'),'Rich conditional branches must preserve formatting and select one recipient branch.');
+    $unsafe=clone $rich; $unsafe->matchingHtml='<p onclick="bad()">Safe text<script>bad()</script><a href="javascript:bad()">Link</a></p>';
+    $clean=$store->runWith($a,fn ()=>$conditional->compose($unsafe))['bodyHtml'];
+    $assert(!str_contains($clean,'onclick') && !str_contains($clean,'<script') && !str_contains($clean,'javascript:'),'Rich branches must remove scripts, event attributes and unsafe link schemes.');
+    $mixed=clone $rich; $mixed->matchingText='Ambiguous';
+    $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($mixed)),'Mixed rich and text branch formats must be rejected.');
+    $empty=clone $rich; $empty->fallbackHtml='<p><br></p>';
+    $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($empty)),'Visually empty rich fallback content must be rejected.');
+    $richGroup=clone $rich; unset($richGroup->field,$richGroup->operator,$richGroup->value);
+    $richGroup->conditions=[(object) ['field'=>'leadStatus','operator'=>'equals','value'=>'New']]; $richGroup->matchMode='all';
+    $assert(str_contains($render($contacts[0],$store->runWith($a,fn ()=>$conditional->compose($richGroup))['bodyHtml'])['bodyHtml'],'<strong>Premium offer</strong>'),'Grouped conditions must preserve rich branch content.');
     $customization=$factory->create(\Espo\Custom\Tools\Customization\CustomizationService::class);
     $customKey='email_condition_' . bin2hex(random_bytes(4));
     $custom=$store->runWith($a,fn ()=>$customization->saveDefinition('field',['entityType'=>'Contact','fieldKey'=>$customKey,'label'=>'Email condition ' . $customKey,'dataType'=>'single_select','options'=>['Premium','Standard']]));

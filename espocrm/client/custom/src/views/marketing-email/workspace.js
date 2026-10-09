@@ -28,6 +28,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         'click [data-action="close-conditional-content"]': 'closeConditionalContent',
         'change [data-conditional-form] [name="field"], change [data-conditional-form] [name="operator"]': 'updateConditionalValue',
         'submit [data-conditional-form]': 'insertConditionalContent',
+        'change [data-conditional-form] [name="contentFormat"]': 'updateConditionalFormat',
         'click [data-action="add-conditional-rule"]': 'addConditionalRule',
         'click [data-action="remove-conditional-rule"]': 'removeConditionalRule',
         'click [data-action="close-block-designer"]': 'closeBlockDesigner',
@@ -225,7 +226,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             modal.addEventListener('keydown', event => {
                 if (event.key === 'Escape') { event.preventDefault(); this.closeSubmissionReview(); }
                 if (event.key === 'Tab') {
-                    const controls = [...modal.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)')];
+                    const controls = [...modal.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[contenteditable="true"]')].filter(control => control.getClientRects().length);
                     const index = controls.indexOf(document.activeElement);
                     event.preventDefault(); controls[(index + (event.shiftKey ? controls.length - 1 : 1)) % controls.length]?.focus();
                 }
@@ -341,6 +342,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         row.insertAdjacentHTML('beforeend','<button type="button" class="btn btn-icon" data-action="remove-conditional-rule" title="Remove condition" aria-label="Remove condition"><span class="fas fa-trash" aria-hidden="true"></span></button>');
         section.prepend(row);
         section.insertAdjacentHTML('afterbegin','<label>Match<select class="form-control" name="matchMode"><option value="all">All conditions</option><option value="any">Any condition</option></select></label>');
+        form.elements.matchingText.closest('label').insertAdjacentHTML('beforebegin','<label>Content format<select class="form-control" name="contentFormat"><option value="text">Plain text</option><option value="rich">Rich content</option></select></label>');
         row.insertAdjacentHTML('afterend','<button type="button" class="btn btn-default" data-action="add-conditional-rule"><span class="fas fa-plus" aria-hidden="true"></span>Add condition</button>');
         this.refreshConditionalRules();
     }
@@ -376,19 +378,21 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         const definition = dialog.fields.find(item => item.name === field.value);
         const options = definition?.options || [];
         const numeric = ['int','decimal'].includes(definition?.type);
+        const behavior = definition?.type === 'behavior';
         const operator = row.querySelector('[name="operator"]');
         const selectedOperator = row.dataset.valueField === field.value ? operator.value : 'equals';
-        const operators = [['equals','Is equal to'],['not_equals','Is not equal to'],...(numeric ? [['greater_than','Is greater than'],['at_least','Is at least'],['less_than','Is less than'],['at_most','Is at most']] : []),['has_value','Has a value'],['no_value','Has no value']];
+        const operators = behavior ? [['within_days','Occurred in the last'],['not_within_days','Did not occur in the last']] : [['equals','Is equal to'],['not_equals','Is not equal to'],...(numeric ? [['greater_than','Is greater than'],['at_least','Is at least'],['less_than','Is less than'],['at_most','Is at most']] : []),['has_value','Has a value'],['no_value','Has no value']];
         operator.replaceChildren(...operators.map(([value,label]) => new Option(label,value)));
-        operator.value = operators.some(([value]) => value === selectedOperator) ? selectedOperator : 'equals';
+        operator.value = operators.some(([value]) => value === selectedOperator) ? selectedOperator : operators[0][0];
         const previous = row.dataset.valueField === field.value ? value.value : null;
         row.dataset.valueField = field.value;
         const control = options.length ? document.createElement('select') : document.createElement('input');
         control.name = 'value'; control.className = 'form-control'; control.required = true;
         if (options.length) options.forEach(option => control.add(new Option(option.label,option.value)));
-        else {control.maxLength = 255; if (definition?.type === 'decimal') {control.type = 'text'; control.inputMode = 'decimal'; control.maxLength = 32; control.pattern = '-?[0-9]{1,22}(\\.[0-9]{1,8})?';} else if (numeric) {control.type = 'number'; control.min = '0'; control.max = '2147483647'; control.step = '1';}}
+        else {control.maxLength = 255; if (behavior) {control.type = 'number'; control.min = '1'; control.max = '365'; control.step = '1'; control.value = '30';} else if (definition?.type === 'decimal') {control.type = 'text'; control.inputMode = 'decimal'; control.maxLength = 32; control.pattern = '-?[0-9]{1,22}(\\.[0-9]{1,8})?';} else if (numeric) {control.type = 'number'; control.min = '0'; control.max = '2147483647'; control.step = '1';}}
         if (previous !== null && (!options.length || options.some(option => option.value === previous))) control.value = previous;
         value.replaceWith(control);
+        row.querySelector('[data-conditional-value]').firstChild.textContent = behavior ? 'Window in days' : 'Value';
         const needsValue = !['has_value','no_value'].includes(operator.value);
         row.querySelector('[data-conditional-value]').hidden = !needsValue;
         control.disabled = !needsValue; control.required = needsValue;
@@ -397,11 +401,97 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     closeConditionalContent() {
         this.conditionalRequest = (this.conditionalRequest || 0) + 1;
         const dialog = this.conditionalDialog; this.conditionalDialog = null;
+        dialog?.richEditors?.forEach(({editor}) => {this.stopListening(editor); editor.remove();});
         dialog?.modal.remove(); if (dialog?.trigger?.isConnected) dialog.trigger.focus();
+    }
+    async updateConditionalFormat() {
+        const dialog = this.conditionalDialog; if (!dialog) return;
+        const form = dialog.modal.querySelector('form');
+        const rich = form.elements.contentFormat.value === 'rich';
+        dialog.richEditors?.forEach(({holder}) => {holder.hidden = !rich;});
+        ['matchingText','fallbackText'].forEach(name => {form.elements[name].hidden = rich; form.elements[name].required = !rich;});
+        if (!rich || dialog.richEditors) return;
+        dialog.richEditors = []; form.querySelector('[type="submit"]').disabled = true;
+        try {
+            for (const name of ['matchingText','fallbackText']) {
+                const model = await this.getModelFactory().create('EmailTemplate');
+                if (this.conditionalDialog !== dialog) return;
+                model.set({body:`<p>${this.escape(form.elements[name].value).replace(/\n/g,'<br>')}</p>`,isHtml:true});
+                const holder = document.createElement('div'); holder.dataset.conditionalRich = name;
+                form.elements[name].after(holder);
+                const editor = await this.createView(`conditional-${name}`,'views/fields/wysiwyg',{
+                    fullSelector:`[data-conditional-rich="${name}"]`,model,name:'body',mode:'edit',
+                    params:{height:180,minHeight:120,toolbar:[['style',['bold','italic','underline','clear']],['para',['ul','ol','paragraph']],['insert',['espoTable','espoLink']],['history',['undo','redo']]]},
+                });
+                if (this.conditionalDialog !== dialog) {editor.remove(); return;}
+                dialog.richEditors.push({name,editor,model,holder});
+                await editor.render();
+                if (this.conditionalDialog !== dialog) return;
+                this.installConditionalImages(dialog,{name,editor,model,holder});
+                holder.hidden = form.elements.contentFormat.value !== 'rich';
+            }
+        } catch (error) {
+            if (this.conditionalDialog !== dialog) return;
+            dialog.richEditors.forEach(({editor,holder}) => {editor.remove(); holder.remove();});
+            dialog.richEditors = null; form.elements.contentFormat.value = 'text';
+            ['matchingText','fallbackText'].forEach(name => {form.elements[name].hidden = false; form.elements[name].required = true;});
+            form.querySelector('[data-conditional-error]').textContent = 'The rich editor could not be loaded. Plain text is still available.';
+        } finally {if (this.conditionalDialog === dialog) form.querySelector('[type="submit"]').disabled = false;}
+    }
+    installConditionalImages(dialog,entry) {
+        const tool = document.createElement('div');
+        tool.innerHTML = '<button type="button" class="btn btn-default" title="Insert published email image"><span class="fas fa-image" aria-hidden="true"></span>Insert image</button><div data-image-picker hidden><label>Search images<input type="search" class="form-control"></label><label>Published image<select class="form-control" size="4"></select></label><p role="status"></p><button type="button" class="btn btn-default" data-insert-image disabled>Insert selected image</button><button type="button" class="btn btn-default" data-close-images>Cancel</button></div>';
+        entry.holder.append(tool);
+        const picker = tool.querySelector('[data-image-picker]');
+        const search = picker.querySelector('input'); const select = picker.querySelector('select');
+        const status = picker.querySelector('[role="status"]'); const insert = picker.querySelector('[data-insert-image]');
+        let images = []; let imageRequest = 0;
+        const refresh = () => {
+            const query = search.value.trim().toLowerCase();
+            const selected = select.value;
+            select.replaceChildren(...images.filter(image => String(image.name || '').toLowerCase().includes(query)).map(image => new Option(image.name || 'Email image',image.id)));
+            if (images.some(image => image.id === selected)) select.value = selected;
+            insert.disabled = !select.value;
+            status.textContent = select.options.length ? '' : (images.length ? 'No published images match.' : 'No published email images are available.');
+        };
+        tool.querySelector('button').addEventListener('click',async () => {
+            const request = ++imageRequest;
+            entry.editor.$summernote?.summernote('saveRange');
+            images = []; select.replaceChildren();
+            picker.hidden = false; insert.disabled = true; status.textContent = 'Loading images...';
+            search.focus();
+            try {
+                const result = await Espo.Ajax.getRequest('Nexa/marketing-email-images');
+                if (request !== imageRequest || this.conditionalDialog !== dialog || !tool.isConnected || picker.hidden) return;
+                images = (result.images || []).filter(image => !image.requiresPublication && typeof image.url === 'string' && image.url);
+                refresh();
+            } catch (error) {
+                if (request !== imageRequest || this.conditionalDialog !== dialog || picker.hidden) return;
+                select.replaceChildren(); status.textContent = 'Published images could not be loaded. Try again.';
+            }
+        });
+        search.addEventListener('input',refresh);
+        select.addEventListener('change',() => {insert.disabled = !select.value;});
+        picker.querySelector('[data-close-images]').addEventListener('click',() => {imageRequest++; picker.hidden = true; tool.querySelector('button').focus();});
+        insert.addEventListener('click',() => {
+            const image = images.find(image => image.id === select.value);
+            if (!image || this.conditionalDialog !== dialog || dialog.modal.querySelector('[name="contentFormat"]').value !== 'rich') return;
+            if (!entry.editor.$summernote) {status.textContent = 'The image editor is not ready. Try again.'; return;}
+            const node = document.createElement('img'); node.src = image.url; node.alt = image.alt || image.name || ''; node.style.maxWidth = '100%';
+            entry.editor.$summernote.summernote('restoreRange'); entry.editor.$summernote.summernote('focus');
+            entry.editor.$summernote.summernote('insertNode',node); entry.editor.fetchToModel();
+            picker.hidden = true;
+        });
     }
     conditionalPayload(form) {
         const conditions = [...form.querySelectorAll('[data-conditional-rule]')].map(row => ({field:row.querySelector('[name="field"]').value,operator:row.querySelector('[name="operator"]').value,value:row.querySelector('[name="value"]').disabled ? '' : row.querySelector('[name="value"]').value}));
-        const content = {matchingText:form.elements.matchingText.value,fallbackText:form.elements.fallbackText.value};
+        let content = {matchingText:form.elements.matchingText.value,fallbackText:form.elements.fallbackText.value};
+        if (form.elements.contentFormat?.value === 'rich') {
+            const editors = this.conditionalDialog?.richEditors;
+            if (!editors || editors.length !== 2) throw new Error('Wait for both rich editors to load.');
+            content = {};
+            editors.forEach(({name,editor,model}) => {editor.fetchToModel(); content[name === 'matchingText' ? 'matchingHtml' : 'fallbackHtml'] = model.get('body') || '';});
+        }
         return conditions.length === 1 ? {...conditions[0],...content} : {conditions,matchMode:form.elements.matchMode.value,...content};
     }
     async insertConditionalContent(event) {

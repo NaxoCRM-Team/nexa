@@ -71,6 +71,7 @@ final class MarketingDispatchService
         $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
         if (!$template instanceof EmailTemplate) throw new NotFound('Email template not found.');
         $this->contentIntegrity->requireSnapshot($profile, $template);
+        $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
         $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
         $this->attachments->approvedFiles($profile, $template, true);
         $this->images->requireApproved($profile, $template);
@@ -154,6 +155,7 @@ final class MarketingDispatchService
             $contact = $this->entityManager->getEntityById('Contact',$contactId);
             if (!$template instanceof EmailTemplate || !$mass instanceof MassEmail || !$contact || !$this->acl->checkEntity($template,'read') || !$this->acl->checkEntity($contact,'read') || !$this->acl->checkScope('Contact','read') || !$this->acl->checkField('EmailTemplate','subject') || !$this->acl->checkField('EmailTemplate','body')) throw new Forbidden('Source content or recipient is not available.');
             $this->contentIntegrity->requireSnapshot($source, $template, $mass);
+            $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
             if ($saved['subject'] !== $template->get('subject') || $saved['bodyHtml'] !== $template->get('body') || ($saved['preheader'] ?? '') !== ($source['preheader'] ?? '')) throw new BadRequest('Source content changed after approval. Save and approve it again.');
             $this->attachments->approvedFiles($source,$template,true); $this->images->requireApproved($source,$template);
             $draft = $this->user->isAdmin() ? $this->workspace->save((object) [
@@ -226,6 +228,7 @@ final class MarketingDispatchService
             $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
             if (!$template instanceof EmailTemplate || !$this->acl->checkEntity($template, 'read')) throw new NotFound('Email template not found.');
             $this->contentIntegrity->requireSnapshot($profile, $template);
+            $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
             $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
             if (!$this->acl->checkField('EmailTemplate', 'subject') || !$this->acl->checkField('EmailTemplate', 'body')) throw new Forbidden('Email content is not available for delivery.');
             $this->attachments->approvedFiles($profile, $template, true);
@@ -372,6 +375,9 @@ final class MarketingDispatchService
             $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
             if (!$massEmail instanceof MassEmail || !$template instanceof EmailTemplate || !$this->acl->checkEntity($template, 'read')) throw new NotFound('Email template not found.');
             if (!$this->acl->checkField('EmailTemplate', 'subject') || !$this->acl->checkField('EmailTemplate', 'body')) throw new Forbidden('Email content is not available for test delivery.');
+            $this->contentIntegrity->requireSnapshot($profile, $template, $massEmail);
+            $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
+            $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
             $testAttachments = $this->attachments->approvedFiles($profile, $template, true);
             $this->images->requireApproved($profile, $template);
             $this->queueCreator->create($massEmail, true, [$this->user]);

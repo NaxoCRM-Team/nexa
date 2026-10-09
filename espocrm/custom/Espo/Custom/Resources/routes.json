@@ -1,5 +1,50 @@
 [
     {
+        "route": "/Nexa/workflows",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/workflows",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostSave"
+    },
+    {
+        "route": "/Nexa/workflows/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\GetWorkflow"
+    },
+    {
+        "route": "/Nexa/workflows/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostSave"
+    },
+    {
+        "route": "/Nexa/workflows/:id/history",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\GetHistory"
+    },
+    {
+        "route": "/Nexa/workflows/:id/publish",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostPublish"
+    },
+    {
+        "route": "/Nexa/workflows/:id/control",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostControl"
+    },
+    {
+        "route": "/Nexa/workflows/:id/enroll",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostEnroll"
+    },
+    {
+        "route": "/Nexa/workflows/:id/runs/:runId/cancel",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostCancel"
+    },
+    {
         "route": "/Nexa/marketing-emails/:id/integration-grants",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetIntegrationGrants"

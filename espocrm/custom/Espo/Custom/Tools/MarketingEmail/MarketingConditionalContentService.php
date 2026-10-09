@@ -51,6 +51,9 @@ final class MarketingConditionalContentService
                 'options'=>$field['data_type'] === 'boolean' ? [['value'=>'true','label'=>'True'],['value'=>'false','label'=>'False']] : array_map(static fn (string $value): array => ['value'=>$value,'label'=>$value],$field['options']),
                 'customKey'=>$field['field_key']];
         }
+        foreach (['page.viewed'=>'Recorded website visit','email.opened'=>'Recorded marketing email open','email.clicked'=>'Recorded marketing email click','email.replied'=>'Recorded email reply'] as $event=>$label) {
+            $fields[]=['name'=>'behavior:' . $event,'label'=>$label,'type'=>'behavior','options'=>[],'event'=>$event];
+        }
         return ['fields'=>$fields];
     }
 
@@ -63,13 +66,18 @@ final class MarketingConditionalContentService
         foreach ($catalog['fields'] as $item) if ($item['name'] === $field) {$definition = $item; break;}
         if (!$definition) throw new BadRequest('Choose an available Contact property.');
         $numeric = in_array($definition['type'],['int','decimal'],true);
-        $operators = $numeric ? ['equals','not_equals','greater_than','at_least','less_than','at_most','has_value','no_value'] : ['equals','not_equals','has_value','no_value'];
+        $behavior = $definition['type']==='behavior';
+        $operators = $behavior ? ['within_days','not_within_days'] : ($numeric ? ['equals','not_equals','greater_than','at_least','less_than','at_most','has_value','no_value'] : ['equals','not_equals','has_value','no_value']);
         if (!in_array($operator,$operators,true)) throw new BadRequest('Choose a supported condition.');
         $value = $input->value ?? ''; $yes = $input->matchingText ?? ''; $no = $input->fallbackText ?? '';
+        [$yesHtml,$noHtml] = $this->branches($input);
         if (!is_string($value) || mb_strlen($value) > 255 || preg_match('/[\x00-\x1f{}]/u',$value)) throw new BadRequest('Enter a comparison value of up to 255 characters without template markers.');
-        if (!is_string($yes) || trim($yes) === '' || mb_strlen($yes) > 10000) throw new BadRequest('Enter matching content of up to 10,000 characters.');
-        if (!is_string($no) || trim($no) === '' || mb_strlen($no) > 10000) throw new BadRequest('Enter fallback content of up to 10,000 characters.');
-        if (str_contains($yes,'{{') || str_contains($no,'{{')) throw new BadRequest('Use Contact personalization tokens rather than nested conditions in this content.');
+        if ($behavior) {
+            if (!preg_match('/^[1-9][0-9]{0,2}$/D',$value) || (int)$value>365) throw new BadRequest('Choose a behavioral window from 1 to 365 days.');
+            $body='{{#nexaEmailBehavior id "' . $definition['event'] . '" "' . $operator . '" "' . $value . '"}}' . $yesHtml . '{{else}}' . $noHtml . '{{/nexaEmailBehavior}}';
+            $this->validate('',$body);
+            return ['bodyHtml'=>$body];
+        }
         if ($numeric) {
             $needsValue = !in_array($operator,['has_value','no_value'],true);
             $decimal = $definition['type'] === 'decimal';
@@ -77,7 +85,7 @@ final class MarketingConditionalContentService
             elseif ($needsValue && (!preg_match('/^(0|[1-9][0-9]{0,9})$/D',$value) || (float) $value > 2147483647)) throw new BadRequest('Enter a whole-number lead score between 0 and 2147483647.');
             $helper = $decimal ? 'nexaEmailDecimal' : 'nexaEmailNumeric';
             $operand = $decimal ? '(nexaEmailCustomProperty id "' . $definition['customKey'] . '")' : $field . '_RAW';
-            $body = '{{#' . $helper . ' ' . $operand . ' "' . $operator . '" "' . ($needsValue ? $value : '') . '"}}' . $this->paragraph($yes) . '{{else}}' . $this->paragraph($no) . '{{/' . $helper . '}}';
+            $body = '{{#' . $helper . ' ' . $operand . ' "' . $operator . '" "' . ($needsValue ? $value : '') . '"}}' . $yesHtml . '{{else}}' . $noHtml . '{{/' . $helper . '}}';
             $this->validate('', $body);
             return ['bodyHtml'=>$body];
         }
@@ -88,7 +96,7 @@ final class MarketingConditionalContentService
         $helper = match ($operator) {'equals'=>'ifEqual','not_equals'=>'ifNotEqual','has_value'=>'if','no_value'=>'unless'};
         $comparison = in_array($operator,['equals','not_equals'],true) ? ' (nexaEmailValue "' . base64_encode($value) . '")' : '';
         $operand = isset($definition['customKey']) ? '(nexaEmailCustomProperty id "' . $definition['customKey'] . '")' : $field . '_RAW';
-        $body = '{{#' . $helper . ' ' . $operand . $comparison . '}}' . $this->paragraph($yes) . '{{else}}' . $this->paragraph($no) . '{{/' . $helper . '}}';
+        $body = '{{#' . $helper . ' ' . $operand . $comparison . '}}' . $yesHtml . '{{else}}' . $noHtml . '{{/' . $helper . '}}';
         $this->validate('', $body);
         return ['bodyHtml'=>$body];
     }
@@ -108,13 +116,17 @@ final class MarketingConditionalContentService
             $rule = clone $condition;
             $rule->matchingText = $input->matchingText ?? '';
             $rule->fallbackText = $input->fallbackText ?? '';
+            if (property_exists($input,'matchingHtml') || property_exists($input,'fallbackHtml')) {
+                unset($rule->matchingText,$rule->fallbackText);
+                $rule->matchingHtml=$input->matchingHtml ?? null;
+                $rule->fallbackHtml=$input->fallbackHtml ?? null;
+            }
             $body = $this->compose($rule)['bodyHtml'];
             $openEnd = strpos($body, '}}') + 2;
             $closeStart = strrpos($body, '{{/');
             $envelopes[] = [substr($body, 0, $openEnd), substr($body, $closeStart)];
         }
-        $yes = $this->paragraph($input->matchingText);
-        $no = $this->paragraph($input->fallbackText);
+        [$yes,$no] = $this->branches($input);
         $body = $mode === 'all' ? $yes : $no;
         foreach (array_reverse($envelopes) as [$open, $close]) {
             $body = $open . ($mode === 'all' ? $body : $yes) . '{{else}}' . ($mode === 'all' ? $no : $body) . $close;
@@ -134,6 +146,11 @@ final class MarketingConditionalContentService
             if (substr_count($text,'{{') !== substr_count($text,'}}')) throw new BadRequest('Close each conditional content expression.');
         }
         $this->contexts->require();
+        if (str_contains($subject . $body,'nexaEmailBehavior')) {
+            preg_match_all('/\{\{#nexaEmailBehavior id "([a-z.]+)" "(within_days|not_within_days)" "([1-9][0-9]{0,2})"\}\}/',$subject . $body,$rules,PREG_SET_ORDER);
+            if (count($rules)!==substr_count($subject . $body,'#nexaEmailBehavior')) throw new BadRequest('Use generated behavioral conditions.');
+            foreach ($rules as $rule) if (!isset(TemplateHelpers\BehaviorCondition::EVENTS[$rule[1]]) || (int)$rule[3]>365) throw new BadRequest('Choose a supported event and a window from 1 to 365 days.');
+        }
         if (str_contains($subject . $body,'nexaEmailCustomProperty')) {
             preg_match_all('/\(nexaEmailCustomProperty id "([a-zA-Z0-9_]+)"\)/',$subject . $body,$references);
             if (count($references[0]) !== substr_count($subject . $body,'nexaEmailCustomProperty')) throw new BadRequest('Use generated custom Contact property conditions.');
@@ -154,6 +171,29 @@ final class MarketingConditionalContentService
     private function paragraph(string $text): string
     {
         return '<p>' . nl2br(htmlspecialchars(trim($text),ENT_QUOTES | ENT_SUBSTITUTE,'UTF-8'),false) . '</p>';
+    }
+
+    /** Both branches share one explicit format; never interpret legacy text as HTML. */
+    private function branches(stdClass $input): array
+    {
+        $rich = property_exists($input,'matchingHtml') || property_exists($input,'fallbackHtml');
+        if ($rich && (property_exists($input,'matchingText') || property_exists($input,'fallbackText'))) throw new BadRequest('Choose either rich content or plain text for both branches.');
+        $result = [];
+        foreach ($rich ? ['matchingHtml','fallbackHtml'] : ['matchingText','fallbackText'] as $name) {
+            $value = $input->$name ?? null;
+            if (!is_string($value) || trim($value) === '' || mb_strlen($value) > ($rich ? 100000 : 10000)) throw new BadRequest('Enter bounded content for both matching and fallback branches.');
+            if (str_contains($value,'{{')) throw new BadRequest('Use Contact personalization tokens rather than nested conditions in this content.');
+            if (!$rich) {$result[] = $this->paragraph($value); continue;}
+            $config = \HTMLPurifier_Config::createDefault();
+            $config->set('Cache.DefinitionImpl',null);
+            $config->set('HTML.Allowed','p[style],div[style],span[style],h1[style],h2[style],h3[style],strong,b,em,i,u,s,br,hr,ul,ol,li,a[href|title],img[src|alt|width|height],table[style],tbody,tr,td[style|colspan|rowspan],th[style]');
+            $config->set('URI.AllowedSchemes',['http'=>true,'https'=>true,'mailto'=>true]);
+            $html = (new \HTMLPurifier($config))->purify($value);
+            if (trim(html_entity_decode(strip_tags($html),ENT_QUOTES,'UTF-8')) === '' && !str_contains($html,'<img')) throw new BadRequest('Rich content must contain visible text or an image.');
+            $this->factory->create(MarketingImageService::class)->manifest($html);
+            $result[] = $html;
+        }
+        return $result;
     }
 
     private function requireAccess(): void

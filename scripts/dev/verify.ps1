@@ -81,6 +81,16 @@ $required = @(
     'tests/tenant/TenantMarketingSingleSendTest.php',
     'tests/tenant/TenantMarketingReusableSendTest.php',
     'tests/tenant/TenantMarketingParameterContractTest.php',
+    'espocrm/custom/Espo/Custom/Tools/Automation/WorkflowDefinition.php',
+    'espocrm/custom/Espo/Custom/Tools/Automation/WorkflowClock.php',
+    'espocrm/custom/Espo/Custom/Tools/Automation/WorkflowService.php',
+    'espocrm/custom/Espo/Custom/Jobs/ProcessWorkflows.php',
+    'database/shared/migrations/0070_add_workflow_runtime.sql',
+    'tests/tenant/TenantWorkflowRuntimeTest.php',
+    'docs/development/workflow-runtime.md',
+    'tests/tenant/TenantAutomationDefinitionTest.php',
+    'tests/tenant/TenantAutomationClockTest.php',
+    'docs/development/phase-6-delivery-status.md',
     'database/shared/migrations/0066_marketing_reusable_send_requests.sql',
     'docs/development/marketing-reusable-send.md',
     'tests/browser/marketing-single-send.spec.js',
@@ -90,6 +100,7 @@ $required = @(
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/NumericComparison.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/CustomPropertyValue.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/DecimalComparison.php',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/BehaviorCondition.php',
     'tests/tenant/TenantMarketingImageDispatchTest.php',
     'docs/operations/security-governance.md',
     'tests/auth/Sprint6SecurityGovernanceTest.php',
@@ -430,6 +441,10 @@ if ($php) {
     if ($LASTEXITCODE -eq 0) { Pass 'Global search tenant contract suite' } else { Fail 'Global search tenant contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Common CRM workflow contract suite' } else { Fail 'Common CRM workflow contract suite failed.' }
+    & php (Join-Path $root 'tests\tenant\TenantAutomationDefinitionTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Automation graph validation contract' } else { Fail 'Automation graph validation failed.' }
+    & php (Join-Path $root 'tests\tenant\TenantAutomationClockTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Automation UTC and business-hour scheduling contract' } else { Fail 'Automation scheduling contract failed.' }
     & php (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Contact import contract suite' } else { Fail 'Contact import contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\ContactListExperienceTest.php')
@@ -511,6 +526,8 @@ if ($php) {
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Landing page workspace contract suite' } else { Fail 'Landing page workspace contract suite failed.' }
     if (-not $Ci) {
+        & php (Join-Path $root 'tests\tenant\TenantWorkflowRuntimeTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Scoped workflow publication, enrollment and runtime suite' } else { Fail 'Workflow runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\CustomerFoundationRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Customer foundation two-tenant runtime suite' } else { Fail 'Customer foundation two-tenant runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantCustomizationRuntimeTest.php')

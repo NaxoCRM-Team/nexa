@@ -1,5 +1,10 @@
 {
     "jobs": {
+        "ProcessWorkflows": {
+            "name": "Process Workflows",
+            "isSystem": true,
+            "scheduling": "* * * * *"
+        },
         "SendTaskDueSoonNotifications": {
             "name": "Send Task Due-Soon Notifications",
             "isSystem": true,

@@ -12,8 +12,9 @@ test('Conditional content stages safely with property values, fallback and stale
     await page.evaluate(() => {
         window.requests = []; window.errors = [];
         window.Espo = {Ui:{error:message => errors.push(message)},Ajax:{getRequest:async url => {
+            if (url === 'Nexa/marketing-email-images') return {images:[{id:'published-one',name:'Team photo',alt:'Our team',url:'https://example.test/image.png'},{id:'asset-only',name:'Unpublished asset',requiresPublication:true,url:null}]};
             if (url !== 'Nexa/marketing-email-conditions/fields') throw new Error('Unexpected property request');
-            return {fields:[{name:'firstName',label:'First name',options:[]},{name:'leadStatus',label:'Lead status',options:[{value:'New',label:'New'},{value:'Connected',label:'Connected'}]},{name:'leadScore',label:'Lead score',type:'int',options:[]},{name:'custom:vip',label:'VIP (custom)',type:'enum',options:[{value:'true',label:'True'},{value:'false',label:'False'}]},{name:'custom:balance',label:'Balance (custom)',type:'decimal',options:[]}]};
+            return {fields:[{name:'firstName',label:'First name',options:[]},{name:'leadStatus',label:'Lead status',options:[{value:'New',label:'New'},{value:'Connected',label:'Connected'}]},{name:'leadScore',label:'Lead score',type:'int',options:[]},{name:'custom:vip',label:'VIP (custom)',type:'enum',options:[{value:'true',label:'True'},{value:'false',label:'False'}]},{name:'custom:balance',label:'Balance (custom)',type:'decimal',options:[]},{name:'behavior:page.viewed',label:'Recorded website visit',type:'behavior',options:[]}]};
         },postRequest:async (url,input) => {
             requests.push({url,input});
             if (window.failCondition) throw new Error('Choose an available Contact property.');
@@ -43,6 +44,33 @@ test('Conditional content stages safely with property values, fallback and stale
     await expect(dialog.getByRole('button',{name:'Remove condition',exact:true})).toBeDisabled();
     await dialog.getByRole('button',{name:'Add condition',exact:true}).click();
     const rules = dialog.locator('[data-conditional-rule]');
+    await page.evaluate(() => {
+        view.stopListening = () => {};
+        view.getModelFactory = () => ({create:async () => ({data:{},set(values) {Object.assign(this.data,values);},get(name) {return this.data[name];}})});
+        view.createView = async (key,type,options) => ({$summernote:{summernote:(action,node) => {if (action === 'insertNode') options.model.set({body:(options.model.get('body') || '') + node.outerHTML});}},render:async () => {const holder=view.element.querySelector(options.fullSelector); holder.innerHTML='<div contenteditable="true" tabindex="0">Rich branch</div>';},fetchToModel:() => {},remove:() => {}});
+    });
+    await dialog.getByRole('combobox',{name:'Content format'}).selectOption('rich');
+    await page.evaluate(() => view.updateConditionalFormat());
+    await expect(dialog.locator('[data-conditional-rich] [contenteditable="true"]')).toHaveCount(2);
+    await page.evaluate(() => {
+        view.conditionalDialog.richEditors[0].model.set({body:'<p><strong>Rich match</strong></p>'});
+        view.conditionalDialog.richEditors[1].model.set({body:'<p><em>Rich fallback</em></p>'});
+    });
+    expect(await page.evaluate(() => view.conditionalPayload(view.conditionalDialog.modal.querySelector('form')))).toMatchObject({matchingHtml:'<p><strong>Rich match</strong></p>',fallbackHtml:'<p><em>Rich fallback</em></p>'});
+    const matchingEditor=dialog.locator('[data-conditional-rich="matchingText"]');
+    await matchingEditor.getByRole('button',{name:'Insert image',exact:true}).click();
+    await expect(matchingEditor.getByRole('listbox',{name:'Published image'})).toContainText('Team photo');
+    await expect(matchingEditor.getByRole('listbox',{name:'Published image'})).not.toContainText('Unpublished asset');
+    await matchingEditor.getByRole('searchbox',{name:'Search images'}).fill('missing');
+    await expect(matchingEditor.getByRole('button',{name:'Insert selected image'})).toBeDisabled();
+    await matchingEditor.getByRole('searchbox',{name:'Search images'}).fill('team');
+    await matchingEditor.getByRole('listbox',{name:'Published image'}).selectOption('published-one');
+    await matchingEditor.getByRole('button',{name:'Insert selected image'}).click();
+    const richPayload=await page.evaluate(() => view.conditionalPayload(view.conditionalDialog.modal.querySelector('form')));
+    expect(richPayload.matchingHtml).toContain('https://example.test/image.png');
+    expect(richPayload.fallbackHtml).not.toContain('image.png');
+    await dialog.getByRole('combobox',{name:'Content format'}).selectOption('text');
+    await page.evaluate(() => view.updateConditionalFormat());
     await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('custom:vip');
     await rules.nth(1).getByRole('combobox',{name:'Value',exact:true}).selectOption('false');
     await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('has_value');
@@ -54,6 +82,12 @@ test('Conditional content stages safely with property values, fallback and stale
     await rules.nth(1).getByRole('textbox',{name:'Value',exact:true}).fill('-0.12345678');
     await expect(rules.nth(1).getByRole('textbox',{name:'Value',exact:true})).toHaveAttribute('inputmode','decimal');
     expect(await rules.nth(1).getByRole('textbox',{name:'Value',exact:true}).evaluate(input => input.checkValidity())).toBe(true);
+    await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('behavior:page.viewed');
+    await expect(rules.nth(1).getByRole('combobox',{name:'Condition',exact:true})).toHaveValue('within_days');
+    await expect(rules.nth(1).getByRole('spinbutton',{name:'Window in days'})).toHaveValue('30');
+    await expect(rules.nth(1).getByRole('spinbutton',{name:'Window in days'})).toHaveAttribute('max','365');
+    await rules.nth(1).getByRole('combobox',{name:'Condition',exact:true}).selectOption('not_within_days');
+    await rules.nth(1).getByRole('spinbutton',{name:'Window in days'}).fill('7');
     await rules.nth(0).getByRole('combobox',{name:'Contact property'}).selectOption('leadStatus');
     await rules.nth(0).getByRole('combobox',{name:'Value',exact:true}).selectOption('Connected');
     await rules.nth(1).getByRole('combobox',{name:'Contact property'}).selectOption('firstName');
