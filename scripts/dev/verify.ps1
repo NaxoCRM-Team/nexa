@@ -77,6 +77,8 @@ $required = @(
     'tests/tenant/TenantMarketingImagePublicationTest.php',
     'tests/tenant/TenantMarketingImageUploadTest.php',
     'tests/tenant/TenantMarketingConditionalContentTest.php',
+    'tests/tenant/TenantMarketingDateTimeConditionTest.php',
+    'tests/tenant/TenantMarketingRelativeDateTest.php',
     'tests/tenant/TenantMarketingConditionalGovernanceTest.php',
     'tests/tenant/TenantMarketingSingleSendTest.php',
     'tests/tenant/TenantMarketingReusableSendTest.php',
@@ -86,9 +88,21 @@ $required = @(
     'espocrm/custom/Espo/Custom/Tools/Automation/WorkflowService.php',
     'espocrm/custom/Espo/Custom/Jobs/ProcessWorkflows.php',
     'database/shared/migrations/0070_add_workflow_runtime.sql',
+    'database/shared/migrations/0071_add_workflow_event_enrollment.sql',
+    'database/shared/migrations/0072_add_workflow_execution_safety.sql',
+    'database/shared/migrations/0073_add_workflow_webhook_delivery.sql',
+    'docs/development/workflow-event-enrollment.md',
     'tests/tenant/TenantWorkflowRuntimeTest.php',
     'docs/development/workflow-runtime.md',
+    'docs/development/workflow-editor.md',
+    'espocrm/client/custom/src/controllers/nexa-workflows.js',
+    'espocrm/client/custom/src/views/automation/workspace.js',
+    'espocrm/client/custom/res/templates/automation/workspace.tpl',
+    'espocrm/client/custom/css/automation-workspace.css',
+    'espocrm/custom/Espo/Custom/Resources/metadata/clientDefs/NexaWorkflows.json',
+    'tests/browser/automation-workspace.spec.js',
     'tests/tenant/TenantAutomationDefinitionTest.php',
+    'tests/tenant/TenantWorkflowEmailBindingsTest.php',
     'tests/tenant/TenantAutomationClockTest.php',
     'docs/development/phase-6-delivery-status.md',
     'database/shared/migrations/0066_marketing_reusable_send_requests.sql',
@@ -100,6 +114,7 @@ $required = @(
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/NumericComparison.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/CustomPropertyValue.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/DecimalComparison.php',
+    'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/DateComparison.php',
     'espocrm/custom/Espo/Custom/Tools/MarketingEmail/TemplateHelpers/BehaviorCondition.php',
     'tests/tenant/TenantMarketingImageDispatchTest.php',
     'docs/operations/security-governance.md',
@@ -442,9 +457,15 @@ if ($php) {
     & php (Join-Path $root 'tests\workflows\CommonCrmWorkflowTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Common CRM workflow contract suite' } else { Fail 'Common CRM workflow contract suite failed.' }
     & php (Join-Path $root 'tests\tenant\TenantAutomationDefinitionTest.php')
-    if ($LASTEXITCODE -eq 0) { Pass 'Automation graph validation contract' } else { Fail 'Automation graph validation failed.' }
+    if ($LASTEXITCODE -eq 0) { Pass 'Automation definition contract' } else { Fail 'Automation definition contract failed.' }
+    & php (Join-Path $root 'tests\tenant\TenantWorkflowEmailBindingsTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Workflow email binding contract' } else { Fail 'Workflow email binding contract failed.' }
     & php (Join-Path $root 'tests\tenant\TenantAutomationClockTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Automation UTC and business-hour scheduling contract' } else { Fail 'Automation scheduling contract failed.' }
+    & php (Join-Path $root 'tests\tenant\TenantMarketingDateTimeConditionTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Conditional-email timestamp contract' } else { Fail 'Conditional-email timestamp contract failed.' }
+    & php (Join-Path $root 'tests\tenant\TenantMarketingRelativeDateTest.php')
+    if ($LASTEXITCODE -eq 0) { Pass 'Relative date condition contract' } else { Fail 'Relative date condition contract failed.' }
     & php (Join-Path $root 'tests\workflows\ContactImportContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Contact import contract suite' } else { Fail 'Contact import contract suite failed.' }
     & php (Join-Path $root 'tests\workflows\ContactListExperienceTest.php')

@@ -1,0 +1,32 @@
+.nexa-workflows{padding:20px;max-width:none;color:#182924;letter-spacing:0}
+.nexa-workflows .nw-heading,.nexa-workflows .nw-toolbar,.nexa-workflows .nw-step-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.nexa-workflows h1{font-size:24px;margin:0}.nexa-workflows h2{font-size:18px;margin:0}.nexa-workflows h3{font-size:15px;margin:0}
+.nexa-workflows .nw-heading>div,.nexa-workflows .nw-toolbar>div{display:flex;gap:8px;flex-wrap:wrap}
+.nexa-workflows [data-message]{min-height:24px;margin:12px 0;color:#41584f}.nexa-workflows [data-message][role=alert]{color:#ad2026}
+.nexa-workflows .nw-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:20px}
+.nexa-workflows .nw-list{border-right:1px solid #d4dfda;padding-right:16px;min-width:0}
+.nexa-workflows .nw-list button{display:block;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid #d4dfda;padding:12px 8px;color:#182924;overflow-wrap:anywhere}
+.nexa-workflows .nw-list button[aria-current=true]{background:#e3f1ec;border-left:3px solid #197a60}.nexa-workflows small{display:block;color:#52675f;margin-top:4px}
+.nexa-workflows .nw-editor{min-width:0}.nexa-workflows label{font-weight:600;display:block;font-size:13px}.nexa-workflows input,.nexa-workflows select{color:#182924;background:#fff;max-width:100%;min-width:0}
+.nexa-workflows .nw-meta{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px;margin:16px 0}
+.nexa-workflows .nw-canvas{background:#f1f5f3;padding:16px;max-height:55vh;overflow:auto;scrollbar-gutter:stable}
+.nexa-workflows .nw-journey{height:320px;overflow:auto;border:1px solid #b6cbc1;background:#f7f9f8;margin:16px 0;scrollbar-gutter:stable}
+.nexa-workflows .nw-journey-board{position:relative;min-width:600px;min-height:280px}
+.nexa-workflows .nw-journey-edges{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.nexa-workflows .nw-journey-edges path{fill:none;stroke:#536b62;stroke-width:2}.nexa-workflows .nw-journey-edges polygon{fill:#536b62}
+.nexa-workflows .nw-journey-edges .nw-edge-yes{stroke:#197a60}.nexa-workflows .nw-journey-edges .nw-edge-no{stroke:#ae5737}
+.nexa-workflows .nw-journey-edges text{font-size:12px;fill:#182924}
+.nexa-workflows .nw-journey-node{position:absolute;width:210px;height:80px;text-align:left;border:1px solid #8ba89b;border-radius:6px;background:#fff;padding:10px 12px;color:#182924;touch-action:none;cursor:grab;display:grid;grid-template-columns:22px minmax(0,1fr);gap:4px;align-content:center}
+.nexa-workflows .nw-journey-node:active{cursor:grabbing}.nexa-workflows .nw-journey-node strong{font-size:13px;overflow-wrap:anywhere}.nexa-workflows .nw-journey-node small{grid-column:2;font-size:12px;margin:0}.nexa-workflows .nw-journey-entry{border-left:4px solid #197a60}
+.nexa-workflows .nw-journey-port{position:absolute;width:24px;height:24px;border:1px solid #536b62;border-radius:50%;padding:0;background:white;color:#182924;display:grid;place-items:center;font-size:11px;z-index:1}.nexa-workflows .nw-port-yes{border-color:#197a60}.nexa-workflows .nw-port-no{border-color:#ae5737}.nexa-workflows .nw-journey-port[aria-pressed=true]{background:#197a60;color:white;outline:2px solid #197a60;outline-offset:2px}
+.nexa-workflows .nw-step{background:white;border:1px solid #b6cbc1;border-radius:6px;padding:16px;margin:0 0 12px;min-width:0}
+.nexa-workflows .nw-step.nw-entry{border-left:4px solid #197a60}.nexa-workflows .nw-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.nexa-workflows .nw-condition{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;align-items:end;border-bottom:1px solid #d4dfda;padding-bottom:12px;min-width:0}
+.nexa-workflows .nw-condition .btn{width:36px;height:36px;padding:6px}
+.nexa-workflows .nw-add{display:flex;gap:8px;margin:12px 0}.nexa-workflows .nw-add select{flex:1}
+.nexa-workflows .nw-owner{display:flex;flex-direction:column;align-items:flex-start;gap:4px;font-size:13px}
+.nexa-workflows .nw-weekdays{border:0;padding:0;margin:0}.nexa-workflows .nw-weekdays legend{font-size:13px;font-weight:600;margin:0 0 4px;border:0}.nexa-workflows .nw-weekdays label{display:inline-flex;align-items:center;gap:4px;margin-right:8px;font-weight:400}.nexa-workflows .nw-weekdays input{width:16px;height:16px;accent-color:#197a60}
+.nexa-workflows .nw-history{margin-top:20px;max-height:320px;overflow:auto;scrollbar-gutter:stable}.nexa-workflows table{width:100%;border-collapse:collapse;min-width:580px;font-size:13px}.nexa-workflows th,.nexa-workflows td{padding:10px;text-align:left;border-bottom:1px solid #d4dfda}.nexa-workflows th{background:#eef3f0;position:sticky;top:0}
+.nexa-workflows .btn-primary{background:#197a60;border-color:#197a60;color:white}.nexa-workflows button:hover{filter:brightness(.95)}.nexa-workflows :focus-visible{outline:2px solid #167557;outline-offset:2px}.nexa-workflows button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:760px){.nexa-workflows{padding:12px}.nexa-workflows .nw-layout{grid-template-columns:minmax(0,1fr)}.nexa-workflows .nw-list{border-right:0;border-bottom:1px solid #d4dfda;padding:0 0 12px;max-height:210px;overflow:auto}.nexa-workflows .nw-meta,.nexa-workflows .nw-fields{grid-template-columns:minmax(0,1fr)}.nexa-workflows .nw-canvas{max-height:65vh;padding:10px}}
+@media(max-width:760px){.nexa-workflows .nw-condition{grid-template-columns:minmax(0,1fr)}}

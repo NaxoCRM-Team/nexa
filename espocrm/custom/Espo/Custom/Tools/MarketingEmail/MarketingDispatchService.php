@@ -108,6 +108,24 @@ final class MarketingDispatchService
         return ['id' => $profileId, 'status' => 'scheduled', 'eligibleCount' => $eligibleCount, 'scheduledAt' => (string) $profile['start_at']];
     }
 
+    public function validateWorkflowSource(string $sourceId, int $version, \stdClass $parameters): void
+    {
+        $context = $this->tenantContextStore->require();
+        $source = $this->requireReviewAccess($context, $sourceId);
+        if ($source['lifecycle_status'] !== 'approved' || (int) $source['version_number'] !== $version || $source['campaign_status'] !== 'active') throw new BadRequest('Choose the current approved version in an active campaign.');
+        $saved = $this->workspace->versions($sourceId, $version);
+        $this->parameters->resolve($saved['subject'], $saved['bodyHtml'], (string) ($saved['preheader'] ?? ''), $parameters);
+        $template = $this->entityManager->getEntityById('EmailTemplate', $source['email_template_id']);
+        $mass = $this->entityManager->getEntityById('MassEmail', $source['mass_email_id']);
+        if (!$template instanceof EmailTemplate || !$mass instanceof MassEmail || !$this->acl->checkEntity($template, 'read')) throw new Forbidden('Approved email content is unavailable.');
+        foreach (['subject', 'body'] as $field) if (!$this->acl->checkField('EmailTemplate', $field)) throw new Forbidden('Email content access is required.');
+        $this->contentIntegrity->requireSnapshot($source, $template, $mass);
+        $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
+        $this->attachments->approvedFiles($source, $template, true);
+        $this->images->requireApproved($source, $template);
+        $this->requireVerifiedSender($context, (string) $source['from_address']);
+    }
+
     /** Reuse approved content while retaining one durable native dispatch per scoped external request key. */
     public function reusableSend(string $sourceId, string $contactId, string $key, int $version, ?\stdClass $parameters = null): array
     {

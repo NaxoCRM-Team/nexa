@@ -1,5 +1,10 @@
 [
     {
+        "route": "/Nexa/workflows/:id/events",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostEvent"
+    },
+    {
         "route": "/Nexa/workflows",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\GetWorkspace"
@@ -1106,5 +1111,10 @@
         "route": "/Nexa/landing-pages/:id/archive",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\LandingPage\\Api\\PostArchive"
+    },
+    {
+        "route": "/Nexa/workflows/:id/runs/:runId/webhook-review",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostWebhookReview"
     }
 ]

@@ -26,7 +26,7 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-experiments', 'Experiments'],
         ]},
         {name: 'nexa-automation', label: 'Automation', iconClass: 'fas fa-project-diagram', items: [
-            ['nexa-workflows', 'Workflows'],
+            ['nexa-workflows', 'Workflows', '#NexaWorkflows', 'fas fa-project-diagram'],
             ['nexa-customer-journeys', 'Customer Journeys'],
             ['nexa-scoring-lifecycle', 'Scoring & Lifecycle'],
             ['nexa-personalization', 'Personalization'],

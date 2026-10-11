@@ -12,6 +12,7 @@ use Espo\Core\Record\CreateParams;
 use Espo\Core\Record\DeleteParams;
 use Espo\Core\Record\ReadParams;
 use Espo\Core\Record\ServiceContainer;
+use Espo\Core\Record\ServiceFactory;
 use Espo\Core\Record\UpdateParams;
 use Espo\Core\Tenant\TenantContext;
 use Espo\Core\Tenant\TenantContextStore;
@@ -58,6 +59,7 @@ final class SegmentWorkspaceService
         private TenantContextStore $tenantContextStore,
         private Acl $acl,
         private User $user,
+        private ServiceFactory $records,
     ) {}
 
     /** @return array<string, mixed> */
@@ -166,7 +168,7 @@ final class SegmentWorkspaceService
                 $unlink = $pdo->prepare("UPDATE contact_target_list SET deleted=1 WHERE tenant_id=? AND service_id=? AND target_list_id=? AND contact_id IN ({$placeholders})");
                 $unlink->execute([$context->tenantId, $context->serviceId, $id, ...$exited]);
             }
-            $event = $pdo->prepare('INSERT INTO nexa_segment_membership_event (id,tenant_id,service_id,target_list_id,run_id,contact_id,event_type,explanation_json) VALUES (?,?,?,?,?,?,?,?)');
+            $event = $pdo->prepare('INSERT INTO nexa_segment_membership_event (id,tenant_id,service_id,target_list_id,run_id,contact_id,event_type,explanation_json,occurred_at) VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6))');
             foreach (['entered' => $entered, 'exited' => $exited] as $type => $contactIds) {
                 foreach ($contactIds as $contactId) $event->execute([$this->uuid(), $context->tenantId, $context->serviceId, $id, $runId, $contactId, $type, $this->json($result['explanation'])]);
             }
@@ -186,6 +188,49 @@ final class SegmentWorkspaceService
         $statement = $this->entityManager->getPDO()->prepare("SELECT target_list_id FROM nexa_segment_definition WHERE tenant_id=? AND service_id=? AND status='active' AND segment_type='dynamic'");
         $statement->execute([$context->tenantId, $context->serviceId]);
         foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $id) $this->recalculate((string) $id);
+    }
+
+    public function validateMembershipTarget(string $id): void
+    {
+        $this->requireAccess(Table::ACTION_EDIT);
+        $context = $this->tenantContextStore->require();
+        $segment = $this->requireSegment($context, $id);
+        if ($segment['segment_type'] !== 'static') throw new BadRequest('Choose a static list. Dynamic membership is controlled by its rules.');
+        $list = $this->records->createForUser('TargetList', $this->user)->getEntity($id);
+        if ($list->get('deleted') || $list->get('tenantId') !== $context->tenantId || $list->get('serviceId') !== $context->serviceId || !$this->acl->checkEntity($list, Table::ACTION_EDIT) || !$this->acl->checkField('TargetList', 'contacts', Table::ACTION_EDIT)) throw new Forbidden('Static list membership edit access is required.');
+    }
+
+    /** Called inside the workflow transaction; native relationships remain authoritative. */
+    public function changeMembership(string $id, string $contactId, bool $include): array
+    {
+        $pdo = $this->entityManager->getPDO();
+        if (!$pdo->inTransaction()) throw new BadRequest('List actions require an atomic execution transaction.');
+        $context = $this->tenantContextStore->require();
+        $lock = $pdo->prepare('SELECT target_list_id FROM nexa_segment_definition WHERE tenant_id=? AND service_id=? AND target_list_id=? FOR UPDATE');
+        $lock->execute([$context->tenantId, $context->serviceId, $id]);
+        if (!$lock->fetchColumn()) throw new NotFound('The list is unavailable.');
+        $this->validateMembershipTarget($id);
+        $contact = $this->records->createForUser('Contact', $this->user)->getEntity($contactId);
+        if ($contact->get('deleted') || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId) throw new NotFound('The Contact is unavailable.');
+        $query = $pdo->prepare('SELECT deleted,opted_out FROM contact_target_list WHERE tenant_id=? AND service_id=? AND target_list_id=? AND contact_id=? FOR UPDATE');
+        $query->execute([$context->tenantId, $context->serviceId, $id, $contactId]);
+        $prior = $query->fetch(PDO::FETCH_ASSOC);
+        $wasMember = $prior && !(bool) $prior['deleted'];
+        if ($wasMember === $include) return ['changed' => false, 'listId' => $id];
+        $native = $this->records->createForUser('TargetList', $this->user);
+        if ($include) $native->link($id, 'contacts', $contactId);
+        else $native->unlink($id, 'contacts', $contactId);
+        $query->execute([$context->tenantId, $context->serviceId, $id, $contactId]);
+        $after = $query->fetch(PDO::FETCH_ASSOC);
+        if ((bool) ($after && !(bool) $after['deleted']) !== $include) throw new BadRequest('Native list membership was not updated.');
+        if ($prior && (bool) $prior['opted_out'] && (!$after || !(bool) $after['opted_out'])) throw new BadRequest('List membership cannot clear an existing opt-out.');
+        $this->refreshCounts($context, $id);
+        $segment = $this->requireSegment($context, $id);
+        $runId = $this->uuid();
+        $explanation = $this->json(['source' => 'workflow', 'operation' => $include ? 'add' : 'remove', 'actorUserId' => $this->user->getId()]);
+        $pdo->prepare("INSERT INTO nexa_segment_run (id,tenant_id,service_id,target_list_id,version_number,status,matched_count,entered_count,exited_count,eligible_count,suppressed_count,explanation_json,started_by_id,started_at,completed_at) VALUES (?,?,?,?,?,'completed',?,?,?,?,?,?,?,UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))")->execute([$runId,$context->tenantId,$context->serviceId,$id,$segment['version_number'],$segment['member_count'],$include ? 1 : 0,$include ? 0 : 1,$segment['eligible_count'],$segment['suppressed_count'],$explanation,$this->user->getId()]);
+        $pdo->prepare('INSERT INTO nexa_segment_membership_event (id,tenant_id,service_id,target_list_id,run_id,contact_id,event_type,explanation_json,occurred_at) VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6))')->execute([$this->uuid(),$context->tenantId,$context->serviceId,$id,$runId,$contactId,$include ? 'entered' : 'exited',$explanation]);
+        return ['changed' => true, 'listId' => $id, 'membershipRunId' => $runId];
     }
 
     public function archive(string $id): void
@@ -273,7 +318,7 @@ final class SegmentWorkspaceService
 
     private function refreshCounts(TenantContext $context, string $id): void
     {
-        $statement = $this->entityManager->getPDO()->prepare('SELECT COUNT(*) AS members,SUM(' . $this->eligibleExpression() . ') AS eligible FROM contact_target_list ctl INNER JOIN contact c ON c.id=ctl.contact_id AND c.tenant_id=ctl.tenant_id AND c.service_id=ctl.service_id WHERE ctl.tenant_id=? AND ctl.service_id=? AND ctl.target_list_id=? AND ctl.deleted=0 AND c.deleted=0');
+        $statement = $this->entityManager->getPDO()->prepare('SELECT COUNT(*) AS members,SUM(COALESCE(ctl.opted_out,0)=0 AND (' . $this->eligibleExpression() . ')) AS eligible FROM contact_target_list ctl INNER JOIN contact c ON c.id=ctl.contact_id AND c.tenant_id=ctl.tenant_id AND c.service_id=ctl.service_id WHERE ctl.tenant_id=? AND ctl.service_id=? AND ctl.target_list_id=? AND ctl.deleted=0 AND c.deleted=0');
         $statement->execute([$context->tenantId, $context->serviceId, $id]);
         $counts = $statement->fetch(PDO::FETCH_ASSOC) ?: [];
         $members = (int) ($counts['members'] ?? 0);

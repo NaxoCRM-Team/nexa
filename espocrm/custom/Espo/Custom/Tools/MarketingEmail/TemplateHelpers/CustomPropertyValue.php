@@ -19,7 +19,7 @@ final class CustomPropertyValue implements Helper
         [$contactId,$key] = $args;
         $definition = null;
         foreach ($this->customization->definitions('Contact')['fields'] as $field) {
-            if ($field['field_key'] === $key && $field['is_enabled'] && in_array($field['data_type'],['text','single_select','boolean','number','currency'],true)) {
+            if ($field['field_key'] === $key && $field['is_enabled'] && in_array($field['data_type'],['text','single_select','boolean','number','currency','date','datetime'],true)) {
                 $definition = $field;
                 break;
             }

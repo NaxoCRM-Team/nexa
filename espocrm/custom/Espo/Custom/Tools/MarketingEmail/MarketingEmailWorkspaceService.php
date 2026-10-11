@@ -204,6 +204,15 @@ final class MarketingEmailWorkspaceService
                     'fromAddress' => $data['fromAddress'], 'fromName' => $data['fromName'],
                     'replyToAddress' => $data['replyToAddress'], 'replyToName' => $data['replyToName'],
                 ], CreateParams::create());
+                // The ORM repository may run as the system worker even with actor-bound record services.
+                foreach ([$template, $massEmail] as $created) {
+                    if ($created->get('createdById') === $this->user->getId()) continue;
+                    $created->set('createdById', $this->user->getId());
+                    $this->entityManager->saveEntity($created, [
+                        \Espo\Core\ORM\Repository\Option\SaveOption::SILENT => true,
+                        \Espo\Core\ORM\Repository\Option\SaveOption::SKIP_MODIFIED_BY => true,
+                    ]);
+                }
                 $id = $this->uuid();
                 $nativeId = $massEmail->getId();
                 $templateId = $template->getId();

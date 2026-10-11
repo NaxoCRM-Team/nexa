@@ -45,9 +45,9 @@ final class MarketingConditionalContentService
             $fields[] = ['name'=>$name,'label'=>$this->language->translate($name,'fields','Contact'),'options'=>$options,'type'=>$definition['type']];
         }
         foreach ($this->customization->definitions('Contact')['fields'] as $field) {
-            if (!$field['is_enabled'] || !in_array($field['data_type'],['text','single_select','boolean','number','currency'],true)) continue;
+            if (!$field['is_enabled'] || !in_array($field['data_type'],['text','single_select','boolean','number','currency','date','datetime'],true)) continue;
             $fields[] = ['name'=>'custom:' . $field['field_key'],'label'=>$field['label'] . ' (custom)',
-                'type'=>in_array($field['data_type'],['number','currency'],true) ? 'decimal' : (in_array($field['data_type'],['single_select','boolean'],true) ? 'enum' : 'varchar'),
+                'type'=>in_array($field['data_type'],['date','datetime'],true) ? $field['data_type'] : (in_array($field['data_type'],['number','currency'],true) ? 'decimal' : (in_array($field['data_type'],['single_select','boolean'],true) ? 'enum' : 'varchar')),
                 'options'=>$field['data_type'] === 'boolean' ? [['value'=>'true','label'=>'True'],['value'=>'false','label'=>'False']] : array_map(static fn (string $value): array => ['value'=>$value,'label'=>$value],$field['options']),
                 'customKey'=>$field['field_key']];
         }
@@ -67,14 +67,32 @@ final class MarketingConditionalContentService
         if (!$definition) throw new BadRequest('Choose an available Contact property.');
         $numeric = in_array($definition['type'],['int','decimal'],true);
         $behavior = $definition['type']==='behavior';
-        $operators = $behavior ? ['within_days','not_within_days'] : ($numeric ? ['equals','not_equals','greater_than','at_least','less_than','at_most','has_value','no_value'] : ['equals','not_equals','has_value','no_value']);
+        $operators = in_array($definition['type'],['date','datetime'],true) ? ['equals','not_equals','before','after','on_or_before','on_or_after','has_value','no_value', ...TemplateHelpers\DateComparison::RELATIVE_OPERATORS] : ($behavior ? ['within_days','not_within_days','count_at_least','count_at_most','count_equals'] : ($numeric ? ['equals','not_equals','greater_than','at_least','less_than','at_most','has_value','no_value'] : ['equals','not_equals','has_value','no_value']));
         if (!in_array($operator,$operators,true)) throw new BadRequest('Choose a supported condition.');
+        $countRule=$behavior && str_starts_with($operator,'count_');
+        if ($countRule && (!is_int($input->count ?? null) || $input->count<0 || $input->count>10000)) throw new BadRequest('Choose a whole-number event count from 0 to 10000.');
+        if (!$countRule && property_exists($input,'count')) throw new BadRequest('An event count requires a behavioral count comparison.');
+        $pageUrl=null;
+        if (property_exists($input,'pageUrl')) {
+            if (!$behavior || $definition['event']!=='page.viewed') throw new BadRequest('A page URL requires a recorded website visit condition.');
+            $pageUrl=TemplateHelpers\BehaviorCondition::pageUrl($input->pageUrl);
+        }
         $value = $input->value ?? ''; $yes = $input->matchingText ?? ''; $no = $input->fallbackText ?? '';
         [$yesHtml,$noHtml] = $this->branches($input);
         if (!is_string($value) || mb_strlen($value) > 255 || preg_match('/[\x00-\x1f{}]/u',$value)) throw new BadRequest('Enter a comparison value of up to 255 characters without template markers.');
+        if (in_array($definition['type'],['date','datetime'],true)) {
+            $needsValue = !in_array($operator, ['has_value','no_value'], true);
+            $datetime = $definition['type'] === 'datetime';
+            if (in_array($operator, TemplateHelpers\DateComparison::RELATIVE_OPERATORS, true)) TemplateHelpers\DateComparison::windowDays($value);
+            elseif ($needsValue) $value = $datetime ? TemplateHelpers\DateTimeComparison::canonical($value) : TemplateHelpers\DateComparison::canonical($value);
+            $helper = $datetime ? 'nexaEmailDateTime' : 'nexaEmailDate';
+            $body = '{{#' . $helper . ' (nexaEmailCustomProperty id "' . $definition['customKey'] . '") "' . $operator . '" "' . ($needsValue ? $value : '') . '"}}' . $yesHtml . '{{else}}' . $noHtml . '{{/' . $helper . '}}';
+            $this->validate('', $body);
+            return ['bodyHtml' => $body];
+        }
         if ($behavior) {
             if (!preg_match('/^[1-9][0-9]{0,2}$/D',$value) || (int)$value>365) throw new BadRequest('Choose a behavioral window from 1 to 365 days.');
-            $body='{{#nexaEmailBehavior id "' . $definition['event'] . '" "' . $operator . '" "' . $value . '"}}' . $yesHtml . '{{else}}' . $noHtml . '{{/nexaEmailBehavior}}';
+            $body='{{#nexaEmailBehavior id "' . $definition['event'] . '" "' . $operator . '" "' . $value . '"' . ($countRule || $pageUrl!==null ? ' "' . ($countRule ? $input->count : '') . '"' : '') . ($pageUrl!==null ? ' "' . base64_encode($pageUrl) . '"' : '') . '}}' . $yesHtml . '{{else}}' . $noHtml . '{{/nexaEmailBehavior}}';
             $this->validate('',$body);
             return ['bodyHtml'=>$body];
         }
@@ -147,16 +165,25 @@ final class MarketingConditionalContentService
         }
         $this->contexts->require();
         if (str_contains($subject . $body,'nexaEmailBehavior')) {
-            preg_match_all('/\{\{#nexaEmailBehavior id "([a-z.]+)" "(within_days|not_within_days)" "([1-9][0-9]{0,2})"\}\}/',$subject . $body,$rules,PREG_SET_ORDER);
+            preg_match_all('/\{\{#nexaEmailBehavior id "([a-z.]+)" "(within_days|not_within_days|count_at_least|count_at_most|count_equals)" "([1-9][0-9]{0,2})"(?: "(0|[1-9][0-9]{0,4}|)"(?: "([A-Za-z0-9+\/=]+)")?)?\}\}/',$subject . $body,$rules,PREG_SET_ORDER);
             if (count($rules)!==substr_count($subject . $body,'#nexaEmailBehavior')) throw new BadRequest('Use generated behavioral conditions.');
             foreach ($rules as $rule) if (!isset(TemplateHelpers\BehaviorCondition::EVENTS[$rule[1]]) || (int)$rule[3]>365) throw new BadRequest('Choose a supported event and a window from 1 to 365 days.');
+            foreach ($rules as $rule) {
+                $countRule=str_starts_with($rule[2],'count_');
+                if (($countRule && (!isset($rule[4]) || $rule[4]==='' || (int)$rule[4]>10000)) || (!$countRule && isset($rule[4]) && !(isset($rule[5]) && $rule[4]===''))) throw new BadRequest('Use a bounded count only with behavioral count comparisons.');
+                if (isset($rule[5])) {
+                    $decoded=base64_decode($rule[5],true);
+                    if ($rule[1]!=='page.viewed' || $decoded===false || base64_encode($decoded)!==$rule[5]) throw new BadRequest('Use a generated website page condition.');
+                    TemplateHelpers\BehaviorCondition::pageUrl($decoded);
+                }
+            }
         }
         if (str_contains($subject . $body,'nexaEmailCustomProperty')) {
             preg_match_all('/\(nexaEmailCustomProperty id "([a-zA-Z0-9_]+)"\)/',$subject . $body,$references);
             if (count($references[0]) !== substr_count($subject . $body,'nexaEmailCustomProperty')) throw new BadRequest('Use generated custom Contact property conditions.');
             $available = [];
             foreach ($this->customization->definitions('Contact')['fields'] as $field) {
-                if ($field['is_enabled'] && in_array($field['data_type'],['text','single_select','boolean','number','currency'],true)) $available[] = $field['field_key'];
+                if ($field['is_enabled'] && in_array($field['data_type'],['text','single_select','boolean','number','currency','date','datetime'],true)) $available[] = $field['field_key'];
             }
             if (array_diff($references[1],$available)) throw new BadRequest('A conditional Contact property is archived, disabled or unavailable.');
         }

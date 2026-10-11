@@ -381,7 +381,7 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         const behavior = definition?.type === 'behavior';
         const operator = row.querySelector('[name="operator"]');
         const selectedOperator = row.dataset.valueField === field.value ? operator.value : 'equals';
-        const operators = behavior ? [['within_days','Occurred in the last'],['not_within_days','Did not occur in the last']] : [['equals','Is equal to'],['not_equals','Is not equal to'],...(numeric ? [['greater_than','Is greater than'],['at_least','Is at least'],['less_than','Is less than'],['at_most','Is at most']] : []),['has_value','Has a value'],['no_value','Has no value']];
+        const operators = behavior ? [['within_days','Occurred in the last'],['not_within_days','Did not occur in the last'],['count_at_least','Event count is at least'],['count_at_most','Event count is at most'],['count_equals','Event count equals']] : [['equals','Is equal to'],['not_equals','Is not equal to'],...(['date','datetime'].includes(definition?.type) ? [['before','Is before'],['after','Is after'],['on_or_before','Is on or before'],['on_or_after','Is on or after'],['within_next_days','Is within the next (UTC)'],['within_last_days','Is within the last (UTC)']] : numeric ? [['greater_than','Is greater than'],['at_least','Is at least'],['less_than','Is less than'],['at_most','Is at most']] : []),['has_value','Has a value'],['no_value','Has no value']];
         operator.replaceChildren(...operators.map(([value,label]) => new Option(label,value)));
         operator.value = operators.some(([value]) => value === selectedOperator) ? selectedOperator : operators[0][0];
         const previous = row.dataset.valueField === field.value ? value.value : null;
@@ -391,11 +391,26 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
         if (options.length) options.forEach(option => control.add(new Option(option.label,option.value)));
         else {control.maxLength = 255; if (behavior) {control.type = 'number'; control.min = '1'; control.max = '365'; control.step = '1'; control.value = '30';} else if (definition?.type === 'decimal') {control.type = 'text'; control.inputMode = 'decimal'; control.maxLength = 32; control.pattern = '-?[0-9]{1,22}(\\.[0-9]{1,8})?';} else if (numeric) {control.type = 'number'; control.min = '0'; control.max = '2147483647'; control.step = '1';}}
         if (previous !== null && (!options.length || options.some(option => option.value === previous))) control.value = previous;
+        const relative = ['date','datetime'].includes(definition?.type) && ['within_next_days','within_last_days'].includes(operator.value);
+        if (relative) {control.type = 'number'; control.min = '0'; control.max = '365'; control.step = '1';}
+        else if (definition?.type === 'date') control.type = 'date';
+        else if (definition?.type === 'datetime') {
+            control.type = 'text'; control.placeholder = '2028-02-29T09:00:00Z';
+            control.pattern = '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+\\-][0-9]{2}:[0-9]{2})';
+        }
         value.replaceWith(control);
-        row.querySelector('[data-conditional-value]').firstChild.textContent = behavior ? 'Window in days' : 'Value';
+        row.querySelector('[data-conditional-value]').firstChild.textContent = behavior || relative ? 'Window in days' : definition?.type === 'datetime' ? 'Date and time (with time zone)' : 'Value';
         const needsValue = !['has_value','no_value'].includes(operator.value);
         row.querySelector('[data-conditional-value]').hidden = !needsValue;
         control.disabled = !needsValue; control.required = needsValue;
+        let countLabel=row.querySelector('[data-conditional-count]');
+        if(behavior && operator.value.startsWith('count_')){
+            if(!countLabel){countLabel=document.createElement('label');countLabel.dataset.conditionalCount='';countLabel.textContent='Event count';const count=document.createElement('input');count.name='count';count.className='form-control';count.type='number';count.min='0';count.max='10000';count.step='1';count.required=true;count.value='1';countLabel.append(count);row.querySelector('[data-conditional-value]').after(countLabel);}
+        }else countLabel?.remove();
+        let pageLabel=row.querySelector('[data-conditional-page]');
+        if(field.value==='behavior:page.viewed') {
+            if(!pageLabel){pageLabel=document.createElement('label');pageLabel.dataset.conditionalPage='';pageLabel.textContent='Exact page URL (optional)';const page=document.createElement('input');page.name='pageUrl';page.type='url';page.maxLength=2048;page.className='form-control';pageLabel.append(page);row.append(pageLabel);}
+        } else pageLabel?.remove();
         });
     }
     closeConditionalContent() {
@@ -485,6 +500,8 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     }
     conditionalPayload(form) {
         const conditions = [...form.querySelectorAll('[data-conditional-rule]')].map(row => ({field:row.querySelector('[name="field"]').value,operator:row.querySelector('[name="operator"]').value,value:row.querySelector('[name="value"]').disabled ? '' : row.querySelector('[name="value"]').value}));
+        [...form.querySelectorAll('[data-conditional-rule]')].forEach((row,index)=>{const count=row.querySelector('[name="count"]');if(count)conditions[index].count=count.value===''?null:Number(count.value);});
+        [...form.querySelectorAll('[data-conditional-rule]')].forEach((row,index)=>{const page=row.querySelector('[name="pageUrl"]');if(page?.value)conditions[index].pageUrl=page.value;});
         let content = {matchingText:form.elements.matchingText.value,fallbackText:form.elements.fallbackText.value};
         if (form.elements.contentFormat?.value === 'rich') {
             const editors = this.conditionalDialog?.richEditors;

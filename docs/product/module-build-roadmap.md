@@ -166,6 +166,8 @@ The native activity, calendar, project and document collaboration sub-gate is re
 
 ### Phase 6 - Marketing Email and Visual Automation
 
+Implementation status and fixed remaining acceptance checklist: [Phase 6 closure plan](../development/phase-6-closure-plan.md). Historical focused test passes do not replace this exit gate.
+
 **Modules:** M10, M12, then M23 email experiments
 
 - Build drag-and-drop and HTML email editing, templates, personalization tokens, dynamic content and programmable email.

@@ -3,5 +3,7 @@
     "nexaEmailNumeric": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\NumericComparison",
     "nexaEmailCustomProperty": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\CustomPropertyValue",
     "nexaEmailDecimal": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\DecimalComparison",
-    "nexaEmailBehavior": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\BehaviorCondition"
+    "nexaEmailBehavior": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\BehaviorCondition",
+    "nexaEmailDate": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\DateComparison",
+    "nexaEmailDateTime": "Espo\\Custom\\Tools\\MarketingEmail\\TemplateHelpers\\DateTimeComparison"
 }

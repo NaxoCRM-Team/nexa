@@ -36,7 +36,17 @@ foreach ([0, '1', 2, null] as $version) {$bad = $base; $bad['schemaVersion'] = $
 foreach (['unknown', null, 123] as $event) {$bad = $base; $bad['trigger']['event'] = $event; $reject($bad);}
 $bad = $base; $bad['tenantId'] = 'other'; $reject($bad);
 $bad = $base; $bad['trigger']['reenrollment'] = 'always'; $reject($bad);
+$filtered = $base; $filtered['trigger']['event'] = 'page.viewed'; $filtered['trigger']['pageUrl'] = 'https://example.test/Pricing?offer=1';
+$assert($validator->validate($filtered)['definition']['trigger']['pageUrl'] === $filtered['trigger']['pageUrl'], 'Exact page URLs must retain path case and query identity.');
+foreach (['', 'javascript:alert(1)', 'https://user:pass@example.test/', 'https://example.test/#section', 'https://example.test/has space', 123] as $url) {$bad = $filtered; $bad['trigger']['pageUrl'] = $url; $reject($bad);}
+$bad = $filtered; $bad['trigger']['event'] = 'manual'; $reject($bad);
 $bad = $base; $bad['entry'] = 'missing'; $reject($bad);
+$counts = $base; $counts['nodes'][1]['condition'] = ['field'=>'behavior:page.viewed','operator'=>'count_at_least','value'=>'7','count'=>3];
+$assert($validator->validate($counts)['definition']['nodes'] !== [], 'Bounded behavioral count conditions must validate.');
+foreach ([-1,10001,1.5,'3',null] as $count) {$bad=$counts;$bad['nodes'][1]['condition']['count']=$count;$reject($bad);}
+$bad=$counts;unset($bad['nodes'][1]['condition']['count']);$reject($bad);
+$bad=$counts;$bad['nodes'][1]['condition']['operator']='within_days';$reject($bad);
+$bad=$base;$bad['nodes'][1]['condition']['count']=3;$reject($bad);
 $bad = $base; $bad['nodes'] = []; $reject($bad);
 $bad = $base; $bad['nodes'][] = $base['nodes'][0]; $reject($bad);
 $bad = $base; $bad['nodes'][] = ['id' => 'disconnected', 'type' => 'end']; $reject($bad);
@@ -78,4 +88,61 @@ $wait['nodes'][1]['pollSeconds'] = 60;
 $validator->validate($wait);
 $bad = $wait; $bad['nodes'][1]['pollSeconds'] = 3601; $reject($bad);
 $bad = $wait; $bad['nodes'][1]['pollSeconds'] = 1; $reject($bad);
+$opportunity = $base;
+$opportunity['nodes'][2]['action'] = 'opportunity.create';
+$opportunity['nodes'][2]['settings'] = ['name' => 'Renewal', 'pipelineId' => 'pipeline-one', 'stage' => 'Prospecting', 'amount' => '1234.50', 'currency' => 'GBP', 'closeDate' => '2028-02-29'];
+$assert($validator->validate($opportunity)['definition']['nodes'][3]['settings']['amount'] === '1234.50', 'Opportunity amount contracts must retain the submitted decimal string.');
+foreach (['-1', '1e3', '1.001', '1000000000000', '', 12, 1.5] as $amount) {$bad = $opportunity; $bad['nodes'][2]['settings']['amount'] = $amount; $reject($bad);}
+foreach (['2027-02-29', '2027-13-01', '01/01/2027'] as $date) {$bad = $opportunity; $bad['nodes'][2]['settings']['closeDate'] = $date; $reject($bad);}
+$bad = $opportunity; $bad['nodes'][2]['settings']['currency'] = 'gbp'; $reject($bad);
+$calendar = \Espo\Custom\Tools\MarketingEmail\TemplateHelpers\DateComparison::class;
+foreach (['equals'=>true,'not_equals'=>false,'before'=>false,'after'=>false,'on_or_before'=>true,'on_or_after'=>true,'has_value'=>true,'no_value'=>false] as $operator=>$expected) {
+    $assert($calendar::matches('2028-02-29', $operator, '2028-02-29') === $expected, 'Date equality boundaries must be consistent for ' . $operator);
+    $assert($calendar::matches(null, $operator, '2028-02-29') === ($operator === 'no_value'), 'Missing date semantics must be explicit for ' . $operator);
+}
+$timezone = date_default_timezone_get();
+try {
+    foreach (['Pacific/Kiritimati','America/Los_Angeles','UTC'] as $zone) {
+        date_default_timezone_set($zone);
+        $assert($calendar::matches('2028-02-29', 'before', '2028-03-01'), 'Calendar ordering must not change with worker timezone.');
+    }
+} finally {date_default_timezone_set($timezone);}
+foreach (['2027-02-29','2028-03-01T00:00:00Z','2028-02-30',false] as $invalid) {
+    $rejected = false;
+    try {$calendar::canonical($invalid);} catch (BadRequest) {$rejected = true;}
+    $assert($rejected, 'Invalid dates, timestamps and non-string values must be rejected.');
+}
+$timestampGraph=$base;
+$timestampGraph['nodes'][1]['condition']=['field'=>'custom:appointment','operator'=>'on_or_after','value'=>'2028-02-29T10:00:00+01:00'];
+$assert($validator->validate($timestampGraph)['definition']['nodes']!==[], 'Graphs must accept explicit-offset timestamp comparisons.');
+foreach (['2028-02-29T10:00:00','2028-02-30T10:00:00Z','2028-02-29T10:00:00+15:00'] as $invalid) {
+    $bad=$timestampGraph; $bad['nodes'][1]['condition']['value']=$invalid; $reject($bad);
+}
+$relativeGraph=$base;
+$relativeGraph['nodes'][1]['condition']=['field'=>'custom:renewal','operator'=>'within_next_days','value'=>'30'];
+$assert($validator->validate($relativeGraph)['definition']['nodes']!==[], 'Relative windows must be valid graph conditions.');
+foreach (['-1','366','01','1.5',30,null] as $invalid) {$bad=$relativeGraph; $bad['nodes'][1]['condition']['value']=$invalid; $reject($bad);}
+$pageGraph=$base; $pageGraph['nodes'][1]['condition']=['field'=>'behavior:page.viewed','operator'=>'count_equals','value'=>'30','count'=>2,'pageUrl'=>'https://example.test/Pricing?offer=1'];
+$assert($validator->validate($pageGraph)['definition']['nodes']!==[],'Branch page filters must retain exact URL identity.');
+foreach (['','https://user:secret@example.test/','https://example.test/#fragment','ftp://example.test/'] as $invalid) {$bad=$pageGraph; $bad['nodes'][1]['condition']['pageUrl']=$invalid; $reject($bad);}
+foreach (['behavior:email.opened','firstName'] as $field) {$bad=$pageGraph; $bad['nodes'][1]['condition']['field']=$field; $reject($bad);}
+$layout=$base;$layout['layout']=['delay'=>['x'=>10,'y'=>20],'end'=>['x'=>500,'y'=>20]];
+$assert($validator->validate($layout)['fingerprint']===$first['fingerprint'],'Shared canvas positions must not change execution identity.');
+$assert($validator->validate($layout)['definition']['layout']['delay']['x']===10,'Shared positions must remain in the persisted draft.');
+foreach ([['missing'=>['x'=>1,'y'=>2]],['delay'=>['x'=>1.5,'y'=>2]],['delay'=>['x'=>-1,'y'=>2]],['delay'=>['x'=>1,'y'=>25001]],['delay'=>['x'=>1]]] as $positions) {$bad=$base;$bad['layout']=$positions;$reject($bad);}
+$bad=$base;$bad['layout']=null;$reject($bad);
+$absolute=$base;$absolute['nodes'][0]=['id'=>'delay','type'=>'wait_until','at'=>'2028-02-29T10:00:00+01:00','next'=>'branch'];
+$assert($validator->validate($absolute)['definition']['nodes']!==[],'Explicit-offset absolute waits must validate.');
+foreach (['2028-02-29T10:00:00','2027-02-29T10:00:00Z',null] as $at) {$bad=$absolute;$bad['nodes'][0]['at']=$at;$reject($bad);}
+foreach ([['event'=>'contact.field_changed','field'=>'leadStatus'],['event'=>'score.reached','threshold'=>50],['event'=>'segment.entered','segmentId'=>'list-one']] as $trigger) {$valid=$base;$valid['trigger']=$trigger+['reenrollment'=>'never'];$assert($validator->validate($valid)['definition']!==[],'Configured native enrollment must validate.');}
+foreach ([['event'=>'contact.field_changed'],['event'=>'contact.field_changed','field'=>null],['event'=>'score.reached','threshold'=>'50'],['event'=>'score.reached','threshold'=>-1],['event'=>'segment.exited'],['event'=>'manual','field'=>'firstName']] as $trigger) {$bad=$base;$bad['trigger']=$trigger+['reenrollment'=>'never'];$reject($bad);}
+$sequence=$base;$sequence['nodes'][1]['condition']=['matchMode'=>'sequence','conditions'=>[['field'=>'behavior:email.opened','operator'=>'within_days','value'=>'30'],['field'=>'behavior:email.clicked','operator'=>'within_days','value'=>'30']]];
+$assert($validator->validate($sequence)['definition']!==[],'Ordered canonical events must validate.');
+$bad=$sequence;$bad['nodes'][1]['condition']['conditions'][1]['value']='7';$reject($bad);
+$bad=$sequence;$bad['nodes'][1]['condition']['conditions'][1]['field']='firstName';$reject($bad);
+$bad=$sequence;$bad['nodes'][1]['condition']['conditions'][1]['operator']='not_within_days';$reject($bad);
+$campaignRule=$base;$campaignRule['nodes'][1]['condition']=['field'=>'behavior:email.clicked','operator'=>'within_days','value'=>'30','campaignId'=>'campaign-one'];
+$assert($validator->validate($campaignRule)['definition']!==[],'Native campaign behavior filters must validate.');
+$bad=$campaignRule;$bad['nodes'][1]['condition']['field']='behavior:page.viewed';$reject($bad);
+$bad=$campaignRule;$bad['nodes'][1]['condition']['campaignId']='foreign/invalid';$reject($bad);
 echo "Automation definition contract passed ($checks checks).\n";
