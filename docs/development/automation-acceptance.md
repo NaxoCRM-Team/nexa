@@ -61,6 +61,40 @@ Run these database suites sequentially, or use the repository verification runne
 
 This establishes catalogue-wide management and execution-identity authorization coverage alongside the existing source, related-record, field, consent and provider-configuration tests. It does not establish external HTTPS delivery, receiver-side signature validation, or acceptance for providers that are not implemented.
 
+## Programmable Email HTTP Acceptance
+
+The same ownership-checked committed fixture also supports the next Phase 6 email-acceptance package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev/verify-automation-acceptance.ps1 `
+  -BaseUrl http://localhost/nexa `
+  -PhpPath C:\wamp64\bin\php\php8.2.29\php.exe `
+  -Suite Programmable
+```
+
+Random tenant administrators authenticate through the actual login form. Real HTTP approves the existing native-backed source and submits reusable sends. Coverage includes anonymous/foreign/downgraded callers, missing/oversized/unknown/HTML parameters, stale versions, foreign Contacts and client-supplied tenant overrides. Concurrent identical keys and later replay must share one native queue item; different intentional keys must create independent items, while changed parameter values under an existing key must fail. Persisted native template copies must contain the resolved parameters. Identical keys remain independent in the second tenant.
+
+The actual native background worker runs in a separate PHP process after consent revocation, rejects queued delivery, creates no provider submission and cannot change the other tenant's queue. Repeated workers cannot revive the failed items. A rejected new send consumes no request key.
+
+This no-network fixture uses synthetic DNS-readiness flags and a reserved `.test` provider/address solely to reach queue acceptance. It never establishes DNS verification or provider delivery. Its worker helper refuses to run while any fixture email consent remains granted, and requires the non-deliverable synthetic provider URL. No existing account configuration is changed.
+
+### Actual Local Postal Capture
+
+With the existing isolated Postal stack running, explicitly enable the positive-delivery scenario:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev/verify-automation-acceptance.ps1 `
+  -BaseUrl http://localhost/nexa `
+  -PhpPath C:\wamp64\bin\php\php8.2.29\php.exe `
+  -Suite Programmable -LocalPostalCapture
+```
+
+The separate capture fixture accepts only `https://localhost:8443`, sender `newsletter@nexa.local.test` and the exact synthetic fixture Contact. Existing ignored local credentials are read in-process, never printed or committed; the local CA is configured only in that worker process. It does not reconfigure Postal, modify existing tenants or disable TLS verification. Postal's existing capture-only relay delivers to local Mailpit, not an external inbox.
+
+A real native read-only API user authenticates over HTTP using `X-Api-Key`. No grant means no send. An authenticated administrator grants the approved source version through its existing HTTP endpoint; concurrent same-key calls reuse one native queue item, while a different intentional key creates another. Read-only callers cannot edit sources or access another tenant's source. Revocation blocks new requests and replay, without silently cancelling previously accepted queues. A different tenant's worker leaves those queues untouched. The correct native worker then records two actual provider submissions and two `Sent` queues; Mailpit must contain exactly two matching messages with expected recipient, sender, resolved parameters, native Contact personalization, text alternative, unsubscribe link and queue-item MIME attribution. Another worker pass changes neither submission evidence nor queue state and creates no duplicate capture.
+
+These results establish local E02 HTTP/API-key/worker/capture acceptance, not transactional-mode rules, public sending-domain verification, public callbacks or external-inbox delivery. Those remain E01/P and the combined Phase 6 exit gate.
+
 ## Cleanup And Evidence
 
 Cleanup removes working records, users, credentials, service grants and subscriptions belonging to these fixtures. Native security audit entries are append-only and **are not deleted or modified**. Their minimal parent tenants are retained with `suspended` status; they cannot authenticate or execute workflows. No audit trigger is disabled and no foreign-key constraint is bypassed. Setup errors roll back. A crashed runner can leave a temporary active fixture that requires the same ownership-checked cleanup helper.

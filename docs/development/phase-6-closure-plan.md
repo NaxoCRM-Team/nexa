@@ -13,7 +13,7 @@ Preserve these components and extend them; do not rebuild them or replace the re
 | Native email models | MassEmail, EmailTemplate and EmailQueueItem remain authoritative. |
 | Email authoring and governance | Designer, HTML/templates, approvals, scheduling, published images/attachments, sender checks, suppression and purpose-specific marketing consent exist. |
 | Marketing allowance | The effective monthly allowance is 20 times the marketing-contact tier; provider restrictions remain additional limits. |
-| Programmable marketing sends | Approved reusable sources, validated parameters, scoped integration access and intentional-send idempotency exist; live HTTP-to-worker acceptance remains open. |
+| Programmable marketing sends | Approved reusable sources, validated parameters, scoped integration access and intentional-send idempotency exist; local HTTP/API-key/worker/Postal capture acceptance is recorded below. Public delivery remains separate. |
 | Conditional email content | Native/custom scalar properties, exact decimals, fixed/relative dates and timestamps, grouped rules, rich branches, bounded distinct behavior counts and exact-page filters exist. |
 | Workflow runtime | Immutable versions, manual enrollment, four automatic event sources, branches, waits, business hours, cancellation and execution history exist. |
 | Native workflow actions | Lifecycle, owner, Task, Case, Opportunity, notification, static-list membership and governed email queue creation exist. |
@@ -39,7 +39,7 @@ The 11 October implementation adds `opportunity.stage_changed`, `activity.comple
 ### E - Complete Email Modes And API
 
 - [ ] **E01 Transactional mode:** establish explicit purpose/legal-basis and suppression rules, approved templates, separate allowance semantics, UI/API and delivery-time enforcement. The existing `transactional` label does not implement this policy; do not bypass marketing consent by relabeling a send.
-- [ ] **E02 Programmable acceptance:** verify authenticated live HTTP submissions, validated parameters, distinct keys for intentional sends, replay/conflict behavior, queued dispatch, authorization revocation and scoped worker execution.
+- [x] **E02 Programmable acceptance:** authenticated local HTTP submissions, validated parameters, distinct intentional-send keys, replay/conflicts, native API-key grants/revocation, scoped worker execution and actual Postal-to-Mailpit capture are verified. This is local acceptance, not public delivery proof.
 - [ ] **E03 Uncertain submissions:** automate provider evidence inspection where supported, retain safe manual review when evidence is unavailable, and prove no blind retry or premature allowance release after an uncertain submission.
 
 ### X - Complete Email Experiments
@@ -108,6 +108,12 @@ The subsequent [catalogue permission matrix](automation-acceptance.md#catalogue-
 The expanded rollback-only workflow suite passed 1,762 checks. All 16 automatic trigger families record `access_denied` and consume no source receipts after execution-administrator revocation. Seeded action boundaries from real immutable publications verify all 17 non-email adapters fail before execution, with unchanged native record snapshots and no adapter attempts or webhook effects. The approved reusable-email fixture separately passed actual enrollment followed by revocation, with no queue item or governed send key. These probes do not claim browser enrollment for every combination; the existing live desktop/mobile acceptance remains separate evidence.
 
 Catalogue-wide management and execution-identity permission acceptance is now available. Public webhook transport and receiver signature verification remain blocked on an owner-approved HTTPS receiver. No transport security restriction was bypassed to obtain a local pass. Other Phase 6 email, installation and public Postal gates are not closed by these checks.
+
+### 11 October Programmable Email Acceptance
+
+Following automation commit `d28cdc2b`, E02 now has committed-fixture acceptance over the actual WAMP HTTP API and native worker rather than service calls inside a rollback transaction. All four final desktop/mobile scenarios passed using the runner's `-Suite Programmable -LocalPostalCapture` options. The two no-network scenarios verify authenticated administrator submissions, validation, immutable resolved native content, concurrent-key/replay/conflict semantics, separate intentional sends, tenant isolation and worker consent withdrawal. The two positive-capture scenarios verify native read-only API-key authentication, HTTP grants/revocation, edit denial, scoped workers and actual Postal-to-Mailpit delivery with sender, recipient, personalization, unsubscribe, text alternative and queue-item MIME attribution. Worker replay creates no duplicate queue submission or SMTP capture.
+
+Credentials are read only from the existing ignored local Postal configuration and held in process memory. Synthetic domain-readiness records belong only to disposable fixture tenants; they do not establish public DNS verification. Local TLS verification remains enabled using the existing local CA only in the capture-worker process. Native security audit evidence is preserved by fixture cleanup. E01, E03, X, V and P remain open; E02's local proof is not public Postal or transactional-email acceptance. The delivery ledger records the final combined regression result and commit state.
 
 ### Prior 10 October Progress (Historical)
 

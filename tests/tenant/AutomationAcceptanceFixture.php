@@ -107,13 +107,73 @@ if ($command === 'cleanup') {
 
 $tenant = $tenants[$input['index'] ?? 0];
 $context = new TenantContext($tenant['id'],$tenant['slug'],'automation-acceptance','Automation acceptance fixture',$tenant['serviceId']);
-$result = $contexts->runWith($context, function () use ($input,$command,$tenant,$factory,$em,$pdo,$execute,$atomic): mixed {
+$result = $contexts->runWith($context, function () use ($input,$command,$tenant,$factory,$em,$pdo,$execute,$atomic,$container): mixed {
     $worker = $factory->create(WorkflowService::class);
     $webhooks = $factory->create(WorkflowWebhookService::class);
     $user = $em->getEntityById('User',$tenant['userId']);
     $admin = $factory->createWith(WorkflowService::class,['user'=>$user]);
     if (!empty($input['barrier']) && $command!=='hold-quota') { echo "READY\n"; flush(); if (trim((string)fgets(STDIN)) !== 'GO') throw new RuntimeException('Worker barrier was not released.'); }
     switch ($command) {
+        case 'programmable-setup':
+            $capture = !empty($input['capture']);
+            $postal = null;
+            if ($capture) {
+                if (getenv('NEXA_POSTAL_CAPTURE_ACCEPTANCE')!=='1') throw new RuntimeException('Explicit local Postal capture opt-in is required.');
+                $postal = json_decode(file_get_contents(dirname(__DIR__,2).'/.local/postal/config/local-credentials.json'),true,32,JSON_THROW_ON_ERROR);
+                if ($postal['apiBaseUrl']!=='https://localhost:8443' || $postal['sender']!=='newsletter@nexa.local.test') throw new RuntimeException('Only the pre-existing isolated local Postal capture is allowed.');
+            }
+            $acl = $container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $service = static fn (string $class) => $factory->createWith($class, ['user'=>$user,'acl'=>$acl]);
+            $execute("INSERT INTO nexa_tenant_service (tenant_id,service_id,status,hard_limit_override) SELECT ?,id,'active',1000 FROM nexa_service_definition WHERE service_key='marketing.contacts' AND status='active'",[$tenant['id']]);
+            $factory->create(\Espo\Core\Record\ServiceFactory::class)->createForUser('Contact',$user)->update($tenant['contactId'],(object) ['emailAddress'=>$tenant['slug'].'-recipient@example.test','marketingStatus'=>'Marketing','addressCountry'=>'Acceptance Test'],\Espo\Core\Record\UpdateParams::create());
+            $consent = $service(\Espo\Custom\Tools\Consent\ConsentService::class);
+            $purpose = array_values(array_filter($consent->getWorkspace()['purposes'],static fn ($item) => $item['purposeKey']==='marketing_communications'))[0];
+            $consent->recordDecision((object) ['contactId'=>$tenant['contactId'],'purposeId'=>$purpose['id'],'channel'=>'email','status'=>'granted','source'=>'manual','legalBasis'=>'FreelyGivenConsent','evidenceNote'=>'Synthetic programmable HTTP acceptance fixture.']);
+            $segment = $service(\Espo\Custom\Tools\Segment\SegmentWorkspaceService::class)->save((object) ['name'=>'Programmable acceptance audience','type'=>'dynamic','matchMode'=>'all','rules'=>[(object) ['field'=>'country','operator'=>'equals','value'=>'Acceptance Test']]]);
+            $campaignService = $service(\Espo\Custom\Tools\Campaign\CampaignWorkspaceService::class);
+            $campaign = $campaignService->save((object) ['name'=>'Programmable acceptance campaign','type'=>'Email','channel'=>'email','purposeId'=>$purpose['id'],'audienceIds'=>[$segment['id']],'exclusionIds'=>[],'enrollmentMode'=>'snapshot']);
+            $campaignService->enroll($campaign['id']);
+            $delivery = $service(\Espo\Custom\Tools\MarketingEmail\MarketingDeliveryService::class);
+            $delivery->saveProvider((object) ['apiBaseUrl'=>$postal['apiBaseUrl'] ?? 'https://postal.example.test','serverName'=>'Local acceptance only','apiKey'=>$postal['apiKey'] ?? bin2hex(random_bytes(24)),'monthlySendLimit'=>100]);
+            $domainName = $capture ? 'nexa.local.test' : 'example.test';
+            $settings = $delivery->saveDomain((object) ['domainName'=>$domainName]);
+            $domainId = array_values(array_filter($settings['domains'],static fn ($domain) => $domain['domainName']===$domainName))[0]['id'];
+            // Synthetic readiness supports queue acceptance only, never DNS/delivery proof.
+            $execute("UPDATE nexa_marketing_sending_domain SET ownership_status='verified',spf_status='verified',dkim_status='verified',dmarc_status='verified',return_path_status='verified',verified_at=NOW(6) WHERE id=? AND tenant_id=?",[$domainId,$tenant['id']]);
+            $draft = $service(\Espo\Custom\Tools\MarketingEmail\MarketingEmailWorkspaceService::class)->save((object) ['name'=>'Programmable HTTP source','deliveryMode'=>'campaign','campaignId'=>$campaign['id'],'purposeId'=>$purpose['id'],'subject'=>'Acceptance [[nexa:reference:40]]','bodyHtml'=>'<p>[[nexa:message:255]] {Contact.firstName}</p>','fromAddress'=>$postal['sender'] ?? 'news@example.test','fromName'=>'Synthetic acceptance','startAt'=>gmdate('Y-m-d H:i:s',time()+3600)]);
+            $key = bin2hex(random_bytes(20));
+            $apiUser = $em->createEntity('User',['userName'=>$tenant['slug'].'-api','emailAddress'=>$tenant['slug'].'-api@example.test','firstName'=>'Acceptance','lastName'=>'Integration','type'=>'api','isActive'=>true]);
+            $execute("UPDATE user SET api_key=?,auth_method='ApiKey' WHERE id=? AND tenant_id=?",[$key,$apiUser->getId(),$tenant['id']]);
+            $permissions = new stdClass();
+            foreach (['MassEmail','EmailTemplate','Contact','Attachment','Campaign'] as $scope) $permissions->{$scope}=(object) ['read'=>'all','create'=>'no','edit'=>'no','delete'=>'no','stream'=>'no'];
+            $role = $em->createEntity('Role',['name'=>'Read-only acceptance integration','data'=>$permissions]);
+            $em->getRDBRepository('User')->getRelation($apiUser,'roles')->relate($role);
+            return ['sourceId'=>$draft['id'],'purposeId'=>$purpose['id'],'version'=>1,'apiUserId'=>$apiUser->getId(),'apiKey'=>$key];
+        case 'programmable-inspect':
+            return [
+                'requests'=>$execute('SELECT request_hash,profile_id,contact_id,source_profile_id,source_version,parameter_fingerprint FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? ORDER BY request_hash',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC),
+                'queues'=>$execute('SELECT id,status,target_id FROM email_queue_item WHERE tenant_id=? AND service_id=? ORDER BY id',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC),
+                'copies'=>$execute('SELECT t.subject,t.body FROM nexa_marketing_send_request r INNER JOIN nexa_marketing_email_profile p ON p.id=r.profile_id AND p.tenant_id=r.tenant_id AND p.service_id=r.service_id INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id INNER JOIN email_template t ON t.id=m.email_template_id AND t.tenant_id=m.tenant_id AND t.service_id=m.service_id WHERE r.tenant_id=? AND r.service_id=? ORDER BY r.request_hash',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC),
+                'submissions'=>(int)$execute('SELECT COUNT(*) FROM nexa_marketing_delivery_message WHERE tenant_id=? AND service_id=?',[$tenant['id'],$tenant['serviceId']])->fetchColumn(),
+                'messages'=>$execute('SELECT email_queue_item_id,status,provider_message_id,attempt_count FROM nexa_marketing_delivery_message WHERE tenant_id=? AND service_id=? ORDER BY email_queue_item_id',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC),
+            ];
+        case 'programmable-revoke':
+            $execute("UPDATE nexa_consent_state SET status='withdrawn' WHERE tenant_id=? AND service_id=? AND channel='email'",[$tenant['id'],$tenant['serviceId']]);
+            return ['revoked'=>true];
+        case 'programmable-worker':
+            if ($execute("SELECT 1 FROM nexa_consent_state WHERE tenant_id=? AND service_id=? AND channel='email' AND status='granted' LIMIT 1",[$tenant['id'],$tenant['serviceId']])->fetchColumn()) throw new RuntimeException('Revoke every synthetic recipient before running a no-network email worker.');
+            if ($execute('SELECT api_base_url FROM nexa_marketing_delivery_provider WHERE tenant_id=? AND service_id=?',[$tenant['id'],$tenant['serviceId']])->fetchColumn()!=='https://postal.example.test') throw new RuntimeException('Only the non-deliverable synthetic provider fixture is allowed.');
+            $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingDispatchService::class)->runScheduled();
+            return ['processed'=>true];
+        case 'programmable-capture-worker':
+            if (getenv('NEXA_POSTAL_CAPTURE_ACCEPTANCE')!=='1') throw new RuntimeException('Explicit local Postal capture opt-in is required.');
+            if ($execute('SELECT api_base_url FROM nexa_marketing_delivery_provider WHERE tenant_id=? AND service_id=?',[$tenant['id'],$tenant['serviceId']])->fetchColumn()!=='https://localhost:8443') throw new RuntimeException('Only loopback Postal capture is allowed.');
+            $recipient = $em->getEntityById('Contact',$tenant['contactId']);
+            if (!$recipient || $recipient->get('emailAddress')!==$tenant['slug'].'-recipient@example.test') throw new RuntimeException('Only the exact synthetic fixture recipient is allowed.');
+            if ($execute("SELECT 1 FROM email_queue_item WHERE tenant_id=? AND service_id=? AND (target_type<>'Contact' OR target_id<>? OR is_test=1) LIMIT 1",[$tenant['id'],$tenant['serviceId'],$tenant['contactId']])->fetchColumn()) throw new RuntimeException('Capture queues must target only the fixture Contact.');
+            $container->getByClass(\Espo\Core\Utils\Config::class)->set('nexaPostalLocalCaFile',dirname(__DIR__,2).'/.local/postal/root.crt');
+            $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingDispatchService::class)->runScheduled();
+            return ['processed'=>true];
         case 'hold-quota':
             return $atomic(function () use ($factory): array {
                 $factory->create(\Espo\Custom\Tools\Automation\WorkflowQuota::class)->limits(true);

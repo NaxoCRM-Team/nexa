@@ -6,7 +6,204 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const php = process.env.NEXA_PHP_PATH || 'php';
 const baseURL = (process.env.NEXA_LIVE_URL || '').replace(/\/$/, '');
-const enabled = process.env.NEXA_AUTOMATION_ACCEPTANCE === '1';
+const optedIn = process.env.NEXA_AUTOMATION_ACCEPTANCE === '1';
+const enabled = optedIn && process.env.NEXA_PROGRAMMABLE_ACCEPTANCE !== '1';
+
+test('programmable email delivers granted read-only API sends to local Postal capture without replay duplicates', async ({browser, page}) => {
+    test.setTimeout(180_000);
+    test.skip(!optedIn || process.env.NEXA_PROGRAMMABLE_ACCEPTANCE !== '1' || process.env.NEXA_POSTAL_CAPTURE_ACCEPTANCE !== '1' || !baseURL, 'Run -Suite Programmable -LocalPostalCapture against the existing isolated Postal stack.');
+    expect(['localhost','127.0.0.1']).toContain(new URL(baseURL).hostname);
+    const suffix = randomBytes(6).toString('hex');
+    let tenants = ['a','b'].map(label=>({id:randomUUID(),slug:`automation-acceptance-${suffix}-${label}`}));
+    const call = (command, options = {}) => fixture(command,tenants,options).result;
+    let anonymous, failure;
+    try {
+        tenants = await call('setup');
+        const source = await call('programmable-setup',{capture:true});
+        const other = await call('programmable-setup',{capture:true,index:1});
+        await page.goto(`${baseURL}/login/`);
+        await page.locator('#field-userName').fill(tenants[0].username);
+        await page.locator('#field-password').fill(tenants[0].password);
+        await page.locator('#login-form button[type="submit"]').click();
+        await page.waitForURL(new RegExp(`/w/${tenants[0].slug}(?:/.*)?$`),{timeout:30_000});
+        await page.goto(`${baseURL}/w/${tenants[0].slug}/NexaWorkflows`);
+        await expect(page.getByRole('button',{name:'New workflow',exact:true})).toBeEnabled({timeout:30_000});
+        for (const action of ['submit','approve']) {
+            expect((await api(page,'post',`Nexa/marketing-emails/${source.sourceId}/transition`,{action})).ok).toBe(true);
+        }
+        anonymous = await browser.newContext();
+        const reference = 'CAPTURE-'+randomBytes(8).toString('hex');
+        const body = {contactId:tenants[0].contactId,requestKey:'capture-'+randomUUID(),sourceVersion:1,parameters:{reference,message:'Actual local capture'}};
+        const send = (payload=body, sourceId=source.sourceId, method='post') => anonymous.request[method](`${baseURL}/api/v1/Nexa/marketing-emails/${sourceId}/${method==='post'?'reusable-send':''}`,{data:payload,headers:{'X-Api-Key':source.apiKey}});
+        expect((await send()).status()).toBe(403);
+        expect((await call('programmable-inspect')).requests).toHaveLength(0);
+        const grantRoute = `Nexa/marketing-emails/${source.sourceId}/integration-grants`;
+        expect((await api(page,'post',grantRoute,{action:'grant',userId:source.apiUserId,sourceVersion:1,hours:1})).ok).toBe(true);
+        expect([403,404]).toContain((await send(body,other.sourceId)).status());
+        const edit = await anonymous.request.put(`${baseURL}/api/v1/Nexa/marketing-emails/${source.sourceId}`,{data:{name:'Disallowed edit'},headers:{'X-Api-Key':source.apiKey}});
+        expect(edit.status()).toBe(403);
+        const responses = await Promise.all([send(),send()]);
+        for (const response of responses) expect(response.status()).toBe(200);
+        const accepted = await responses[0].json();
+        expect((await responses[1].json()).queueItemId).toBe(accepted.queueItemId);
+        const secondResponse = await send({...body,requestKey:'capture-'+randomUUID()});
+        expect(secondResponse.status()).toBe(200);
+        const secondSend = await secondResponse.json();
+        expect(secondSend.queueItemId).not.toBe(accepted.queueItemId);
+        expect((await api(page,'post',grantRoute,{action:'revoke',userId:source.apiUserId,sourceVersion:1})).ok).toBe(true);
+        expect((await send()).status()).toBe(403);
+        expect((await send({...body,requestKey:'revoked-'+randomUUID()})).status()).toBe(403);
+        const before = await call('programmable-inspect');
+        expect(before.requests).toHaveLength(2);
+        expect(before.queues.every(queue=>queue.status==='Pending')).toBe(true);
+        await call('programmable-capture-worker',{index:1});
+        expect((await call('programmable-inspect')).queues).toEqual(before.queues);
+        await call('programmable-capture-worker');
+        const sent = await call('programmable-inspect');
+        expect(sent.queues.every(queue=>queue.status==='Sent')).toBe(true);
+        expect(sent.messages).toHaveLength(2);
+        expect(sent.messages.every(message=>message.status==='submitted' && message.provider_message_id && Number(message.attempt_count)===1)).toBe(true);
+        const subject = 'Acceptance '+reference;
+        let captured = [];
+        await expect.poll(async () => {
+            const response = await anonymous.request.get('http://localhost:8026/api/v1/messages');
+            expect(response.ok()).toBe(true);
+            captured = (await response.json()).messages.filter(message=>message.Subject===subject);
+            return captured.length;
+        },{timeout:60_000,intervals:[500,1000,2000]}).toBe(2);
+        for (const message of captured) {
+            const detail = await (await anonymous.request.get(`http://localhost:8026/api/v1/message/${encodeURIComponent(message.ID)}`)).json();
+            expect(detail.To[0].Address).toBe(tenants[0].slug+'-recipient@example.test');
+            expect(detail.From.Address).toBe('newsletter@nexa.local.test');
+            expect(detail.HTML).toContain('Actual local capture Acceptance');
+            expect(detail.HTML).not.toContain('[[nexa:');
+            expect(detail.HTML).not.toContain('{Contact.firstName}');
+            expect(detail.HTML).toContain('unsubscribe');
+            expect(detail.Text).toContain('Actual local capture Acceptance');
+            const raw = await (await anonymous.request.get(`http://localhost:8026/api/v1/message/${encodeURIComponent(message.ID)}/raw`)).text();
+            expect([accepted.queueItemId,secondSend.queueItemId].some(id=>raw.includes(`X-Nexa-Queue-Item: ${id}`))).toBe(true);
+        }
+        await call('programmable-capture-worker');
+        expect((await call('programmable-inspect')).queues).toEqual(sent.queues);
+        expect((await call('programmable-inspect')).messages).toEqual(sent.messages);
+        const finalCapture = await (await anonymous.request.get('http://localhost:8026/api/v1/messages')).json();
+        expect(finalCapture.messages.filter(message=>message.Subject===subject)).toHaveLength(2);
+    } catch (error) {failure=error; throw error;}
+    finally {
+        if (anonymous) await anonymous.close();
+        try {await call('cleanup');}
+        catch (error) {if (failure) throw new AggregateError([failure,error],'Postal API acceptance and cleanup failed.'); throw error;}
+    }
+});
+
+test('programmable email authenticates real HTTP, preserves intentional send keys and rechecks worker consent', async ({browser, page}) => {
+    test.setTimeout(180_000);
+    test.skip(!optedIn || process.env.NEXA_PROGRAMMABLE_ACCEPTANCE !== '1' || !baseURL, 'Run the local acceptance runner with -Suite Programmable.');
+    expect(['localhost','127.0.0.1']).toContain(new URL(baseURL).hostname);
+    const suffix = randomBytes(6).toString('hex');
+    let tenants = ['a','b'].map(label => ({id:randomUUID(),slug:`automation-acceptance-${suffix}-${label}`}));
+    const call = (command, options = {}) => fixture(command, tenants, options).result;
+    let secondContext, failure;
+    const login = async (target, tenant) => {
+        await target.goto(`${baseURL}/login/`);
+        await target.locator('#field-userName').fill(tenant.username);
+        await target.locator('#field-password').fill(tenant.password);
+        await target.locator('#login-form button[type="submit"]').click();
+        await target.waitForURL(new RegExp(`/w/${tenant.slug}(?:/.*)?$`),{timeout:30_000});
+        await target.goto(`${baseURL}/w/${tenant.slug}/NexaWorkflows`);
+        await expect(target.getByRole('button',{name:'New workflow',exact:true})).toBeEnabled({timeout:30_000});
+    };
+    const success = async (target, method, url, body) => {
+        const response = await api(target, method, url, body);
+        expect(response.ok,`${method} ${url}: HTTP ${response.status || 'success'} ${response.reason || ''}`).toBe(true);
+        return response.value;
+    };
+    try {
+        tenants = await call('setup');
+        const sources = [];
+        for (let index=0; index<2; index++) sources.push(await call('programmable-setup',{index}));
+        await login(page,tenants[0]);
+        secondContext = await browser.newContext();
+        const second = await secondContext.newPage();
+        await login(second,tenants[1]);
+        for (const [index, target] of [[0,page],[1,second]]) {
+            for (const action of ['submit','approve']) await success(target,'post',`Nexa/marketing-emails/${sources[index].sourceId}/transition`,{action});
+        }
+        const body = (index, key, parameters = {reference:'ACCEPT-001',message:'Synthetic safe and bounded'}) => ({contactId:tenants[index].contactId,requestKey:key,sourceVersion:1,parameters});
+        const route = index => `Nexa/marketing-emails/${sources[index].sourceId}/reusable-send`;
+        const anonymous = await browser.newContext();
+        try {
+            const response = await anonymous.request.post(`${baseURL}/api/v1/${route(0)}`,{data:body(0,'anonymous-request')});
+            expect([401,403]).toContain(response.status());
+        } finally {await anonymous.close();}
+        for (const invalid of [
+            {...body(0,'missing-parameters'),parameters:{}},
+            {...body(0,'oversized-parameter'),parameters:{reference:'x'.repeat(41),message:'Valid'}},
+            {...body(0,'extra-parameter'),parameters:{reference:'OK',message:'Valid',unexpected:'No'}},
+            {...body(0,'html-parameter'),parameters:{reference:'OK',message:'<script>invalid</script>'}},
+            {...body(0,'client-scope'),tenantId:tenants[1].id},
+            {...body(0,'foreign-contact'),contactId:tenants[1].contactId},
+            {...body(0,'stale-version'),sourceVersion:2},
+        ]) {
+            const response = await api(page,'post',route(0),invalid);
+            expect(response.ok).toBe(false);
+            expect([400,403,404]).toContain(response.status);
+        }
+        expect((await call('programmable-inspect')).requests).toHaveLength(0);
+        expect((await call('programmable-inspect')).queues).toHaveLength(0);
+        const foreign = await api(second,'post',route(0),body(1,'foreign-source'));
+        expect(foreign.ok).toBe(false);
+        expect([403,404]).toContain(foreign.status);
+        const key = 'intentional-'+randomUUID();
+        const replies = await Promise.all([success(page,'post',route(0),body(0,key)),success(page,'post',route(0),body(0,key))]);
+        expect(replies[0].queueItemId).toBeTruthy();
+        expect(replies[1].queueItemId).toBe(replies[0].queueItemId);
+        const replay = await success(page,'post',route(0),body(0,key));
+        expect(replay.queueItemId).toBe(replies[0].queueItemId);
+        const conflict = await api(page,'post',route(0),body(0,key,{reference:'CHANGED',message:'Different parameters'}));
+        expect(conflict.ok).toBe(false);
+        expect(conflict.status).toBe(400);
+        const intentional = await success(page,'post',route(0),body(0,'intentional-'+randomUUID()));
+        expect(intentional.queueItemId).not.toBe(replay.queueItemId);
+        const independent = await success(second,'post',route(1),body(1,key));
+        expect(independent.queueItemId).not.toBe(replay.queueItemId);
+        const firstState = await call('programmable-inspect');
+        expect(firstState.requests).toHaveLength(2);
+        expect(firstState.queues).toHaveLength(2);
+        expect(firstState.queues.every(queue=>queue.status==='Pending')).toBe(true);
+        expect(firstState.copies).toHaveLength(2);
+        for (const copy of firstState.copies) {
+            expect(copy.subject).toBe('Acceptance ACCEPT-001');
+            expect(copy.body).toContain('Synthetic safe and bounded');
+            expect(copy.body).not.toContain('[[nexa:');
+        }
+        await call('mutate',{change:'user-regular'});
+        const downgraded = await api(page,'post',route(0),body(0,'downgraded-'+randomUUID()));
+        expect(downgraded.ok).toBe(false);
+        expect([403,404]).toContain(downgraded.status);
+        expect((await call('programmable-inspect')).requests).toHaveLength(2);
+        await call('mutate',{change:'user-active'});
+        await call('programmable-revoke',{index:1});
+        await call('programmable-worker',{index:1});
+        expect((await call('programmable-inspect')).queues).toEqual(firstState.queues);
+        await call('programmable-revoke');
+        await call('programmable-worker');
+        const stopped = await call('programmable-inspect');
+        expect(stopped.queues.every(queue=>queue.status==='Failed')).toBe(true);
+        expect(stopped.submissions).toBe(0);
+        await call('programmable-worker');
+        expect((await call('programmable-inspect')).queues).toEqual(stopped.queues);
+        const afterRevocation = await api(page,'post',route(0),body(0,'revoked-'+randomUUID()));
+        expect(afterRevocation.ok).toBe(false);
+        expect(afterRevocation.status).toBe(400);
+        expect((await call('programmable-inspect')).requests).toHaveLength(2);
+    } catch (error) {failure=error; throw error;}
+    finally {
+        if (secondContext) await secondContext.close();
+        try {await call('cleanup');}
+        catch (error) {if (failure) throw new AggregateError([failure,error],'Programmable acceptance and cleanup failed.'); throw error;}
+    }
+});
 
 // No traces: login credentials and native webhook signing material must not become artifacts.
 test.use({trace: 'off', screenshot: 'off'});
@@ -59,7 +256,7 @@ async function api(page, method, url, data) {
         try {
             const value = await Espo.Ajax[`${method}Request`](url, data);
             return {ok: true, value};
-        } catch (error) {return {ok: false, status: error.status || error.statusCode || null};}
+        } catch (error) {return {ok: false, status: error.status || error.statusCode || null, reason: error.getResponseHeader?.('X-Status-Reason') || ''};}
     }, {method, url, data});
 }
 
