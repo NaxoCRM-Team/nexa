@@ -350,6 +350,28 @@ try {
         $cancelLedger = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND request_hash=?');
         $cancelLedger->execute([$tenantA->tenantId, $tenantA->serviceId, hash('sha256', $cancelKey)]);
         $assert((int) $cancelLedger->fetchColumn() === 0, 'Cancellation before execution must create no send ledger or queue item.');
+        foreach (['inactive' => ['is_active', 0], 'downgraded' => ['type', 'regular']] as $identity => [$column, $value]) {
+            $revokedDraft = $store->runWith($tenantA, fn () => $workflow->save((object) ['name' => 'Revoked workflow email actor', 'definition' => json_decode(json_encode($graph))]));
+            $store->runWith($tenantA, fn () => $workflow->publish($revokedDraft['id'], 1));
+            $revokedRun = $store->runWith($tenantA, fn () => $workflow->enroll($revokedDraft['id'], $contact->getId(), 'workflow-email-' . $identity));
+            $queueBefore = (int) $pdo->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn();
+            $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$value, $workflowAdmin->getId()]);
+            try {
+                $store->runWith($tenantA, fn () => $workflowWorker->processDue());
+                $status = $pdo->prepare('SELECT status FROM nexa_workflow_run WHERE id=?');
+                $status->execute([$revokedRun['id']]);
+                $assert($status->fetchColumn() === 'failed', "An $identity workflow administrator must not queue email.");
+                $assert((int) $pdo->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn() === $queueBefore, "An $identity actor must create no native queue item.");
+                $attempts = $pdo->prepare('SELECT COUNT(*) FROM nexa_workflow_step_attempt WHERE run_id=?');
+                $attempts->execute([$revokedRun['id']]);
+                $assert((int) $attempts->fetchColumn() === 0, "An $identity actor must not attempt the governed email adapter.");
+                $key = 'workflow:' . hash('sha256', implode(':', [$tenantA->tenantId, $tenantA->serviceId, $revokedRun['id'], 1, 'send']));
+                $cancelLedger->execute([$tenantA->tenantId, $tenantA->serviceId, hash('sha256', $key)]);
+                $assert((int) $cancelLedger->fetchColumn() === 0, "An $identity actor must consume no governed send key.");
+            } finally {
+                $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$column === 'type' ? 'admin' : 1, $workflowAdmin->getId()]);
+            }
+        }
         $denied(fn ()=>$send('short'),'Request keys must be bounded and explicit.');
         $denied(fn ()=>$send('wrong-version',2),'Unapproved versions must be rejected.');
         $denied(fn ()=>$store->runWith($tenantB,fn ()=>$dispatch->reusableSend($draft['id'],$contact->getId(),'foreign-tenant',1)),'Another tenant must not reuse the approved source.');

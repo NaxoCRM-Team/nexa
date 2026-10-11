@@ -66,6 +66,7 @@ final class WorkflowService
         if (array_diff(array_keys((array) $input), ['name', 'definition', 'expectedRevision']) || !is_string($input->name ?? null) || !mb_check_encoding($input->name, 'UTF-8') || trim($input->name) === '' || mb_strlen($input->name) > 255 || preg_match('/[\x00-\x1f]/u', $input->name) || !(($input->definition ?? null) instanceof stdClass)) throw new BadRequest('Provide a name and workflow definition.');
         $definition = $this->definitions->validate($this->fromObject($input->definition))['definition'];
         return $this->atomic(function () use ($id, $input, $definition): array {
+            $this->lockTenant();
             $pdo = $this->em->getPDO();
             if ($id === null) {
                 if (property_exists($input, 'expectedRevision')) throw new BadRequest('A new workflow does not have a revision.');
@@ -88,6 +89,7 @@ final class WorkflowService
     {
         $this->requireAdmin();
         return $this->atomic(function () use ($id, $expectedRevision): array {
+            $this->lockTenant();
             $row = $this->workflow($id, true);
             if ($row['status'] === 'archived' || $expectedRevision !== (int) $row['draft_revision']) throw new BadRequest('Reload the current draft before publishing.');
             $validated = $this->definitions->validate($this->decode($row['draft_json']));
@@ -110,6 +112,7 @@ final class WorkflowService
         $this->requireAdmin();
         if (!in_array($status, ['published', 'paused', 'archived'], true)) throw new BadRequest('Choose resume, pause or archive.');
         return $this->atomic(function () use ($id, $status): array {
+            $this->lockTenant();
             $row = $this->workflow($id, true);
             if ($row['status'] === $status) return $this->detailRow($row);
             if ($row['status'] === 'archived' || (!$row['published_version'] && $status !== 'archived')) throw new BadRequest('This workflow cannot change its running state.');
@@ -190,6 +193,7 @@ final class WorkflowService
     {
         $this->requireAdmin();
         return $this->atomic(function () use ($id, $runId): array {
+            $this->lockTenant();
             $this->workflow($id, true);
             $run = $this->run($runId, true);
             if ($run['workflow_id'] !== $id) throw new NotFound('Enrollment not found.');
@@ -202,6 +206,7 @@ final class WorkflowService
     {
         $this->requireAdmin();
         return $this->atomic(function () use($id,$runId,$outcome,$evidence): array {
+            $this->lockTenant();
             $this->workflow($id,true);$run=$this->run($runId,true);if($run['workflow_id']!==$id)throw new NotFound('Enrollment not found.');
             $this->factory->create(WorkflowWebhookService::class)->resolve($id,$runId,$outcome,$evidence,$this->user);
             return $this->runOutput($run);
@@ -849,20 +854,33 @@ final class WorkflowService
         $this->em->getPDO()->prepare('INSERT INTO nexa_workflow_event (id,tenant_id,service_id,workflow_id,run_id,event_type,node_id,actor_user_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6))')->execute([$this->uuid(), ...$this->scope(), $workflowId, $runId, $type, $nodeId, $actorId, $this->json((object) $payload)]);
     }
 
+    private function lockTenant(): void
+    {
+        // Audit/version foreign keys acquire tenant locks too; never take them after workflow locks.
+        $row = $this->one('SELECT id FROM nexa_tenant WHERE id=? FOR UPDATE', [$this->contexts->require()->tenantId]);
+        if (!$row) throw new Forbidden('Tenant unavailable.');
+    }
+
     private function atomic(callable $callback): mixed
     {
         $pdo = $this->em->getPDO();
+        $transactions = $this->em->getTransactionManager();
         $own = !$pdo->inTransaction();
         $savepoint = 'nexa_workflow_' . bin2hex(random_bytes(6));
-        if ($own) $pdo->beginTransaction(); else $pdo->exec('SAVEPOINT ' . $savepoint);
+        // Native Record services nest through this manager, not directly through PDO.
+        if ($own) $transactions->start(); else $pdo->exec('SAVEPOINT ' . $savepoint);
         try {
             $result = $callback();
-            if ($own) $pdo->commit(); else $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
+            if ($own) $transactions->commit(); else $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
             return $result;
         } catch (\Throwable $error) {
-            if ($pdo->inTransaction()) {
-                if ($own) $pdo->rollBack();
-                else {$pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint); $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);}
+            if ($own) {
+                if ($transactions->isStarted()) {
+                    try {$transactions->rollback();}
+                    catch (\Throwable $rollbackError) {if ($pdo->inTransaction()) throw $rollbackError;}
+                } elseif ($pdo->inTransaction()) $pdo->rollBack();
+            } elseif ($pdo->inTransaction()) {
+                $pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint); $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
             }
             throw $error;
         }

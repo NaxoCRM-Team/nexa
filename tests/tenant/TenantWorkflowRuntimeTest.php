@@ -67,7 +67,12 @@ try {
         ['id' => 'wait', 'type' => 'delay', 'seconds' => 60, 'next' => 'end'],
         ['id' => 'end', 'type' => 'end'],
     ]];
-    $create = static fn (array $definition, string $name = 'Workflow runtime acceptance') => $callA(fn () => $serviceA->save((object) ['name' => $name, 'definition' => $asObject($definition)]));
+    $matrixDrafts = [];
+    $create = static function (array $definition, string $name = 'Workflow runtime acceptance') use ($callA, $serviceA, $asObject, &$matrixDrafts): array {
+        $draft = $callA(fn () => $serviceA->save((object) ['name' => $name, 'definition' => $asObject($definition)]));
+        $matrixDrafts[] = ['id' => $draft['id'], 'definition' => $definition];
+        return $draft;
+    };
     $draft = $create($base);
     $id = $draft['id'];
     $assert($draft['draftRevision'] === 1 && $draft['publishedVersion'] === null, 'New drafts must have a separate unpublished revision.');
@@ -1160,6 +1165,146 @@ try {
     $assert($callA(fn()=>$history($serviceA,$quiet['id'],$quietRun['id']))['status']==='completed','A busy workflow must not starve a quieter workflow in the same batch.');
     $busyRuns=$callA(fn()=>$serviceA->history($busy['id']))['runs'];
     $assert(count(array_filter($busyRuns,fn($r)=>$r['status']==='completed'))===5,'Per-workflow batching must enforce its fairness bound.');
+    // Catalogue-wide authorization checks reuse real drafts, not mocked services.
+    $updatePermissionDraft = $create($nativeAction('opportunity.update', ['opportunityId' => $stageRecord->getId(), 'field' => 'description', 'value' => 'Permission matrix']));
+    $callA(fn () => $serviceA->publish($updatePermissionDraft['id'], 1));
+    $permissionCases = [];
+    foreach ($matrixDrafts as $item) {
+        $permissionCases['trigger:' . $item['definition']['trigger']['event']] ??= $item;
+        foreach ($item['definition']['nodes'] as $node) {
+            if ($node['type'] === 'action') $permissionCases['action:' . $node['action']] ??= $item;
+        }
+    }
+    $catalogue = $callA(fn () => $serviceA->workspace());
+    foreach (['supportedTriggers' => 'trigger:', 'supportedActions' => 'action:'] as $key => $prefix) {
+        foreach ($catalogue[$key] as $name) $assert(isset($permissionCases[$prefix . $name]), 'Permission matrix must cover advertised ' . $prefix . $name);
+    }
+    $authorizeDenied = static function (callable $callback, string $message) use ($assert): void {
+        $denied = false;
+        try {$callback();} catch (Forbidden | NotFound) {$denied = true;}
+        $assert($denied, $message);
+    };
+    foreach ($permissionCases as $label => $item) {
+        $workflowId = $item['id'];
+        $input = (object) ['name' => 'Permission matrix', 'definition' => $asObject($item['definition']), 'expectedRevision' => 1];
+        foreach ([
+            'staff' => [$regular, $a],
+            'foreign tenant' => [$serviceB, $b],
+            'foreign service' => [$serviceA, $other],
+        ] as $identity => [$candidate, $context]) {
+            $operations = [
+                'read' => fn () => $candidate->detail($workflowId),
+                'history' => fn () => $candidate->history($workflowId),
+                'update' => fn () => $candidate->save($input, $workflowId),
+                'publish' => fn () => $candidate->publish($workflowId, 1),
+                'resume' => fn () => $candidate->control($workflowId, 'published'),
+                'enroll' => fn () => $candidate->enroll($workflowId, $contactA->getId(), 'permission-matrix'),
+                'event' => fn () => $candidate->intakeEvent($workflowId, $contactA->getId(), 'permission-matrix'),
+                'cancel' => fn () => $candidate->cancel($workflowId, $run['id']),
+                'review delivery' => fn () => $candidate->resolveWebhook($workflowId, $run['id'], 'success', 'Permission matrix'),
+            ];
+            foreach ($operations as $operation => $callback) {
+                $authorizeDenied(fn () => $contexts->runWith($context, $callback), "$label: $identity must not $operation.");
+            }
+        }
+        foreach (['inactive' => ['is_active', 0], 'downgraded' => ['type', 'regular']] as $identity => [$column, $value]) {
+            $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$value, $adminA->getId()]);
+            try {
+                $authorizeDenied(fn () => $callA(fn () => $serviceA->publish($workflowId, 1)), "$label: $identity administrator must not publish.");
+                $authorizeDenied(fn () => $callA(fn () => $serviceA->enroll($workflowId, $contactA->getId(), 'revoked-matrix')), "$label: $identity administrator must not enroll.");
+                $authorizeDenied(fn () => $callA(fn () => $serviceA->intakeEvent($workflowId, $contactA->getId(), 'revoked-matrix')), "$label: $identity administrator must not submit events.");
+            } finally {
+                $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$column === 'type' ? 'admin' : 1, $adminA->getId()]);
+            }
+        }
+    }
+    // Revocation is rechecked by the real source polling worker before reading events.
+    $pdo->prepare("UPDATE nexa_workflow SET status='paused' WHERE tenant_id=? AND service_id=?")->execute([$a->tenantId, $a->serviceId]);
+    $automaticCases = [];
+    foreach ($catalogue['supportedTriggers'] as $trigger) {
+        if (in_array($trigger, ['manual', 'api.event'], true)) continue;
+        $workflowId = $permissionCases['trigger:' . $trigger]['id'];
+        $query = $pdo->prepare('SELECT published_version FROM nexa_workflow WHERE id=?');
+        $query->execute([$workflowId]);
+        $assert((bool) $query->fetchColumn(), "$trigger: source permission fixture must have a real published version.");
+        $pdo->prepare("UPDATE nexa_workflow SET status='published' WHERE id=?")->execute([$workflowId]);
+        $automaticCases[$trigger] = $workflowId;
+    }
+    foreach (['inactive' => ['is_active', 0], 'downgraded' => ['type', 'regular']] as $identity => [$column, $value]) {
+        $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$value, $adminA->getId()]);
+        try {
+            $receiptCount = $pdo->prepare('SELECT COUNT(*) FROM nexa_workflow_trigger_receipt WHERE tenant_id=? AND service_id=?');
+            $receiptCount->execute([$a->tenantId, $a->serviceId]);
+            $before = (int) $receiptCount->fetchColumn();
+            $assert($callA(fn () => $worker->processAutomatic()) === 0, "$identity: no automatic trigger may enroll.");
+            foreach ($automaticCases as $trigger => $workflowId) {
+                $query = $pdo->prepare('SELECT blocked_reason FROM nexa_workflow_trigger_scan WHERE workflow_id=? AND tenant_id=? AND service_id=?');
+                $query->execute([$workflowId, $a->tenantId, $a->serviceId]);
+                $assert($query->fetchColumn() === 'access_denied', "$trigger: $identity execution administrator must block source polling.");
+            }
+            $receiptCount->execute([$a->tenantId, $a->serviceId]);
+            $assert((int) $receiptCount->fetchColumn() === $before, "$identity: blocked triggers must not consume source receipts.");
+        } finally {
+            $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$column === 'type' ? 'admin' : 1, $adminA->getId()]);
+        }
+    }
+    // Seed due action boundaries from real immutable publications. These are
+    // rollback-only worker probes, not claims of fresh authenticated enrollment.
+    $versions = $pdo->prepare('SELECT workflow_id,version_number,definition_json FROM nexa_workflow_version WHERE tenant_id=? AND service_id=? AND execution_user_id=?');
+    $versions->execute([$a->tenantId, $a->serviceId, $adminA->getId()]);
+    $actionVersions = [];
+    foreach ($versions->fetchAll(PDO::FETCH_ASSOC) as $version) {
+        foreach (json_decode($version['definition_json'], true, 64, JSON_THROW_ON_ERROR)['nodes'] as $node) {
+            if ($node['type'] === 'action') $actionVersions[$node['action']] ??= [$version, $node['id']];
+        }
+    }
+    foreach ($catalogue['supportedActions'] as $action) {
+        // The governed email fixture supplies the actual approved send source.
+        if ($action !== 'email.send') $assert(isset($actionVersions[$action]), "$action: runtime permission probe requires a real publication.");
+    }
+    $snapshot = static function () use ($pdo, $a): string {
+        $rows = [];
+        foreach (['contact', 'account', 'opportunity', 'task', 'case', 'notification'] as $table) {
+            $query = $pdo->prepare("SELECT * FROM `$table` WHERE tenant_id=? AND service_id=? ORDER BY id");
+            $query->execute([$a->tenantId, $a->serviceId]);
+            $rows[$table] = $query->fetchAll(PDO::FETCH_ASSOC);
+        }
+        return hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR));
+    };
+    foreach (['inactive' => ['is_active', 0], 'downgraded' => ['type', 'regular']] as $identity => [$column, $value]) {
+        $pdo->prepare("UPDATE nexa_workflow SET status='paused' WHERE tenant_id=? AND service_id=?")->execute([$a->tenantId, $a->serviceId]);
+        $pdo->prepare("UPDATE nexa_workflow_run SET status='cancelled' WHERE tenant_id=? AND service_id=? AND status IN ('ready','waiting')")->execute([$a->tenantId, $a->serviceId]);
+        $probes = [];
+        foreach ($actionVersions as $action => [$version, $nodeId]) {
+            $probeId = $pdo->query('SELECT UUID()')->fetchColumn();
+            $pdo->prepare("INSERT INTO nexa_workflow_run (id,tenant_id,service_id,workflow_id,version_number,contact_id,request_key_hash,status,node_id,node_entered_at,due_at,enrolled_by_id) VALUES (?,?,?,?,?,?,?,'ready',?,UTC_TIMESTAMP(6),DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND),?)")->execute([$probeId, $a->tenantId, $a->serviceId, $version['workflow_id'], $version['version_number'], $nativeContact->getId(), hash('sha256', $probeId), $nodeId, $adminA->getId()]);
+            $pdo->prepare("UPDATE nexa_workflow SET status='published' WHERE id=?")->execute([$version['workflow_id']]);
+            $probes[$action] = $probeId;
+        }
+        $before = $snapshot();
+        $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$value, $adminA->getId()]);
+        try {
+            $tick();
+            foreach ($probes as $action => $probeId) {
+                $query = $pdo->prepare('SELECT status FROM nexa_workflow_run WHERE id=?');
+                $query->execute([$probeId]);
+                $assert($query->fetchColumn() === 'failed', "$action: $identity actor must fail before execution.");
+                $query = $pdo->prepare("SELECT COUNT(*) FROM nexa_workflow_event WHERE run_id=? AND event_type='failed' AND JSON_UNQUOTE(JSON_EXTRACT(payload_json,'$.code'))='access_denied'");
+                $query->execute([$probeId]);
+                $assert((int) $query->fetchColumn() === 1, "$action: permission failure must have explicit audit evidence.");
+                $query = $pdo->prepare('SELECT COUNT(*) FROM nexa_workflow_step_attempt WHERE run_id=?');
+                $query->execute([$probeId]);
+                $assert((int) $query->fetchColumn() === 0, "$action: denied actor must never attempt the adapter.");
+                $query = $pdo->prepare('SELECT COUNT(*) FROM nexa_workflow_webhook_effect WHERE run_id=?');
+                $query->execute([$probeId]);
+                $assert((int) $query->fetchColumn() === 0, "$action: denied actor must create no external effect.");
+            }
+            $assert($snapshot() === $before, "$identity: rejected adapters must leave native records untouched.");
+        } finally {
+            $pdo->prepare("UPDATE user SET $column=? WHERE id=?")->execute([$column === 'type' ? 'admin' : 1, $adminA->getId()]);
+        }
+    }
+    echo 'Catalogue permission matrix passed (' . count($permissionCases) . " trigger/action rows).\n";
     echo "Tenant workflow runtime passed ($checks checks).\n";
 } catch (Throwable $error) {
     fwrite(STDERR, get_class($error) . ': ' . $error->getMessage() . "\n" . $error->getTraceAsString() . "\n");

@@ -91,6 +91,8 @@ final class WorkflowWebhookService
     public function finalize(string $id,string $token,array $result): void
     {
         if(!$this->user->isSystem() || !$this->em->getPDO()->inTransaction())throw new Forbidden('A worker transaction is required.');
+        // Finalization may race cancellation; keep the same tenant-before-effect lock order.
+        $this->one('SELECT id FROM nexa_tenant WHERE id=? FOR UPDATE',[$this->contexts->require()->tenantId]);
         $effect=$this->one('SELECT * FROM nexa_workflow_webhook_effect WHERE id=? AND tenant_id=? AND service_id=? FOR UPDATE',[$id,...$this->scope()]);
         if(!$effect || $effect['status']!=='sending' || !hash_equals((string)$effect['lease_token'],$token))return;
         $outcome=$result['outcome'] ?? '';

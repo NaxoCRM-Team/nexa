@@ -11,7 +11,7 @@ test('Workflow editor saves safe definitions and controls published enrollments'
     const icons=fs.readFileSync(path.join(root,'espocrm/client/css/font-awesome.min.css'),'utf8');
     const solid=fs.readFileSync(path.join(root,'espocrm/client/fonts/fa-solid-900.woff2')).toString('base64');
     await page.addStyleTag({content:icons+`@font-face{font-family:"Font Awesome 5 Free";font-style:normal;font-weight:900;src:url(data:font/woff2;base64,${solid}) format("woff2")}.fas{font-family:"Font Awesome 5 Free";font-weight:900}`});
-    await page.evaluate(()=>{window.define=(name,deps,factory)=>{window.WorkflowView=factory(class {});};});
+    await page.evaluate(()=>{window.define=(name,deps,factory)=>{window.WorkflowView=factory(class {constructor(){this.options={};}});};});
     await page.addScriptTag({content:fs.readFileSync(path.join(root,'espocrm/client/custom/src/views/automation/workspace.js'),'utf8')});
     await page.evaluate(()=>{
         document.documentElement.lang='en';document.title='Workflows';
