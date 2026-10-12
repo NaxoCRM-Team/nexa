@@ -1119,7 +1119,46 @@ try {
         $isolated = true;
     }
     $assert($isolated, 'Tenant B could schedule Tenant A marketing email.');
-    echo "Tenant marketing dispatch tests passed.\n";
+    $transactionalServiceId='90000000-0000-4000-8000-000000000074';
+    $pdo->prepare("INSERT INTO nexa_service_definition (id,service_key,display_name,description,measurement_unit) VALUES (?,'email.transactional','Transactional email','Fixture message allowance','messages') ON DUPLICATE KEY UPDATE service_key=VALUES(service_key)")->execute([$transactionalServiceId]);
+    $transactionalServiceId=(string)$pdo->query("SELECT id FROM nexa_service_definition WHERE service_key='email.transactional'")->fetchColumn();
+    $pdo->prepare("INSERT INTO nexa_plan_service (plan_id,service_id,is_enabled,hard_limit) SELECT DISTINCT plan_id,?,1,10 FROM nexa_tenant_subscription WHERE tenant_id=? ON DUPLICATE KEY UPDATE is_enabled=1,hard_limit=10")->execute([$transactionalServiceId,$tenantA->tenantId]);
+    $pdo->prepare("INSERT INTO nexa_tenant_service (tenant_id,service_id,status,hard_limit_override) VALUES (?,?,'active',10) ON DUPLICATE KEY UPDATE status='active',hard_limit_override=10,starts_at=NULL,ends_at=NULL")->execute([$tenantA->tenantId,$transactionalServiceId]);
+    $pdo->prepare("UPDATE nexa_marketing_delivery_provider SET monthly_send_limit=6 WHERE tenant_id=? AND service_id=?")->execute([$tenantA->tenantId,$tenantA->serviceId]);
+    $pdo->prepare("INSERT INTO nexa_marketing_monthly_usage (tenant_id,service_id,usage_month,accepted_count) VALUES (?,?,DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01'),5) ON DUPLICATE KEY UPDATE accepted_count=5,transactional_accepted_count=0")->execute([$tenantA->tenantId,$tenantA->serviceId]);
+    $pdo->prepare("UPDATE nexa_marketing_email_profile SET delivery_mode='transactional',lifecycle_status='sending' WHERE id=?")->execute([$draft['id']]);
+    $quotaItems=[];
+    for($i=0;$i<2;$i++){
+        $quotaItems[]=$store->runWith($tenantA,function()use($entityManager,$draft,$contact){
+            $item=$entityManager->getNewEntity('EmailQueueItem');
+            $item->set(['massEmailId'=>$draft['massEmailId'],'targetId'=>$contact->getId(),'targetType'=>'Contact','status'=>'Pending','isTest'=>false]);
+            $entityManager->saveEntity($item);return $item;
+        });
+    }
+    $reserve=new ReflectionMethod($reviewService,'reserveItem');
+    $quotaProfile=['id'=>$draft['id']];
+    $assert($reserve->invoke($reviewService,$tenantA,$quotaProfile,$quotaItems[0]->getId(),'quota@example.test'),'Transactional reservation should use its explicit message entitlement.');
+    $assert(!$reserve->invoke($reviewService,$tenantA,$quotaProfile,$quotaItems[0]->getId(),'quota@example.test'),'Reservation replay must not charge a second message.');
+    $assert(!$reserve->invoke($reviewService,$tenantA,$quotaProfile,$quotaItems[1]->getId(),'quota@example.test'),'Combined provider cap must include both marketing and transactional usage.');
+    $bucket=$pdo->prepare("SELECT accepted_count,transactional_accepted_count FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
+    $bucket->execute([$tenantA->tenantId,$tenantA->serviceId]);$counts=$bucket->fetch(PDO::FETCH_ASSOC);
+    $assert((int)$counts['accepted_count']===5&&(int)$counts['transactional_accepted_count']===1,'Transactional reservation must leave marketing usage untouched.');
+    $hold->invoke($reviewService,$tenantA,$fixtureProfile,$quotaItems[0]->getId());
+    $bucket->execute([$tenantA->tenantId,$tenantA->serviceId]);
+    $assert((int)$bucket->fetch(PDO::FETCH_ASSOC)['transactional_accepted_count']===1,'Uncertain transactional submissions must retain capacity.');
+    $pdo->prepare("UPDATE nexa_marketing_monthly_usage SET transactional_accepted_count=0 WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')")->execute([$tenantA->tenantId,$tenantA->serviceId]);
+    $pdo->prepare("INSERT INTO nexa_marketing_monthly_usage (tenant_id,service_id,usage_month,transactional_accepted_count) VALUES (?,?,DATE_FORMAT(DATE_SUB(CURRENT_DATE(),INTERVAL 1 MONTH),'%Y-%m-01'),1) ON DUPLICATE KEY UPDATE transactional_accepted_count=1")->execute([$tenantA->tenantId,$tenantA->serviceId]);
+    $pdo->prepare("UPDATE nexa_marketing_delivery_message SET reserved_usage_month=DATE_FORMAT(DATE_SUB(CURRENT_DATE(),INTERVAL 1 MONTH),'%Y-%m-01') WHERE tenant_id=? AND service_id=? AND email_queue_item_id=?")->execute([$tenantA->tenantId,$tenantA->serviceId,$quotaItems[0]->getId()]);
+    $release=new ReflectionMethod($reviewService,'releaseReservation');
+    $release->invoke($reviewService,$tenantB,$quotaItems[0]->getId());
+    $previous=$pdo->prepare("SELECT transactional_accepted_count FROM nexa_marketing_monthly_usage WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(DATE_SUB(CURRENT_DATE(),INTERVAL 1 MONTH),'%Y-%m-01')");
+    $previous->execute([$tenantA->tenantId,$tenantA->serviceId]);$assert((int)$previous->fetchColumn()===1,'Another tenant must not release a reservation.');
+    $release->invoke($reviewService,$tenantA,$quotaItems[0]->getId());
+    $release->invoke($reviewService,$tenantA,$quotaItems[0]->getId());
+    $previous->execute([$tenantA->tenantId,$tenantA->serviceId]);$assert((int)$previous->fetchColumn()===0,'Confirmed failure must release the original month exactly once.');
+    $bucket->execute([$tenantA->tenantId,$tenantA->serviceId]);$counts=$bucket->fetch(PDO::FETCH_ASSOC);
+    $assert((int)$counts['accepted_count']===5&&(int)$counts['transactional_accepted_count']===0,'Release must not alter the current month or marketing usage.');
+    echo "Tenant marketing dispatch and transactional reservation tests passed.\n";
 } finally {
     try {
         foreach ($attachmentCleanup as $item) $store->runWith($item['tenant'], fn () => $factory->create(\Espo\Core\FileStorage\Manager::class)->unlink($item['attachment']));

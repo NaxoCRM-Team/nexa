@@ -64,6 +64,38 @@ try {
         'bodyHtml' => '<p>Hello {{contact.firstName}},</p><p>Here is your update.</p>',
     ]));
 
+    $blocked = false;
+    try {
+        $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->save((object) [
+            'name' => 'Unsupported transactional draft',
+            'campaignId' => $campaign['id'],
+            'purposeId' => $purposeId,
+            'subject' => 'Not a transactional policy',
+            'bodyHtml' => '<p>Test</p>',
+            'fromAddress' => 'news@example.test',
+            'deliveryMode' => 'transactional',
+        ]));
+    } catch (\Espo\Core\Exceptions\BadRequest $error) {
+        $blocked = str_contains($error->getMessage(), 'Transactional delivery is not available');
+    }
+    $assert($blocked, 'A transactional label must not silently create a marketing send.');
+
+    $dispatch = $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingDispatchService::class);
+    foreach (['eligibleRecipient', 'eligibleRecipients'] as $methodName) {
+        $method = new ReflectionMethod($dispatch, $methodName);
+        foreach (['transactional', 'unknown', null] as $mode) {
+            $blocked = false;
+            try {
+                $arguments = [$tenantA, ['delivery_mode' => $mode]];
+                if ($methodName === 'eligibleRecipient') $arguments[] = 'missing-contact';
+                $method->invokeArgs($dispatch, $arguments);
+            } catch (\Espo\Core\Exceptions\BadRequest $error) {
+                $blocked = str_contains($error->getMessage(), 'purpose and allowance policy');
+            }
+            $assert($blocked, 'Unsupported modes must fail before recipient queries and provider submission.');
+        }
+    }
+
     $profile = $pdo->prepare('SELECT tenant_id,service_id,mass_email_id,lifecycle_status,version_number FROM nexa_marketing_email_profile WHERE id=?');
     $profile->execute([$draft['id']]);
     $row = $profile->fetch(PDO::FETCH_ASSOC);

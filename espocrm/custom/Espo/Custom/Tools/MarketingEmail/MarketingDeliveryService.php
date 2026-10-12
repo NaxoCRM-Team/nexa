@@ -35,6 +35,14 @@ final class MarketingDeliveryService
         $provider = $this->provider($context);
         $domains = $this->domains($context);
         $readyDomains = count(array_filter($domains, static fn (array $row): bool => $row['ready']));
+        $purposeQuery = $this->entityManager->getPDO()->prepare(
+            "SELECT id,name,default_legal_basis,channels_json FROM nexa_consent_purpose " .
+            "WHERE tenant_id=? AND service_id=? AND purpose_key='customer_service' AND is_system=1 AND is_active=1 LIMIT 1"
+        );
+        $purposeQuery->execute([$context->tenantId, $context->serviceId]);
+        $purpose = $purposeQuery->fetch(PDO::FETCH_ASSOC);
+        $purposeAvailable = $purpose && in_array('email', json_decode((string) $purpose['channels_json'], true) ?: [], true)
+            && in_array($purpose['default_legal_basis'], ['PerformanceOfContract', 'FreelyGivenConsent'], true);
 
         return [
             'provider' => $provider,
@@ -45,6 +53,20 @@ final class MarketingDeliveryService
                 'ready' => $provider !== null && $provider['hasCredential'] && $readyDomains > 0,
             ],
             'callbackPath' => '/api/v1/Nexa/public/marketing-delivery/postal/{callback-token}',
+            'transactionalPolicy' => [
+                'deliveryEnabled' => false,
+                'purpose' => $purposeAvailable ? [
+                    'id' => $purpose['id'], 'name' => $purpose['name'],
+                    'defaultLegalBasis' => $purpose['default_legal_basis'],
+                ] : null,
+                'decisionRules' => [
+                    ['status' => 'granted', 'legalBasis' => 'FreelyGivenConsent'],
+                    ['status' => 'not_required', 'legalBasis' => 'PerformanceOfContract'],
+                ],
+                'monthlyLimit' => MarketingAllowance::transactionalLimit(
+                    $this->entityManager->getPDO(), $context, (int) ($provider['monthlySendLimit'] ?? 0)
+                ),
+            ],
         ];
     }
 
@@ -65,7 +87,8 @@ final class MarketingDeliveryService
         $context = $this->tenantContextStore->require();
         $query = $this->entityManager->getPDO()->prepare(
             "SELECT DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') AS month,p.monthly_send_limit," .
-            "COALESCE(u.accepted_count,0) AS reserved,COALESCE(u.delivered_count,0) AS delivered,COALESCE(u.failed_count,0) AS failed " .
+            "COALESCE(u.accepted_count,0) AS reserved,COALESCE(u.delivered_count,0) AS delivered,COALESCE(u.failed_count,0) AS failed," .
+            "COALESCE(u.transactional_accepted_count,0) AS transactional_reserved,COALESCE(u.transactional_delivered_count,0) AS transactional_delivered,COALESCE(u.transactional_failed_count,0) AS transactional_failed " .
             "FROM nexa_marketing_delivery_provider p LEFT JOIN nexa_marketing_monthly_usage u " .
             "ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') " .
             "WHERE p.tenant_id=? AND p.service_id=?"
@@ -74,9 +97,17 @@ final class MarketingDeliveryService
         $row = $query->fetch(PDO::FETCH_ASSOC) ?: [];
         $limit = MarketingAllowance::limit($this->entityManager->getPDO(), $context, (int) ($row['monthly_send_limit'] ?? 0));
         $reserved = (int) ($row['reserved'] ?? 0);
+        $transactionalLimit = MarketingAllowance::transactionalLimit($this->entityManager->getPDO(), $context, (int) ($row['monthly_send_limit'] ?? 0));
+        $providerRemaining = (int) ($row['monthly_send_limit'] ?? 0) > 0
+            ? max(0, (int) $row['monthly_send_limit'] - $reserved - (int) ($row['transactional_reserved'] ?? 0)) : PHP_INT_MAX;
         return ['month' => $row['month'] ?? gmdate('Y-m-01'), 'limit' => $limit,
-            'reserved' => $reserved, 'remaining' => max(0, $limit - $reserved),
-            'delivered' => (int) ($row['delivered'] ?? 0), 'failed' => (int) ($row['failed'] ?? 0)];
+            'reserved' => $reserved, 'remaining' => min($providerRemaining, max(0, $limit - $reserved)),
+            'delivered' => (int) ($row['delivered'] ?? 0), 'failed' => (int) ($row['failed'] ?? 0),
+            'transactionalLimit' => $transactionalLimit,
+            'transactionalReserved' => (int) ($row['transactional_reserved'] ?? 0),
+            'transactionalRemaining' => min($providerRemaining, max(0, $transactionalLimit - (int) ($row['transactional_reserved'] ?? 0))),
+            'transactionalDelivered' => (int) ($row['transactional_delivered'] ?? 0),
+            'transactionalFailed' => (int) ($row['transactional_failed'] ?? 0)];
     }
 
     /** @return array<string, mixed> */

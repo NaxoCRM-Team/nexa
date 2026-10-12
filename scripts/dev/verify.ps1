@@ -91,6 +91,7 @@ $required = @(
     'database/shared/migrations/0071_add_workflow_event_enrollment.sql',
     'database/shared/migrations/0072_add_workflow_execution_safety.sql',
     'database/shared/migrations/0073_add_workflow_webhook_delivery.sql',
+    'database/shared/migrations/0074_add_email_usage_reservation_buckets.sql',
     'docs/development/workflow-event-enrollment.md',
     'tests/tenant/TenantWorkflowRuntimeTest.php',
     'docs/development/workflow-runtime.md',

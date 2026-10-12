@@ -352,8 +352,8 @@ final class MarketingDispatchService
             }
             if ($decision === 'not_accepted') {
                 if ($message['status'] !== 'submitting' || $message['provider_message_id']) throw new BadRequest('A confirmed provider submission cannot be marked not accepted.');
+                $this->releaseReservation($context, $message['email_queue_item_id']);
                 $pdo->prepare("UPDATE nexa_marketing_delivery_message SET status='failed',last_error='Provider non-acceptance confirmed by administrator',reconciled_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?")->execute([$message['id'], $context->tenantId, $context->serviceId]);
-                $pdo->prepare("UPDATE nexa_marketing_monthly_usage SET accepted_count=GREATEST(accepted_count-1,0) WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(?,'%Y-%m-01')")->execute([$context->tenantId, $context->serviceId, $message['created_at']]);
             } else {
                 if ($message['provider_message_id'] && $message['provider_message_id'] !== $messageId) throw new BadRequest('The provider message ID conflicts with existing evidence.');
                 $conflict = $pdo->prepare('SELECT COUNT(*) FROM nexa_marketing_delivery_message WHERE tenant_id=? AND service_id=? AND provider_message_id=? AND id<>?');
@@ -380,6 +380,7 @@ final class MarketingDispatchService
         try {
             $profile = $this->requireReviewAccess($context, $id);
             if ($profile['lifecycle_status'] !== 'approved') throw new BadRequest('Approve the saved email before sending a provider test.');
+            $this->requireSupportedDeliveryMode($profile);
             if ($this->user->get('tenantId') !== $context->tenantId || $this->user->get('serviceId') !== $context->serviceId || !filter_var($this->user->get('emailAddress'), FILTER_VALIDATE_EMAIL)) throw new Forbidden('A tenant-owned administrator email address is required for test delivery.');
             if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete Postal and sending-domain setup before testing delivery.');
             $this->requireVerifiedSender($context, $profile['from_address']);
@@ -552,6 +553,7 @@ final class MarketingDispatchService
     /** @param array<string, mixed> $profile */
     private function dispatchItem(TenantContext $context, array $profile, MassEmail $massEmail, EmailTemplate $template, string $queueItemId, string $contactId, ?User $testUser = null, ?array $validatedAttachments = null): void
     {
+        $this->requireSupportedDeliveryMode($profile);
         $this->contentIntegrity->requireSnapshot($profile, $template, $massEmail);
         $this->conditionalContent->validate((string) $template->get('subject'), (string) $template->get('body'));
         $this->parameters->requireResolved((string) $template->get('subject'), (string) $template->get('body'), (string) ($profile['preheader'] ?? ''));
@@ -651,7 +653,7 @@ final class MarketingDispatchService
         try {
             $usage = $pdo->prepare("INSERT IGNORE INTO nexa_marketing_monthly_usage (tenant_id,service_id,usage_month) VALUES (?,?,DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01'))");
             $usage->execute([$context->tenantId, $context->serviceId]);
-            $capacity = $pdo->prepare("SELECT p.monthly_send_limit,u.accepted_count FROM nexa_marketing_delivery_provider p INNER JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? FOR UPDATE");
+            $capacity = $pdo->prepare("SELECT p.monthly_send_limit,u.accepted_count,u.transactional_accepted_count FROM nexa_marketing_delivery_provider p INNER JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? FOR UPDATE");
             $capacity->execute([$context->tenantId, $context->serviceId]);
             $usageRow = $capacity->fetch(PDO::FETCH_ASSOC);
             $locked = $this->profile($context, (string) $profile['id'], true);
@@ -659,30 +661,35 @@ final class MarketingDispatchService
                 if ($ownsTransaction) $pdo->rollBack();
                 return false;
             }
-            $limit = MarketingAllowance::limit($pdo, $context, (int) ($usageRow['monthly_send_limit'] ?? 0));
-            if (!$usageRow || (int) $usageRow['accepted_count'] >= $limit) {
+            $transactional = $locked['delivery_mode'] === 'transactional';
+            $column = $transactional ? 'transactional_accepted_count' : 'accepted_count';
+            $providerCap = (int) ($usageRow['monthly_send_limit'] ?? 0);
+            $limit = $transactional ? MarketingAllowance::transactionalLimit($pdo, $context, $providerCap)
+                : MarketingAllowance::limit($pdo, $context, $providerCap);
+            $total = (int) ($usageRow['accepted_count'] ?? 0) + (int) ($usageRow['transactional_accepted_count'] ?? 0);
+            if (!$usageRow || (int) $usageRow[$column] >= $limit || ($providerCap > 0 && $total >= $providerCap)) {
                 if ($ownsTransaction) {
                     $pdo->rollBack();
                 }
                 return false;
             }
-            $queue = $pdo->prepare("UPDATE email_queue_item SET status='Sending' WHERE id=? AND tenant_id=? AND service_id=? AND status='Pending' AND is_test=?");
-            $queue->execute([$queueItemId, $context->tenantId, $context->serviceId, (int) $isTest]);
+            $queue = $pdo->prepare("UPDATE email_queue_item SET status='Sending' WHERE id=? AND tenant_id=? AND service_id=? AND mass_email_id=? AND deleted=0 AND status='Pending' AND is_test=?");
+            $queue->execute([$queueItemId, $context->tenantId, $context->serviceId, $locked['mass_email_id'], (int) $isTest]);
             if ($queue->rowCount() !== 1) {
                 if ($ownsTransaction) {
                     $pdo->rollBack();
                 }
                 return false;
             }
-            $insert = $pdo->prepare("INSERT IGNORE INTO nexa_marketing_delivery_message (id,tenant_id,service_id,profile_id,email_queue_item_id,provider_key,recipient,status) VALUES (?,?,?,?,?,?,?,'submitting')");
-            $insert->execute([$this->uuid(), $context->tenantId, $context->serviceId, $profile['id'], $queueItemId, 'postal', $email]);
+            $insert = $pdo->prepare("INSERT IGNORE INTO nexa_marketing_delivery_message (id,tenant_id,service_id,profile_id,email_queue_item_id,provider_key,recipient,status,usage_class,reserved_usage_month) VALUES (?,?,?,?,?,?,?,'submitting',?,DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01'))");
+            $insert->execute([$this->uuid(), $context->tenantId, $context->serviceId, $profile['id'], $queueItemId, 'postal', $email, $transactional ? 'transactional' : 'marketing']);
             if ($insert->rowCount() !== 1) {
                 if ($ownsTransaction) {
                     $pdo->rollBack();
                 }
                 return false;
             }
-            $reserve = $pdo->prepare("UPDATE nexa_marketing_monthly_usage SET accepted_count=accepted_count+1 WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
+            $reserve = $pdo->prepare("UPDATE nexa_marketing_monthly_usage SET {$column}={$column}+1 WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
             $reserve->execute([$context->tenantId, $context->serviceId]);
             if ($ownsTransaction) {
                 $pdo->commit();
@@ -699,6 +706,7 @@ final class MarketingDispatchService
     /** @param array<string, mixed> $profile @return array<int, array{id:string,email:string}> */
     private function eligibleRecipients(TenantContext $context, array $profile): array
     {
+        $this->requireSupportedDeliveryMode($profile);
         $statement = $this->entityManager->getPDO()->prepare($this->eligibilitySql() . ' ORDER BY c.id');
         $statement->execute([$profile['purpose_id'], $context->tenantId, $context->serviceId, $profile['campaign_id']]);
         return $statement->fetchAll(PDO::FETCH_ASSOC);
@@ -707,10 +715,19 @@ final class MarketingDispatchService
     /** @param array<string, mixed> $profile @return array{id:string,email:string}|null */
     private function eligibleRecipient(TenantContext $context, array $profile, string $contactId): ?array
     {
+        $this->requireSupportedDeliveryMode($profile);
         $statement = $this->entityManager->getPDO()->prepare($this->eligibilitySql() . ' AND c.id=? LIMIT 1');
         $statement->execute([$profile['purpose_id'], $context->tenantId, $context->serviceId, $profile['campaign_id'], $contactId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
+    }
+
+    /** Legacy transactional labels must not silently use marketing policy. */
+    private function requireSupportedDeliveryMode(array $profile): void
+    {
+        if (!in_array($profile['delivery_mode'] ?? null, ['campaign', 'single_send'], true)) {
+            throw new BadRequest('This email delivery mode has no configured purpose and allowance policy.');
+        }
     }
 
     private function eligibilitySql(): string
@@ -744,14 +761,18 @@ final class MarketingDispatchService
 
     private function remainingCapacity(TenantContext $context): ?int
     {
-        $statement = $this->entityManager->getPDO()->prepare("SELECT p.monthly_send_limit,COALESCE(u.accepted_count,0) accepted_count FROM nexa_marketing_delivery_provider p LEFT JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? LIMIT 1");
+        $statement = $this->entityManager->getPDO()->prepare("SELECT p.monthly_send_limit,COALESCE(u.accepted_count,0) accepted_count,COALESCE(u.transactional_accepted_count,0) transactional_accepted_count FROM nexa_marketing_delivery_provider p LEFT JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? LIMIT 1");
         $statement->execute([$context->tenantId, $context->serviceId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
             return 0;
         }
         $limit = MarketingAllowance::limit($this->entityManager->getPDO(), $context, (int) $row['monthly_send_limit']);
-        return max(0, $limit - (int) $row['accepted_count']);
+        $remaining = max(0, $limit - (int) $row['accepted_count']);
+        if ((int) $row['monthly_send_limit'] > 0) {
+            $remaining = min($remaining, max(0, (int) $row['monthly_send_limit'] - (int) $row['accepted_count'] - (int) $row['transactional_accepted_count']));
+        }
+        return $remaining;
     }
 
     /** @return array<string, mixed> */
@@ -800,11 +821,42 @@ final class MarketingDispatchService
     private function markDeliveryFailed(TenantContext $context, string $queueItemId, string $message): void
     {
         $pdo = $this->entityManager->getPDO();
-        $delivery = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET status='failed',attempt_count=attempt_count+1,last_error=?,reconciled_at=NOW(6),modified_at=NOW(6) WHERE tenant_id=? AND service_id=? AND email_queue_item_id=?");
-        $delivery->execute([mb_substr($message, 0, 1000), $context->tenantId, $context->serviceId, $queueItemId]);
-        $usage = $pdo->prepare("UPDATE nexa_marketing_monthly_usage SET accepted_count=GREATEST(accepted_count-1,0) WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01')");
-        $usage->execute([$context->tenantId, $context->serviceId]);
-        $this->markQueueFailed($context, $queueItemId, $message);
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $this->releaseReservation($context, $queueItemId);
+            $delivery = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET status='failed',attempt_count=attempt_count+1,last_error=?,reconciled_at=NOW(6),modified_at=NOW(6) WHERE tenant_id=? AND service_id=? AND email_queue_item_id=? AND status='submitting' AND provider_message_id IS NULL");
+            $delivery->execute([mb_substr($message, 0, 1000), $context->tenantId, $context->serviceId, $queueItemId]);
+            if ($delivery->rowCount() === 1) $this->markQueueFailed($context, $queueItemId, $message);
+            if ($ownsTransaction) $pdo->commit();
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
+    }
+
+    private function releaseReservation(TenantContext $context, string $queueItemId): void
+    {
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) $pdo->beginTransaction();
+        try {
+            $query = $pdo->prepare("SELECT usage_class,reserved_usage_month,created_at FROM nexa_marketing_delivery_message WHERE tenant_id=? AND service_id=? AND email_queue_item_id=? AND status='submitting' AND reservation_released_at IS NULL AND provider_message_id IS NULL FOR UPDATE");
+            $query->execute([$context->tenantId, $context->serviceId, $queueItemId]);
+            $message = $query->fetch(PDO::FETCH_ASSOC);
+            if ($message) {
+                $column = $message['usage_class'] === 'transactional' ? 'transactional_accepted_count' : 'accepted_count';
+                $month = $message['reserved_usage_month'] ?: $message['created_at'];
+                $pdo->prepare("UPDATE nexa_marketing_monthly_usage SET {$column}=GREATEST({$column}-1,0) WHERE tenant_id=? AND service_id=? AND usage_month=DATE_FORMAT(?,'%Y-%m-01')")
+                    ->execute([$context->tenantId, $context->serviceId, $month]);
+                $pdo->prepare('UPDATE nexa_marketing_delivery_message SET reservation_released_at=NOW(6) WHERE tenant_id=? AND service_id=? AND email_queue_item_id=?')
+                    ->execute([$context->tenantId, $context->serviceId, $queueItemId]);
+            }
+            if ($ownsTransaction) $pdo->commit();
+        } catch (\Throwable $error) {
+            if ($ownsTransaction && $pdo->inTransaction()) $pdo->rollBack();
+            throw $error;
+        }
     }
 
     /** @param array<string, mixed> $payload */

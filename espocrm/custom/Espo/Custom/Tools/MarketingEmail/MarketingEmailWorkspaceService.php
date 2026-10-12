@@ -364,7 +364,10 @@ final class MarketingEmailWorkspaceService
         $this->conditionalContent->validate($subject, $bodyHtml);
         $this->parameters->schema($subject, $bodyHtml, (string) ($input->preheader ?? ''));
         $deliveryMode = $input->deliveryMode ?? 'campaign';
-        if (!is_string($deliveryMode) || !in_array($deliveryMode, ['campaign', 'transactional', 'single_send'], true)) {
+        if ($deliveryMode === 'transactional') {
+            throw new BadRequest('Transactional delivery is not available yet. Use governed marketing delivery until its purpose and allowance policy is configured.');
+        }
+        if (!is_string($deliveryMode) || !in_array($deliveryMode, ['campaign', 'single_send'], true)) {
             throw new BadRequest('Choose a supported email delivery mode.');
         }
         $campaignId = trim((string) ($input->campaignId ?? ''));
