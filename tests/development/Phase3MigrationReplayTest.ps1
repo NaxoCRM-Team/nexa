@@ -89,10 +89,14 @@ VALUES ('phase3case0000001','phase3owner000001','Case',0,'30000000-0000-4000-800
     Invoke-SqlFile $caseMigration $upgradeDatabase
     Assert-Scalar $upgradeDatabase 'SELECT COUNT(*) FROM `case` WHERE id=''phase3case0000001'' AND name=''Existing Phase 3 Case'';' '1' 'Incremental migration changed or removed the existing Case.'
     Assert-Scalar $upgradeDatabase 'SELECT COUNT(*) FROM `case` WHERE id=''phase3case0000001'' AND assigned_user_id=''phase3owner000001'' AND sla_policy_id IS NOT NULL AND first_response_due_at IS NOT NULL AND resolution_due_at IS NOT NULL;' '1' 'Incremental migration did not reconcile ownership and SLA deadlines.'
-    Assert-Scalar $upgradeDatabase "SELECT COUNT(*) FROM nexa_case_sla_policy WHERE tenant_id='30000000-0000-4000-8000-000000000001';" '4' 'Incremental migration did not create the four tenant SLA policies.'
+    $crmPolicies = "SELECT COUNT(*) FROM nexa_case_sla_policy WHERE tenant_id='30000000-0000-4000-8000-000000000001' AND service_id='20000000-0000-4000-8000-000000000001';"
+    Assert-Scalar $upgradeDatabase $crmPolicies '4' 'Incremental migration did not create the four CRM-service SLA policies.'
+    $invalidPolicyGroups = "SELECT COUNT(*) FROM (SELECT ts.tenant_id,ts.service_id FROM nexa_tenant_service ts LEFT JOIN nexa_case_sla_policy p ON p.tenant_id=ts.tenant_id AND p.service_id=ts.service_id WHERE ts.status='active' GROUP BY ts.tenant_id,ts.service_id HAVING COUNT(p.id)<>4 OR COUNT(DISTINCT p.priority)<>4) invalid_groups;"
+    Assert-Scalar $upgradeDatabase $invalidPolicyGroups '0' 'Incremental migration omitted or duplicated a service-owned SLA policy group.'
 
     Invoke-SqlFile $caseMigration $upgradeDatabase
-    Assert-Scalar $upgradeDatabase "SELECT COUNT(*) FROM nexa_case_sla_policy WHERE tenant_id='30000000-0000-4000-8000-000000000001';" '4' 'Case migration replay duplicated tenant SLA policies.'
+    Assert-Scalar $upgradeDatabase $crmPolicies '4' 'Case migration replay duplicated CRM-service SLA policies.'
+    Assert-Scalar $upgradeDatabase $invalidPolicyGroups '0' 'Case migration replay duplicated service-owned SLA policy groups.'
     Assert-Scalar $upgradeDatabase 'SELECT COUNT(*) FROM `case` WHERE id=''phase3case0000001'';' '1' 'Case migration replay duplicated or removed the existing Case.'
 
     Write-Host 'Phase 3 clean-install and incremental migration replay passed.' -ForegroundColor Green
