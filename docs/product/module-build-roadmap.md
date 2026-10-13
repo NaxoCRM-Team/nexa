@@ -181,6 +181,8 @@ Implementation status and fixed remaining acceptance checklist: [Phase 6 closure
 
 ### Phase 7 - Scoring, Personalization and ABM
 
+Status, 12 October 2026: in progress. The first native-record scoring-model foundation is implemented locally; see [delivered scope and remaining packages](../development/phase-7-scoring-foundation.md). This is not the Phase 7 exit gate.
+
 **Modules:** M13
 
 - Build explainable contact, company and deal scoring models.

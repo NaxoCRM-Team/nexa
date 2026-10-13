@@ -38,6 +38,8 @@ final class MarketingEmailWorkspaceService
         private MarketingParameterTemplate $parameters,
         private MarketingContentIntegrity $contentIntegrity,
         private MarketingIntegrationAccess $integrationAccess,
+        private TransactionalEmailPolicy $transactionalPolicy,
+        private \Espo\Core\FieldValidation\FieldValidationManager $fieldValidation,
     ) {}
 
     public function designerImages(?string $id = null): array
@@ -125,6 +127,7 @@ final class MarketingEmailWorkspaceService
                 'attachments' => $this->acl->checkField('EmailTemplate', 'attachments') && $this->acl->checkField('EmailTemplate', 'attachments', Table::ACTION_EDIT),
             ],
             'delivery' => $delivery,
+            'transactionalPolicy' => $this->user->isAdmin() ? $this->delivery->getSettings()['transactionalPolicy'] : null,
             'usage' => $this->user->isAdmin() ? $this->delivery->usage() : null,
             'deliveryEnabled' => $delivery['ready'],
             'deliveryMessage' => $delivery['ready'] ? 'Delivery prerequisites are ready.' : 'Scheduling unlocks after a verified sending domain and marketing delivery provider are configured.',
@@ -197,13 +200,15 @@ final class MarketingEmailWorkspaceService
                     'name' => $data['name'], 'subject' => $data['subject'], 'body' => $data['bodyHtml'],
                     'isHtml' => true, 'oneOff' => false, 'attachmentsIds' => $attachmentIds,
                 ], CreateParams::create());
-                $massEmail = $this->recordServices->get('MassEmail')->create((object) [
+                $massData = (object) [
                     'name' => $data['name'], 'status' => 'Draft', 'startAt' => $data['startAt'],
                     'emailTemplateId' => $template->getId(), 'campaignId' => $data['campaignId'],
                     'targetListsIds' => $data['audienceIds'], 'excludingTargetListsIds' => $data['exclusionIds'],
                     'fromAddress' => $data['fromAddress'], 'fromName' => $data['fromName'],
                     'replyToAddress' => $data['replyToAddress'], 'replyToName' => $data['replyToName'],
-                ], CreateParams::create());
+                ];
+                $massEmail = $data['deliveryMode'] === 'transactional' ? $this->saveTransactionalNative($massData)
+                    : $this->recordServices->get('MassEmail')->create($massData, CreateParams::create());
                 // The ORM repository may run as the system worker even with actor-bound record services.
                 foreach ([$template, $massEmail] as $created) {
                     if ($created->get('createdById') === $this->user->getId()) continue;
@@ -226,13 +231,15 @@ final class MarketingEmailWorkspaceService
                 $templateId = (string) $profile['email_template_id'];
                 $version = (int) $profile['version_number'] + 1;
                 $this->recordServices->get('EmailTemplate')->update($templateId, (object) ['name' => $data['name'], 'subject' => $data['subject'], 'body' => $data['bodyHtml'], 'attachmentsIds' => $attachmentIds], UpdateParams::create());
-                $this->recordServices->get('MassEmail')->update($nativeId, (object) [
+                $massData = (object) [
                     'name' => $data['name'], 'status' => 'Draft', 'startAt' => $data['startAt'],
                     'campaignId' => $data['campaignId'], 'targetListsIds' => $data['audienceIds'],
                     'excludingTargetListsIds' => $data['exclusionIds'], 'fromAddress' => $data['fromAddress'],
                     'fromName' => $data['fromName'], 'replyToAddress' => $data['replyToAddress'],
                     'replyToName' => $data['replyToName'],
-                ], UpdateParams::create());
+                ];
+                if ($data['deliveryMode'] === 'transactional') $this->saveTransactionalNative($massData, $nativeId);
+                else $this->recordServices->get('MassEmail')->update($nativeId, $massData, UpdateParams::create());
                 $update = $pdo->prepare("UPDATE nexa_marketing_email_profile SET delivery_mode=?,lifecycle_status='draft',purpose_id=?,preheader=?,version_number=?,submitted_by_id=NULL,submitted_at=NULL,approved_by_id=NULL,approved_at=NULL,modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=?");
                 $update->execute([$data['deliveryMode'], $data['purposeId'], $data['preheader'], $version, $this->user->getId(), $id, $context->tenantId, $context->serviceId]);
             }
@@ -247,6 +254,28 @@ final class MarketingEmailWorkspaceService
         }
 
         return ['id' => $id, 'massEmailId' => $nativeId, 'version' => $version, 'created' => $isNew];
+    }
+
+    /** Only the native audience-required check differs for operational single recipients. */
+    private function saveTransactionalNative(stdClass $data, ?string $id = null): \Espo\Modules\Crm\Entities\MassEmail
+    {
+        $action = $id === null ? Table::ACTION_CREATE : Table::ACTION_EDIT;
+        if (!$this->user->isAdmin() || !$this->acl->checkScope('MassEmail', $action) || $data->campaignId !== null || $data->targetListsIds !== []) throw new Forbidden('Transactional template persistence is not allowed.');
+        foreach (['name','startAt','emailTemplate','campaign','targetLists','excludingTargetLists','fromAddress','fromName','replyToAddress','replyToName'] as $field) {
+            if (!$this->acl->checkField('MassEmail', $field, Table::ACTION_EDIT)) throw new Forbidden('Transactional template field editing is not allowed.');
+        }
+        $entity = $id === null ? $this->entityManager->getNewEntity('MassEmail') : $this->entityManager->getEntityById('MassEmail', $id);
+        if (!$entity instanceof \Espo\Modules\Crm\Entities\MassEmail || !$this->acl->checkEntity($entity, Table::ACTION_EDIT)) throw new Forbidden('Transactional template editing is not allowed.');
+        $entity->set($data);
+        if ($id === null) $entity->set('createdById', $this->user->getId());
+        $params = (new \Espo\Core\FieldValidation\FieldValidationParams())->withTypeSkipFieldList('required', ['targetLists']);
+        $this->fieldValidation->process($entity, $data, $params);
+        $this->entityManager->saveEntity($entity);
+        foreach (['targetLists','excludingTargetLists'] as $relationName) {
+            $relation = $this->entityManager->getRDBRepository('MassEmail')->getRelation($entity, $relationName);
+            foreach ($relation->find() as $related) $relation->unrelate($related);
+        }
+        return $entity;
     }
 
     /** A grant authorizes only a derived copy, never arbitrary workspace edits or approval. */
@@ -269,12 +298,17 @@ final class MarketingEmailWorkspaceService
         $this->attachments->approvedFiles($source,$template,true);
         $this->images->requireApproved($source,$template);
         $images = $this->images->manifest($resolved['bodyHtml']);
-        $campaign = $this->campaign($context,(string) $mass->get('campaignId'));
-        if ($campaign['workflow_status'] !== 'active' || $campaign['purpose_id'] !== $source['purpose_id'] || !$source['approved_by_id'] || !$source['approved_at']) throw new BadRequest('The source approval or campaign is no longer available.');
+        if ($source['delivery_mode'] === 'transactional') {
+            $this->transactionalPolicy->requirePurpose($context, (string) $source['purpose_id']);
+        } else {
+            $campaign = $this->campaign($context,(string) $mass->get('campaignId'));
+            if ($campaign['workflow_status'] !== 'active' || $campaign['purpose_id'] !== $source['purpose_id']) throw new BadRequest('The source campaign is no longer available.');
+        }
+        if (!$source['approved_by_id'] || !$source['approved_at']) throw new BadRequest('The source approval is no longer available.');
         $data = [
             'name'=>mb_substr((string) $mass->get('name') . ' / ' . substr($requestHash,0,12),0,255),
             'subject'=>$resolved['subject'],'bodyHtml'=>$resolved['bodyHtml'],'bodyText'=>null,'preheader'=>$resolved['preheader'] ?: null,
-            'campaignId'=>$mass->get('campaignId'),'purposeId'=>$source['purpose_id'],'deliveryMode'=>'single_send',
+            'campaignId'=>$mass->get('campaignId'),'purposeId'=>$source['purpose_id'],'deliveryMode'=>$source['delivery_mode'] === 'transactional' ? 'transactional' : 'single_send',
             'fromAddress'=>$mass->get('fromAddress'),'fromName'=>$mass->get('fromName'),
             'replyToAddress'=>$mass->get('replyToAddress'),'replyToName'=>$mass->get('replyToName'),
         ];
@@ -296,8 +330,8 @@ final class MarketingEmailWorkspaceService
         ]);
         $this->entityManager->saveEntity($native);
         $id = $this->uuid();
-        $pdo->prepare("INSERT INTO nexa_marketing_email_profile (id,tenant_id,service_id,mass_email_id,delivery_mode,lifecycle_status,purpose_id,preheader,version_number,created_by_id,modified_by_id,approved_by_id,approved_at) VALUES (?,?,?,?,'single_send','approved',?,?,1,?,?,?,?)")
-            ->execute([$id,$context->tenantId,$context->serviceId,$native->getId(),$data['purposeId'],$data['preheader'],$this->user->getId(),$this->user->getId(),$source['approved_by_id'],$source['approved_at']]);
+        $pdo->prepare("INSERT INTO nexa_marketing_email_profile (id,tenant_id,service_id,mass_email_id,delivery_mode,lifecycle_status,purpose_id,preheader,version_number,created_by_id,modified_by_id,approved_by_id,approved_at) VALUES (?,?,?,?,?,'approved',?,?,1,?,?,?,?)")
+            ->execute([$id,$context->tenantId,$context->serviceId,$native->getId(),$data['deliveryMode'],$data['purposeId'],$data['preheader'],$this->user->getId(),$this->user->getId(),$source['approved_by_id'],$source['approved_at']]);
         $this->insertVersion($context,$id,1,$copy->getId(),$data);
         $files = $this->attachments->manifest($this->attachments->templateIds($copy));
         $evidence = ['sourceId'=>$sourceId,'sourceVersion'=>$version,'sourceApprovedById'=>$source['approved_by_id'],'sourceApprovedAt'=>$source['approved_at'],'requestHash'=>$requestHash,'parameterFingerprint'=>$resolved['fingerprint'],'attachments'=>$files,'images'=>$images,'approvalInherited'=>true];
@@ -329,6 +363,7 @@ final class MarketingEmailWorkspaceService
             $manifest = [];
             $imageManifest = [];
             if ($action === 'approve') {
+                if ($profile['delivery_mode'] === 'transactional') $this->transactionalPolicy->requirePurpose($context, (string) $profile['purpose_id']);
                 $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
                 if (!$template instanceof \Espo\Entities\EmailTemplate) throw new NotFound('Email template not found.');
                 $this->contentIntegrity->requireSnapshot($profile, $template);
@@ -364,21 +399,25 @@ final class MarketingEmailWorkspaceService
         $this->conditionalContent->validate($subject, $bodyHtml);
         $this->parameters->schema($subject, $bodyHtml, (string) ($input->preheader ?? ''));
         $deliveryMode = $input->deliveryMode ?? 'campaign';
-        if ($deliveryMode === 'transactional') {
-            throw new BadRequest('Transactional delivery is not available yet. Use governed marketing delivery until its purpose and allowance policy is configured.');
-        }
-        if (!is_string($deliveryMode) || !in_array($deliveryMode, ['campaign', 'single_send'], true)) {
+        if (!is_string($deliveryMode) || !in_array($deliveryMode, ['campaign', 'single_send', 'transactional'], true)) {
             throw new BadRequest('Choose a supported email delivery mode.');
         }
         $campaignId = trim((string) ($input->campaignId ?? ''));
-        $campaign = $this->campaign($context, $campaignId);
-        $purposeId = trim((string) ($input->purposeId ?? $campaign['purpose_id'] ?? ''));
-        if ($purposeId === '' || $purposeId !== (string) $campaign['purpose_id']) throw new BadRequest('Use the email consent purpose configured for the selected campaign.');
+        if ($deliveryMode === 'transactional') {
+            if ($campaignId !== '') throw new BadRequest('Transactional templates must not use a marketing campaign audience.');
+            $purposeId = trim((string) ($input->purposeId ?? ''));
+            $this->transactionalPolicy->requirePurpose($context, $purposeId);
+            $campaign = ['audience_ids_json'=>'[]', 'exclusion_ids_json'=>'[]'];
+        } else {
+            $campaign = $this->campaign($context, $campaignId);
+            $purposeId = trim((string) ($input->purposeId ?? $campaign['purpose_id'] ?? ''));
+            if ($purposeId === '' || $purposeId !== (string) $campaign['purpose_id']) throw new BadRequest('Use the email consent purpose configured for the selected campaign.');
+        }
         return [
             'name' => mb_substr($name, 0, 255), 'subject' => mb_substr($subject, 0, 255),
             'preheader' => ($value = trim((string) ($input->preheader ?? ''))) !== '' ? mb_substr($value, 0, 255) : null,
             'bodyHtml' => $bodyHtml, 'bodyText' => trim((string) ($input->bodyText ?? '')) ?: null,
-            'campaignId' => $campaignId, 'purposeId' => $purposeId,
+            'campaignId' => $campaignId ?: null, 'purposeId' => $purposeId,
             'audienceIds' => $this->decodeIds($campaign['audience_ids_json']),
             'exclusionIds' => $this->decodeIds($campaign['exclusion_ids_json']),
             'deliveryMode' => $deliveryMode,
@@ -454,7 +493,7 @@ final class MarketingEmailWorkspaceService
     /** @return array<int, array<string, mixed>> */
     private function purposes(TenantContext $context): array
     {
-        $statement = $this->entityManager->getPDO()->prepare("SELECT id,name,policy_version AS policyVersion FROM nexa_consent_purpose WHERE tenant_id=? AND service_id=? AND is_active=1 AND JSON_CONTAINS(channels_json, JSON_QUOTE('email')) ORDER BY position,name");
+        $statement = $this->entityManager->getPDO()->prepare("SELECT id,name,purpose_key AS purposeKey,is_system AS isSystem,policy_version AS policyVersion FROM nexa_consent_purpose WHERE tenant_id=? AND service_id=? AND is_active=1 AND JSON_CONTAINS(channels_json, JSON_QUOTE('email')) ORDER BY position,name");
         $statement->execute([$context->tenantId, $context->serviceId]);
         return $statement->fetchAll(PDO::FETCH_ASSOC);
     }

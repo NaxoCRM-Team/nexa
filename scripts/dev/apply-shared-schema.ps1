@@ -86,7 +86,7 @@ try {
     Assert-NexaMariaDbVersion $serverVersion 'MariaDB server' | Out-Null
 
     if ($InitializeBaseSchema) {
-        $tableCount = @((Invoke-Query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$Database';"))
+        $tableCount = @((Invoke-Query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$Database';"))[0]
         if ([int] $tableCount -ne 0) {
             throw "Base-schema initialization requires an empty database."
         }

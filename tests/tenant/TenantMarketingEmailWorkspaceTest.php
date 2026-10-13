@@ -68,7 +68,7 @@ try {
     try {
         $store->runWith($tenantA, fn () => $factory->create(MarketingEmailWorkspaceService::class)->save((object) [
             'name' => 'Unsupported transactional draft',
-            'campaignId' => $campaign['id'],
+            'campaignId' => '',
             'purposeId' => $purposeId,
             'subject' => 'Not a transactional policy',
             'bodyHtml' => '<p>Test</p>',
@@ -76,14 +76,14 @@ try {
             'deliveryMode' => 'transactional',
         ]));
     } catch (\Espo\Core\Exceptions\BadRequest $error) {
-        $blocked = str_contains($error->getMessage(), 'Transactional delivery is not available');
+        $blocked = str_contains($error->getMessage(), 'Customer service');
     }
-    $assert($blocked, 'A transactional label must not silently create a marketing send.');
+    $assert($blocked, 'A transactional label must not reuse a marketing purpose.');
 
     $dispatch = $factory->create(\Espo\Custom\Tools\MarketingEmail\MarketingDispatchService::class);
     foreach (['eligibleRecipient', 'eligibleRecipients'] as $methodName) {
         $method = new ReflectionMethod($dispatch, $methodName);
-        foreach (['transactional', 'unknown', null] as $mode) {
+        foreach (['unknown', null] as $mode) {
             $blocked = false;
             try {
                 $arguments = [$tenantA, ['delivery_mode' => $mode]];

@@ -106,6 +106,12 @@ final class WorkflowDefinition
                     if ($node['pollSeconds'] > $node['timeoutSeconds']) $this->fail('Check interval exceeds the wait timeout.');
                 }
                 break;
+            case 'ab_split':
+                $this->keys($node, ['id','type','weightA','yes','no']);
+                $this->integer($node['weightA'] ?? null,1,99,'Variant A percentage');
+                $this->required($node,['yes','no']);
+                if ($node['yes'] === $node['no']) $this->fail('An A/B split needs two different branches.');
+                break;
             case 'business_hours':
                 $this->keys($node, ['id', 'type', 'timezone', 'weekdays', 'start', 'end', 'next']);
                 $this->required($node, ['next']);
@@ -229,7 +235,7 @@ final class WorkflowDefinition
 
     private function edges(array $node): array
     {
-        return match ($node['type']) {'end' => [], 'branch', 'wait_condition' => [$node['yes'], $node['no']], default => [$node['next']]};
+        return match ($node['type']) {'end' => [], 'branch', 'wait_condition', 'ab_split' => [$node['yes'], $node['no']], default => [$node['next']]};
     }
 
     private function keys(array $input, array $allowed): void

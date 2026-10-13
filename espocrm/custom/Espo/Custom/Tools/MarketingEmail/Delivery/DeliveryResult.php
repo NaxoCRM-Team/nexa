@@ -10,5 +10,6 @@ final readonly class DeliveryResult
         public string $providerMessageId,
         public ?string $providerToken,
         public string $status = 'submitted',
+        public ?int $providerRecordId = null,
     ) {}
 }

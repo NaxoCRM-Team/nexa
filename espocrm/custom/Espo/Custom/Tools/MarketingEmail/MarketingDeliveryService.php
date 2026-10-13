@@ -43,6 +43,7 @@ final class MarketingDeliveryService
         $purpose = $purposeQuery->fetch(PDO::FETCH_ASSOC);
         $purposeAvailable = $purpose && in_array('email', json_decode((string) $purpose['channels_json'], true) ?: [], true)
             && in_array($purpose['default_legal_basis'], ['PerformanceOfContract', 'FreelyGivenConsent'], true);
+        $transactionalLimit = MarketingAllowance::transactionalLimit($this->entityManager->getPDO(), $context, (int) ($provider['monthlySendLimit'] ?? 0));
 
         return [
             'provider' => $provider,
@@ -54,7 +55,8 @@ final class MarketingDeliveryService
             ],
             'callbackPath' => '/api/v1/Nexa/public/marketing-delivery/postal/{callback-token}',
             'transactionalPolicy' => [
-                'deliveryEnabled' => false,
+                'deliveryEnabled' => $purposeAvailable && $transactionalLimit > 0 && $provider !== null
+                    && $provider['status'] !== 'disabled' && $provider['hasCredential'] && $readyDomains > 0,
                 'purpose' => $purposeAvailable ? [
                     'id' => $purpose['id'], 'name' => $purpose['name'],
                     'defaultLegalBasis' => $purpose['default_legal_basis'],
@@ -63,9 +65,7 @@ final class MarketingDeliveryService
                     ['status' => 'granted', 'legalBasis' => 'FreelyGivenConsent'],
                     ['status' => 'not_required', 'legalBasis' => 'PerformanceOfContract'],
                 ],
-                'monthlyLimit' => MarketingAllowance::transactionalLimit(
-                    $this->entityManager->getPDO(), $context, (int) ($provider['monthlySendLimit'] ?? 0)
-                ),
+                'monthlyLimit' => $transactionalLimit,
             ],
         ];
     }

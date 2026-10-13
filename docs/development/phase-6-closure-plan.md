@@ -1,8 +1,8 @@
 # Phase 6 Closure Plan
 
-Audit: 10 October 2026. Phase 6 is open. This is the canonical remaining-work checklist for M10, M12 and the email part of M23. The [delivery ledger](phase-6-delivery-status.md) retains historical implementation and test evidence; it is not a completion certificate.
+Audit: 12 October 2026. Local implementation packages are delivered with the acceptance evidence below. Phase 6 remains open for public transport acceptance. This is the canonical checklist for M10, M12 and the email part of M23. The [delivery ledger](phase-6-delivery-status.md) retains historical implementation and test evidence.
 
-This audit inspected repository code and documentation. It did not run new acceptance tests. Existing focused passes and an earlier complete verification pass do not establish acceptance of the latest working tree.
+The 12 October review includes native repository verification, clean and incremental installation through migration 0078, responsive/accessibility tests, authenticated workflow callbacks and actual local Postal capture for email experiments and transactional/programmable sends. Older pending statements below are historical and superseded by the current checklist and dated evidence. Local acceptance is not public DNS, HTTPS webhook or external-inbox proof.
 
 ## Delivered Baseline
 
@@ -28,33 +28,30 @@ Unchecked means incomplete or unverified, not necessarily absent. Finish and ver
 ### A - Complete Automation
 
 - [x] **A01 Visual builder:** connected journey canvas, branching, ordering, validation, publication and accessible desktop/mobile operation. Immutable runtime definitions are preserved; responsive regressions and real authenticated builder-to-worker acceptance passed on 11 October.
-- [ ] **A02 Enrollment:** complete record-created/updated/field-changed, segment-enter/leave, activity-completed, stage/lifecycle, score threshold, date, email-open/click and authenticated API/webhook trigger families. Apply tenant/service/ACL filters before enrollment; persist deduplicated receipts and explicit reenrollment policies.
-- [ ] **A03 Conditions and timing:** cover associated Company/Opportunity/customer state, segments, campaign behavior, multi-branch decisions and bounded multi-event conditions promised in the ledger. Retain existing date/count/page rules. Verify wait-until-date, condition polling, timezone/business-hour boundaries and changing records.
-- [ ] **A04 Actions:** complete governed scoring adapters, configured webhooks, team notifications, tags, approved native record/field/status and associated-record updates, and form/event action connections. Reuse native CRM validation, ownership, SLA and permissions. Define guarded external-CRM/omnichannel adapter contracts; do not advertise unavailable providers as executable.
-- [ ] **A05 Execution safety:** implement external-effect leases/attempt history, bounded retries, timeout/uncertain-state reconciliation, cancellation races, plan quotas, concurrency limits and demonstrable tenant fairness. Prove restart/replay cannot duplicate native writes or external effects.
-- [ ] **A06 Email bindings:** add validated Contact/custom-property runtime parameter bindings to approved workflow email sources, retaining delivery-time approval, consent, suppression, sender and allowance checks.
+- [x] **A02 Enrollment:** Contact record/field, segment, activity completion, Opportunity stage, lifecycle, score crossing, date, email open/click and administrator-authenticated API sources are implemented with scoped receipts and reenrollment rules. Catalogue-wide authorization and revoked execution identity checks passed. Generic custom-property-change enrollment is not advertised.
+- [x] **A03 Conditions and timing:** associated Company/Opportunity state, segments, campaign behavior, grouped branches, bounded ordered events, date waits, polling and timezone/business-hour boundaries passed native tests.
+- [x] **A04 Actions:** governed scoring, tags, native record/field/status updates, team notifications, associated records and managed webhook adapters reuse native validation and ACL. Publication and execution permission checks passed. Live public webhook transport remains P, not a local claim.
+- [x] **A05 Execution safety:** leases, attempts, bounded retries, uncertainty holds, cancellation races, quotas, concurrency, restart/replay and tenant fairness have local native and authenticated acceptance. No external delivery is inferred from synthetic lease tests.
+- [x] **A06 Email bindings:** Contact/custom-property parameters remain approved, validated and governed. The actual authenticated workflow-to-Postal-to-callback-to-native-action scenario passed on desktop/mobile.
 
 The 11 October implementation adds `opportunity.stage_changed`, `activity.completed`, tenant custom-property `date.reached` and administrator-authenticated `api.event` enrollment to the existing events. Record-created/updated events remain Contact-subject events, not a claim that every CRM object can enroll independently. Native Contact field changes remain distinct from tenant custom-property writes. Executable actions also include bounded scoring, tags, approved native Contact/Account/Opportunity updates, team notification and managed native webhook delivery. Publication and execution recheck native ACL, scope and configuration. The progress/evidence section below records acceptance limits; catalogue availability alone is not acceptance.
 
 ### E - Complete Email Modes And API
 
-- [ ] **E01 Transactional mode:** establish explicit purpose/legal-basis and suppression rules, approved templates, separate allowance semantics, UI/API and delivery-time enforcement. The existing `transactional` label does not implement this policy; do not bypass marketing consent by relabeling a send.
-  Safety preparation: the draft API now rejects the unsupported transactional label, and recipient selection, provider tests and final dispatch reject unsupported persisted modes. Existing records are not deleted or relabeled. This closes misleading label acceptance, not E01; transactional purpose designation, separate quota accounting and the complete UI/API/worker path still need implementation.
-  Entitlement preparation: delivery settings now expose a disabled transactional policy using the existing tenant-owned system Customer service purpose, with conservative explicit consent/basis pairs. Inactive purposes, unsupported channels and unsupported default bases are excluded. `email.transactional` uses existing plan and tenant entitlements as a direct monthly message limit, not a marketing-contact multiplier; missing, disabled, expired or zero grants produce zero capacity, and the provider cap still applies. No grants are automatically provisioned. Native rollback tests cover scope, overrides, provider ceilings and purpose validation; marketing dispatch regression remains passing. Separate usage reservations, approved-template designation, recipient evidence validation, UI and final worker integration remain pending, so sending is still disabled and E01 stays open.
-  Reservation preparation: additive migration `0074` extends the existing monthly ledger with transactional counters and stores the bucket/month on each delivery message. Native queue claims reserve once, shared provider ceilings include both buckets, uncertain submissions retain capacity, and confirmed non-acceptance releases the original bucket/month once. New callbacks use the reservation month and do not double-count bounce-to-complaint failure transitions; legacy receipts retain their previous accounting convention. Focused rollback tests cover replay, caps, scope, uncertainty, releases and late callbacks. Public transactional sends remain disabled until approved-template designation, recipient evidence checks and the UI/API/worker path are complete. This reservation boundary is not E01 delivery acceptance.
+- [x] **E01 Transactional mode:** native approved templates, tenant Customer service purpose, canonical consent/contract evidence, suppression, separate explicit entitlements and reservation buckets, UI/API and final worker enforcement are implemented. Real non-marketing, unenrolled Contact delivery passed through local Postal. See [transactional/recovery acceptance](phase-6-transactional-recovery-acceptance.md).
 - [x] **E02 Programmable acceptance:** authenticated local HTTP submissions, validated parameters, distinct intentional-send keys, replay/conflicts, native API-key grants/revocation, scoped worker execution and actual Postal-to-Mailpit capture are verified. This is local acceptance, not public delivery proof.
-- [ ] **E03 Uncertain submissions:** automate provider evidence inspection where supported, retain safe manual review when evidence is unavailable, and prove no blind retry or premature allowance release after an uncertain submission.
+- [x] **E03 Uncertain submissions:** read-only Postal record inspection requires exact queue, sender and recipient evidence. Bounded automatic inspection and administrator inspection use native reconciliation; missing evidence retains manual review and held capacity. Actual captured submissions with a simulated lost acknowledgement reconciled without another provider attempt or SMTP message.
 
 ### X - Complete Email Experiments
 
-- [ ] **X01 Email A/B:** persist immutable approved variants, deterministic audience assignment, test sizes, measurement windows, reconciled results and explicit winner selection. Recheck consent/allowances for every send, prevent duplicate exposure, and account for unreliable open signals. Connect workflow A/B routing to persisted assignments rather than rerandomizing on replay.
+- [x] **X01 Email A/B:** immutable variants, exact deterministic audience cohorts, holdouts, measurement windows, reconciled metrics, explicit winner selection, native dispatch governance and persisted workflow A/B routing are implemented. Native isolation/recovery tests and actual desktop/mobile HTTP-worker-Postal test/winner rollout passed. See [experiment acceptance](email-experiment-acceptance.md).
 
 ### V - Combined Local Acceptance
 
-- [ ] **V01 Installation:** verify clean installation and incremental migration to the final Phase 6 schema. Add migrations only for required persisted contracts, not duplicate native tables. Do not claim rollback fixtures prove installation.
-- [ ] **V02 End-to-end:** authenticated browser/API to actual worker: enrollment, approved send, canonical callback event, deterministic branch, native CRM action and cancellation. Exercise marketing, transactional, programmable and A/B paths together.
-- [ ] **V03 Security and recovery:** test multiple tenants and services without hardcoded tenant IDs; record/field ACL; revoked consent and approval; tampered content; quotas/concurrent workers; invalid/duplicate callbacks; failed jobs; restart/replay and fair scheduling. Use real HTTP scenarios alongside existing focused fixtures.
-- [ ] **V04 Evidence:** run the combined repository suite on the final tree; record revision/worktree state, schema, commands, results and sanitized artifacts. Include real responsive/accessibility checks. Resolve failures before claiming local acceptance.
+- [x] **V01 Installation:** clean native schema plus all 78 migrations and incremental 0074-to-0078 upgrades passed, including data/counter preservation, checksums, replay, foreign keys and schema equivalence. Disposable databases were removed. See [installation acceptance](phase-6-installation-acceptance.md).
+- [x] **V02 End-to-end:** authenticated workflow/API/worker, real local marketing and transactional Postal delivery, canonical callbacks, native action, cancellation and A/B winner rollout passed. See [live closure acceptance](phase-6-live-closure-acceptance.md).
+- [x] **V03 Security and recovery:** tenant/service/record/field checks, the complete advertised trigger/action authorization matrix, revocation, quotas, concurrent workers, cancellation, callback replay and provider uncertainty have complementary native and live evidence. Public transport remains separately blocked.
+- [x] **V04 Evidence:** combined repository verification passed; responsive and WCAG checks, actual WAMP route smoke tests, local capture and installation commands/results are recorded in the linked runbooks. Delivery is tracked by GitHub issues #150-#154 and the publishing pull request; public gates remain open independently of source publication.
 
 ### P - Public Postal Acceptance
 
@@ -72,6 +69,18 @@ Full scoring models/ABM remain Phase 7; the Phase 6 scoring action/event boundar
 Do not silently remove required items or expand this checklist. Any newly discovered requirement must be mapped to an existing ID or explicitly agreed as a scope change with its roadmap owner. This plan does not claim those later phases are complete.
 
 ## Closure Rule
+
+### 12 October Local Exit Gate
+
+| Package | Current result |
+| --- | --- |
+| A01-A06 | Local implementation and acceptance complete, including the final actual desktop/mobile competing-worker and cancellation run: two passed; two public webhook scenarios explicitly skipped. |
+| E01-E03 | Local transactional, programmable and uncertainty-recovery acceptance complete: six final real HTTP/API-key/worker/Postal scenarios passed. |
+| X01 | Native experiments and persisted workflow split complete. Actual eight-Contact test/holdout/winner capture passed desktop/mobile; 20 new responsive/accessibility cases passed. |
+| V01-V04 | Clean and incremental schema acceptance through 0078, full native repository verification, final static verification and combined local live evidence recorded. |
+| P01-P02 | Externally blocked: public sending domain/DNS/TLS, external inbox, publicly reachable callbacks and an owner-approved signed HTTPS receiver are not available. |
+
+The completed local gates do not grant production readiness or close the externally blocked public gates. The 13 October delivery reconciliation separates completed local implementation from blocked public acceptance on the GitHub board. Phase 7 scoring work remains in progress, not part of the Phase 6 completion claim. Older dated entries below describe the progression to this gate and must not be treated as new pending implementation.
 
 ### 11 October Implementation And Acceptance
 

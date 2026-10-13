@@ -1,12 +1,24 @@
 # Phase 6 Delivery Status
 
-Audit date: 10 October 2026. Phase 6 remains open. This document is an implementation ledger, not an exit-gate certificate.
+Audit date: 12 October 2026. Local Phase 6 packages have acceptance evidence. Phase 6 remains open for public transport prerequisites and proof. This document is an implementation ledger; the closure plan governs acceptance.
 
 ## Completion Checklist
 
 The [Phase 6 closure plan](phase-6-closure-plan.md) is now the single authoritative remaining-work checklist. This ledger records historical increments; dated pending statements below may be superseded by later entries. Passing a focused adapter test does not complete a package.
 
-Remaining packages are A (automation), E (email modes/API), X (email experiments), V (combined local acceptance) and P (public Postal acceptance). Their fixed IDs and acceptance boundaries are maintained in the closure plan, not duplicated here. Phase 6 remains open.
+Local packages A (automation), E (email modes/API), X (email experiments) and V (combined local acceptance) are delivered with evidence in the closure plan. Package P remains externally blocked. Older pending statements below are historical, not new work to restart.
+
+## Local Closure - 12 October
+
+- Native models and workers retained; no competing email transport was introduced.
+- Transactional Customer service policy, explicit entitlements, separate reservation counters and real local delivery passed. Missing grants do not enable sending.
+- Exact read-only Postal evidence inspection reconciled held captured submissions without resending or releasing capacity prematurely.
+- Immutable email experiments, exact cohorts, holdouts, measured results, manual winner rollout and persisted workflow A/B routing are implemented and locally verified.
+- Clean and incremental installation through 0078 preserved existing records/counters; checksums, replay, ownership keys and clean/upgrade equivalence passed.
+- Combined repository verification passed. Actual authenticated workflow callbacks/native actions and experiment test/winner delivery passed desktop/mobile. Final programmable marketing, transactional and recovery capture passed all six scenarios.
+- Responsive UI evidence: 85 existing email/automation/recovery passes, plus 20 new experiment/split/accessibility passes across five viewports. The five opt-in live scenarios skipped by the UI command were verified separately using the explicit live runners.
+
+Runbooks: [transactional/recovery](phase-6-transactional-recovery-acceptance.md), [experiments](email-experiment-acceptance.md), [live combined acceptance](phase-6-live-closure-acceptance.md), [installation](phase-6-installation-acceptance.md). Source publication and board reconciliation are tracked by GitHub issues #150-#154 and the delivery pull request. Public DNS/TLS, signed public callbacks, approved HTTPS webhook receiver and external inbox evidence are not available and are not claimed complete.
 
 The governed workflow email action is implemented as a component of automation, not completion of the automation package. It reuses approved native email sources and the existing queue/dispatcher. Native queue creation, scoped send-key creation, workflow audit and advancement share the same transaction. A completed step means queued, never delivered. Source approval/version/content, sender, parameters, campaign eligibility, consent and capacity remain governed by the existing email services; delivery retries remain owned by the dispatcher. Cancellation before the action creates no send. Parameters now support fixed text or execution-time native/custom Contact-property bindings with optional missing-value fallbacks. See the closure plan for current canvas/binding evidence and the remaining package work.
 

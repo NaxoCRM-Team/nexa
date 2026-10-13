@@ -47,6 +47,8 @@ final class MarketingDispatchService
         private MarketingContentIntegrity $contentIntegrity,
         private MarketingIntegrationAccess $integrationAccess,
         private MarketingConditionalContentService $conditionalContent,
+        private TransactionalEmailPolicy $transactionalPolicy,
+        private \Espo\Custom\Tools\PublicAccess\PublicRequestLimiter $inspectionLimiter,
     ) {}
 
     /** @return array{id:string,status:string,eligibleCount:int,scheduledAt:string} */
@@ -57,7 +59,7 @@ final class MarketingDispatchService
         }
         $context = $this->tenantContextStore->require();
         $profile = $this->profile($context, $profileId, true);
-        if ($profile['delivery_mode'] === 'single_send') throw new BadRequest('Use the single-send API to select exactly one Contact.');
+        if (in_array($profile['delivery_mode'], ['single_send', 'transactional'], true)) throw new BadRequest('Use the single-send API to select exactly one Contact.');
         if ($profile['lifecycle_status'] !== 'approved') {
             throw new BadRequest('Approve this marketing email before scheduling it.');
         }
@@ -87,6 +89,9 @@ final class MarketingDispatchService
             $pdo->beginTransaction();
         }
         try {
+            $tenantLock = $pdo->prepare('SELECT id FROM nexa_tenant WHERE id=? FOR UPDATE');
+            $tenantLock->execute([$context->tenantId]);
+            $this->requireExperimentDispatch($context, $profileId, (int) $profile['version_number']);
             $update = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='scheduled',modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status='approved'");
             $update->execute([$this->user->getId(), $profileId, $context->tenantId, $context->serviceId]);
             if ($update->rowCount() !== 1) {
@@ -126,6 +131,47 @@ final class MarketingDispatchService
         $this->requireVerifiedSender($context, (string) $source['from_address']);
     }
 
+    /** Reuse the same current eligibility and native ACL boundary for experiments. */
+    public function experimentAudience(string $sourceId): array
+    {
+        $context = $this->tenantContextStore->require();
+        $source = $this->requireReviewAccess($context, $sourceId);
+        if ($source['delivery_mode'] !== 'campaign' || $source['lifecycle_status'] !== 'approved' || $source['campaign_status'] !== 'active') throw new BadRequest('Experiments require an approved email in an active campaign.');
+        if (!$this->acl->checkScope('Contact','read') || !$this->acl->checkField('Contact','emailAddress')) throw new Forbidden('Recipient email access is required.');
+        $recipients = [];
+        foreach ($this->eligibleRecipients($context, $source) as $recipient) {
+            $contact = $this->entityManager->getEntityById('Contact', $recipient['id']);
+            if ($contact && $this->acl->checkEntity($contact, 'read')) $recipients[] = $recipient;
+        }
+        return $recipients;
+    }
+
+    private function requireExperimentDispatch(TenantContext $context, string $sourceId, int $version, ?string $contactId = null, ?string $key = null, ?\stdClass $parameters = null): void
+    {
+        $pdo = $this->entityManager->getPDO();
+        $lock = $pdo->prepare('SELECT id,version_number FROM nexa_marketing_email_profile WHERE tenant_id=? AND service_id=? AND id=? FOR UPDATE');
+        $lock->execute([$context->tenantId,$context->serviceId,$sourceId]);
+        $lockedSource = $lock->fetch(PDO::FETCH_ASSOC);
+        if (!$lockedSource || (int) $lockedSource['version_number'] !== $version) throw new BadRequest('Use the current approved source version.');
+        $query = $pdo->prepare('SELECT x.id,x.status,x.execution_user_id FROM nexa_email_experiment_variant v INNER JOIN nexa_email_experiment x ON x.id=v.experiment_id AND x.tenant_id=v.tenant_id AND x.service_id=v.service_id WHERE v.tenant_id=? AND v.service_id=? AND v.source_profile_id=? AND v.source_version=? AND x.started_at IS NOT NULL FOR UPDATE');
+        $query->execute([$context->tenantId,$context->serviceId,$sourceId,$version]);
+        $experiment = $query->fetch(PDO::FETCH_ASSOC);
+        if (!$experiment) {
+            if ($key !== null && str_starts_with($key,'experiment:')) throw new BadRequest('This experiment assignment is unavailable.');
+            return;
+        }
+        if ($contactId === null || $key !== 'experiment:'.$experiment['id'].':'.$contactId || $experiment['execution_user_id'] !== $this->user->getId() || (array) ($parameters ?? new \stdClass())) throw new BadRequest('This source version is reserved for its experiment audience.');
+        $assignment = $pdo->prepare('SELECT a.status,a.cohort FROM nexa_email_experiment_assignment a INNER JOIN nexa_email_experiment_variant v ON v.experiment_id=a.experiment_id AND v.tenant_id=a.tenant_id AND v.service_id=a.service_id AND v.variant_key=a.variant_key WHERE a.tenant_id=? AND a.service_id=? AND a.experiment_id=? AND a.contact_id=? AND v.source_profile_id=? AND v.source_version=? FOR UPDATE');
+        $assignment->execute([$context->tenantId,$context->serviceId,$experiment['id'],$contactId,$sourceId,$version]);
+        $row = $assignment->fetch(PDO::FETCH_ASSOC);
+        if ($row && $row['status'] === 'queued') {
+            $existing = $pdo->prepare('SELECT profile_id FROM nexa_marketing_send_request WHERE tenant_id=? AND service_id=? AND request_hash=? AND source_profile_id=? AND source_version=? AND contact_id=? AND created_by_id=? FOR UPDATE');
+            $existing->execute([$context->tenantId,$context->serviceId,hash('sha256',(string) $key),$sourceId,$version,$contactId,$this->user->getId()]);
+            if ($existing->fetchColumn()) return;
+        }
+        if (!$row || $row['status'] !== 'pending' || !(($experiment['status']==='testing' && $row['cohort']==='test') || ($experiment['status']==='rollout' && $row['cohort']==='rollout'))) throw new BadRequest('This experiment assignment is not ready for delivery.');
+    }
+
     /** Reuse approved content while retaining one durable native dispatch per scoped external request key. */
     public function reusableSend(string $sourceId, string $contactId, string $key, int $version, ?\stdClass $parameters = null): array
     {
@@ -136,6 +182,8 @@ final class MarketingDispatchService
         if ($ownsTransaction) $pdo->beginTransaction();
         else $pdo->exec('SAVEPOINT nexa_reusable_send');
         try {
+            $tenantLock = $pdo->prepare('SELECT id FROM nexa_tenant WHERE id=? FOR UPDATE');
+            $tenantLock->execute([$context->tenantId]);
             if ($this->user->isAdmin()) {
                 $source = $this->requireReviewAccess($context,$sourceId);
             } else {
@@ -144,6 +192,11 @@ final class MarketingDispatchService
                 $nativeSource = $this->entityManager->getEntityById('MassEmail',$source['mass_email_id']);
                 if (!$nativeSource || !$this->acl->checkEntity($nativeSource,'read')) throw new Forbidden('The approved source is not available.');
             }
+            $contact = $this->entityManager->getEntityById('Contact',$contactId);
+            if (!$contact || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId
+                || !$this->acl->checkScope('Contact','read') || !$this->acl->checkEntity($contact,'read')) throw new NotFound('Contact not found.');
+            if (!$this->acl->checkField('Contact','emailAddress')) throw new Forbidden('Recipient email access is required.');
+            $this->requireExperimentDispatch($context, $sourceId, $version, $contactId, $key, $parameters);
             $saved = $this->workspace->versions($sourceId,$version);
             $resolved = $this->parameters->resolve($saved['subject'],$saved['bodyHtml'],(string) ($saved['preheader'] ?? ''),$parameters ?? new \stdClass());
             $hash = hash('sha256', $key);
@@ -167,7 +220,7 @@ final class MarketingDispatchService
             if ((int) $recent->fetchColumn() > 60) throw new BadRequest('This approved source has reached its 60-request-per-minute limit.');
             if ($source['campaign_status'] !== 'active' || !$this->eligibleRecipient($context,$source,$contactId)) throw new BadRequest('The Contact must be eligible and enrolled in an active campaign.');
             if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete provider and sending-domain setup before sending.');
-            $this->requireVerifiedSender($context,(string) $source['from_address']); $this->requireCapacity($context,1);
+            $this->requireVerifiedSender($context,(string) $source['from_address']); $this->requireCapacity($context,1,$source['delivery_mode'] === 'transactional');
             $template = $this->entityManager->getEntityById('EmailTemplate',$source['email_template_id']);
             $mass = $this->entityManager->getEntityById('MassEmail',$source['mass_email_id']);
             $contact = $this->entityManager->getEntityById('Contact',$contactId);
@@ -177,7 +230,7 @@ final class MarketingDispatchService
             if ($saved['subject'] !== $template->get('subject') || $saved['bodyHtml'] !== $template->get('body') || ($saved['preheader'] ?? '') !== ($source['preheader'] ?? '')) throw new BadRequest('Source content changed after approval. Save and approve it again.');
             $this->attachments->approvedFiles($source,$template,true); $this->images->requireApproved($source,$template);
             $draft = $this->user->isAdmin() ? $this->workspace->save((object) [
-                'name'=>$mass->get('name') . ' / ' . substr($hash,0,12), 'deliveryMode'=>'single_send',
+                'name'=>$mass->get('name') . ' / ' . substr($hash,0,12), 'deliveryMode'=>$source['delivery_mode'] === 'transactional' ? 'transactional' : 'single_send',
                 'campaignId'=>$source['campaign_id'], 'purposeId'=>$source['purpose_id'],
                 'subject'=>$resolved['subject'], 'bodyHtml'=>$resolved['bodyHtml'], 'preheader'=>$resolved['preheader'],
                 'fromAddress'=>$mass->get('fromAddress'), 'fromName'=>$mass->get('fromName'),
@@ -226,9 +279,10 @@ final class MarketingDispatchService
                 $profile = $this->profile($context,$id,true);
                 if ($profile['created_by_id'] !== $this->user->getId()) throw new Forbidden('This integration copy belongs to another caller.');
             }
-            if ($profile['delivery_mode'] !== 'single_send') throw new BadRequest('This email is not configured for single-send delivery.');
+            if (!in_array($profile['delivery_mode'], ['single_send', 'transactional'], true)) throw new BadRequest('This email is not configured for single-send delivery.');
             $contact = $this->entityManager->getEntityById('Contact', $contactId);
             if (!$contact || $contact->get('tenantId') !== $context->tenantId || $contact->get('serviceId') !== $context->serviceId || !$this->acl->checkScope('Contact', 'read') || !$this->acl->checkEntity($contact, 'read')) throw new NotFound('Contact not found.');
+            if (!$this->acl->checkField('Contact','emailAddress')) throw new Forbidden('Recipient email access is required.');
             $existing = $pdo->prepare("SELECT id,target_id,status FROM email_queue_item WHERE mass_email_id=? AND tenant_id=? AND service_id=? AND is_test=0 ORDER BY created_at,id LIMIT 1 FOR UPDATE");
             $existing->execute([$profile['mass_email_id'], $context->tenantId, $context->serviceId]);
             $row = $existing->fetch(PDO::FETCH_ASSOC);
@@ -242,7 +296,7 @@ final class MarketingDispatchService
             if (!$this->delivery->readiness()['ready']) throw new BadRequest('Complete provider and sending-domain setup before sending.');
             $this->requireVerifiedSender($context, (string) $profile['from_address']);
             if (!$this->eligibleRecipient($context, $profile, $contactId)) throw new BadRequest('This Contact must be enrolled, consented and eligible for email delivery.');
-            $this->requireCapacity($context, 1);
+            $this->requireCapacity($context, 1, $profile['delivery_mode'] === 'transactional');
             $template = $this->entityManager->getEntityById('EmailTemplate', $profile['email_template_id']);
             if (!$template instanceof EmailTemplate || !$this->acl->checkEntity($template, 'read')) throw new NotFound('Email template not found.');
             $this->contentIntegrity->requireSnapshot($profile, $template);
@@ -252,7 +306,7 @@ final class MarketingDispatchService
             $this->attachments->approvedFiles($profile, $template, true);
             $this->images->requireApproved($profile, $template);
             // Claim the one-shot profile atomically before creating any recipient queue item.
-            $claim = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='sending',modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status='approved' AND delivery_mode='single_send'");
+            $claim = $pdo->prepare("UPDATE nexa_marketing_email_profile SET lifecycle_status='sending',modified_by_id=?,modified_at=NOW(6) WHERE id=? AND tenant_id=? AND service_id=? AND lifecycle_status='approved' AND delivery_mode IN ('single_send','transactional')");
             $claim->execute([$this->user->getId(), $id, $context->tenantId, $context->serviceId]);
             if ($claim->rowCount() !== 1) throw new BadRequest('This single-send email has already been claimed.');
             $item = $this->entityManager->getNewEntity(EmailQueueItem::ENTITY_TYPE);
@@ -322,7 +376,7 @@ final class MarketingDispatchService
     {
         $context = $this->tenantContextStore->require();
         $profile = $this->requireReviewAccess($context, $id);
-        $query = $this->entityManager->getPDO()->prepare("SELECT d.id,d.recipient,d.status,d.provider_message_id AS providerMessageId,d.created_at AS createdAt FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.profile_id=? AND d.tenant_id=? AND d.service_id=? AND q.mass_email_id=? AND q.status='Sending' AND q.deleted=0 ORDER BY d.created_at,d.id LIMIT 100");
+        $query = $this->entityManager->getPDO()->prepare("SELECT d.id,d.recipient,d.status,d.provider_message_id AS providerMessageId,d.provider_record_id AS providerRecordId,d.created_at AS createdAt FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.profile_id=? AND d.tenant_id=? AND d.service_id=? AND q.mass_email_id=? AND q.status='Sending' AND q.deleted=0 ORDER BY d.created_at,d.id LIMIT 100");
         $query->execute([$id, $context->tenantId, $context->serviceId, $profile['mass_email_id']]);
         return ['items' => $query->fetchAll(PDO::FETCH_ASSOC)];
     }
@@ -428,6 +482,7 @@ final class MarketingDispatchService
     {
         $context = $this->tenantContextStore->require();
         $this->pauseStaleSubmissions($context);
+        $this->inspectKnownSubmissions($context);
         $statement = $this->entityManager->getPDO()->prepare("SELECT id FROM nexa_marketing_email_profile WHERE tenant_id=? AND service_id=? AND lifecycle_status IN ('scheduled','sending') ORDER BY created_at LIMIT 20");
         $statement->execute([$context->tenantId, $context->serviceId]);
         foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $profileId) {
@@ -604,8 +659,8 @@ final class MarketingDispatchService
                 attachments: $files,
             ));
             $pdo = $this->entityManager->getPDO();
-            $message = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET provider_message_id=?,provider_token=?,status='submitted',attempt_count=attempt_count+1,submitted_at=NOW(6),modified_at=NOW(6) WHERE tenant_id=? AND service_id=? AND email_queue_item_id=? AND status='submitting'");
-            $message->execute([$result->providerMessageId, $result->providerToken, $context->tenantId, $context->serviceId, $queueItemId]);
+            $message = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET provider_message_id=?,provider_token=?,provider_record_id=?,status='submitted',attempt_count=attempt_count+1,submitted_at=NOW(6),modified_at=NOW(6) WHERE tenant_id=? AND service_id=? AND email_queue_item_id=? AND status='submitting'");
+            $message->execute([$result->providerMessageId, $result->providerToken, $result->providerRecordId, $context->tenantId, $context->serviceId, $queueItemId]);
             $queue = $pdo->prepare("UPDATE email_queue_item SET status='Sent',email_address=?,attempt_count=attempt_count+1,sent_at=NOW() WHERE id=? AND tenant_id=? AND service_id=? AND status='Sending'");
             $queue->execute([$recipient['email'], $queueItemId, $context->tenantId, $context->serviceId]);
         } catch (\Throwable $e) {
@@ -614,6 +669,38 @@ final class MarketingDispatchService
             } else {
                 $this->holdUncertainSubmission($context, $profile, $queueItemId);
             }
+        }
+    }
+
+    public function inspectSubmission(string $id, string $messageId, int $recordId): array
+    {
+        $context = $this->tenantContextStore->require();
+        $profile = $this->requireReviewAccess($context, $id);
+        if ($profile['lifecycle_status'] !== 'paused') throw new BadRequest('Pause the email before inspecting an uncertain submission.');
+        $query = $this->entityManager->getPDO()->prepare("SELECT d.* FROM nexa_marketing_delivery_message d INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.id=? AND d.profile_id=? AND d.tenant_id=? AND d.service_id=? AND q.mass_email_id=? AND q.status='Sending' AND q.deleted=0");
+        $query->execute([$messageId,$id,$context->tenantId,$context->serviceId,$profile['mass_email_id']]);
+        $message = $query->fetch(PDO::FETCH_ASSOC);
+        if (!$message) throw new NotFound('Held submission not found.');
+        $this->inspectionLimiter->enforce($context->tenantId,$context->serviceId,'postal-inspection',30,60);
+        if ($message['status']==='submitting' && !str_starts_with((string) $message['last_error'],'Postal acceptance is uncertain.') && strtotime($message['modified_at'])>time()-900) throw new BadRequest('This submission is still in flight.');
+        // Inspection is a read-only provider call outside the mutation transaction.
+        $proof = $this->provider->inspect($recordId,$message['email_queue_item_id'],$message['recipient'],$profile['from_address']);
+        $result = $this->resolveSubmission($id,(object) ['messageId'=>$messageId,'decision'=>'accepted','providerMessageId'=>$proof['providerMessageId'],
+            'evidenceNote'=>'Postal API verified exact queue/sender/recipient. Record '.$recordId.'; sha256 '.$proof['evidenceHash']]);
+        return $result + $proof;
+    }
+
+    private function inspectKnownSubmissions(TenantContext $context): void
+    {
+        $pdo = $this->entityManager->getPDO();
+        $query = $pdo->prepare("SELECT d.id,d.profile_id,d.provider_record_id FROM nexa_marketing_delivery_message d INNER JOIN nexa_marketing_email_profile p ON p.id=d.profile_id AND p.tenant_id=d.tenant_id AND p.service_id=d.service_id INNER JOIN email_queue_item q ON q.id=d.email_queue_item_id AND q.tenant_id=d.tenant_id AND q.service_id=d.service_id WHERE d.tenant_id=? AND d.service_id=? AND d.provider_record_id IS NOT NULL AND p.lifecycle_status='paused' AND q.status='Sending' AND q.deleted=0 AND d.status IN ('submitting','submitted') AND (d.last_inspected_at IS NULL OR d.last_inspected_at<DATE_SUB(NOW(6),INTERVAL 5 MINUTE)) ORDER BY d.created_at LIMIT 5");
+        $query->execute([$context->tenantId,$context->serviceId]);
+        foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $message) {
+            $claim = $pdo->prepare("UPDATE nexa_marketing_delivery_message SET last_inspected_at=NOW(6),inspection_attempt_count=inspection_attempt_count+1 WHERE id=? AND tenant_id=? AND service_id=? AND (last_inspected_at IS NULL OR last_inspected_at<DATE_SUB(NOW(6),INTERVAL 5 MINUTE))");
+            $claim->execute([$message['id'],$context->tenantId,$context->serviceId]);
+            if ($claim->rowCount() !== 1) continue;
+            try { $this->inspectSubmission($message['profile_id'],$message['id'],(int) $message['provider_record_id']); }
+            catch (\Throwable) { /* Unsupported or unavailable evidence remains held for manual review. */ }
         }
     }
 
@@ -651,6 +738,22 @@ final class MarketingDispatchService
             $pdo->beginTransaction();
         }
         try {
+            $tenantLock = $pdo->prepare('SELECT id FROM nexa_tenant WHERE id=? FOR UPDATE');
+            $tenantLock->execute([$context->tenantId]);
+            if (!$isTest) {
+                $assignment = $pdo->prepare('SELECT a.status,a.recipient_sha256,x.status experiment_status FROM nexa_email_experiment_assignment a INNER JOIN nexa_email_experiment x ON x.id=a.experiment_id AND x.tenant_id=a.tenant_id AND x.service_id=a.service_id WHERE a.tenant_id=? AND a.service_id=? AND a.send_profile_id=? AND a.queue_item_id=? FOR UPDATE');
+                $assignment->execute([$context->tenantId,$context->serviceId,$profile['id'],$queueItemId]);
+                $experimentRecipient = $assignment->fetch(PDO::FETCH_ASSOC);
+                if ($experimentRecipient && $experimentRecipient['experiment_status'] === 'paused') {
+                    if ($ownsTransaction) $pdo->commit();
+                    return false;
+                }
+                if ($experimentRecipient && ($experimentRecipient['status'] !== 'queued' || $experimentRecipient['experiment_status'] === 'cancelled' || !hash_equals($experimentRecipient['recipient_sha256'],hash('sha256',mb_strtolower(trim($email)))))) {
+                    $this->markQueueFailed($context,$queueItemId,'Experiment recipient changed or delivery was cancelled before submission.');
+                    if ($ownsTransaction) $pdo->commit();
+                    return false;
+                }
+            }
             $usage = $pdo->prepare("INSERT IGNORE INTO nexa_marketing_monthly_usage (tenant_id,service_id,usage_month) VALUES (?,?,DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01'))");
             $usage->execute([$context->tenantId, $context->serviceId]);
             $capacity = $pdo->prepare("SELECT p.monthly_send_limit,u.accepted_count,u.transactional_accepted_count FROM nexa_marketing_delivery_provider p INNER JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? FOR UPDATE");
@@ -707,6 +810,7 @@ final class MarketingDispatchService
     private function eligibleRecipients(TenantContext $context, array $profile): array
     {
         $this->requireSupportedDeliveryMode($profile);
+        if ($profile['delivery_mode'] === 'transactional') throw new BadRequest('Transactional email requires an explicit single recipient.');
         $statement = $this->entityManager->getPDO()->prepare($this->eligibilitySql() . ' ORDER BY c.id');
         $statement->execute([$profile['purpose_id'], $context->tenantId, $context->serviceId, $profile['campaign_id']]);
         return $statement->fetchAll(PDO::FETCH_ASSOC);
@@ -716,6 +820,9 @@ final class MarketingDispatchService
     private function eligibleRecipient(TenantContext $context, array $profile, string $contactId): ?array
     {
         $this->requireSupportedDeliveryMode($profile);
+        if ($profile['delivery_mode'] === 'transactional') {
+            return $this->transactionalPolicy->recipient($context, (string) $profile['purpose_id'], $contactId);
+        }
         $statement = $this->entityManager->getPDO()->prepare($this->eligibilitySql() . ' AND c.id=? LIMIT 1');
         $statement->execute([$profile['purpose_id'], $context->tenantId, $context->serviceId, $profile['campaign_id'], $contactId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
@@ -725,9 +832,10 @@ final class MarketingDispatchService
     /** Legacy transactional labels must not silently use marketing policy. */
     private function requireSupportedDeliveryMode(array $profile): void
     {
-        if (!in_array($profile['delivery_mode'] ?? null, ['campaign', 'single_send'], true)) {
+        if (!in_array($profile['delivery_mode'] ?? null, ['campaign', 'single_send', 'transactional'], true)) {
             throw new BadRequest('This email delivery mode has no configured purpose and allowance policy.');
         }
+        if ($profile['delivery_mode'] === 'transactional') $this->transactionalPolicy->requirePurpose($this->tenantContextStore->require(), (string) ($profile['purpose_id'] ?? ''));
     }
 
     private function eligibilitySql(): string
@@ -751,15 +859,15 @@ final class MarketingDispatchService
         }
     }
 
-    private function requireCapacity(TenantContext $context, int $requested): void
+    private function requireCapacity(TenantContext $context, int $requested, bool $transactional = false): void
     {
-        $remaining = $this->remainingCapacity($context);
+        $remaining = $this->remainingCapacity($context, $transactional);
         if ($remaining !== null && $requested > $remaining) {
             throw new BadRequest("This send exceeds the workspace monthly limit. {$remaining} sends remain.");
         }
     }
 
-    private function remainingCapacity(TenantContext $context): ?int
+    private function remainingCapacity(TenantContext $context, bool $transactional = false): ?int
     {
         $statement = $this->entityManager->getPDO()->prepare("SELECT p.monthly_send_limit,COALESCE(u.accepted_count,0) accepted_count,COALESCE(u.transactional_accepted_count,0) transactional_accepted_count FROM nexa_marketing_delivery_provider p LEFT JOIN nexa_marketing_monthly_usage u ON u.tenant_id=p.tenant_id AND u.service_id=p.service_id AND u.usage_month=DATE_FORMAT(CURRENT_DATE(),'%Y-%m-01') WHERE p.tenant_id=? AND p.service_id=? LIMIT 1");
         $statement->execute([$context->tenantId, $context->serviceId]);
@@ -767,8 +875,9 @@ final class MarketingDispatchService
         if (!$row) {
             return 0;
         }
-        $limit = MarketingAllowance::limit($this->entityManager->getPDO(), $context, (int) $row['monthly_send_limit']);
-        $remaining = max(0, $limit - (int) $row['accepted_count']);
+        $limit = $transactional ? MarketingAllowance::transactionalLimit($this->entityManager->getPDO(), $context, (int) $row['monthly_send_limit'])
+            : MarketingAllowance::limit($this->entityManager->getPDO(), $context, (int) $row['monthly_send_limit']);
+        $remaining = max(0, $limit - (int) $row[$transactional ? 'transactional_accepted_count' : 'accepted_count']);
         if ((int) $row['monthly_send_limit'] > 0) {
             $remaining = min($remaining, max(0, (int) $row['monthly_send_limit'] - (int) $row['accepted_count'] - (int) $row['transactional_accepted_count']));
         }
@@ -778,7 +887,7 @@ final class MarketingDispatchService
     /** @return array<string, mixed> */
     private function profile(TenantContext $context, string $id, bool $lock): array
     {
-        $sql = "SELECT p.*,m.email_template_id,m.campaign_id,m.start_at,m.from_address,m.from_name,m.reply_to_address,cp.workflow_status campaign_status FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id INNER JOIN nexa_campaign_profile cp ON cp.campaign_id=m.campaign_id AND cp.tenant_id=p.tenant_id AND cp.service_id=p.service_id WHERE p.id=? AND p.tenant_id=? AND p.service_id=? AND m.deleted=0 LIMIT 1" . ($lock ? ' FOR UPDATE' : '');
+        $sql = "SELECT p.*,m.email_template_id,m.campaign_id,m.start_at,m.from_address,m.from_name,m.reply_to_address,CASE WHEN p.delivery_mode='transactional' AND m.campaign_id IS NULL THEN 'active' ELSE cp.workflow_status END campaign_status FROM nexa_marketing_email_profile p INNER JOIN mass_email m ON m.id=p.mass_email_id AND m.tenant_id=p.tenant_id AND m.service_id=p.service_id LEFT JOIN nexa_campaign_profile cp ON cp.campaign_id=m.campaign_id AND cp.tenant_id=p.tenant_id AND cp.service_id=p.service_id WHERE p.id=? AND p.tenant_id=? AND p.service_id=? AND m.deleted=0 LIMIT 1" . ($lock ? ' FOR UPDATE' : '');
         $statement = $this->entityManager->getPDO()->prepare($sql);
         $statement->execute([$id, $context->tenantId, $context->serviceId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);

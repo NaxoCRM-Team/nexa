@@ -63,7 +63,20 @@ final class PostalDeliveryProvider implements MarketingDeliveryProvider
             throw new DeliveryProviderException('Postal accepted the request without returning a message ID.', submissionUncertain: true);
         }
 
-        return new DeliveryResult($messageId, $token !== '' ? $token : null);
+        $recordId = filter_var($first['id'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
+        return new DeliveryResult($messageId, $token !== '' ? $token : null, providerRecordId: $recordId ?: null);
+    }
+
+    public function inspect(int $recordId, string $queueId, string $recipient, string $sender): array
+    {
+        if ($recordId < 1) throw new \Espo\Core\Exceptions\BadRequest('Choose a positive numeric Postal record ID.');
+        $context = $this->tenantContextStore->require();
+        $query = $this->entityManager->getPDO()->prepare("SELECT api_base_url FROM nexa_marketing_delivery_provider WHERE tenant_id=? AND service_id=? AND provider_key='postal' AND status<>'disabled'");
+        $query->execute([$context->tenantId,$context->serviceId]);
+        $url = $query->fetchColumn();
+        if (!is_string($url) || $url === '') throw new DeliveryProviderException('Postal inspection is not configured.');
+        $response = $this->request(rtrim($url,'/').'/api/v1/messages/message', ['id'=>$recordId,'_expansions'=>['details','headers','status']]);
+        return PostalInspectionEvidence::verify(is_array($response['data'] ?? null) ? $response['data'] : [],$recordId,$queueId,$recipient,$sender);
     }
 
     /** @param array<string, mixed> $payload @return array<string, mixed> */

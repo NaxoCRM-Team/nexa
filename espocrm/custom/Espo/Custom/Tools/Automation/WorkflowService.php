@@ -446,6 +446,15 @@ final class WorkflowService
             $due = $this->clock->businessHours($now, $settings);
             // Reevaluate at wake-up, including a delayed worker that missed the interval.
             if ($due > $now) {$next = $node['id']; $same = true;}
+        } elseif ($node['type'] === 'ab_split') {
+            $publication=$this->version($run['workflow_id'],(int)$run['version_number']);
+            $identity=[...$this->scope(),$run['workflow_id'],(int)$run['version_number'],$node['id'],$contact->getId()];
+            $selected=WorkflowAbRouting::assignment($identity,$publication['definition_hash'],(int)$node['weightA']);
+            $this->em->getPDO()->prepare('INSERT IGNORE INTO nexa_workflow_ab_assignment (tenant_id,service_id,workflow_id,version_number,run_id,node_id,contact_id,branch_key,assignment_sha256,weight_a) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([...$this->scope(),$run['workflow_id'],$run['version_number'],$run['id'],$node['id'],$contact->getId(),$selected['branch'],$selected['hash'],$node['weightA']]);
+            $saved=$this->one('SELECT * FROM nexa_workflow_ab_assignment WHERE tenant_id=? AND service_id=? AND run_id=? AND node_id=? FOR UPDATE',[...$this->scope(),$run['id'],$node['id']]);
+            if(!$saved || $saved['workflow_id']!==$run['workflow_id'] || (int)$saved['version_number']!==(int)$run['version_number'] || $saved['contact_id']!==$contact->getId() || (int)$saved['weight_a']!==(int)$node['weightA'] || !hash_equals($saved['assignment_sha256'],$selected['hash']) || $saved['branch_key']!==$selected['branch']) throw new BadRequest('Persisted A/B routing no longer matches its published workflow.');
+            $next=$saved['branch_key']==='A'?$node['yes']:$node['no'];
+            $payload=['abVariant'=>$saved['branch_key'],'weightA'=>(int)$saved['weight_a'],'assignmentHash'=>$saved['assignment_sha256']];
         } elseif (in_array($node['type'], ['branch', 'wait_condition'], true)) {
             $condition = $node['condition'];
             $fields = array_column($this->conditionFields($actor), null, 'name');

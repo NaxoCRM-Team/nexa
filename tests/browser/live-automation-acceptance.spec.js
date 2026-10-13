@@ -9,7 +9,7 @@ const baseURL = (process.env.NEXA_LIVE_URL || '').replace(/\/$/, '');
 const optedIn = process.env.NEXA_AUTOMATION_ACCEPTANCE === '1';
 const enabled = optedIn && process.env.NEXA_PROGRAMMABLE_ACCEPTANCE !== '1';
 
-test('programmable email delivers granted read-only API sends to local Postal capture without replay duplicates', async ({browser, page}) => {
+for (const transactional of [false,true]) test(`programmable email ${transactional ? 'transactional' : 'marketing'} delivers granted read-only API sends to local Postal capture without replay duplicates`, async ({browser, page}) => {
     test.setTimeout(180_000);
     test.skip(!optedIn || process.env.NEXA_PROGRAMMABLE_ACCEPTANCE !== '1' || process.env.NEXA_POSTAL_CAPTURE_ACCEPTANCE !== '1' || !baseURL, 'Run -Suite Programmable -LocalPostalCapture against the existing isolated Postal stack.');
     expect(['localhost','127.0.0.1']).toContain(new URL(baseURL).hostname);
@@ -19,8 +19,8 @@ test('programmable email delivers granted read-only API sends to local Postal ca
     let anonymous, failure;
     try {
         tenants = await call('setup');
-        const source = await call('programmable-setup',{capture:true});
-        const other = await call('programmable-setup',{capture:true,index:1});
+        const source = await call('programmable-setup',{capture:true,transactional});
+        const other = await call('programmable-setup',{capture:true,index:1,transactional});
         await page.goto(`${baseURL}/login/`);
         await page.locator('#field-userName').fill(tenants[0].username);
         await page.locator('#field-password').fill(tenants[0].password);
@@ -63,6 +63,9 @@ test('programmable email delivers granted read-only API sends to local Postal ca
         expect(sent.queues.every(queue=>queue.status==='Sent')).toBe(true);
         expect(sent.messages).toHaveLength(2);
         expect(sent.messages.every(message=>message.status==='submitted' && message.provider_message_id && Number(message.attempt_count)===1)).toBe(true);
+        expect(sent.messages.every(message=>message.usage_class===(transactional?'transactional':'marketing') && message.reserved_usage_month)).toBe(true);
+        expect(Number(sent.usage.accepted_count)).toBe(transactional?0:2);
+        expect(Number(sent.usage.transactional_accepted_count)).toBe(transactional?2:0);
         const subject = 'Acceptance '+reference;
         let captured = [];
         await expect.poll(async () => {
@@ -83,7 +86,10 @@ test('programmable email delivers granted read-only API sends to local Postal ca
             const raw = await (await anonymous.request.get(`http://localhost:8026/api/v1/message/${encodeURIComponent(message.ID)}/raw`)).text();
             expect([accepted.queueItemId,secondSend.queueItemId].some(id=>raw.includes(`X-Nexa-Queue-Item: ${id}`))).toBe(true);
         }
+        await call('programmable-hold-submission');
+        expect((await call('programmable-inspect')).queues.some(queue=>queue.status==='Sending')).toBe(true);
         await call('programmable-capture-worker');
+        expect((await call('programmable-inspect')).inspections).toBeGreaterThan(0);
         expect((await call('programmable-inspect')).queues).toEqual(sent.queues);
         expect((await call('programmable-inspect')).messages).toEqual(sent.messages);
         const finalCapture = await (await anonymous.request.get('http://localhost:8026/api/v1/messages')).json();

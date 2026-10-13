@@ -54,7 +54,16 @@ test('Single-send draft and confirmation use the governed queue with safe cancel
     await expect(page.locator('[name="startAt"]')).toBeHidden();
     expect(await page.evaluate(() => view.payload().deliveryMode)).toBe('single_send');
     expect(await page.evaluate(() => view.payload().startAt)).toBeNull();
+    await mode.selectOption('transactional');
+    await expect(page.locator('[name="campaignId"]')).toBeHidden();
+    await expect(page.locator('[data-transactional-purpose] input')).toHaveValue('Customer service');
+    await expect(page.locator('[data-transactional-purpose]')).toBeVisible();
+    await expect(page.locator('[name="subject"]')).toBeVisible();
+    await expect(page.locator('[name="fromAddress"]')).toBeVisible();
+    expect(await page.evaluate(() => view.payload().deliveryMode)).toBe('transactional');
+    expect(await page.evaluate(() => view.payload().startAt)).toBeNull();
     await mode.selectOption('campaign'); await expect(page.locator('[name="startAt"]')).toBeVisible();
+    await expect(page.locator('[data-transactional-purpose]')).toBeHidden();
     await page.evaluate(() => view.openEditor({deliveryMode:'single_send',name:'Saved single send'}));
     await expect(mode).toHaveValue('single_send');
     await page.evaluate(() => view.closeEditor());
