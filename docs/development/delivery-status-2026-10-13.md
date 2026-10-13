@@ -2,6 +2,10 @@
 
 Current calendar iteration: Sprint 07, 12-25 October 2026. Phases and modules are product scope, not sprint numbers.
 
+Published delivery: [PR #155](https://github.com/NaxoCRM-Team/nexa/pull/155), implementation commit `9217998c`. The CI baseline correction registers seven capabilities, including transactional email, and asserts that no tenant is automatically granted transactional sends.
+
+Board readback confirmed: #151/#153/#154 are In Review in Sprint 07; #150/#152 are Blocked and unscheduled; [#156](https://github.com/NaxoCRM-Team/nexa/issues/156) is In Progress in Sprint 07 under M13 and the Phase 7 milestone. In Review is not merged or Done.
+
 ## Phase 6
 
 Local automation, governed email, transactional/programmable delivery, uncertainty recovery, email experiments and installation acceptance are complete. The authoritative evidence is the [closure checklist](phase-6-closure-plan.md) and its linked runbooks. Native EspoCRM models, scheduler and ACL remain authoritative.
