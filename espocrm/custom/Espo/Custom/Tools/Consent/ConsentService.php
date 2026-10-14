@@ -170,6 +170,10 @@ final class ConsentService
         $evidence = is_array($data->evidence ?? null) ? $data->evidence : [];
         $legalBasis = $this->legalBasis($data->legalBasis ?? $purpose['defaultLegalBasis'], false);
         $note = $this->nullableText($data->evidenceNote ?? null, 1000, 'Evidence note');
+        if ($purpose['purposeKey'] === 'customer_service' && $channel === 'email' && $status === 'not_required') {
+            $this->requireAdmin();
+            if ($legalBasis !== 'PerformanceOfContract' || $note === null) throw new BadRequest('Operational email without consent requires contract evidence and the Performance of contract basis.');
+        }
         if ($status === 'granted' && $source === 'manual' && $note === null) throw new BadRequest('Describe how consent was obtained.');
         $occurredAt = $this->dateTime($data->occurredAt ?? null) ?? gmdate('Y-m-d H:i:s');
         $expiresAt = $this->dateTime($data->expiresAt ?? null);

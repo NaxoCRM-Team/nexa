@@ -1,0 +1,33 @@
+.nexa-callback-setup,
+.nexa-callback-existing {
+    margin-top: 16px;
+    padding: 12px;
+    border: 1px solid #bfd5d0;
+    background: #f3f9f7;
+}
+
+.nexa-callback-setup p {
+    margin: 4px 0 9px;
+    color: #52645f;
+}
+
+.nexa-callback-setup > div {
+    display: flex;
+    gap: 6px;
+}
+
+.nexa-callback-setup input {
+    min-width: 0;
+    font-family: monospace;
+}
+
+.nexa-callback-existing {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #176b5f;
+}
+
+.nexa-callback-existing .btn {
+    margin-left: auto;
+}

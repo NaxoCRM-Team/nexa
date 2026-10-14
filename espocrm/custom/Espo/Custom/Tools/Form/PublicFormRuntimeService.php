@@ -12,6 +12,7 @@ use Espo\Core\Tenant\TenantContextStore;
 use Espo\Core\Utils\Config;
 use Espo\Core\Utils\Metadata;
 use Espo\Custom\Tools\Consent\ConsentService;
+use Espo\Custom\Tools\Event\BehaviorEventService;
 use Espo\Entities\LeadCapture;
 use Espo\Custom\Tools\PublicAccess\PublicRequestLimiter;
 use PDO;
@@ -27,6 +28,7 @@ final class PublicFormRuntimeService
         private Config $config,
         private ConsentService $consentService,
         private PublicRequestLimiter $publicRequestLimiter,
+        private BehaviorEventService $behaviorEvents,
     ) {}
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
@@ -119,6 +121,25 @@ final class PublicFormRuntimeService
     /** @param array<string, mixed> $hookData */
     public function recordSubmission(LeadCapture $form, array $hookData): void
     {
+        $pdo = $this->entityManager->getPDO();
+        $ownsTransaction = !$pdo->inTransaction();
+        $savepoint = 'nexa_form_event_' . bin2hex(random_bytes(6));
+        if ($ownsTransaction) $pdo->beginTransaction(); else $pdo->exec('SAVEPOINT ' . $savepoint);
+        try {
+            $this->recordSubmissionInternal($form, $hookData);
+            if ($ownsTransaction) $pdo->commit(); else $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
+        } catch (\Throwable $error) {
+            if ($pdo->inTransaction()) {
+                if ($ownsTransaction) $pdo->rollBack();
+                else {$pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint); $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);}
+            }
+            throw $error;
+        }
+    }
+
+    /** @param array<string, mixed> $hookData */
+    private function recordSubmissionInternal(LeadCapture $form, array $hookData): void
+    {
         $data = $hookData['data'] ?? null;
         $targetId = is_string($hookData['targetId'] ?? null) ? $hookData['targetId'] : null;
         $targetType = is_string($hookData['targetType'] ?? null) ? $hookData['targetType'] : null;
@@ -142,9 +163,7 @@ final class PublicFormRuntimeService
         $configuration = $this->publishedConfiguration($context, $form->getId()) ?? [];
         $this->applyRecordActions($configuration, $data, $targetType, $targetId, $defaults['nexaConsentAccepted']);
 
-        if ($targetType !== 'Contact' || !$defaults['nexaConsentAccepted'] || !$defaults['nexaConsentPurposeId'] || !$defaults['nexaConsentChannel']) return;
-
-        $this->consentService->recordDecision((object) [
+        if ($targetType === 'Contact' && $defaults['nexaConsentAccepted'] && $defaults['nexaConsentPurposeId'] && $defaults['nexaConsentChannel']) $this->consentService->recordDecision((object) [
             'contactId' => $targetId,
             'purposeId' => $defaults['nexaConsentPurposeId'],
             'channel' => $defaults['nexaConsentChannel'],
@@ -159,6 +178,16 @@ final class PublicFormRuntimeService
                 'referrer' => $defaults['nexaReferrer'],
             ],
         ]);
+        if ($targetType === 'Contact' && isset($configuration['_version'])) {
+            // The native capture resolves this Contact; do not trust a browser-supplied Contact ID or visitor key.
+            $this->behaviorEvents->ingest((object) [
+                'eventType' => 'form.submitted', 'source' => 'form-capture',
+                'idempotencyKey' => $form->getId() . ':' . $submissionKey,
+                'contactId' => $targetId,
+                'identityEvidence' => (object) ['type' => 'form_submission', 'verified' => true, 'reference' => $form->getId() . ':' . $submissionKey],
+                'properties' => (object) ['formId' => $form->getId(), 'formVersion' => $configuration['_version']],
+            ]);
+        }
     }
 
     /** @return array<string, mixed>|null */

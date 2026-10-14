@@ -18,7 +18,7 @@ define('custom:product-surface-registry', [], () => {
         {name: 'nexa-marketing', label: 'Marketing', iconClass: 'fas fa-bullhorn', items: [
             ['Campaign', 'Campaigns', '#NexaCampaigns', 'fas fa-bullhorn'], ['nexa-lists-segments', 'Lists & Segments', '#NexaSegments', 'fas fa-users'], 'EmailTemplate',
             ['nexa-marketing-contacts', 'Marketing Contacts'],
-            ['nexa-marketing-email', 'Marketing Email'],
+            ['nexa-marketing-email', 'Marketing Email', '#NexaMarketingEmail', 'fas fa-envelope-open-text'],
             ['nexa-forms', 'Forms', '#NexaForms', 'fas fa-file-alt'],
             ['nexa-landing-pages', 'Landing Pages', '#NexaLandingPages', 'fas fa-window-maximize'],
             ['nexa-content-assets', 'Content & Assets', '#NexaAssets', 'fas fa-photo-video'],
@@ -26,9 +26,9 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-experiments', 'Experiments'],
         ]},
         {name: 'nexa-automation', label: 'Automation', iconClass: 'fas fa-project-diagram', items: [
-            ['nexa-workflows', 'Workflows'],
+            ['nexa-workflows', 'Workflows', '#NexaWorkflows', 'fas fa-project-diagram'],
             ['nexa-customer-journeys', 'Customer Journeys'],
-            ['nexa-scoring-lifecycle', 'Scoring & Lifecycle'],
+            ['nexa-scoring-lifecycle', 'Scoring & Lifecycle', '#NexaScoring', 'fas fa-balance-scale'],
             ['nexa-personalization', 'Personalization'],
             ['nexa-target-accounts', 'Target Accounts & ABM'],
         ]},

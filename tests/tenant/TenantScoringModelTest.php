@@ -1,0 +1,86 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__,2).'/espocrm/bootstrap.php';
+use Espo\Core\{Application,AclManager,InjectableFactory};
+use Espo\Core\ORM\EntityManager;
+use Espo\Core\Tenant\{TenantContext,TenantContextStore};
+use Espo\Core\Exceptions\{BadRequest,Forbidden,NotFound};
+use Espo\Custom\Tools\Scoring\ScoringService;
+$app=new Application();$app->setupSystemUser();$c=$app->getContainer();$em=$c->getByClass(EntityManager::class);$f=$c->getByClass(InjectableFactory::class);$contexts=$c->getByClass(TenantContextStore::class);$checks=0;
+$a=new TenantContext('30000000-0000-4000-8000-000000000001','isolation-alpha','scoring-test');$b=new TenantContext('30000000-0000-4000-8000-000000000002','isolation-beta','scoring-test');
+$assert=function(bool $ok,string $why)use(&$checks){$checks++;if(!$ok)throw new RuntimeException($why);};
+$deny=function(callable $fn,string $why)use($assert){$blocked=false;try{$fn();}catch(BadRequest|Forbidden|NotFound){$blocked=true;}$assert($blocked,$why);};
+$tx=$em->getTransactionManager();$tx->start();
+try {
+    $suffix=bin2hex(random_bytes(5));
+    $make=function($ctx,string $type)use($contexts,$em,$suffix){return $contexts->runWith($ctx,fn()=>$em->createEntity('User',['userName'=>'scoring-'.$ctx->slug.'-'.$type.'-'.$suffix,'emailAddress'=>'scoring-'.$ctx->slug.'-'.$type.'-'.$suffix.'@example.test','type'=>$type,'isActive'=>true]));};
+    $admin=$make($a,'admin');$foreign=$make($b,'admin');$staff=$make($a,'regular');
+    $admin=$contexts->runWith($a,fn()=>$em->getEntityById('User',$admin->getId()));
+    $foreign=$contexts->runWith($b,fn()=>$em->getEntityById('User',$foreign->getId()));
+    $staff=$contexts->runWith($a,fn()=>$em->getEntityById('User',$staff->getId()));
+    $build=fn($user)=>$f->createWith(ScoringService::class,['user'=>$user,'acl'=>$c->getByClass(AclManager::class)->createUserAcl($user)]);
+    $service=$build($admin);$other=$build($foreign);$regular=$build($staff);$call=fn($fn)=>$contexts->runWith($a,$fn);$callB=fn($fn)=>$contexts->runWith($b,$fn);
+    $contact=$call(fn()=>$em->createEntity('Contact',['firstName'=>'Scoring','lastName'=>'Fixture','title'=>'Director','leadScore'=>77]));
+    $contactB=$callB(fn()=>$em->createEntity('Contact',['firstName'=>'Foreign']));
+    $workspace=$call(fn()=>$service->workspace());$assert(isset($workspace['fields']['Contact']['title']),'Native authorized properties must populate the catalogue.');
+    $input=(object)['name'=>'Director fit','entityType'=>'Contact','definition'=>(object)['rules'=>[(object)['id'=>'title','field'=>'title','operator'=>'equals','value'=>'Director','points'=>25]]]];
+    $model=$call(fn()=>$service->save($input));$result=$call(fn()=>$service->preview($model['id'],(object)['recordId'=>$contact->getId()]));
+    $assert($result['score']===25 && $result['contributions'][0]['actual']==='Director','Native record previews must explain real inputs.');
+    $assert((int)$contact->get('leadScore')===77,'Model previews must not overwrite existing workflow scores.');
+    $deny(fn()=>$callB(fn()=>$other->preview($model['id'],(object)['recordId'=>$contact->getId()])),'Another tenant cannot access models or records.');
+    $deny(fn()=>$call(fn()=>$service->preview($model['id'],(object)['recordId'=>$contactB->getId()])),'A foreign record cannot be scored.');
+    $deny(fn()=>$call(fn()=>$regular->save($input)),'Staff cannot configure models.');
+    $role=$call(fn()=>$em->createEntity('Role',['name'=>'Scoring field restriction '.$suffix,'data'=>['Contact'=>['read'=>'all','edit'=>'no','create'=>'no','delete'=>'no']],'fieldData'=>['Contact'=>['title'=>['read'=>'no','edit'=>'no']]]]));
+    $restricted=$call(fn()=>$em->createEntity('User',['userName'=>'scoring-restricted-'.$suffix,'emailAddress'=>'scoring-restricted-'.$suffix.'@example.test','type'=>'regular','isActive'=>true]));
+    $call(fn()=>$em->getRDBRepository('User')->getRelation($restricted,'roles')->relate($role));
+    $restricted=$call(fn()=>$em->getEntityById('User',$restricted->getId()));$limited=$build($restricted);
+    $assert(!isset($call(fn()=>$limited->workspace())['fields']['Contact']['title']),'Hidden native properties must not enter the scoring catalogue.');
+    $deny(fn()=>$call(fn()=>$limited->preview($model['id'],(object)['recordId'=>$contact->getId()])),'Scoring cannot reveal a restricted native property.');
+    $deny(fn()=>$call(fn()=>$service->save((object)((array)$input+['tenantId'=>$b->tenantId]))),'Client scope injection is forbidden.');
+    $pdo=$em->getPDO();$q=$pdo->prepare("UPDATE nexa_tenant_service g INNER JOIN nexa_service_definition d ON d.id=g.service_id SET g.status='active' WHERE g.tenant_id=? AND d.service_key='automation'");$q->execute([$a->tenantId]);
+    $workspace=$call(fn()=>$service->workspace());$assert(in_array($workspace['publishedLimit'],[5,50],true),'An entitled plan has a bounded model limit.');
+    $fillers=[];
+    for($i=0;$i<$workspace['publishedLimit'];$i++) {
+        $draft=$call(fn()=>$service->save((object)((array)$input+[])));
+        $call(fn()=>$service->control($draft['id'],(object)['action'=>'publish']));$fillers[]=$draft['id'];
+    }
+    $deny(fn()=>$call(fn()=>$service->control($model['id'],(object)['action'=>'publish'])),'Publication cannot exceed the plan limit.');
+    $call(fn()=>$service->control($fillers[0],(object)['action'=>'archive']));
+    $call(fn()=>$service->control($model['id'],(object)['action'=>'publish']));
+    $deny(fn()=>$call(fn()=>$service->save((object)((array)$input+['id'=>$model['id']]))),'Published definitions are immutable.');
+    $pdo->prepare('UPDATE nexa_scoring_model SET definition_hash=? WHERE tenant_id=? AND service_id=? AND id=?')->execute([str_repeat('0',64),$a->tenantId,$a->serviceId,$model['id']]);
+    $deny(fn()=>$call(fn()=>$service->preview($model['id'],(object)['recordId'=>$contact->getId()])),'A tampered persisted definition cannot be evaluated.');
+    $pdo->prepare('UPDATE nexa_scoring_model SET definition_hash=? WHERE tenant_id=? AND service_id=? AND id=?')->execute([$result['definitionHash'],$a->tenantId,$a->serviceId,$model['id']]);
+    $request=(object)['recordId'=>$contact->getId(),'requestKey'=>'scoring-request-'.$suffix];
+    $first=$call(fn()=>$service->preview($model['id'],$request,true));$replay=$call(fn()=>$service->preview($model['id'],$request,true));
+    $assert(!$first['replayed'] && $replay['replayed'],'Intentional evaluation keys persist once.');
+    $history=$call(fn()=>$service->history($model['id'],$contact->getId()));$assert(count($history['evaluations'])===1 && $history['evaluations'][0]['score']===25,'Published evaluations retain reproducible history.');
+    $contact->set('title','Manager');$call(fn()=>$em->saveEntity($contact));
+    $assert($call(fn()=>$service->preview($model['id'],$request,true))['score']===25,'A replay returns the original input snapshot.');
+    $assert($call(fn()=>$service->preview($model['id'],(object)['recordId'=>$contact->getId()]))['score']===0,'A new preview reads current native values.');
+    $call(fn()=>$service->control($model['id'],(object)['action'=>'archive']));
+    $deny(fn()=>$call(fn()=>$service->preview($model['id'],$request,true)),'Archived models cannot create new evaluations.');
+    $assert(count($call(fn()=>$service->history($model['id'],$contact->getId()))['evaluations'])===1,'Archiving preserves historical evidence.');
+    $account=$call(fn()=>$em->createEntity('Account',['name'=>'Scoring company '.$suffix,'industry'=>'Technology']));
+    $company=$call(fn()=>$service->save((object)['name'=>'Company fit','entityType'=>'Account','definition'=>(object)['rules'=>[(object)['id'=>'industry','field'=>'industry','operator'=>'has_value','points'=>12]]]]));
+    $assert($call(fn()=>$service->preview($company['id'],(object)['recordId'=>$account->getId()]))['score']===12,'Company models use native Account records.');
+    $deal=$call(fn()=>$em->createEntity('Opportunity',['name'=>'Scoring deal '.$suffix,'stage'=>'Prospecting','probability'=>60]));
+    $dealModel=$call(fn()=>$service->save((object)['name'=>'Deal fit','entityType'=>'Opportunity','definition'=>(object)['rules'=>[(object)['id'=>'stage','field'=>'stage','operator'=>'has_value','points'=>18]]]]));
+    $assert($call(fn()=>$service->preview($dealModel['id'],(object)['recordId'=>$deal->getId()]))['score']===18,'Deal models use native Opportunity records.');
+    $behaviorField='behavior_email_clicked_30';
+    $assert(isset($call(fn()=>$service->workspace())['fields']['Contact'][$behaviorField]),'Behavior counters must appear for Contact models.');
+    foreach ([[-2,'MarketingDeliveryEvent','internal'],[-8,'MarketingDeliveryEvent','internal'],[-40,'MarketingDeliveryEvent','internal'],[2,'MarketingDeliveryEvent','internal'],[-2,'MarketingDeliveryEvent','restricted'],[-2,'BehaviorEvent','internal']] as $i=>[$days,$source,$visibility]) {
+        $id='80000000-0000-4000-8000-'.substr(hash('sha256',$suffix.$i),0,12);
+        $pdo->prepare('INSERT INTO nexa_timeline_event (id,tenant_id,service_id,contact_id,event_type,source_entity_type,source_entity_id,source_occurred_at,visibility) VALUES (?,?,?,?,?,?,?,DATE_ADD(UTC_TIMESTAMP(6),INTERVAL ? DAY),?)')->execute([$id,$a->tenantId,$a->serviceId,$contact->getId(),'email.clicked',$source,$id,$days,$visibility]);
+    }
+    $behavior=$call(fn()=>$service->save((object)['name'=>'Engagement','entityType'=>'Contact','definition'=>(object)['rules'=>[(object)['id'=>'click','field'=>$behaviorField,'operator'=>'greater_than','value'=>'0','points'=>30]],'thresholds'=>[(object)['min'=>0,'label'=>'Low'],(object)['min'=>20,'label'=>'High']]]]));
+    $evaluation=$call(fn()=>$service->preview($behavior['id'],(object)['recordId'=>$contact->getId()]));
+    $assert($evaluation['inputs'][$behaviorField]===2 && $evaluation['band']==='High','Counts exclude expired, future, restricted and wrong-source evidence and produce the configured band.');
+    $assert(isset($evaluation['asOf']),'Behavior evaluations retain their UTC cutoff.');
+    $pdo->prepare("UPDATE nexa_tenant_service g INNER JOIN nexa_service_definition d ON d.id=g.service_id SET g.status='disabled' WHERE g.tenant_id=? AND d.service_key='automation'")->execute([$a->tenantId]);
+    $assert($call(fn()=>$service->workspace())['publishedLimit']===0,'An inactive entitlement gives zero active model capacity.');
+    $deny(fn()=>$call(fn()=>$service->control($company['id'],(object)['action'=>'publish'])),'Publication cannot bypass an inactive plan entitlement.');
+    $mismatch=new TenantContext($a->tenantId,$a->slug,'scoring-other-service','', '20000000-0000-4000-8000-000000000002');
+    $deny(fn()=>$contexts->runWith($mismatch,fn()=>$service->workspace()),'Another service context cannot reuse tenant-bound scoring identity.');
+    echo "Tenant scoring model checks passed: $checks (rollback-only).\n";
+} catch(Throwable $error) {fwrite(STDERR,get_class($error).': '.$error->getMessage()."\n".$error->getTraceAsString()."\n");throw $error;} finally {if($tx->isStarted())$tx->rollback();}

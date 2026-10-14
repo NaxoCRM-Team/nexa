@@ -1,0 +1,35 @@
+const {test,expect}=require('@playwright/test');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+test('Administrator grant controls preserve scope, errors and cancellation',async({page},info)=>{
+    const template=fs.readFileSync(path.join(root,'espocrm/client/custom/res/templates/marketing-email/workspace.tpl'),'utf8');
+    const css=fs.readFileSync(path.join(root,'espocrm/client/custom/css/marketing-email-workspace.css'),'utf8');
+    await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font:14px Arial}.form-control{box-sizing:border-box;width:100%}.btn{padding:8px}[hidden]{display:none!important}${css}</style>${template}`);
+    await page.evaluate(()=>{window.define=(name,deps,factory)=>{window.MarketingView=factory(class{});};});
+    await page.addScriptTag({content:fs.readFileSync(path.join(root,'espocrm/client/custom/src/views/marketing-email/workspace.js'),'utf8')});
+    await page.evaluate(()=>{
+        window.requests=[]; window.grants=[];
+        window.Espo={Ajax:{getRequest:async()=>({grants}),postRequest:async(url,input)=>{requests.push({url,input}); if(window.rejectGrant) throw new Error('Choose an active API user in this workspace.'); if(input.action==='grant') grants=[{userId:input.userId,userName:'Integration user',sourceVersion:input.sourceVersion,expiresAt:'2026-10-07 10:00:00',revokedAt:null}]; else grants[0].revokedAt='2026-10-06 10:00:00';}}};
+        const view=window.view=new MarketingView(); view.element=document.querySelector('main'); view.once=()=>{}; view.confirm=(options,callback)=>callback();
+        const item={id:'source-fixture',name:'Appointment reminder',version:3,lifecycleStatus:'approved'};
+        view.workspace={emails:[item],permissions:{approve:true}};
+        const host=document.createElement('div'); host.innerHTML=view.actions(item); view.element.append(host);
+        view.createView=(key,type,options,callback)=>{const picker={render:()=>{picker.select({id:'api-user-fixture',get:()=> 'Integration user'}); picker.remove();}}; callback(picker);};
+        view.listenToOnce=(picker,event,callback)=>{picker[event]=callback;};
+        view.element.addEventListener('click',event=>{const button=event.target.closest('button');const action=button?.dataset.action;if(action==='integration-access') view.openIntegrationAccess({currentTarget:button});if(action==='close-integration-access') view.closeIntegrationAccess();if(action==='choose-integration-user') view.chooseIntegrationUser();if(action==='revoke-integration') view.revokeIntegration({currentTarget:button});});
+        view.element.addEventListener('submit',event=>{if(event.target.matches('[data-integration-form]')) view.grantIntegration(event);});
+    });
+    const launch=page.getByRole('button',{name:'Integration access',exact:true}); const dialog=page.getByRole('dialog',{name:'Integration access',exact:true});
+    await launch.click(); await expect(dialog.getByRole('button',{name:'API user',exact:true})).toBeFocused();
+    await expect(dialog.getByRole('status')).toHaveText('Version 3');
+    await dialog.getByRole('button',{name:'Grant access',exact:true}).click(); await expect(dialog.getByRole('alert')).toHaveText('Select an active API user.');
+    await dialog.getByRole('button',{name:'API user',exact:true}).click(); await dialog.getByRole('spinbutton',{name:'Expires in hours'}).fill('48');
+    await page.evaluate(()=>{window.rejectGrant=true;}); await dialog.getByRole('button',{name:'Grant access',exact:true}).click(); await expect(dialog.getByRole('alert')).toContainText('active API user');
+    await page.evaluate(()=>{window.rejectGrant=false;}); await dialog.getByRole('button',{name:'Grant access',exact:true}).click(); await expect(dialog.locator('[data-integration-list]')).toContainText('Version 3');
+    expect(await page.evaluate(()=>requests[0].input)).toEqual({action:'grant',userId:'api-user-fixture',sourceVersion:3,hours:48});
+    await info.attach('integration-access.png',{body:await page.screenshot({path:path.join(root,`test-results/integration-access-${info.project.name}.png`)}),contentType:'image/png'});
+    const bounds=await dialog.boundingBox(); expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x+bounds.width).toBeLessThanOrEqual(page.viewportSize().width+1);
+    await dialog.getByRole('button',{name:'Revoke access',exact:true}).click(); await expect(dialog.locator('[data-integration-list]')).toContainText('Revoked');
+    await dialog.press('Escape'); await expect(dialog).toHaveCount(0); await expect(launch).toBeFocused();
+});

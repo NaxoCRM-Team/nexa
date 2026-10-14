@@ -9,6 +9,9 @@ use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Record\ReadParams;
 use Espo\Core\Record\ServiceContainer;
 use Espo\Core\Select\SearchParams;
+use Espo\Core\ORM\EntityManager;
+use Espo\Core\Tenant\TenantContextStore;
+use PDO;
 use stdClass;
 
 /**
@@ -46,6 +49,8 @@ final class AccountTimelineService
     public function __construct(
         private ServiceContainer $recordServiceContainer,
         private Acl $acl,
+        private EntityManager $entityManager,
+        private TenantContextStore $tenantContextStore,
     ) {}
 
     /** @return array{list: stdClass[], comments: stdClass[], hasMore: bool, nextOffset: int, limit: int} */
@@ -94,6 +99,12 @@ final class AccountTimelineService
             }
         }
 
+        if ($tab === 'activity' && $contactIds !== []) {
+            $marketing = $this->marketingEvents($accountId, $contactIds, $fetchSize);
+            $sourceHasMore = $sourceHasMore || count($marketing) === $fetchSize;
+            array_push($records, ...$marketing);
+        }
+
         usort($records, fn (stdClass $left, stdClass $right): int =>
             strcmp($this->timestamp($right), $this->timestamp($left))
         );
@@ -108,6 +119,22 @@ final class AccountTimelineService
             'nextOffset' => $offset + count($page),
             'limit' => $limit,
         ];
+    }
+
+    /** @param string[] $contactIds @return stdClass[] */
+    private function marketingEvents(string $accountId, array $contactIds, int $limit): array
+    {
+        $context = $this->tenantContextStore->require();
+        $placeholders = implode(',', array_fill(0, count($contactIds), '?'));
+        $query = $this->entityManager->getPDO()->prepare(
+            "SELECT id,summary AS name,event_type AS status,source_occurred_at AS createdAt," .
+            "contact_id AS parentId,'Contact' AS parentType,'MarketingDeliveryEvent' AS _entityType " .
+            "FROM nexa_timeline_event WHERE tenant_id=? AND service_id=? AND account_id=? " .
+            "AND source_entity_type='MarketingDeliveryEvent' AND contact_id IN ({$placeholders}) " .
+            "ORDER BY source_occurred_at DESC,id DESC LIMIT " . $limit
+        );
+        $query->execute([$context->tenantId, $context->serviceId, $accountId, ...$contactIds]);
+        return $query->fetchAll(PDO::FETCH_OBJ);
     }
 
     /** @return stdClass[] */

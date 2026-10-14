@@ -1,0 +1,52 @@
+const {test, expect} = require('@playwright/test');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+
+test('Recipient delivery results support scroll loading, live filtering and safe stale responses', async ({page}, testInfo) => {
+    const css = fs.readFileSync(path.join(root, 'espocrm/client/custom/css/marketing-email-workspace.css'), 'utf8');
+    const template = fs.readFileSync(path.join(root, 'espocrm/client/custom/res/templates/marketing-email/workspace.tpl'), 'utf8');
+    await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font:14px Arial}.form-control{box-sizing:border-box;width:100%;padding:8px}.table{border-collapse:collapse;width:100%}.table td,.table th{padding:8px}.btn{padding:8px}${css}</style>${template}`);
+    await page.evaluate(() => { window.define = (name, deps, factory) => { window.ResultsView = factory(class {}); }; });
+    await page.addScriptTag({content: fs.readFileSync(path.join(root, 'espocrm/client/custom/src/views/marketing-email/workspace.js'), 'utf8')});
+    await page.evaluate(() => {
+        const row = (id, recipient) => ({id, recipient, status: 'delivered', submittedAt: '2026-10-05 12:00:00', updatedAt: '2026-10-05 12:01:00'});
+        window.Espo = {Ajax: {getRequest: async (url, params) => {
+            if (url !== 'Nexa/marketing-emails/report/messages') throw new Error('Wrong recipient endpoint.');
+            if (params.search === 'slow') return new Promise(resolve => { window.resolveOldSearch = () => resolve({items: [row('old', 'stale@example.test')]}); });
+            if (params.search) return {items: [row('filtered', 'alice@example.test')], nextCursor: null};
+            if (params.status === 'failed') return {items: [], nextCursor: null};
+            if (params.cursor) return {items: [row('last', 'last@example.test')], nextCursor: null};
+            return {items: Array.from({length: 100}, (_, index) => row(String(index), `customer-${index}@example.test`)), nextCursor: 'next'};
+        }}};
+        window.view = new ResultsView(); view.element = document.querySelector('main');
+        view.workspace = {emails: [{id: 'report', name: 'Customer update', lifecycleStatus: 'completed', campaignName: 'Campaign'}]};
+        const trigger = document.createElement('button'); trigger.dataset.id = 'report'; view.element.appendChild(trigger);
+        view.openResults({currentTarget: trigger});
+        view.element.addEventListener('input', event => { if (event.target.matches('[data-recipient-search]')) view.searchDeliveryRecipients(); });
+        view.element.addEventListener('change', event => { if (event.target.matches('[data-recipient-status]')) view.searchDeliveryRecipients(); });
+    });
+    const rows = page.locator('[data-recipient-rows] tr');
+    await expect(rows).toHaveCount(100);
+    await page.locator('.nexa-recipient-scroll').evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await expect(rows).toHaveCount(101);
+    await page.getByLabel('Delivery status', {exact: true}).selectOption('failed');
+    await expect(rows).toHaveCount(0);
+    await expect(page.locator('[data-recipient-sentinel]')).toHaveText('No matching recipients.');
+    await page.getByLabel('Search recipients', {exact: true}).fill('slow');
+    await expect.poll(() => page.evaluate(() => typeof window.resolveOldSearch)).toBe('function');
+    await page.getByLabel('Search recipients', {exact: true}).fill('alice');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('alice@example.test');
+    await page.evaluate(() => resolveOldSearch());
+    await expect(rows.first()).toContainText('alice@example.test');
+    const dialog = page.getByRole('dialog', {name: 'Customer update'});
+    const bounds = await dialog.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize().width + 1);
+    const screenshot = testInfo.outputPath('recipient-results.png');
+    await page.screenshot({path: screenshot});
+    await testInfo.attach('recipient-results.png', {path: screenshot, contentType: 'image/png'});
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+});

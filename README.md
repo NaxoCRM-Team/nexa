@@ -42,6 +42,8 @@ Transactional data uses a **shared-schema multi-tenant model**. EspoCRM core tab
 
 ## Supporting Infrastructure
 
+For the current marketing email editor, governed attachment delivery and independently hosted image copies, see [Marketing Email Designer](docs/development/marketing-email-designer.md) and the [Phase 6 native email audit](docs/architecture/phase-6-native-email-capability-audit.md). Image publication requires additive migration `0065`; it does not replace native EmailTemplate, MassEmail or file storage. Phase 6 automation/experiments and external delivery acceptance are still pending.
+
 Supporting infrastructure will be introduced as product scale and operational requirements justify it:
 
 - Redis for cache, queues, distributed locks and rate limits.

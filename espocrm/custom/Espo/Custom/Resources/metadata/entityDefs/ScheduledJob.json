@@ -1,5 +1,10 @@
 {
     "jobs": {
+        "ProcessWorkflows": {
+            "name": "Process Workflows",
+            "isSystem": true,
+            "scheduling": "* * * * *"
+        },
         "SendTaskDueSoonNotifications": {
             "name": "Send Task Due-Soon Notifications",
             "isSystem": true,
@@ -29,6 +34,11 @@
             "name": "Purge Expired Behavior Events",
             "isSystem": true,
             "scheduling": "17 2 * * *"
+        },
+        "ProcessMarketingDelivery": {
+            "name": "Process Marketing Delivery",
+            "isSystem": true,
+            "scheduling": "* * * * *"
         }
     }
 }

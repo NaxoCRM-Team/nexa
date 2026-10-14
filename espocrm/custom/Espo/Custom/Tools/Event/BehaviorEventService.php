@@ -75,8 +75,8 @@ final class BehaviorEventService
                 'INSERT INTO nexa_behavior_event ' .
                 '(id, tenant_id, service_id, event_type, event_version, event_category, consent_category, ' .
                 'source, idempotency_key, correlation_id, visitor_identity_id, contact_id, account_id, ' .
-                'session_key_hash, page_url, referrer_url, properties_json, consent_json, occurred_at) ' .
-                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                'session_key_hash, page_url, referrer_url, properties_json, consent_json, occurred_at, received_at) ' .
+                'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(6))'
             )->execute([
                 $id, $context->tenantId, $context->serviceId, $event['eventType'], $event['eventVersion'],
                 $event['eventCategory'], $event['consentCategory'], $event['source'], $event['idempotencyKey'],

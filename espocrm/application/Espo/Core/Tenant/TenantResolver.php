@@ -76,6 +76,22 @@ final class TenantResolver
         return $this->contextFromRow($rows[0], 'login-identity');
     }
 
+    /** Discover ownership only; the native API-key login still authenticates the request. */
+    public function resolveApiKey(string $key): ?TenantContext
+    {
+        if ($key === '' || strlen($key) > 255 || preg_match('/[\x00-\x20\x7f]/', $key)) return null;
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT t.id,t.slug,t.display_name,ts.service_id FROM user u ' .
+            'INNER JOIN nexa_tenant t ON t.id=u.tenant_id ' . $this->crmServiceJoin() .
+            "WHERE BINARY u.api_key=BINARY :apiKey AND u.type='api' AND u.auth_method='ApiKey' " .
+            'AND u.service_id=ts.service_id AND u.deleted=0 AND u.is_active=1 ' .
+            'AND t.status=:tenantStatus LIMIT 2'
+        );
+        $statement->execute(['apiKey'=>$key,'tenantStatus'=>'active','tenantServiceStatus'=>'active','serviceStatus'=>'active','serviceKey'=>'crm']);
+        $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
+        return count($rows) === 1 ? $this->contextFromRow($rows[0],'api-key-identity') : null;
+    }
+
     public function resolveAuthToken(string $token): ?TenantContext
     {
         $token = trim($token);
@@ -192,6 +208,19 @@ final class TenantResolver
         $statement->execute(['publicKey'=>$publicKey,'tenantStatus'=>'active','tenantServiceStatus'=>'active','serviceStatus'=>'active','serviceKey'=>'crm']);
         $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
         return count($rows) === 1 ? $this->contextFromRow($rows[0], 'landing-page') : null;
+    }
+
+    public function resolveMarketingImageToken(string $token): ?TenantContext
+    {
+        if (!preg_match('/^[a-f0-9]{48}$/', $token)) return null;
+        $statement = $this->entityManager->getPDO()->prepare(
+            'SELECT DISTINCT t.id,t.slug,t.display_name,ts.service_id FROM nexa_marketing_image_publication p ' .
+            'INNER JOIN nexa_tenant t ON t.id=p.tenant_id ' . $this->crmServiceJoin() .
+            "WHERE p.public_token=:token AND p.status='published' AND p.service_id=ts.service_id AND t.status=:tenantStatus LIMIT 2"
+        );
+        $statement->execute(['token'=>$token,'tenantStatus'=>'active','tenantServiceStatus'=>'active','serviceStatus'=>'active','serviceKey'=>'crm']);
+        $rows = $statement->fetchAll(\PDO::FETCH_ASSOC);
+        return count($rows) === 1 ? $this->contextFromRow($rows[0], 'marketing-image') : null;
     }
 
     private function crmServiceJoin(): string

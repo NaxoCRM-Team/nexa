@@ -101,7 +101,7 @@ class UserFinder
 
     public function findApiApiKey(string $apiKey): ?User
     {
-        return $this->entityManager
+        $user = $this->entityManager
             ->getRDBRepositoryByClass(User::class)
             ->where([
                 'type' => User::TYPE_API,
@@ -109,5 +109,7 @@ class UserFinder
                 'authMethod' => ApiKey::NAME,
             ])
             ->findOne();
+        // Database collations may compare API credentials case-insensitively.
+        return $user && is_string($user->get('apiKey')) && hash_equals($user->get('apiKey'),$apiKey) ? $user : null;
     }
 }

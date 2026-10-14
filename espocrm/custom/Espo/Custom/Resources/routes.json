@@ -1,5 +1,65 @@
 [
     {
+        "route": "/Nexa/workflows/:id/events",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostEvent"
+    },
+    {
+        "route": "/Nexa/workflows",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/workflows",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostSave"
+    },
+    {
+        "route": "/Nexa/workflows/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\GetWorkflow"
+    },
+    {
+        "route": "/Nexa/workflows/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostSave"
+    },
+    {
+        "route": "/Nexa/workflows/:id/history",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\GetHistory"
+    },
+    {
+        "route": "/Nexa/workflows/:id/publish",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostPublish"
+    },
+    {
+        "route": "/Nexa/workflows/:id/control",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostControl"
+    },
+    {
+        "route": "/Nexa/workflows/:id/enroll",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostEnroll"
+    },
+    {
+        "route": "/Nexa/workflows/:id/runs/:runId/cancel",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostCancel"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/integration-grants",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetIntegrationGrants"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/integration-grants",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostIntegrationGrant"
+    },
+    {
         "route": "/Nexa/security/impersonation/request",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\Security\\Api\\PostImpersonationRequest"
@@ -768,6 +828,169 @@
         "actionClassName": "Espo\\Custom\\Tools\\Campaign\\Api\\PostStatus"
     },
     {
+        "route": "/Nexa/marketing-email-attachments",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostAttachment"
+    },
+    {
+        "route": "/Nexa/marketing-email-conditions/fields",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetConditionalFields"
+    },
+    {
+        "route": "/Nexa/marketing-email-conditions",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostConditionalContent"
+    },
+    {
+        "route": "/Nexa/marketing-email-images",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDesignerImage"
+    },
+    {
+        "route": "/Nexa/marketing-email-images/:id/revoke",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostRevokeImage"
+    },
+    {
+        "route": "/Nexa/marketing-email-images",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDesignerImages"
+    },
+    {
+        "route": "/Nexa/marketing-email-images/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDesignerImages"
+    },
+    {
+        "route": "/Nexa/marketing-email-templates/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetReusableTemplate"
+    },
+    {
+        "route": "/Nexa/marketing-emails/preview",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostPreview"
+    },
+    {
+        "route": "/Nexa/marketing-emails/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/marketing-emails",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDraft"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PutDraft"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/transition",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostTransition"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/versions",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetVersions"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/versions/:version",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetVersions"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/versions/:version/restore",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostRestoreVersion"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/test",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostTestSend"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/messages",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDeliveryMessages"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/submission-review",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetSubmissionReview"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/submission-review",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSubmissionReview"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/control",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostControl"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/reusable-send",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostReusableSend"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/single-send",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSingleSend"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/schedule",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSchedule"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/settings",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\GetDeliverySettings"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/provider",
+        "method": "put",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PutDeliveryProvider"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/callback/rotate",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDeliveryCallbackRotate"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/domains",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDeliveryDomain"
+    },
+    {
+        "route": "/Nexa/marketing-delivery/domains/:id/verify",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostDeliveryDomainVerify"
+    },
+    {
+          "route": "/Nexa/public/marketing-unsubscribe/:id/:token",
+          "method": "get",
+          "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\MarketingUnsubscribe",
+          "noAuth": true
+      },
+      {
+          "route": "/Nexa/public/marketing-unsubscribe/:id/:token",
+          "method": "post",
+          "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\MarketingUnsubscribe",
+          "noAuth": true
+      },
+      {
+          "route": "/Nexa/public/marketing-delivery/postal/:token",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostPostalCallback",
+        "noAuth": true
+    },
+    {
         "route": "/Nexa/assets/workspace",
         "method": "get",
         "actionClassName": "Espo\\Custom\\Tools\\Asset\\Api\\GetWorkspace"
@@ -888,5 +1111,65 @@
         "route": "/Nexa/landing-pages/:id/archive",
         "method": "post",
         "actionClassName": "Espo\\Custom\\Tools\\LandingPage\\Api\\PostArchive"
+    },
+    {
+        "route": "/Nexa/marketing-emails/:id/submission-inspection",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\MarketingEmail\\Api\\PostSubmissionInspection"
+    },
+    {
+        "route": "/Nexa/workflows/:id/runs/:runId/webhook-review",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Automation\\Api\\PostWebhookReview"
+    },
+    {
+        "route": "/Nexa/email-experiments/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\EmailExperiment\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/email-experiments/:id",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\EmailExperiment\\Api\\GetExperiment"
+    },
+    {
+        "route": "/Nexa/email-experiments",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\EmailExperiment\\Api\\PostExperiment"
+    },
+    {
+        "route": "/Nexa/email-experiments/:id/control",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\EmailExperiment\\Api\\PostControl"
+    },
+    {
+        "route": "/Nexa/scoring/workspace",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Scoring\\Api\\GetWorkspace"
+    },
+    {
+        "route": "/Nexa/scoring/models",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Scoring\\Api\\PostModel"
+    },
+    {
+        "route": "/Nexa/scoring/:id/control",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Scoring\\Api\\PostControl"
+    },
+    {
+        "route": "/Nexa/scoring/:id/preview",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Scoring\\Api\\PostPreview"
+    },
+    {
+        "route": "/Nexa/scoring/:id/evaluate",
+        "method": "post",
+        "actionClassName": "Espo\\Custom\\Tools\\Scoring\\Api\\PostEvaluate"
+    },
+    {
+        "route": "/Nexa/scoring/:id/evaluations/:recordId",
+        "method": "get",
+        "actionClassName": "Espo\\Custom\\Tools\\Scoring\\Api\\GetHistory"
     }
 ]

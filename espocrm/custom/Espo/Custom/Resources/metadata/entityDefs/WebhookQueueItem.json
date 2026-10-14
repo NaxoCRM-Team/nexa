@@ -1,0 +1,7 @@
+{
+    "fields": {
+        "status": {
+            "options": ["Pending", "Success", "Failed", "Managed"]
+        }
+    }
+}

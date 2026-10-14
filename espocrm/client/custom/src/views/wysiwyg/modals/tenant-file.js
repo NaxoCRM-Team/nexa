@@ -13,6 +13,13 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
 
     afterRender() {
         super.afterRender();
+        const upload = this.element.querySelector('[data-nexa-file-upload]');
+        if (this.options.accept) upload.accept = this.options.accept;
+        if (this.options.helpText) this.element.querySelector('.nexa-image-library-meta span').textContent = this.options.helpText;
+        if (this.options.selectOnly) {
+            this.element.querySelector('[data-nexa-file-upload]').closest('label').style.display = 'none';
+            this.element.querySelector('.nexa-image-library-meta span').textContent = 'Choose an existing tenant file';
+        }
         const search = this.element.querySelector('[data-nexa-file-search]');
         let timer;
         search.addEventListener('input', () => {
@@ -28,13 +35,17 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
             event.target.value = '';
             if (!file) return;
             const isImage = /^image\//i.test(file.type) || /\.(?:png|jpe?g|gif|webp)$/i.test(file.name);
-            const maxSize = isImage ? 8 * 1024 * 1024 : 25 * 1024 * 1024;
+            const maxSize = this.options.maxFileSize || (isImage ? 8 * 1024 * 1024 : 25 * 1024 * 1024);
             if (file.size > maxSize) {
-                this.showError(isImage ? 'Images cannot be larger than 8 MB.' : 'Files cannot be larger than 25 MB.');
+                this.showError(this.options.maxFileSize ? `Files cannot be larger than ${Math.round(maxSize / 1024 / 1024)} MB.` : (isImage ? 'Images cannot be larger than 8 MB.' : 'Files cannot be larger than 25 MB.'));
                 return;
             }
             if (!/\.(?:pdf|docx?|xlsx?|pptx?|csv|txt|rtf|zip|png|jpe?g|gif|webp)$/i.test(file.name)) {
                 this.showError('Choose a supported image, PDF, Office, CSV, TXT, RTF or ZIP file.');
+                return;
+            }
+            if (this.options.accept && !this.options.accept.split(',').some(extension => file.name.toLowerCase().endsWith(extension.trim().toLowerCase()))) {
+                this.showError('Choose a supported file type.');
                 return;
             }
             this.trigger('upload', file);
@@ -51,7 +62,7 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
         this.element.querySelector('[data-nexa-file-list]').addEventListener('click', event => {
             const button = event.target.closest('[data-nexa-file-id]');
             if (!button) return;
-            this.trigger('insert', {id: button.dataset.nexaFileId, name: button.dataset.nexaFileName, mimeType: button.dataset.nexaFileType});
+            this.trigger('insert', {id: button.dataset.nexaFileId, name: button.dataset.nexaFileName, mimeType: button.dataset.nexaFileType, size: Number(button.dataset.nexaFileSize)});
             this.close();
         });
         this.loadPage();
@@ -73,7 +84,7 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
         const files = Array.isArray(response?.list) ? response.list : [];
         const total = Number(response?.total) || 0;
         this.element.querySelector('[data-nexa-file-list]').innerHTML = files.length ? files.map(file => `
-            <button type="button" class="nexa-file-library-item" data-nexa-file-id="${this.escape(file.id)}" data-nexa-file-name="${this.escape(file.name)}" data-nexa-file-type="${this.escape(file.mimeType)}">
+            <button type="button" class="nexa-file-library-item" data-nexa-file-id="${this.escape(file.id)}" data-nexa-file-name="${this.escape(file.name)}" data-nexa-file-type="${this.escape(file.mimeType)}" data-nexa-file-size="${Number(file.size)}">
                 <span class="nexa-file-library-icon fas ${this.icon(file)}" aria-hidden="true"></span>
                 <span><strong>${this.escape(file.name)}</strong><small>${this.escape(this.typeLabel(file.mimeType))} &middot; ${this.formatSize(file.size)}</small></span>
                 <span class="fas fa-plus" aria-hidden="true"></span>

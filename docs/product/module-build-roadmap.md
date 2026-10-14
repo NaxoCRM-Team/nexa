@@ -166,6 +166,8 @@ The native activity, calendar, project and document collaboration sub-gate is re
 
 ### Phase 6 - Marketing Email and Visual Automation
 
+Implementation status and fixed remaining acceptance checklist: [Phase 6 closure plan](../development/phase-6-closure-plan.md). Historical focused test passes do not replace this exit gate.
+
 **Modules:** M10, M12, then M23 email experiments
 
 - Build drag-and-drop and HTML email editing, templates, personalization tokens, dynamic content and programmable email.
@@ -178,6 +180,8 @@ The native activity, calendar, project and document collaboration sub-gate is re
 **Exit gate:** A consented customer can enter a campaign, receive governed communication, generate canonical events, follow deterministic workflow branches and recover from provider or job failure without duplicate actions.
 
 ### Phase 7 - Scoring, Personalization and ABM
+
+Status, 12 October 2026: in progress. The first native-record scoring-model foundation is implemented locally; see [delivered scope and remaining packages](../development/phase-7-scoring-foundation.md). This is not the Phase 7 exit gate.
 
 **Modules:** M13
 

@@ -47,6 +47,11 @@ final class CustomerFoundationRecorder
         $isCustomer = in_array($type, self::CUSTOMER_TYPES, true);
         $isLead = in_array($type, self::LEAD_TYPES, true);
         $isActivity = in_array($type, self::ACTIVITY_TYPES, true);
+        if ($type==='Opportunity') {
+            $context=$this->writeContext();
+            if($context && !$entity->isNew() && $entity->isAttributeChanged('stage'))$this->recordWorkflowSubjects($entity,$context,'opportunity.stage_changed');
+            return;
+        }
         if (!$isCustomer && !$isLead && !$isActivity) {
             return;
         }
@@ -124,6 +129,11 @@ final class CustomerFoundationRecorder
         $correlationId = $this->uuid();
         $metadata = ['changedFields' => $this->changedFields($entity)];
 
+        if ($type === 'Contact' && $entity->isAttributeChanged('leadScore')) {
+            $metadata['previousScore'] = $entity->getFetched('leadScore') === null ? null : (int) $entity->getFetched('leadScore');
+            $metadata['score'] = $entity->get('leadScore') === null ? null : (int) $entity->get('leadScore');
+        }
+
         $this->syncContactIdentities($entity, $context);
         $this->syncPrimaryRelationship($entity, $context);
         $this->syncLifecycle($entity, $context, $correlationId);
@@ -164,9 +174,28 @@ final class CustomerFoundationRecorder
         $metadata = ['changedFields' => $this->changedFields($entity)];
         $this->audit($context, $action, $type, $entity->getId(), $correlationId, $metadata);
         $this->outbox($context, $action, $type, $entity->getId(), $correlationId, $metadata);
+        if(in_array($type,['Task','Call','Meeting'],true) && $entity->isAttributeChanged('status') && in_array($entity->get('status'),['Completed','Held'],true))$this->recordWorkflowSubjects($entity,$context,'activity.completed');
 
         if ($entity->isNew()) {
             $this->recordActivityTimeline($entity, $context);
+        }
+    }
+
+    private function recordWorkflowSubjects(Entity $entity,TenantContext $context,string $event): void
+    {
+        $ids=[];$type=$entity->getEntityType();
+        if($type==='Opportunity' && $entity->get('contactId'))$ids[]=$entity->get('contactId');
+        if($entity->get('parentType')==='Contact' && $entity->get('parentId'))$ids[]=$entity->get('parentId');
+        $relation=match($type){'Opportunity'=>['contact_opportunity','opportunity_id'],'Call'=>['call_contact','call_id'],'Meeting'=>['contact_meeting','meeting_id'],default=>null};
+        if($relation) {
+            [$table,$column]=$relation;
+            $query=$this->entityManager->getPDO()->prepare("SELECT contact_id FROM $table WHERE $column=? AND tenant_id=? AND service_id=? AND deleted=0");
+            $query->execute([$entity->getId(),$context->tenantId,$context->serviceId]);$ids=[...$ids,...$query->fetchAll(PDO::FETCH_COLUMN)];
+        }
+        $query=$this->entityManager->getPDO()->prepare('SELECT id FROM contact WHERE id=? AND tenant_id=? AND service_id=? AND deleted=0');
+        foreach(array_unique($ids) as $id) {
+            $query->execute([$id,$context->tenantId,$context->serviceId]);if(!$query->fetchColumn())continue;
+            $this->outbox($context,$event,'Contact',$id,$this->uuid(),['sourceType'=>$type,'sourceId'=>$entity->getId(),'stage'=>$entity->get('stage'),'status'=>$entity->get('status')]);
         }
     }
 
@@ -522,8 +551,8 @@ final class CustomerFoundationRecorder
         ];
         $statement = $this->entityManager->getPDO()->prepare(
             'INSERT INTO nexa_outbox_event ' .
-            '(id, tenant_id, service_id, event_type, aggregate_type, aggregate_id, payload_json, correlation_id) ' .
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            '(id, tenant_id, service_id, event_type, aggregate_type, aggregate_id, payload_json, correlation_id, occurred_at, available_at) ' .
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))'
         );
         $statement->execute([
             $this->uuid(), $context->tenantId, $context->serviceId, $eventType,
