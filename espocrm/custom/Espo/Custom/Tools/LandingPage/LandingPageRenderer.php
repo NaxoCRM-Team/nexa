@@ -12,7 +12,7 @@ final class LandingPageRenderer
 
     public function __construct(private LandingPageService $service, private EntityManager $entityManager, private Config $config) {}
 
-    public function render(string $key, string $slug): string
+    public function render(string $key, string $slug, array $requestContext = [], bool $privacyControl = false): string
     {
         $published = $this->service->published($key, $slug); $config = $published['configuration']; $page = $published['page'];
         $this->service->recordEvent($key, $slug, 'view', null, $_SERVER['HTTP_REFERER'] ?? null, $_SERVER['HTTP_USER_AGENT'] ?? null);
@@ -21,7 +21,14 @@ final class LandingPageRenderer
         $canonical = trim((string) ($config['canonicalUrl'] ?? '')); $robots = !empty($config['noIndex']) ? '<meta name="robots" content="noindex,nofollow">' : '';
         $styles = '--primary:' . $this->color($config['primaryColor'] ?? null, '#087d71') . ';--background:' . $this->color($config['backgroundColor'] ?? null, '#ffffff') . ';--text:' . $this->color($config['textColor'] ?? null, '#172f35');
         $this->formTargets = $this->formTargets((array) ($config['blocks'] ?? []), $page);
-        $blocks = ''; foreach (($config['blocks'] ?? []) as $block) $blocks .= $this->block($block, $key, $slug, $page);
+        $decisions = [];
+        $blocks = '';
+        foreach (($config['blocks'] ?? []) as $block) {
+            $decision = LandingPagePersonalization::decide($block, $requestContext + ['language'=>$config['locale'] ?? 'en'], $privacyControl);
+            if ($decision['evidence']) $decisions[] = $decision['evidence'];
+            $blocks .= $this->block($decision['block'], $key, $slug, $page);
+        }
+        if ($decisions) $this->service->recordPersonalization($page, $decisions);
         return '<!doctype html><html lang="' . $this->e((string) ($config['locale'] ?? 'en')) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' . $title . '</title><meta name="description" content="' . $description . '">' . $robots . ($canonical ? '<link rel="canonical" href="' . $this->e($canonical) . '">' : '') . '<style>' . $this->css() . '</style><script src="' . $this->e($this->runtimeUrl()) . '" defer></script></head><body style="' . $styles . '"><header class="site-brand"><div><span class="site-brand-mark" aria-hidden="true">' . $this->e($tenantInitial) . '</span><strong>' . $this->e($tenantName) . '</strong></div><span>' . $this->e((string) $page['name']) . '</span></header><main>' . ($blocks ?: '<section class="empty"><h1>' . $this->e((string) $page['name']) . '</h1></section>') . '</main><footer>&copy; ' . gmdate('Y') . ' ' . $this->e($tenantName) . '</footer></body></html>';
     }
 

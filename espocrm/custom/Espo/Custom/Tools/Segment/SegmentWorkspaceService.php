@@ -39,6 +39,7 @@ final class SegmentWorkspaceService
         'accountCountry' => ['label' => 'Company country', 'type' => 'text', 'expression' => 'a.billing_address_country'],
         'accountLeadScore' => ['label' => 'Company lead score', 'type' => 'number', 'expression' => 'a.lead_score'],
         'accountLifecycleStage' => ['label' => 'Company lifecycle stage', 'type' => 'text', 'expression' => 'a.lifecycle_stage'],
+        'accountListId' => ['label' => 'Account list membership', 'type' => 'text', 'expression' => ''],
     ];
 
     private const OPERATORS = [
@@ -76,8 +77,8 @@ final class SegmentWorkspaceService
             'recordTypes' => [['id' => 'Contact', 'name' => 'Contacts', 'description' => 'People stored in your CRM.']],
             'fieldCatalog' => array_map(
                 static fn (string $key, array $field): array => ['id' => $key, 'name' => $field['label'], 'type' => $field['type'], 'operators' => self::TYPE_OPERATORS[$field['type']]],
-                array_keys(self::FIELDS),
-                array_values(self::FIELDS),
+                array_keys(array_diff_key(self::FIELDS,['accountListId'=>true])),
+                array_values(array_diff_key(self::FIELDS,['accountListId'=>true])),
             ),
             'operators' => [
                 ['id' => 'equals', 'name' => 'equals'], ['id' => 'notEquals', 'name' => 'does not equal'],
@@ -114,6 +115,7 @@ final class SegmentWorkspaceService
             $statement->execute([$id, $context->tenantId, $context->serviceId, $definition['type'], $definition['folder'], $definition['accessLevel'], $definition['matchMode'], $this->json($definition['rules']), $this->json($definition['exclusionRules']), $definition['snapshotFromRules'] ? 1 : 0, $this->user->getId(), $this->user->getId()]);
             $version = 1;
         } else {
+            if ($this->isAccountList($id)) throw new BadRequest('Manage this account audience in Target Accounts & ABM.');
             $this->requireAccess(Table::ACTION_EDIT);
             $segment = $this->requireSegment($context, $id);
             $this->recordServices->get('TargetList')->update($id, (object) ['name' => $definition['name'], 'description' => $definition['description']], UpdateParams::create());
@@ -141,11 +143,12 @@ final class SegmentWorkspaceService
     }
 
     /** @return array<string, mixed> */
-    public function recalculate(string $id, bool $allowStaticSnapshot = false): array
+    public function recalculate(string $id, bool $allowStaticSnapshot = false, bool $accountAudience = false): array
     {
         $this->requireAccess(Table::ACTION_EDIT);
         $context = $this->tenantContextStore->require();
         $segment = $this->requireSegment($context, $id);
+        if ($this->isAccountList($id) && !$accountAudience) throw new BadRequest('Manage account-based audiences in Target Accounts & ABM.');
         if ($segment['segment_type'] !== 'dynamic' && !$allowStaticSnapshot) throw new BadRequest('Only active segments can be recalculated.');
         $rules = $this->rules((array) json_decode((string) $segment['rules_json'], true), true);
         $exclusions = $this->rules((array) json_decode((string) $segment['exclusion_rules_json'], true), false);
@@ -185,7 +188,7 @@ final class SegmentWorkspaceService
     public function recalculateAll(): void
     {
         $context = $this->tenantContextStore->require();
-        $statement = $this->entityManager->getPDO()->prepare("SELECT target_list_id FROM nexa_segment_definition WHERE tenant_id=? AND service_id=? AND status='active' AND segment_type='dynamic'");
+        $statement = $this->entityManager->getPDO()->prepare("SELECT d.target_list_id FROM nexa_segment_definition d WHERE d.tenant_id=? AND d.service_id=? AND d.status='active' AND d.segment_type='dynamic' AND NOT EXISTS(SELECT 1 FROM nexa_abm_list b WHERE b.tenant_id=d.tenant_id AND b.service_id=d.service_id AND b.target_list_id=d.target_list_id)");
         $statement->execute([$context->tenantId, $context->serviceId]);
         foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $id) $this->recalculate((string) $id);
     }
@@ -246,6 +249,7 @@ final class SegmentWorkspaceService
     /** @return array<string, mixed> */
     public function duplicate(string $id): array
     {
+        if ($this->isAccountList($id)) throw new BadRequest('Create a new account list in Target Accounts & ABM.');
         $this->requireAccess(Table::ACTION_CREATE);
         $context = $this->tenantContextStore->require();
         $segment = $this->requireSegment($context, $id);
@@ -285,7 +289,7 @@ final class SegmentWorkspaceService
     {
         $statement = $this->entityManager->getPDO()->prepare("SELECT d.target_list_id AS id,t.name,t.description,d.segment_type AS type,d.status,d.folder_name AS folder,d.access_level AS accessLevel,d.match_mode AS matchMode,d.rules_json AS rulesJson,d.exclusion_rules_json AS exclusionRulesJson,d.snapshot_from_rules AS snapshotFromRules,d.version_number AS version,d.member_count AS memberCount,d.eligible_count AS eligibleCount,d.suppressed_count AS suppressedCount,d.last_calculated_at AS lastCalculatedAt,d.modified_at AS modifiedAt,COALESCE(NULLIF(TRIM(CONCAT_WS(' ',u.first_name,u.last_name)),''),u.user_name) AS modifiedByName FROM nexa_segment_definition d INNER JOIN target_list t ON t.id=d.target_list_id AND t.tenant_id=d.tenant_id AND t.service_id=d.service_id LEFT JOIN user u ON u.id=d.modified_by_id AND u.tenant_id=d.tenant_id AND u.service_id=d.service_id WHERE d.tenant_id=? AND d.service_id=? AND d.status='active' AND t.deleted=0 ORDER BY d.modified_at DESC");
         $statement->execute([$context->tenantId, $context->serviceId]);
-        return array_map(static function (array $row): array {
+        $segments = array_map(static function (array $row): array {
             $row['rules'] = json_decode((string) $row['rulesJson'], true) ?: [];
             $row['exclusionRules'] = json_decode((string) $row['exclusionRulesJson'], true) ?: [];
             $row['snapshotFromRules'] = (bool) $row['snapshotFromRules'];
@@ -293,6 +297,8 @@ final class SegmentWorkspaceService
             foreach (['version', 'memberCount', 'eligibleCount', 'suppressedCount'] as $key) $row[$key] = (int) $row[$key];
             return $row;
         }, $statement->fetchAll(PDO::FETCH_ASSOC));
+        foreach($segments as &$segment)$segment['accountBased']=$this->isAccountList($segment['id']);unset($segment);
+        return $segments;
     }
 
     /** @return string[] */
@@ -357,6 +363,10 @@ final class SegmentWorkspaceService
         $parts = []; $params = []; $explanation = [];
         foreach ($rules as $rule) {
             $field = self::FIELDS[$rule['field']]; $expression = $field['expression']; $operator = $rule['operator']; $value = $rule['value'];
+            if ($rule['field']==='accountListId') {
+                $parts[] = ($operator==='notEquals'?'NOT ':'')."EXISTS(SELECT 1 FROM account_target_list atl INNER JOIN account aa ON aa.id=atl.account_id AND aa.tenant_id=atl.tenant_id AND aa.service_id=atl.service_id AND aa.deleted=0 AND aa.is_target_account=1 WHERE atl.tenant_id=c.tenant_id AND atl.service_id=c.service_id AND atl.target_list_id=? AND atl.deleted=0 AND atl.opted_out=0 AND (aa.id=c.account_id OR EXISTS(SELECT 1 FROM account_contact ac WHERE ac.tenant_id=c.tenant_id AND ac.service_id=c.service_id AND ac.account_id=aa.id AND ac.contact_id=c.id AND ac.deleted=0)))";
+                $params[]=$value;$explanation[]=['field'=>$rule['field'],'label'=>$field['label'],'operator'=>$operator,'value'=>$value];continue;
+            }
             if ($operator === 'isEmpty') $parts[] = "({$expression} IS NULL OR TRIM(CAST({$expression} AS CHAR))='')";
             elseif ($operator === 'isNotEmpty') $parts[] = "({$expression} IS NOT NULL AND TRIM(CAST({$expression} AS CHAR))<>'')";
             elseif (in_array($operator, ['withinLastDays', 'beforeDays'], true)) {
@@ -381,6 +391,11 @@ final class SegmentWorkspaceService
         foreach ($input as $item) {
             $item = (array) $item; $field = trim((string) ($item['field'] ?? '')); $operator = trim((string) ($item['operator'] ?? 'equals')); $value = mb_substr(trim((string) ($item['value'] ?? '')), 0, 500);
             if (!isset(self::FIELDS[$field]) || !in_array($operator, self::OPERATORS, true)) throw new BadRequest('Choose a supported property and condition.');
+            if ($field==='accountListId') {
+                if (!in_array($operator,['equals','notEquals'],true) || !preg_match('/^[a-zA-Z0-9]{1,24}$/D',$value)) throw new BadRequest('Choose a valid account list membership condition.');
+                $list=$this->records->createForUser('TargetList',$this->user)->getEntity($value);
+                if (!$list || $list->get('deleted') || $list->get('tenantId')!==$this->tenantContextStore->require()->tenantId || $list->get('serviceId')!==$this->tenantContextStore->require()->serviceId || !$this->acl->checkScope('Account','read') || !$this->acl->checkScope('Contact','read') || !$this->acl->checkField('Account','contacts','read') || !$this->acl->checkField('Contact','account','read')) throw new Forbidden('Account audience relationship read access is required.');
+            }
             if (!in_array($operator, self::TYPE_OPERATORS[self::FIELDS[$field]['type']], true)) throw new BadRequest('Choose a condition that is compatible with the selected property.');
             if (!in_array($operator, ['isEmpty', 'isNotEmpty'], true) && $value === '') throw new BadRequest('Enter a value for every segment rule.');
             if (in_array($operator, ['withinLastDays', 'beforeDays'], true) && (!ctype_digit($value) || (int) $value > 3650)) throw new BadRequest('Enter a valid number of days between 0 and 3650.');
@@ -415,6 +430,11 @@ final class SegmentWorkspaceService
     }
 
     private function matchMode(mixed $value): string { return trim((string) $value) === 'any' ? 'any' : 'all'; }
+
+    private function isAccountList(string $id): bool
+    {
+        $context=$this->tenantContextStore->require();$query=$this->entityManager->getPDO()->prepare('SELECT 1 FROM nexa_abm_list WHERE tenant_id=? AND service_id=? AND target_list_id=?');$query->execute([$context->tenantId,$context->serviceId,$id]);return (bool)$query->fetchColumn();
+    }
 
     /** @return array<string, mixed> */
     private function requireSegment(TenantContext $context, string $id): array

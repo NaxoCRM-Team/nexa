@@ -404,6 +404,7 @@ Existing installations receive forward migrations through `apply-shared-schema.p
 - `scripts/dev/provision-demo-tenants.ps1`: creates or refreshes login-ready administrators and tenant-scoped CRM fixtures for both synthetic tenants.
 - `scripts/dev/verify-local-install.php`: validates schema counts, migrations, demo administrators and tenant-scoped records.
 - `scripts/dev/verify.ps1`: validates shareable files, JSON, PHP, secrets and Compose.
+- `scripts/dev/verify-phase7.ps1`: runs Phase 7 native and responsive acceptance; `-Live` adds authenticated WAMP and worker/capacity tests. Optional `-MigrationClientPath` and `-FreshInstallation` add isolated schema and fresh-install/checksum checks. See [Phase 7 evidence and open gates](docs/development/phase-7-exit-gate.md).
 
 ## Team Workflow
 

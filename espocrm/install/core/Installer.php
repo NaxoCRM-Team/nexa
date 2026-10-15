@@ -477,7 +477,8 @@ class Installer
     {
         // Installer-created tenant records belong to the seeded local tenant;
         // platform reference tables remain unscoped.
-        if ($this->getContainer()->getByClass(EntityOwnershipRegistry::class)->isTenantEntity($entityType)) {
+        if ($this->getContainer()->getByClass(TenantContextStore::class)->isPlatform() &&
+            $this->getContainer()->getByClass(EntityOwnershipRegistry::class)->isTenantEntity($entityType)) {
             $data['tenantId'] ??= TenantContext::LEGACY_LOCAL_ID;
             $data['serviceId'] ??= TenantContext::CRM_SERVICE_ID;
         }
@@ -536,14 +537,14 @@ class Installer
         $this->getEntityManager()->saveEntity($entity);
     }
 
-    public function createUser(string $userName, string $password): bool
+    public function createUser(string $userName, string $password, ?string $emailAddress = null): bool
     {
-        return $this->runAsInstallationPlatform(
-            fn (): bool => $this->createUserAsPlatform($userName, $password)
+        return $this->runAsInstallationTenant(
+            fn (): bool => $this->createUserAsPlatform($userName, $password, $emailAddress)
         );
     }
 
-    private function createUserAsPlatform(string $userName, string $password): bool
+    private function createUserAsPlatform(string $userName, string $password, ?string $emailAddress): bool
     {
         $this->auth();
 
@@ -579,6 +580,7 @@ class Installer
                 'userName' => $userName,
                 'password' => $password,
                 'lastName' => 'Admin',
+                'emailAddress' => $emailAddress ?? (filter_var($userName, FILTER_VALIDATE_EMAIL) ? $userName : null),
                 'type' => User::TYPE_ADMIN,
             ]);
         }

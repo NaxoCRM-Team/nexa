@@ -187,6 +187,7 @@ final class CustomerFoundationQueryService
     {
         $subjectColumn = $contactId ? 't.contact_id' : 't.account_id';
         $subjectId = $contactId ?: $accountId;
+        $scoreVisible=$this->acl->checkField($contactId?'Contact':'Account','leadScore','read');
         $statement = $this->entityManager->getPDO()->prepare(
             'SELECT t.id, t.contact_id, t.account_id, t.event_type, t.source_entity_type, t.source_entity_id, ' .
             't.source_occurred_at, t.actor_type, t.actor_id, t.visibility, t.correlation_id, t.summary, ' .
@@ -205,6 +206,12 @@ final class CustomerFoundationQueryService
         $statement->bindValue(4, $limit, PDO::PARAM_INT);
         $statement->execute();
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $rows=array_values(array_filter($rows,function(array $row)use($scoreVisible,$tenantId,$serviceId,$subjectId,$contactId):bool {
+            if ($row['source_entity_type']!=='ScoringEvaluation') return true;
+            if (!$scoreVisible || !in_array($row['visibility'],['internal','team','customer'],true)) return false;
+            $proof=$this->entityManager->getPDO()->prepare('SELECT 1 FROM nexa_scoring_evaluation e INNER JOIN nexa_scoring_model m ON m.id=e.model_id AND m.tenant_id=e.tenant_id AND m.service_id=e.service_id WHERE e.tenant_id=? AND e.service_id=? AND e.id=? AND e.record_id=? AND m.entity_type=?');
+            $proof->execute([$tenantId,$serviceId,$row['source_entity_id'],$subjectId,$contactId?'Contact':'Account']);return(bool)$proof->fetchColumn();
+        }));
         foreach ($rows as &$row) {
             $row['metadata'] = $this->decode($row['metadata_json']);
             if ($row['source_entity_type'] === 'BehaviorEvent') {

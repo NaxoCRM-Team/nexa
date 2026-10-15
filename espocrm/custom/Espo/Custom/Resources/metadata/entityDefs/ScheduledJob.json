@@ -1,5 +1,11 @@
 {
     "jobs": {
+        "RefreshTargetAccounts": {"name": "Refresh Target Accounts", "isSystem": true, "scheduling": "*/5 * * * *"},
+        "RecalculateScoringModels": {
+            "name": "Recalculate Scoring Models",
+            "isSystem": true,
+            "scheduling": "* * * * *"
+        },
         "ProcessWorkflows": {
             "name": "Process Workflows",
             "isSystem": true,

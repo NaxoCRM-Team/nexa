@@ -57,9 +57,9 @@ final class MarketingConditionalContentService
         return ['fields'=>$fields];
     }
 
-    public function compose(stdClass $input): array
+    public function compose(stdClass $input, ?string $decisionTag = null): array
     {
-        if (isset($input->conditions)) return $this->composeGroup($input);
+        if (isset($input->conditions)) return $this->composeGroup($input, $decisionTag);
         $catalog = $this->catalog();
         $field = $input->field ?? null; $operator = $input->operator ?? null;
         $definition = null;
@@ -78,7 +78,7 @@ final class MarketingConditionalContentService
             $pageUrl=TemplateHelpers\BehaviorCondition::pageUrl($input->pageUrl);
         }
         $value = $input->value ?? ''; $yes = $input->matchingText ?? ''; $no = $input->fallbackText ?? '';
-        [$yesHtml,$noHtml] = $this->branches($input);
+        [$yesHtml,$noHtml] = $this->branches($input, $decisionTag);
         if (!is_string($value) || mb_strlen($value) > 255 || preg_match('/[\x00-\x1f{}]/u',$value)) throw new BadRequest('Enter a comparison value of up to 255 characters without template markers.');
         if (in_array($definition['type'],['date','datetime'],true)) {
             $needsValue = !in_array($operator, ['has_value','no_value'], true);
@@ -119,7 +119,7 @@ final class MarketingConditionalContentService
         return ['bodyHtml'=>$body];
     }
 
-    private function composeGroup(stdClass $input): array
+    private function composeGroup(stdClass $input, ?string $decisionTag = null): array
     {
         $this->requireAccess();
         $conditions = $input->conditions;
@@ -144,7 +144,7 @@ final class MarketingConditionalContentService
             $closeStart = strrpos($body, '{{/');
             $envelopes[] = [substr($body, 0, $openEnd), substr($body, $closeStart)];
         }
-        [$yes,$no] = $this->branches($input);
+        [$yes,$no] = $this->branches($input, $decisionTag);
         $body = $mode === 'all' ? $yes : $no;
         foreach (array_reverse($envelopes) as [$open, $close]) {
             $body = $open . ($mode === 'all' ? $body : $yes) . '{{else}}' . ($mode === 'all' ? $no : $body) . $close;
@@ -201,7 +201,7 @@ final class MarketingConditionalContentService
     }
 
     /** Both branches share one explicit format; never interpret legacy text as HTML. */
-    private function branches(stdClass $input): array
+    private function branches(stdClass $input, ?string $decisionTag = null): array
     {
         $rich = property_exists($input,'matchingHtml') || property_exists($input,'fallbackHtml');
         if ($rich && (property_exists($input,'matchingText') || property_exists($input,'fallbackText'))) throw new BadRequest('Choose either rich content or plain text for both branches.');
@@ -219,6 +219,10 @@ final class MarketingConditionalContentService
             if (trim(html_entity_decode(strip_tags($html),ENT_QUOTES,'UTF-8')) === '' && !str_contains($html,'<img')) throw new BadRequest('Rich content must contain visible text or an image.');
             $this->factory->create(MarketingImageService::class)->manifest($html);
             $result[] = $html;
+        }
+        if ($decisionTag !== null) {
+            $result[0] = '<p>' . htmlspecialchars($decisionTag, ENT_QUOTES, 'UTF-8') . 'matching</p>' . $result[0];
+            $result[1] = '<p>' . htmlspecialchars($decisionTag, ENT_QUOTES, 'UTF-8') . 'fallback</p>' . $result[1];
         }
         return $result;
     }

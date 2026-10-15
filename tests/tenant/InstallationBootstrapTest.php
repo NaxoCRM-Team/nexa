@@ -30,7 +30,7 @@ if ($installGate === false || $hostResolution === false || $installGate > $hostR
 
 $boundaries = [
     'rebuild' => 'runAsInstallationTenant',
-    'createUser' => 'runAsInstallationPlatform',
+    'createUser' => 'runAsInstallationTenant',
     'setSuccess' => 'runAsInstallationPlatform',
 ];
 
@@ -97,6 +97,17 @@ foreach (['saveData', 'rebuild', 'createUser', 'setSuccess'] as $operation) {
 
 if (!str_contains($nativeInstaller, "['isInstalled'] ?? false")) {
     throw new RuntimeException('Native installer must be idempotent after installation.');
+}
+
+if (!str_contains($nativeInstaller, 'AddSystemUser::class') ||
+    strpos($nativeInstaller, 'AddSystemUser::class') > strpos($nativeInstaller, '$installer->rebuild()')) {
+    throw new RuntimeException('Fresh schema installations must create the native system actor before rebuilding.');
+}
+
+if (!str_contains($nativeInstaller, "['ADMIN_EMAIL']") ||
+    !str_contains($nativeInstaller, 'filter_var($adminEmail, FILTER_VALIDATE_EMAIL)') ||
+    !str_contains($nativeInstaller, "['ADMIN_PASSWORD'], \$adminEmail)")) {
+    throw new RuntimeException('Fresh installation must pass a validated administrator email to native user creation.');
 }
 
 if (!str_contains($browserInstaller, 'if ($installer->isInstalled())') ||

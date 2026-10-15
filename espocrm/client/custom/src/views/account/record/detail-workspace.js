@@ -87,6 +87,8 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
                         <div><dt>Lead status</dt><dd data-nexa-company-field="leadStatus"></dd></div>
                         <div><dt>Parent company</dt><dd data-nexa-company-field="parentAccount"></dd></div>
                         <div><dt>Account owner</dt><dd data-nexa-company-field="assignedUser"></dd></div>
+                        <div><dt>Target account</dt><dd data-nexa-company-field="isTargetAccount"></dd></div>
+                        <div><dt>Target account tier</dt><dd data-nexa-company-field="targetAccountTier"></dd></div>
                         <div><dt>Teams</dt><dd data-nexa-company-field="teams"></dd></div>
                         <div><dt>Tags</dt><dd data-nexa-company-field="tags"></dd></div>
                         <div><dt>Location</dt><dd data-nexa-company-field="location"></dd></div>
@@ -1080,6 +1082,8 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         this.setFact(shell, 'leadStatus', this.companyLeadStatusBadge());
         this.setFact(shell, 'parentAccount', this.recordLinkValue('Account', this.model.get('parentAccountId'), this.model.get('parentAccountName')));
         this.setFact(shell, 'assignedUser', this.ownerValue());
+        this.setFact(shell, 'isTargetAccount', this.model.get('isTargetAccount') ? 'Yes' : 'No');
+        this.setFact(shell, 'targetAccountTier', this.model.get('isTargetAccount') ? String(this.model.get('targetAccountTier') || '').replace('Tier', 'Tier ') : 'Not applicable');
         this.setFact(shell, 'teams', this.linkListValue('Team', this.model.get('teamsIds'), this.model.get('teamsNames')));
         this.setFact(shell, 'tags', this.tagsValue());
         this.setFact(shell, 'location', location);
@@ -1889,7 +1893,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
     }
 
     async prepareEngagementPermissions(records, entityType) {
-        if (entityType === 'MarketingDeliveryEvent') {
+        if (['MarketingDeliveryEvent','ScoringEvaluation'].includes(entityType)) {
             records.forEach(record => { record.canPin = false; record.canDelete = false; });
             return;
         }
@@ -2016,7 +2020,8 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         const title = this.engagementTitle(record);
         const owner = record.assignedUserName || record.createdByName || record.fromName || 'Owner not recorded';
         const contactName = record._contact?.name || 'Company-level';
-        const iconMap = {Note: 'fa-sticky-note', Task: 'fa-check-square', Meeting: 'fa-calendar-alt', Call: 'fa-phone', Email: 'fa-envelope', MarketingDeliveryEvent: 'fa-envelope-open-text'};
+        const iconMap = {Note: 'fa-sticky-note', Task: 'fa-check-square', Meeting: 'fa-calendar-alt', Call: 'fa-phone', Email: 'fa-envelope', MarketingDeliveryEvent: 'fa-envelope-open-text', ScoringEvaluation:'fa-star'};
+        const immutable=['MarketingDeliveryEvent','ScoringEvaluation'].includes(record._entityType);
         const url = record._entityType === 'Note'
             ? (record._contact ? `#Contact/view/${encodeURIComponent(record._contact.id)}` : `#Account/view/${encodeURIComponent(this.model.id)}`)
             : `#${record._entityType}/view/${encodeURIComponent(record.id)}`;
@@ -2055,6 +2060,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         item.querySelector('.nexa-activity-heading strong').textContent = title;
         item.querySelector('[data-subtitle]').textContent = this.isLoggedInteraction(record) ? `by ${owner}` : `${record._entityType} by ${owner}`;
         if (record._entityType === 'MarketingDeliveryEvent') item.querySelector('[data-subtitle]').textContent = 'Marketing delivery';
+        if (record._entityType === 'ScoringEvaluation') item.querySelector('[data-subtitle]').textContent = 'Primary score updated';
         item.querySelector('[data-contact]').textContent = contactName;
         item.querySelector('[data-owner]').textContent = owner;
         item.querySelector('[data-status]').textContent = record.status || record._entityType;
@@ -2065,14 +2071,14 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
         const expandedContent = item.querySelector('.nexa-company-engagement-preview');
         if (richContent) expandedContent.innerHTML = richContent;
         else expandedContent.textContent = preview;
-        if (record._entityType !== 'MarketingDeliveryEvent') item.querySelector('.nexa-activity-details').insertAdjacentHTML('beforeend', this.accountEngagementCommentsSection(record));
+        if (!immutable) item.querySelector('.nexa-activity-details').insertAdjacentHTML('beforeend', this.accountEngagementCommentsSection(record));
         else {
             item.querySelector('[data-nexa-company-engagement-actions]').remove();
-            item.querySelector('[data-owner]').textContent = 'Recorded automatically';
+            item.querySelector('[data-owner]').textContent = record._entityType==='ScoringEvaluation'?`Recorded by ${owner}`:'Recorded automatically';
             link.remove();
         }
         TenantImages.hydrate(item);
-        if (record._entityType !== 'MarketingDeliveryEvent') link.href = url;
+        if (!immutable) link.href = url;
         return item;
     }
 
@@ -2379,7 +2385,7 @@ define('custom:views/account/record/detail-workspace', ['views/record/detail', '
     }
 
     engagementPreview(record) {
-        let value = record.post || record.description || record.subject || (record._entityType === 'MarketingDeliveryEvent' ? record.name : '') || '';
+        let value = record.post || record.description || record.subject || (['MarketingDeliveryEvent','ScoringEvaluation'].includes(record._entityType) ? record.name : '') || '';
         if (this.isLoggedInteraction(record)) {
             const lines = String(value).split('\n');
             const subject = String(lines.shift() || '').replace(/^\[[^\]]+]\s*/, '').trim();

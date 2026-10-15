@@ -20,3 +20,4 @@
 .nexa-marketing-email-grid label[hidden]{display:none!important}
 .nexa-integration-grant{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px 0;border-bottom:1px solid #d1dbd6}.nexa-integration-grant strong,.nexa-integration-grant>span{overflow-wrap:anywhere}.nexa-integration-grant>span{grid-column:1;font-size:12px;color:#52645c}.nexa-integration-grant>button{grid-column:2;grid-row:1 / span 2;align-self:center}
 .nexa-conditional-dialog fieldset{min-width:0;display:grid;gap:10px;margin:0;padding:12px;border:1px solid #bac9c2;border-radius:4px}.nexa-conditional-dialog legend{width:auto;margin:0;padding:0 4px;font-size:13px;font-weight:600;border:0}.nexa-conditional-dialog fieldset>.btn{justify-self:end}.nexa-conditional-dialog [data-action="add-conditional-rule"]{justify-self:start}
+.nexa-conditional-dialog footer{flex-wrap:wrap}.nexa-conditional-dialog [data-decision-output]{min-width:0;overflow-wrap:anywhere}

@@ -129,6 +129,7 @@ final class LeadConversionService
                 'lastEmailInteractionAt' => $snapshot['last_email_interaction_at'] ?? null,
                 'nextActivityAt' => $snapshot['next_activity_at'] ?? null,
             ] as $field => $value) {
+                if ($field==='leadScore' && $this->modelOwnsScore('Contact')) continue;
                 $current = $contact->get($field);
                 $isInitialValue = $current === null || $current === '' || $current === 0 ||
                     ($field === 'marketingStatus' && $current === 'Non-Marketing');
@@ -145,6 +146,7 @@ final class LeadConversionService
                 throw new NotFound('Converted Account was not found.');
             }
             foreach ($shared as $field => $value) {
+                if ($field==='leadScore' && $this->modelOwnsScore('Account')) continue;
                 if (($account->get($field) === null || $account->get($field) === '' || $account->get($field) === 0) && $value !== null && $value !== '') {
                     $account->set($field, $value);
                 }
@@ -186,6 +188,13 @@ final class LeadConversionService
                 ]);
             }
         }
+    }
+
+    private function modelOwnsScore(string $type): bool
+    {
+        $context=$this->tenantContextStore->require();
+        $query=$this->entityManager->getPDO()->prepare("SELECT id FROM nexa_scoring_model WHERE tenant_id=? AND service_id=? AND entity_type=? AND is_primary=1 AND status='published'");
+        $query->execute([$context->tenantId,$context->serviceId,$type]);return(bool)$query->fetchColumn();
     }
 
     private function copyTargetLists(PDO $pdo, TenantContext $context, string $leadId, ?string $contactId): void

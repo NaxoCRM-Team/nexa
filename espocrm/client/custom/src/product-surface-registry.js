@@ -29,8 +29,8 @@ define('custom:product-surface-registry', [], () => {
             ['nexa-workflows', 'Workflows', '#NexaWorkflows', 'fas fa-project-diagram'],
             ['nexa-customer-journeys', 'Customer Journeys'],
             ['nexa-scoring-lifecycle', 'Scoring & Lifecycle', '#NexaScoring', 'fas fa-balance-scale'],
-            ['nexa-personalization', 'Personalization'],
-            ['nexa-target-accounts', 'Target Accounts & ABM'],
+            ['nexa-personalization', 'Personalization', '#NexaPersonalization', 'fas fa-sliders-h'],
+            ['nexa-target-accounts', 'Target Accounts & ABM', '#NexaAbm', 'fas fa-bullseye'],
         ]},
         {name: 'nexa-service', label: 'Service', iconClass: 'fas fa-headset', items: [
             ['Case', 'Cases', '#Case', 'fas fa-headset'], 'Email', 'KnowledgeBaseArticle',

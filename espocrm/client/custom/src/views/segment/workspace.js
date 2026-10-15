@@ -46,7 +46,7 @@ define('custom:views/segment/workspace', ['view'], Dep => class extends Dep {
         const segments = (this.workspace.segments || []).filter(item => (!type || item.type === type) && (!folder || item.folder === folder) && (!query || `${item.name || ''} ${item.description || ''} ${item.folder || ''}`.toLowerCase().includes(query)));
         this.element.querySelector('[data-segment-list]').innerHTML = segments.map(item => {
             const active = item.type === 'dynamic'; const icon = active ? 'fa-bolt' : 'fa-camera';
-            const description = item.description || (active ? `${item.rules.length} inclusion filter${item.rules.length === 1 ? '' : 's'}` : item.snapshotFromRules ? 'Fixed snapshot from filters' : 'Manual membership');
+            const description = item.accountBased ? 'Account-based audience' : item.description || (active ? `${item.rules.length} inclusion filter${item.rules.length === 1 ? '' : 's'}` : item.snapshotFromRules ? 'Fixed snapshot from filters' : 'Manual membership');
             const primaryAction = active ? `<button class="btn btn-icon" type="button" data-action="recalculate-segment" data-id="${this.escape(item.id)}" title="Recalculate"><span class="fas fa-sync-alt"></span></button>` : `<button class="btn btn-icon" type="button" data-action="manage-members" data-id="${this.escape(item.id)}" title="Manage members"><span class="fas fa-user-plus"></span></button>`;
             return `<tr><td><div class="nexa-segment-name"><span class="fas ${icon}"></span><div><strong>${this.escape(item.name)}</strong><small>${this.escape(description)}</small></div></div></td><td><span class="nexa-segment-badge is-${item.type}">${active ? 'Active' : 'Static'}</span></td><td>${this.escape(item.folder || 'Unfiled')}</td><td>${item.memberCount}</td><td>${item.eligibleCount}</td><td>${item.suppressedCount}</td><td>${this.escape(this.dateTime(item.lastCalculatedAt || item.modifiedAt))}</td><td><div class="nexa-segment-actions"><button class="btn btn-icon" type="button" data-action="edit-segment" data-id="${this.escape(item.id)}" title="Edit"><span class="fas fa-pen"></span></button>${primaryAction}<button class="btn btn-icon" type="button" data-action="duplicate-segment" data-id="${this.escape(item.id)}" title="Clone"><span class="fas fa-copy"></span></button><button class="btn btn-icon" type="button" data-action="export-segment" data-id="${this.escape(item.id)}" title="Export CSV"><span class="fas fa-download"></span></button><button class="btn btn-icon is-danger" type="button" data-action="archive-segment" data-id="${this.escape(item.id)}" title="Archive"><span class="fas fa-archive"></span></button></div></td></tr>`;
         }).join('');
@@ -56,7 +56,7 @@ define('custom:views/segment/workspace', ['view'], Dep => class extends Dep {
     }
 
     newSegment() { this.openEditor(null); }
-    editSegment(event) { this.openEditor((this.workspace.segments || []).find(item => item.id === event.currentTarget.dataset.id)); }
+    editSegment(event) { const segment=(this.workspace.segments||[]).find(item=>item.id===event.currentTarget.dataset.id);if(segment?.accountBased){this.getRouter().navigate('NexaAbm',{trigger:true});return;}this.openEditor(segment); }
 
     openEditor(segment) {
         this.currentSegment = segment || null; this.rules = (segment?.rules || []).map(rule => ({...rule})); this.exclusionRules = (segment?.exclusionRules || []).map(rule => ({...rule}));
@@ -139,7 +139,7 @@ define('custom:views/segment/workspace', ['view'], Dep => class extends Dep {
         catch (error) { Espo.Ui.notify(false); Espo.Ui.error(error?.message || 'The segment could not be saved.'); }
     }
 
-    async recalculateSegment(event) { Espo.Ui.notify('Recalculating segment...'); try { const result = await Espo.Ajax.postRequest(`Nexa/segments/${encodeURIComponent(event.currentTarget.dataset.id)}/recalculate`); Espo.Ui.success(`${result.memberCount} contacts match. ${result.enteredCount} entered and ${result.exitedCount} exited.`); await this.load(); } catch (error) { Espo.Ui.notify(false); Espo.Ui.error(error?.message || 'The segment could not be recalculated.'); } }
+    async recalculateSegment(event) { const segment=(this.workspace.segments||[]).find(item=>item.id===event.currentTarget.dataset.id);if(segment?.accountBased){this.getRouter().navigate('NexaAbm',{trigger:true});return;}Espo.Ui.notify('Recalculating segment...'); try { const result = await Espo.Ajax.postRequest(`Nexa/segments/${encodeURIComponent(event.currentTarget.dataset.id)}/recalculate`); Espo.Ui.success(`${result.memberCount} contacts match. ${result.enteredCount} entered and ${result.exitedCount} exited.`); await this.load(); } catch (error) { Espo.Ui.notify(false); Espo.Ui.error(error?.message || 'The segment could not be recalculated.'); } }
     manageMembers(event) { window.location.hash = `#TargetList/view/${encodeURIComponent(event.currentTarget.dataset.id)}`; }
     async duplicateSegment(event) { Espo.Ui.notify('Cloning segment...'); try { await Espo.Ajax.postRequest(`Nexa/segments/${encodeURIComponent(event.currentTarget.dataset.id)}/duplicate`); Espo.Ui.success('Segment cloned.'); await this.load(); } catch (error) { Espo.Ui.notify(false); Espo.Ui.error(error?.message || 'The segment could not be cloned.'); } }
 

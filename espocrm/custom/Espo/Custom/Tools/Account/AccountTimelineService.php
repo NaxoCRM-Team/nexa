@@ -104,6 +104,10 @@ final class AccountTimelineService
             $sourceHasMore = $sourceHasMore || count($marketing) === $fetchSize;
             array_push($records, ...$marketing);
         }
+        if ($tab==='activity' && $this->acl->checkField('Account','leadScore','read')) {
+            $scoring=$this->scoringEvents($accountId,$fetchSize);
+            $sourceHasMore=$sourceHasMore || count($scoring)===$fetchSize;array_push($records,...$scoring);
+        }
 
         usort($records, fn (stdClass $left, stdClass $right): int =>
             strcmp($this->timestamp($right), $this->timestamp($left))
@@ -135,6 +139,12 @@ final class AccountTimelineService
         );
         $query->execute([$context->tenantId, $context->serviceId, $accountId, ...$contactIds]);
         return $query->fetchAll(PDO::FETCH_OBJ);
+    }
+    private function scoringEvents(string $accountId,int $limit): array
+    {
+        $context=$this->tenantContextStore->require();
+        $query=$this->entityManager->getPDO()->prepare("SELECT t.id,t.summary name,t.event_type status,t.source_occurred_at createdAt,t.actor_id createdById,JSON_UNQUOTE(JSON_EXTRACT(t.metadata_json,'$.actorName')) createdByName,'Account' parentType,t.account_id parentId,'ScoringEvaluation' _entityType FROM nexa_timeline_event t INNER JOIN nexa_scoring_evaluation e ON e.id=t.source_entity_id AND e.tenant_id=t.tenant_id AND e.service_id=t.service_id AND e.record_id=t.account_id INNER JOIN nexa_scoring_model m ON m.id=e.model_id AND m.tenant_id=e.tenant_id AND m.service_id=e.service_id AND m.entity_type='Account' WHERE t.tenant_id=? AND t.service_id=? AND t.account_id=? AND t.source_entity_type='ScoringEvaluation' AND t.visibility IN ('internal','team','customer') ORDER BY t.source_occurred_at DESC,t.id DESC LIMIT ?");
+        $query->bindValue(1,$context->tenantId);$query->bindValue(2,$context->serviceId);$query->bindValue(3,$accountId);$query->bindValue(4,$limit,PDO::PARAM_INT);$query->execute();return$query->fetchAll(PDO::FETCH_OBJ);
     }
 
     /** @return stdClass[] */
