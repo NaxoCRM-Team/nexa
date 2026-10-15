@@ -67,6 +67,11 @@ if (is_file($configPath)) {
 }
 
 chdir($root . '/espocrm');
+$adminEmail = $environment['ADMIN_EMAIL'] ?? $environment['ADMIN_USERNAME'];
+if (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+    fwrite(STDERR, "Set a valid ADMIN_EMAIL in the ignored .env before bootstrapping the application.\n");
+    exit(1);
+}
 require_once 'bootstrap.php';
 require_once 'install/core/InstallerConfig.php';
 require_once 'install/core/SystemHelper.php';
@@ -86,9 +91,30 @@ try {
         throw new RuntimeException('Application configuration could not be written.');
     }
 
+    // The schema fixture contains no records; rebuild hooks can require the system actor.
+    $bootstrap = new \Espo\Core\Application();
+    $container = $bootstrap->getContainer();
+    $systemActor = $container->getByClass(\Espo\Core\ORM\EntityManager::class)->getNewEntity('User');
+    $systemActor->set([
+        'id' => $container->getByClass(\Espo\Core\InjectableFactory::class)
+            ->create(\Espo\Core\Utils\SystemUser::class)->getId(),
+        'userName' => \Espo\Core\Utils\SystemUser::NAME,
+        'type' => \Espo\Entities\User::TYPE_SYSTEM,
+        'isActive' => true,
+    ]);
+    $container->set('user', $systemActor);
+    $container->getByClass(\Espo\Core\Tenant\TenantContextStore::class)->runWith(
+        new \Espo\Core\Tenant\TenantContext(
+            \Espo\Core\Tenant\TenantContext::LEGACY_LOCAL_ID,
+            'legacy-local',
+            'native-install-system-user',
+        ),
+        fn () => $container->getByClass(\Espo\Core\InjectableFactory::class)
+            ->create(\Espo\Core\Rebuild\Actions\AddSystemUser::class)->process(),
+    );
     $installer->rebuild();
 
-    if (!$installer->createUser($environment['ADMIN_USERNAME'], $environment['ADMIN_PASSWORD'])) {
+    if (!$installer->createUser($environment['ADMIN_USERNAME'], $environment['ADMIN_PASSWORD'], $adminEmail)) {
         throw new RuntimeException('Bootstrap administrator could not be created.');
     }
 

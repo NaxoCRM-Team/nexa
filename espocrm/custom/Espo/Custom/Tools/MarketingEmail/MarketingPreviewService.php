@@ -26,7 +26,47 @@ final class MarketingPreviewService
         private Processor $processor,
         private MarketingConditionalContentService $conditionalContent,
         private MarketingParameterTemplate $parameters,
+        private \Espo\Custom\Tools\Customer\CustomerFoundationRecorder $recorder,
     ) {}
+
+    /** Explain generated conditions using the same ACL-aware renderer as email preview. */
+    public function decision(stdClass $input): array
+    {
+        $contactId = $input->contactId ?? null;
+        if (!is_string($contactId) || $contactId === '' || strlen($contactId) > 64) throw new BadRequest('Choose a Contact for the decision.');
+        $definition = clone $input;
+        unset($definition->contactId);
+        $body = $this->conditionalContent->compose($definition)['bodyHtml'];
+        $conditions = $definition->conditions ?? [$definition];
+        $mode = isset($definition->conditions) ? ($definition->matchMode ?? 'all') : 'all';
+        $trace = [];
+        foreach ($conditions as $condition) {
+            $rule = clone $condition;
+            unset($rule->matchingHtml, $rule->fallbackHtml);
+            $rule->matchingText = 'NEXA_MATCH';
+            $rule->fallbackText = 'NEXA_FALLBACK';
+            $probe = $this->conditionalContent->compose($rule)['bodyHtml'];
+            $rendered = $this->preview((object) ['contactId'=>$contactId, 'bodyHtml'=>$probe]);
+            $matched = trim(strip_tags($rendered['bodyHtml'])) === 'NEXA_MATCH';
+            $trace[] = ['field'=>$condition->field, 'operator'=>$condition->operator,
+                'value'=>$condition->value ?? '', 'count'=>$condition->count ?? null,
+                'pageUrl'=>$condition->pageUrl ?? null, 'matched'=>$matched];
+        }
+        $outcomes = array_column($trace, 'matched');
+        $matched = $mode === 'all' ? !in_array(false, $outcomes, true) : in_array(true, $outcomes, true);
+        // Tag the actual rendering so evidence cannot claim a branch different from its output.
+        $tag = bin2hex(random_bytes(16));
+        $annotatedBody = $this->conditionalContent->compose($definition, $tag)['bodyHtml'];
+        $result = $this->preview((object) ['contactId'=>$contactId, 'bodyHtml'=>$annotatedBody]);
+        $chosen = $matched ? 'matching' : 'fallback';
+        if (!str_contains($result['bodyHtml'], $tag . $chosen)) throw new BadRequest('Contact evidence changed during the test. Please test again.');
+        $result['bodyHtml'] = str_replace('<p>' . $tag . $chosen . '</p>', '', $result['bodyHtml']);
+        $evidence = ['version'=>1, 'matchMode'=>$mode, 'conditions'=>$trace,
+            'branch'=>$matched ? 'matching' : 'fallback', 'evaluatedAt'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'templateHash'=>hash('sha256', $body), 'outputHash'=>hash('sha256', $result['bodyHtml'])];
+        $this->recorder->personalizationRecorded($contactId, $evidence);
+        return ['bodyHtml'=>$result['bodyHtml'], 'evidence'=>$evidence];
+    }
 
     /** @return array{subject:string,bodyHtml:string,preheader:string} */
     public function preview(stdClass $input): array

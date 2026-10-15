@@ -4298,8 +4298,12 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 };
 
                 this.contactBehaviorActivities = (payload.timeline || [])
-                    .filter(event => ['BehaviorEvent', 'MarketingDeliveryEvent'].includes(event.source_entity_type))
+                    .filter(event => ['BehaviorEvent', 'MarketingDeliveryEvent', 'ScoringEvaluation'].includes(event.source_entity_type))
                     .map(event => {
+                        if (event.source_entity_type==='ScoringEvaluation') return {
+                            id:`scoring-${event.id}`,type:'other',title:'Score updated',text:event.summary||'Primary model score updated',date:this.contactNoteDate(event.source_occurred_at),
+                            behaviorDetails:[['Model',event.metadata?.modelName||'Not recorded'],['Version',event.metadata?.version??'Not recorded'],['Previous score',event.metadata?.previousScore??'Unassigned'],['Score',event.metadata?.score??'Not recorded'],['Band',event.metadata?.band||'Not recorded'],['Recorded by',event.metadata?.actorName||'Not recorded']],
+                        };
                         const behavior = event.behavior || {};
                         const properties = behavior.properties || event.metadata?.properties || {};
                         const pageUrl = behavior.pageUrl || event.metadata?.pageUrl || '';

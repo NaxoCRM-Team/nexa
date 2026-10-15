@@ -147,8 +147,8 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
                 ['nexa-workflows', 'Workflows', '#NexaWorkflows', 'fas fa-project-diagram'],
                 ['nexa-customer-journeys', 'Customer Journeys'],
                 ['nexa-scoring-lifecycle', 'Scoring & Lifecycle'],
-                ['nexa-personalization', 'Personalization'],
-                ['nexa-target-accounts', 'Target Accounts & ABM'],
+                ['nexa-personalization', 'Personalization', '#NexaPersonalization', 'fas fa-sliders-h'],
+                ['nexa-target-accounts', 'Target Accounts & ABM', '#NexaAbm', 'fas fa-bullseye'],
             ],
         },
         {
@@ -485,7 +485,7 @@ define('client/custom/tenant-workspace', ['views/site/navbar', 'custom:product-s
         if (home) usedNames.add('Home');
 
         const workspaceGroups = workspaceNavigation.map(group =>
-            createWorkspaceGroup(group, existingByName, usedNames));
+            createWorkspaceGroup({...group,items:group.items.filter(item=>typeof item==='string' || !['nexa-target-accounts','nexa-personalization'].includes(item[0]) || this.getUser?.()?.get?.('type')==='admin')}, existingByName, usedNames));
         const administrationScopes = new Set([
             'User',
             'Team',

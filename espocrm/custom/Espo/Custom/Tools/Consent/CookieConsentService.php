@@ -16,6 +16,19 @@ use stdClass;
 
 final class CookieConsentService
 {
+    /** Trusted internal read: do not consume the public banner-configuration allowance. */
+    public function allowsPersonalization(string $visitorId): bool
+    {
+        $context=$this->tenantContextStore->require();
+        $query=$this->entityManager->getPDO()->prepare('SELECT r.*,b.public_key FROM nexa_cookie_receipt r INNER JOIN nexa_cookie_banner b ON b.id=r.banner_id AND b.tenant_id=r.tenant_id AND b.service_id=r.service_id WHERE r.tenant_id=? AND r.service_id=? AND r.visitor_id=? AND b.is_published=1 ORDER BY r.occurred_at DESC,r.id DESC LIMIT 1');
+        $query->execute([$context->tenantId,$context->serviceId,$visitorId]);$receipt=$query->fetch(PDO::FETCH_ASSOC);
+        if(!$receipt||(bool)$receipt['global_privacy_control'])return false;
+        $categories=json_decode($receipt['categories_json'],true);
+        if(($categories['preferences']??false)!==true||($categories['advertising']??false)!==true)return false;
+        $banner=$this->publicBanner($receipt['public_key']);$config=$this->bannerPayload($context,$banner,false);
+        return $receipt['policy_version']===$config['policyVersion'] && hash_equals($receipt['configuration_hash'],hash('sha256',json_encode([$config['policyVersion'],$config['categories']],JSON_THROW_ON_ERROR)));
+    }
+
     public function __construct(
         private EntityManager $entityManager,
         private TenantContextStore $tenantContextStore,

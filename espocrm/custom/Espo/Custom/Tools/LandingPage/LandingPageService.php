@@ -143,6 +143,16 @@ final class LandingPageService
         $statement = $this->entityManager->getPDO()->prepare("SELECT id,display_name,alt_text,locale,access_scope FROM nexa_asset_profile WHERE tenant_id=? AND service_id=? AND status='active' AND access_scope='public' ORDER BY modified_at DESC LIMIT 500"); $statement->execute([$context->tenantId, $context->serviceId]); return $statement->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function recordPersonalization(array $page, array $decisions, ?string $actorId = null, array $evidence = []): void
+    {
+        $context = $this->tenantContextStore->require();
+        if ($page['tenant_id'] !== $context->tenantId || $page['service_id'] !== $context->serviceId) throw new Forbidden('Landing decisions require the published workspace.');
+        $metadata = ['version'=>1, 'auditClock'=>'UTC', 'pageVersion'=>(int)$page['version_number'], 'decisions'=>$decisions, ...$evidence];
+        $statement = $this->entityManager->getPDO()->prepare('INSERT INTO nexa_audit_event (id,tenant_id,service_id,actor_type,action,subject_type,subject_id,correlation_id,source,metadata_json,actor_user_id,occurred_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6))');
+        $statement->execute([$this->uuid(), $context->tenantId, $context->serviceId, $actorId?'user':'anonymous',
+            'personalization.rendered', 'LandingPage', $page['id'], $this->uuid(), 'landing-page', $this->json($metadata), $actorId]);
+    }
+
     /** @return array<string, mixed> */
     private function configuration(TenantContext $context, stdClass $input, bool $publishing): array
     {
@@ -153,6 +163,7 @@ final class LandingPageService
         $canonicalUrl = trim((string) ($input->canonicalUrl ?? '')); if ($canonicalUrl !== '' && filter_var($canonicalUrl, FILTER_VALIDATE_URL) === false) throw new BadRequest('Enter a valid canonical URL.');
         $colors = []; foreach (['primaryColor' => '#087d71', 'backgroundColor' => '#ffffff', 'textColor' => '#172f35'] as $key => $default) { $value = strtolower(trim((string) ($input->{$key} ?? $default))); $colors[$key] = preg_match('/^#[a-f0-9]{6}$/', $value) ? $value : $default; }
         $blocks = []; foreach (array_slice((array) ($input->blocks ?? []), 0, 100) as $position => $raw) $blocks[] = $this->block($context, is_object($raw) ? $raw : (object) $raw, $position, $publishing);
+        if (count(array_filter($blocks, fn ($block) => !empty($block['personalization']))) > 10) throw new BadRequest('Use at most ten contextual variants per landing page.');
         if ($publishing && !$blocks) throw new BadRequest('Add at least one content block before publishing.');
         $sourceTemplate = trim((string) ($input->sourceTemplate ?? ''));
         if (!preg_match('/^[a-z0-9-]{0,64}$/', $sourceTemplate)) $sourceTemplate = '';
@@ -164,6 +175,12 @@ final class LandingPageService
     {
         $type = strtolower(trim((string) ($block->type ?? ''))); if (!in_array($type, self::BLOCK_TYPES, true)) throw new BadRequest('The page contains an unsupported content block.');
         $rawId = (string) ($block->id ?? ''); $id = preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $rawId) ? $rawId : 'block-' . ($position + 1) . '-' . substr(bin2hex(random_bytes(4)), 0, 8); $result = ['id' => $id, 'type' => $type];
+        $result['personalization'] = LandingPagePersonalization::normalize($block->personalization ?? null, $type);
+        if(($result['personalization']['field']??null)==='customer:segment') {
+            $audience=$this->entityManager->getPDO()->prepare("SELECT t.id FROM target_list t INNER JOIN nexa_segment_definition s ON s.target_list_id=t.id AND s.tenant_id=t.tenant_id AND s.service_id=t.service_id WHERE t.id=? AND t.tenant_id=? AND t.service_id=? AND t.deleted=0 AND s.status='active'");
+            $audience->execute([$result['personalization']['value'],$context->tenantId,$context->serviceId]);
+            if(!$audience->fetchColumn())throw new BadRequest('Choose an active audience in this workspace.');
+        }
         foreach (['eyebrow' => 100, 'heading' => 200, 'text' => 2000, 'caption' => 300, 'buttonLabel' => 80, 'formButtonLabel' => 80, 'altText' => 500] as $field => $max) $result[$field] = mb_substr(trim((string) ($block->{$field} ?? '')), 0, $max);
         $result['buttonUrl'] = $this->link($block->buttonUrl ?? null); $result['assetId'] = trim((string) ($block->assetId ?? '')) ?: null; $result['formId'] = trim((string) ($block->formId ?? '')) ?: null;
         $formMode = strtolower(trim((string) ($block->formMode ?? 'modal')));

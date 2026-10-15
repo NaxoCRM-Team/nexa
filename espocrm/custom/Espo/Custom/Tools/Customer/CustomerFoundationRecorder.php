@@ -92,6 +92,54 @@ final class CustomerFoundationRecorder
         }
     }
 
+    public function scoreProjected(Entity $entity,string $evaluationId,array $model,array $result,mixed $previous): void
+    {
+        $context=$this->tenantContextStore->require();$type=$entity->getEntityType();
+        if (!in_array($type,self::CUSTOMER_TYPES,true) || $entity->get('tenantId')!==$context->tenantId || $entity->get('serviceId')!==$context->serviceId) throw new \Espo\Core\Exceptions\Forbidden('Score history requires the current customer workspace.');
+        $metadata=['previousScore'=>$previous===null?null:(int)$previous,'score'=>$result['score'],'modelId'=>$model['id'],'modelName'=>$model['name'],'version'=>$result['version'],'definitionHash'=>$result['definitionHash'],'band'=>$result['band'],'evaluationId'=>$evaluationId,'actorName'=>$this->user->get('name')?:$this->user->get('userName')];
+        $summary='Score changed from '.($previous===null?'unassigned':(string)$previous).' to '.$result['score'].' - '.$model['name'];
+        $this->timeline($context,'score.projected','ScoringEvaluation',$evaluationId,$type==='Contact'?$entity->getId():null,$type==='Account'?$entity->getId():null,$evaluationId,$summary,$metadata);
+        $this->audit($context,'score.projected',$type,$entity->getId(),$evaluationId,$metadata);
+        $this->outbox($context,strtolower($type).'.score.projected',$type,$entity->getId(),$evaluationId,$metadata);
+    }
+    public function scoringOwnershipChanged(array $model,bool $enabled,?string $previousModelId): void
+    {
+        $this->audit($this->tenantContextStore->require(),'score.model_primary.changed','ScoringModel',$model['id'],$this->uuid(),['entityType'=>$model['entity_type'],'enabled'=>$enabled,'previousModelId'=>$previousModelId]);
+    }
+
+    public function abmRecorded(string $action,string $listId,array $metadata): void
+    {
+        $this->audit($this->tenantContextStore->require(),$action,'TargetList',$listId,$this->uuid(),$metadata);
+    }
+
+    public function personalizationRecorded(string $contactId, array $evidence): void
+    {
+        $this->audit($this->tenantContextStore->require(), 'personalization.evaluated', 'Contact', $contactId, $this->uuid(), array_merge($evidence,['auditClock'=>'UTC']), true);
+    }
+
+    public function abmTargetRecorded(string $accountId,array $metadata): void
+    {
+        $this->audit($this->tenantContextStore->require(),'abm.target.changed','Account',$accountId,$this->uuid(),$metadata);
+    }
+
+    public function scoreAdjustmentRecorded(Entity $entity,string $modelId,string $adjustmentId,int $delta,string $reason,?string $expiresAt,?string $reversesId): void
+    {
+        $context=$this->tenantContextStore->require();
+        if (!in_array($entity->getEntityType(),self::CUSTOMER_TYPES,true) || $entity->get('tenantId')!==$context->tenantId || $entity->get('serviceId')!==$context->serviceId) throw new \Espo\Core\Exceptions\Forbidden('Adjustments require the current customer workspace.');
+        $this->audit($context,$reversesId?'score.adjustment.revoked':'score.adjustment.created',$entity->getEntityType(),$entity->getId(),$adjustmentId,['modelId'=>$modelId,'adjustmentId'=>$adjustmentId,'delta'=>$delta,'reason'=>$reason,'expiresAt'=>$expiresAt,'reversesId'=>$reversesId]);
+    }
+
+    public function afterScoringSave(Entity $entity,string $evaluationId): void
+    {
+        $context=$this->tenantContextStore->require();
+        $query=$this->entityManager->getPDO()->prepare('SELECT e.evaluated_by_id FROM nexa_scoring_evaluation e INNER JOIN nexa_scoring_model m ON m.id=e.model_id AND m.tenant_id=e.tenant_id AND m.service_id=e.service_id WHERE e.id=? AND e.tenant_id=? AND e.service_id=? AND e.record_id=? AND m.entity_type=?');
+        $query->execute([$evaluationId,$context->tenantId,$context->serviceId,$entity->getId(),$entity->getEntityType()]);
+        $actorId=$query->fetchColumn();
+        $actor=$actorId?$this->entityManager->getEntityById('User',$actorId):null;
+        if (!$actor instanceof User || !$actor->isActive() || $actor->get('tenantId')!==$context->tenantId || $actor->get('serviceId')!==$context->serviceId) throw new \Espo\Core\Exceptions\Forbidden('Scoring history requires a valid workspace actor.');
+        (new self($this->entityManager,$this->tenantContextStore,$actor))->afterSave($entity);
+    }
+
     public function relationshipChanged(
         Entity $entity,
         string $relationName,
@@ -519,11 +567,13 @@ final class CustomerFoundationRecorder
         string $subjectId,
         string $correlationId,
         array $metadata,
+        bool $utcClock = false,
     ): void {
+        $clock = $utcClock ? 'UTC_TIMESTAMP(6)' : 'CURRENT_TIMESTAMP(6)';
         $statement = $this->entityManager->getPDO()->prepare(
             'INSERT INTO nexa_audit_event ' .
             '(id, tenant_id, service_id, actor_type, actor_user_id, action, subject_type, subject_id, ' .
-            'correlation_id, source, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'correlation_id, source, metadata_json, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ' . $clock . ')'
         );
         $statement->execute([
             $this->uuid(), $context->tenantId, $context->serviceId, $this->actorType(),

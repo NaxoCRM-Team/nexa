@@ -32,6 +32,11 @@ final class CustomerFoundation implements AfterSave, AfterRemove, AfterRelate, A
 
     public function afterSave(Entity $entity, SaveOptions $options): void
     {
+        $evaluationId=$options->get('nexaPrimaryScoreEvaluation');
+        if (is_string($evaluationId) && in_array($entity->getEntityType(),['Contact','Account'],true)) {
+            $this->recorder->afterScoringSave($entity,$evaluationId);
+            return;
+        }
         $this->recorder->afterSave($entity);
     }
 

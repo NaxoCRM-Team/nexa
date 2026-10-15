@@ -18,6 +18,22 @@ test('Authenticated scoring authoring, native record selection and recorded eval
         await page.getByRole('button',{name:'Choose record',exact:true}).click();await page.getByRole('dialog').getByText(contact.name,{exact:true}).first().click();await page.getByRole('button',{name:'Record evaluation',exact:true}).click();await expect(page.locator('[data-history]')).toContainText('25 points');
         const workspace=await page.evaluate(()=>Espo.Ajax.getRequest('Nexa/scoring/workspace'));const model=workspace.models.find(m=>m.name==='Live director fit');
         const foreign=await page.evaluate(async({id,recordId})=>{try{await Espo.Ajax.postRequest(`Nexa/scoring/${id}/preview`,{recordId});return true;}catch{return false;}},{id:model.id,recordId:tenants[1].contactId});expect(foreign).toBe(false);
+        const account=await page.evaluate(async()=>{
+            await Espo.Ajax.putRequest('Nexa/currency/settings',{baseCurrency:'USD',defaultCurrency:'USD',rateMode:'manual',enabledCurrencies:['USD','GBP'],rates:{USD:1,GBP:2}});
+            return Espo.Ajax.postRequest('Account',{name:'Live currency company',industry:'Technology',annualRevenue:100,annualRevenueCurrency:'USD'});
+        });
+        await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.nexa-scoring [data-loading]')).toBeHidden();
+        await page.getByRole('button',{name:'New model',exact:true}).click();await page.getByRole('textbox',{name:'Name',exact:true}).fill('Live grouped revenue');await page.getByRole('combobox',{name:'Records',exact:true}).selectOption('Account');
+        await page.getByRole('button',{name:'Remove rule',exact:true}).click();await page.getByRole('button',{name:'Add condition group',exact:true}).click();
+        const group=page.locator('[data-group]');await group.getByRole('spinbutton',{name:'Points',exact:true}).fill('40');
+        const monetary=group.locator('[data-condition-leaf]').first();await monetary.getByRole('combobox',{name:'Property',exact:true}).selectOption('annualRevenue');await monetary.getByRole('combobox',{name:'Condition',exact:true}).selectOption('greater_than');await monetary.getByRole('textbox',{name:'Value',exact:true}).fill('49.99');await monetary.getByRole('combobox',{name:'Comparison currency',exact:true}).selectOption('GBP');
+        await group.getByRole('button',{name:'Add subgroup',exact:true}).click();
+        await page.getByRole('button',{name:'Save draft',exact:true}).click();await expect(page.getByRole('heading',{name:'Live grouped revenue',exact:true})).toBeVisible();
+        await page.getByRole('button',{name:'Publish',exact:true}).click();await expect(page.getByRole('button',{name:'Save draft',exact:true})).toBeHidden();
+        await page.getByRole('button',{name:'Choose record',exact:true}).click();await page.getByRole('dialog').getByText(account.name,{exact:true}).first().click();await page.getByRole('button',{name:'Record evaluation',exact:true}).click();
+        await expect(page.locator('[data-result]')).toContainText('40 points');await expect(page.locator('[data-result]')).toContainText('All conditions: Matched');await expect(page.locator('[data-history]')).toContainText('40 points');
+        const currencyEvidence=await page.evaluate(async id=>{const data=await Espo.Ajax.getRequest('Nexa/scoring/workspace');const grouped=data.models.find(row=>row.name==='Live grouped revenue');return Espo.Ajax.getRequest(`Nexa/scoring/${grouped.id}/evaluations/${id}`);},account.id);
+        expect(currencyEvidence.evaluations[0].inputs.annualRevenue.code).toBe('USD');expect(Number(currencyEvidence.evaluations[0].inputs.annualRevenue.normalized.GBP)).toBe(50);expect(currencyEvidence.evaluations[0].contributions[0].conditions[1].operator).toBe('or');
         expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
     }catch(error){failure=error;}
     finally{try{await fixture('cleanup',tenants);}catch(error){if(!failure)failure=error;}}

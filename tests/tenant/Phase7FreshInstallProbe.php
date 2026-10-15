@@ -1,0 +1,30 @@
+<?php
+declare(strict_types=1);
+if(PHP_SAPI!=='cli')throw new RuntimeException('CLI acceptance only.');
+$root=dirname(__DIR__,2);
+if(!preg_match('/^nexa_p7_install_[a-f0-9]{32}$/D',basename($root)))throw new RuntimeException('Only the disposable installation tree is allowed.');
+$input=json_decode(trim((string)fgets(STDIN)),true,16,JSON_THROW_ON_ERROR);
+require $root.'/espocrm/bootstrap.php';
+$app=new \Espo\Core\Application();$app->setupSystemUser();$c=$app->getContainer();
+$config=$c->getByClass(\Espo\Core\Utils\Config::class);
+$database=$config->get('database');
+if(!is_array($database)||$database['dbname']!==basename($root)||!$config->get('isInstalled'))throw new RuntimeException('Disposable installed configuration is required.');
+$em=$c->getByClass(\Espo\Core\ORM\EntityManager::class);$factory=$c->getByClass(\Espo\Core\InjectableFactory::class);
+$contexts=$c->getByClass(\Espo\Core\Tenant\TenantContextStore::class);
+$context=new \Espo\Core\Tenant\TenantContext(\Espo\Core\Tenant\TenantContext::LEGACY_LOCAL_ID,'legacy-local','fresh-install-acceptance');
+$contexts->runWith($context,static function()use($input,$em,$factory,$c,$context):void{
+    $user=$em->getRDBRepository('User')->where(['userName'=>$input['username'],'type'=>'admin','isActive'=>true,'deleted'=>false])->findOne();
+    if(!$user||!$factory->create(\Espo\Core\Utils\PasswordHash::class)->verify($input['password'],$user->get('password')))throw new RuntimeException('Fresh bootstrap administrator could not be verified.');
+    if($user->get('tenantId')!==$context->tenantId||$user->get('serviceId')!==$context->serviceId)throw new RuntimeException('Bootstrap administrator ownership is incomplete.');
+    $records=$factory->create(\Espo\Core\Record\ServiceFactory::class);
+    $account=$records->createForUser('Account',$user)->create((object)['name'=>'Fresh installation company'],\Espo\Core\Record\CreateParams::create());
+    $contact=$records->createForUser('Contact',$user)->create((object)['firstName'=>'Fresh','lastName'=>'Installation','accountId'=>$account->getId()],\Espo\Core\Record\CreateParams::create());
+    $contact=$records->createForUser('Contact',$user)->getEntity($contact->getId());
+    if($contact->get('tenantId')!==$context->tenantId||$contact->get('serviceId')!==$context->serviceId||$contact->get('accountId')!==$account->getId())throw new RuntimeException('Fresh native CRM persistence or ownership failed.');
+    $acl=$c->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+    $scoring=$factory->createWith(\Espo\Custom\Tools\Scoring\ScoringService::class,['user'=>$user,'acl'=>$acl])->workspace();
+    if(!isset($scoring['fields']['Contact']))throw new RuntimeException('Phase 7 scoring metadata is unavailable after installation.');
+    $history=$factory->createWith(\Espo\Custom\Tools\MarketingEmail\PersonalizationHistoryService::class,['user'=>$user,'acl'=>$acl])->history([]);
+    if($history['list']!==[])throw new RuntimeException('A fresh installation unexpectedly contains personalization decisions.');
+});
+echo "Fresh installation administrator, native CRM persistence, ownership and Phase 7 services verified.\n";

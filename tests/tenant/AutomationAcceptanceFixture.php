@@ -119,6 +119,80 @@ $result = $contexts->runWith($context, function () use ($input,$command,$tenant,
     $admin = $factory->createWith(WorkflowService::class,['user'=>$user]);
     if (!empty($input['barrier']) && $command!=='hold-quota') { echo "READY\n"; flush(); if (trim((string)fgets(STDIN)) !== 'GO') throw new RuntimeException('Worker barrier was not released.'); }
     switch ($command) {
+        case 'phase7-capacity':
+            $checks=require __DIR__.'/Phase7CapacityChecks.php';
+            return $checks($em,$factory,$container,$user,$tenant);
+        case 'scoring-concurrency-setup':
+            $acl=$container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $scoring=$factory->createWith(\Espo\Custom\Tools\Scoring\ScoringService::class,['user'=>$user,'acl'=>$acl]);
+            $contactCount=$input['contacts']??20;if(!is_int($contactCount)||$contactCount<1||$contactCount>1000)throw new RuntimeException('Invalid fixture contact count.');
+            for($i=0;$i<$contactCount;$i++)$em->createEntity('Contact',['firstName'=>'Worker fixture','lastName'=>(string)$i,'title'=>'Director']);
+            $model=$scoring->save((object)['name'=>'Independent worker acceptance','entityType'=>'Contact','definition'=>(object)['rules'=>[(object)['id'=>'fit','field'=>'title','operator'=>'has_value','points'=>10]]]]);
+            $scoring->control($model['id'],(object)['action'=>'publish']);
+            $scoring->control($model['id'],(object)['action'=>'schedule','enabled'=>true,'intervalHours'=>24]);
+            $execute('UPDATE nexa_scoring_model SET next_evaluation_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE tenant_id=? AND service_id=? AND id=?',[$tenant['id'],$tenant['serviceId'],$model['id']]);
+            return ['modelId'=>$model['id']];
+        case 'scoring-tick':
+            return ['processed'=>$factory->create(\Espo\Custom\Tools\Scoring\ScoringService::class)->processDue()];
+        case 'scoring-native-job':
+            $before=(int)$execute('SELECT COUNT(*) FROM nexa_scoring_evaluation WHERE tenant_id=? AND service_id=?',[$tenant['id'],$tenant['serviceId']])->fetchColumn();
+            $job=$em->createEntity('Job',['name'=>'Phase 7 fairness fixture','className'=>\Espo\Custom\Jobs\RecalculateScoringModels::class,'status'=>'Pending','executeTime'=>gmdate('Y-m-d H:i:s')]);
+            $job=$em->getEntityById('Job',$job->getId());
+            $started=microtime(true);$factory->create(\Espo\Core\Job\JobRunner::class)->runThrowingException($job);
+            $after=(int)$execute('SELECT COUNT(*) FROM nexa_scoring_evaluation WHERE tenant_id=? AND service_id=?',[$tenant['id'],$tenant['serviceId']])->fetchColumn();
+            return ['processed'=>$after-$before,'seconds'=>round(microtime(true)-$started,3),'status'=>$em->getEntityById('Job',$job->getId())->get('status')];
+        case 'abm-concurrency-setup':
+            $acl=$container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $abm=$factory->createWith(\Espo\Custom\Tools\Abm\AbmService::class,['user'=>$user,'acl'=>$acl]);
+            $account=$em->createEntity('Account',['name'=>'Worker ABM company']);
+            $contact=$em->getEntityById('Contact',$tenant['contactId']);$contact->set('accountId',$account->getId());$em->saveEntity($contact);
+            $abm->target($account->getId(),(object)['isTargetAccount'=>true,'targetAccountTier'=>'Tier1']);
+            $list=$abm->save((object)['name'=>'Worker ABM list','type'=>'static','accountIds'=>[$account->getId()]]);
+            $execute('UPDATE nexa_abm_list SET next_refresh_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE tenant_id=? AND service_id=? AND target_list_id=?',[$tenant['id'],$tenant['serviceId'],$list['id']]);
+            return ['listId'=>$list['id'],'accountId'=>$account->getId()];
+        case 'abm-tick':
+            return ['processed'=>$factory->create(\Espo\Custom\Tools\Abm\AbmService::class)->processDue()];
+        case 'abm-competing-edit':
+            $acl=$container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $abm=$factory->createWith(\Espo\Custom\Tools\Abm\AbmService::class,['user'=>$user,'acl'=>$acl]);
+            try {
+                $abm->save((object)['id'=>$input['listId'],'expectedVersion'=>1,'name'=>'Concurrent edit '.$input['label'],'type'=>'static','accountIds'=>[$input['accountId']]]);
+                return ['saved'=>true];
+            } catch (\Espo\Core\Exceptions\BadRequest $error) {
+                if($error->getMessage()!=='This account list changed. Reload it before saving.')throw $error;
+                return ['saved'=>false,'conflict'=>true];
+            }
+        case 'abm-inspect':
+            return ['lists'=>$execute('SELECT target_list_id,version_number,account_count,last_error_code FROM nexa_abm_list WHERE tenant_id=? AND service_id=?',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC),
+                'members'=>$execute('SELECT contact_id,target_list_id,COUNT(*) copies FROM contact_target_list WHERE tenant_id=? AND service_id=? AND deleted=0 GROUP BY contact_id,target_list_id',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC)];
+        case 'scoring-wake':
+            $execute("UPDATE nexa_scoring_model SET next_evaluation_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE tenant_id=? AND service_id=? AND status='published'",[$tenant['id'],$tenant['serviceId']]);
+            return ['woken'=>true];
+        case 'scoring-archive':
+            $acl=$container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $scoring=$factory->createWith(\Espo\Custom\Tools\Scoring\ScoringService::class,['user'=>$user,'acl'=>$acl]);
+            $scoring->control($input['modelId'],(object)['action'=>'archive']);
+            return ['archived'=>true];
+        case 'scoring-inspect':
+            return ['evaluations'=>$execute('SELECT model_id,record_id,COUNT(*) copies FROM nexa_scoring_evaluation WHERE tenant_id=? AND service_id=? GROUP BY model_id,record_id ORDER BY record_id',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC),
+                'models'=>$execute('SELECT id,status,automatic_enabled,scan_cursor,scan_key,last_error_code FROM nexa_scoring_model WHERE tenant_id=? AND service_id=? ORDER BY id',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_ASSOC)];
+        case 'scoring-quota-setup':
+            $acl=$container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $scoring=$factory->createWith(\Espo\Custom\Tools\Scoring\ScoringService::class,['user'=>$user,'acl'=>$acl]);
+            $workspace=$scoring->workspace();$limit=$workspace['publishedLimit'];
+            if(!in_array($limit,[5,50],true))throw new RuntimeException('An entitled fixture plan is required.');
+            $make=fn($name)=>$scoring->save((object)['name'=>$name,'entityType'=>'Contact','definition'=>(object)['rules'=>[(object)['id'=>'fit','field'=>'title','operator'=>'has_value','points'=>10]]]]);
+            $active=count(array_filter($workspace['models'],fn($model)=>$model['status']==='published'));
+            for($i=$active;$i<$limit-1;$i++){$model=$make('Quota fixture '.$i);$scoring->control($model['id'],(object)['action'=>'publish']);}
+            return ['limit'=>$limit,'first'=>$make('Quota candidate one')['id'],'second'=>$make('Quota candidate two')['id']];
+        case 'scoring-competing-publish':
+            $acl=$container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $scoring=$factory->createWith(\Espo\Custom\Tools\Scoring\ScoringService::class,['user'=>$user,'acl'=>$acl]);
+            try{$scoring->control($input['modelId'],(object)['action'=>'publish']);return ['published'=>true];}
+            catch(\Espo\Core\Exceptions\BadRequest $error){if($error->getMessage()!=='The plan limit for active scoring models has been reached.')throw $error;return ['published'=>false,'quotaRejected'=>true];}
+        case 'abm-company':
+            $company=$factory->create(\Espo\Core\Record\ServiceFactory::class)->createForUser('Account',$user)->create((object)['name'=>'ABM acceptance company '.$tenant['slug']],\Espo\Core\Record\CreateParams::create());
+            return ['id'=>$company->getId()];
         case 'programmable-setup':
             $capture = !empty($input['capture']);
             $transactional = !empty($input['transactional']);

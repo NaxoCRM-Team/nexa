@@ -32,7 +32,7 @@ try {
     $assert(str_contains($body,'{{#ifEqual leadStatus_RAW (nexaEmailValue "TmV3")}}'),'Conditions must use native helpers with unlocalized raw values.');
     $contacts=[];
     foreach (['New','Connected'] as $status) $contacts[]=$store->runWith($a,function () use ($em,$status) {
-        $contact=$em->getNewEntity('Contact'); $contact->set(['firstName'=>'Conditional','lastName'=>'Customer','leadStatus'=>$status]); $em->saveEntity($contact); return $contact;
+        $contact=$em->getNewEntity('Contact'); $contact->set(['firstName'=>'Conditional','lastName'=>'Customer','leadStatus'=>$status]); $em->saveEntity($contact); return $em->getEntityById('Contact',$contact->getId());
     });
     $queueCount=(int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn();
     $render=fn ($contact,$html)=>$store->runWith($a,fn ()=>$preview->preview((object) ['contactId'=>$contact->getId(),'subject'=>'Hello {Contact.firstName}','bodyHtml'=>$html]));
@@ -318,7 +318,35 @@ try {
     foreach (['https://user:secret@example.test/','https://example.test/#fragment','file:///tmp/page','https://example.test/a b',''] as $invalid) {$badPage=clone $pageRule; $badPage->pageUrl=$invalid; $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($badPage)),'Invalid page filters must be rejected.');}
     $pageRule->field='behavior:email.opened';
     $blocked(fn ()=>$store->runWith($a,fn ()=>$conditional->compose($pageRule)),'Email events cannot accept website page filters.');
-    $assert((int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn()===$queueCount,'Composing and previewing must never enqueue mail.');
+    $decisionInput=(object)['contactId'=>$contacts[0]->getId(),'field'=>'leadStatus','operator'=>'equals','value'=>'New','matchingText'=>'Welcome','fallbackText'=>'Existing customer'];
+    $decision=$store->runWith($a,fn ()=>$preview->decision($decisionInput));
+    $assert($decision['evidence']['branch']==='matching' && $decision['evidence']['conditions'][0]['matched']===true,'Decision evidence must explain the native matching branch.');
+    $assert(str_contains($decision['bodyHtml'],'Welcome') && !str_contains($decision['bodyHtml'],'NEXA_MATCH'),'Decision previews must return actual content, not test markers.');
+    $decisionInput->contactId=$contacts[1]->getId();
+    $decision=$store->runWith($a,fn ()=>$preview->decision($decisionInput));
+    $assert($decision['evidence']['branch']==='fallback' && str_contains($decision['bodyHtml'],'Existing customer'),'Fallback evidence must agree with rendered content.');
+    $decisionInput->conditions=[(object)['field'=>'leadStatus','operator'=>'equals','value'=>'New'],(object)['field'=>'firstName','operator'=>'equals','value'=>'Conditional']];
+    $decisionInput->matchMode='any';unset($decisionInput->field,$decisionInput->operator,$decisionInput->value);
+    $decision=$store->runWith($a,fn ()=>$preview->decision($decisionInput));
+    $assert($decision['evidence']['branch']==='matching' && count($decision['evidence']['conditions'])===2,'OR decisions must retain individual truth snapshots.');
+    $decisionInput->matchMode='all';
+    $decision=$store->runWith($a,fn ()=>$preview->decision($decisionInput));
+    $assert($decision['evidence']['branch']==='fallback','AND decisions must require every native condition to match.');
+    $audit=$em->getPDO()->prepare("SELECT metadata_json FROM nexa_audit_event WHERE tenant_id=? AND service_id=? AND subject_id=? AND action='personalization.evaluated'");
+    $audit->execute([$a->tenantId,$a->serviceId,$contacts[1]->getId()]);$recorded=$audit->fetchAll(PDO::FETCH_COLUMN);
+    $assert(count($recorded)===3 && str_contains($recorded[0],'templateHash'),'Each successful decision must retain scoped audit evidence.');
+    $richDecision=clone $decisionInput;unset($richDecision->matchingText,$richDecision->fallbackText);
+    $richDecision->matchingHtml='<p><strong>Rich match</strong></p>';$richDecision->fallbackHtml='<p><em>Rich fallback</em></p>';
+    $richResult=$store->runWith($a,fn ()=>$preview->decision($richDecision));
+    $assert($richResult['bodyHtml']==='<p><em>Rich fallback</em></p>','Rich decision content must preserve the native branch without marker artifacts.');
+    $type=$user->get('type');
+    try {$user->set('type','regular');$blocked(fn ()=>$store->runWith($a,fn ()=>$preview->decision($decisionInput)),'Non-admin users cannot bypass conditional editing permissions through decision testing.');}
+    finally {$user->set('type',$type);}
+    $blocked(fn ()=>$store->runWith($b,fn ()=>$preview->decision($decisionInput)),'Foreign Contact decision tests must be rejected.');
+    $blocked(fn ()=>$store->runWith($otherService,fn ()=>$preview->decision($decisionInput)),'Foreign service decision tests must be rejected.');
+    $decisionInput->conditions=array_fill(0,7,$decisionInput->conditions[0]);
+    $blocked(fn ()=>$store->runWith($a,fn ()=>$preview->decision($decisionInput)),'Decision tests must retain existing condition limits.');
+    $assert((int) $em->getPDO()->query('SELECT COUNT(*) FROM email_queue_item')->fetchColumn()===$queueCount,'Composing, decisions and previewing must never enqueue mail.');
     echo "Native conditional content and tenant-scoped preview tests passed.\n";
 } catch (Throwable $error) {
     fwrite(STDERR,get_class($error) . ': ' . $error->getMessage() . "\n" . ($error->getPrevious()?->getMessage() ?? '') . "\n" . $error->getTraceAsString() . "\n"); throw $error;

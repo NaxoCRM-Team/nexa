@@ -42,11 +42,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && $landingPageRoute !== nul
     $_GET['entryPoint'] = 'NexaLandingPage';
     $_GET['key'] = $landingPageRoute['key'];
     $_GET['slug'] = $landingPageRoute['slug'];
-    $_SERVER['QUERY_STRING'] = http_build_query([
+    $landingQuery = [
         'entryPoint' => $_GET['entryPoint'],
         'key' => $_GET['key'],
         'slug' => $_GET['slug'],
-    ]);
+    ];
+    foreach (['utm_source', 'utm_medium', 'utm_campaign', 'language'] as $field) {
+        if (isset($_GET[$field]) && is_string($_GET[$field]) && strlen($_GET[$field]) <= 400) {
+            $landingQuery[$field] = $_GET[$field];
+        }
+    }
+    $_SERVER['QUERY_STRING'] = http_build_query($landingQuery);
 }
 
 $hasEntryPoint = filter_has_var(INPUT_GET, 'entryPoint') || isset($_GET['entryPoint']);

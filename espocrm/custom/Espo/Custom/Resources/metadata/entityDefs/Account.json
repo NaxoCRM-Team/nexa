@@ -1,5 +1,7 @@
 {
     "fields": {
+        "isTargetAccount": {"type": "bool", "default": false},
+        "targetAccountTier": {"type": "enum", "options": ["Tier1", "Tier2", "Tier3"], "default": "Tier3"},
         "companyLogo": {
             "type": "image",
             "previewSize": "medium",

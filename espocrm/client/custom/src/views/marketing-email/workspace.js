@@ -363,6 +363,15 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
     installConditionalRules() {
         const form = this.conditionalDialog.modal.querySelector('form');
         const section = form.querySelector('section');
+        const test = document.createElement('button');
+        test.type = 'button'; test.className = 'btn btn-default'; test.dataset.testDecision = '';
+        test.innerHTML = '<span class="fas fa-vial" aria-hidden="true"></span> Test for a Contact';
+        test.addEventListener('click', () => this.testConditionalDecision());
+        form.querySelector('footer').prepend(test);
+        const output = document.createElement('div'); output.dataset.decisionOutput = ''; output.setAttribute('aria-live', 'polite');
+        section.append(output);
+        form.addEventListener('input', () => output.replaceChildren());
+        form.addEventListener('change', () => output.replaceChildren());
         const row = document.createElement('fieldset'); row.dataset.conditionalRule = '';
         const legend = document.createElement('legend'); legend.textContent = 'Condition 1'; row.append(legend);
         ['field','operator','value'].forEach(name => row.append(form.elements[name].closest('label')));
@@ -523,6 +532,54 @@ define('custom:views/marketing-email/workspace', ['view'], Dep => class extends 
             entry.editor.$summernote.summernote('restoreRange'); entry.editor.$summernote.summernote('focus');
             entry.editor.$summernote.summernote('insertNode',node); entry.editor.fetchToModel();
             picker.hidden = true;
+        });
+    }
+    async testConditionalDecision() {
+        const dialog = this.conditionalDialog;
+        if (!dialog) return;
+        const form = dialog.modal.querySelector('form');
+        if (!form.reportValidity()) return;
+        this.createView('conditionalDecisionContact', 'views/modals/select-records', {scope:'Contact', multiple:false, createButton:false}, view => {
+            const layers = [dialog.modal, this.element.querySelector('[data-email-editor]')].filter(Boolean);
+            const visibility = layers.map(layer => layer.style.visibility);
+            const restore = () => {if (this.conditionalDialog === dialog) layers.forEach((layer,index) => layer.style.visibility = visibility[index]);};
+            layers.forEach(layer => layer.style.visibility = 'hidden');
+            this.listenToOnce(view, 'remove', restore);
+            view.render();
+            this.listenToOnce(view, 'select', async model => {
+                restore();
+                if (this.conditionalDialog !== dialog) return;
+                const button = form.querySelector('[data-test-decision]');
+                button.disabled = true;
+                const output = form.querySelector('[data-decision-output]');
+                output.replaceChildren();
+                form.querySelector('[data-conditional-error]').textContent = '';
+                try {
+                    const payload = this.conditionalPayload(form);
+                    const result = await Espo.Ajax.postRequest('Nexa/personalization/decision', {...payload, contactId:model.id});
+                    if (this.conditionalDialog !== dialog) return;
+                    if (JSON.stringify(payload) !== JSON.stringify(this.conditionalPayload(form))) throw new Error('Conditions changed. Test the updated conditions again.');
+                    const title = document.createElement('strong');
+                    title.textContent = `${model.get('name') || 'Contact'}: ${result.evidence.branch === 'matching' ? 'Matching content' : 'Fallback content'}`;
+                    output.append(title);
+                    const list = document.createElement('ul');
+                    result.evidence.conditions.forEach(rule => {
+                        const item = document.createElement('li');
+                        const label = dialog.fields.find(field => field.name === rule.field)?.label || rule.field;
+                        item.textContent = `${label}: ${rule.matched ? 'Matched' : 'Did not match'}`;
+                        list.append(item);
+                    });
+                    output.append(list);
+                    const frame = document.createElement('iframe');
+                    frame.title = 'Personalized content preview';
+                    frame.setAttribute('sandbox', ''); frame.setAttribute('referrerpolicy', 'no-referrer');
+                    frame.style.width = '100%'; frame.style.height = '220px'; frame.style.border = '1px solid #d6dfe0';
+                    frame.srcdoc = result.bodyHtml;
+                    output.append(frame);
+                } catch (error) {
+                    if (this.conditionalDialog === dialog) form.querySelector('[data-conditional-error]').textContent = error?.message || 'The decision could not be tested.';
+                } finally {button.disabled = false;}
+            });
         });
     }
     conditionalPayload(form) {

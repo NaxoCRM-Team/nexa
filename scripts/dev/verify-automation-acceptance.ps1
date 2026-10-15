@@ -3,7 +3,7 @@ param(
     [string] $PhpPath = 'php',
     [string] $Projects = 'desktop,mobile',
     [string] $ApprovedWebhookUrl = '',
-    [ValidateSet('Automation','Programmable','Closure','Experiment','Scoring')]
+    [ValidateSet('Automation','Programmable','Closure','Experiment','Scoring','Abm','Personalization','Phase7Workers')]
     [string] $Suite = 'Automation',
     [switch] $LocalPostalCapture
 )
@@ -27,9 +27,10 @@ try {
     if ($Suite -in @('Closure','Experiment') -and -not $LocalPostalCapture) { throw 'Combined email acceptance requires explicit -LocalPostalCapture.' }
     $env:NEXA_PHASE6_CLOSURE_ACCEPTANCE = if ($Suite -in @('Closure','Experiment')) {'1'} else {''}
     $env:NEXA_POSTAL_CAPTURE_ACCEPTANCE = if ($LocalPostalCapture -and $Suite -in @('Programmable','Closure','Experiment')) {'1'} else {''}
-    $spec = switch ($Suite) { 'Closure' {'tests/browser/live-phase6-workflow-email.spec.js'} 'Experiment' {'tests/browser/live-phase6-email-experiment.spec.js'} 'Scoring' {'tests/browser/live-scoring-workspace.spec.js'} default {'tests/browser/live-automation-acceptance.spec.js'} }
+    $spec = switch ($Suite) { 'Closure' {'tests/browser/live-phase6-workflow-email.spec.js'} 'Experiment' {'tests/browser/live-phase6-email-experiment.spec.js'} 'Scoring' {'tests/browser/live-scoring-workspace.spec.js'} 'Abm' {'tests/browser/live-abm-workspace.spec.js'} 'Personalization' {'tests/browser/live-landing-personalization.spec.js'} default {'tests/browser/live-automation-acceptance.spec.js'} }
+    if ($Suite -eq 'Phase7Workers') { $spec = 'tests/browser/live-phase7-workers.spec.js' }
     $arguments = @('playwright','test',$spec,'--workers=1')
-    if ($Suite -notin @('Closure','Experiment','Scoring')) { $arguments += @('--grep', $(if ($Suite -eq 'Programmable') {'programmable email'} else {'authenticated automation|approved public HTTPS webhook'})) }
+    if ($Suite -notin @('Closure','Experiment','Scoring','Abm','Personalization','Phase7Workers')) { $arguments += @('--grep', $(if ($Suite -eq 'Programmable') {'programmable email'} else {'authenticated automation|approved public HTTPS webhook'})) }
     foreach ($project in $Projects.Split(',')) { $arguments += "--project=$($project.Trim())" }
     & npx @arguments
     if ($LASTEXITCODE -ne 0) { throw "$Suite acceptance failed." }

@@ -586,6 +586,12 @@
                        "classification":  "serviceOwned",
                        "tenantColumn":  "tenant_id",
                        "serviceScope":  "required"
+                   },
+                   {
+                       "name":  "nexa_personalization_identity_proof",
+                       "classification":  "serviceOwned",
+                       "tenantColumn":  "tenant_id",
+                       "serviceScope":  "required"
                    }
                ],
     "espoCoreConversion":  {

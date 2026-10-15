@@ -207,4 +207,28 @@ test('Conditional content stages safely with property values, fallback and stale
     await page.evaluate(() => window.releaseCondition());
     await expect(dialog).toHaveCount(0);
     await expect(page.locator('[name="bodyHtml"]')).toHaveValue('<p>Newer draft content</p>');
+    await button.click();
+    await dialog.getByRole('textbox',{name:'Value',exact:true}).fill('Morgan');
+    await dialog.getByRole('textbox',{name:'Content when matched'}).fill('Matching content');
+    await dialog.getByRole('textbox',{name:'Fallback content'}).fill('Fallback content');
+    await page.evaluate(() => {
+        view.createView = (key,type,options,callback) => {
+            window.selectorOptions=options;
+            callback({render:() => {}});
+        };
+        view.listenToOnce = (selector,event,callback) => {if(event==='select')callback({id:'contact-a',get:()=>'Morgan'});};
+        Espo.Ajax.postRequest = async (url,input) => {
+            window.decisionRequest={url,input};
+            return {bodyHtml:'<p>Matching content</p>',evidence:{branch:'matching',conditions:[{field:'firstName',matched:true}]}};
+        };
+    });
+    await dialog.getByRole('button',{name:'Test for a Contact',exact:true}).click();
+    await expect(dialog.locator('[data-decision-output]')).toContainText('Morgan: Matching content');
+    await expect(dialog.locator('[data-decision-output]')).toContainText('First name: Matched');
+    await expect(dialog.locator('iframe[title="Personalized content preview"]')).toHaveAttribute('sandbox','');
+    expect(await page.evaluate(()=>window.selectorOptions)).toMatchObject({scope:'Contact',multiple:false,createButton:false});
+    expect(await page.evaluate(()=>window.decisionRequest)).toMatchObject({url:'Nexa/personalization/decision',input:{contactId:'contact-a',field:'firstName',value:'Morgan'}});
+    await dialog.getByRole('textbox',{name:'Value',exact:true}).fill('Changed');
+    await expect(dialog.locator('[data-decision-output]')).toBeEmpty();
+    await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
 });
