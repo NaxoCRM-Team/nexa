@@ -12,6 +12,7 @@ All notable Nexa product changes are recorded in this file. Releases follow
 - Consent-gated, expiring website-backend identity proof and static customer content resolution, with a server-only integration example.
 - Repeatable Phase 7 functional, migration, installation, worker-contention and maximum-capacity acceptance checks with documented remaining release gates.
 - Fresh native installation checks covering administrator email/ownership, pre-rebuild system-user bootstrap and migration-ledger skip/checksum rejection.
+- Approved tenant-fair native job selection with persistent queue/group rotation, migration 0085 and independent-process claim/cancellation acceptance.
 - Repository-wide code ownership for the core development team.
 - A professional responsive pricing and self-service tenant signup experience.
 - Email-verified tenant provisioning with globally unique owner identities and rate limits.

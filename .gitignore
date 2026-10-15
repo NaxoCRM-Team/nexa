@@ -1,5 +1,6 @@
 .env
 .local/postal/
+.local/personalization/
 .env.*
 !.env.example
 downloads/*.zip

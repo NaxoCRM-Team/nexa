@@ -1,0 +1,31 @@
+name: nexa-personalization-local
+services:
+  website:
+    image: espocrm/espocrm:9.1.9
+    entrypoint: ["php", "-d", "curl.cainfo=/run/nexa/root.crt", "-S", "0.0.0.0:8080", "/demo/router.php"]
+    environment:
+      NEXA_PERSONALIZATION_DEMO: "1"
+    volumes:
+      - ./tests/fixtures/personalization-website:/demo:ro
+      - ./scripts/dev/personalization-backend-example.php:/adapter.php:ro
+      - ./.local/personalization:/run/nexa:ro
+    tmpfs: [/tmp]
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    networks: [demo]
+  proxy:
+    image: caddy:2.10.2-alpine
+    ports: ["127.0.0.1:8444:443"]
+    volumes:
+      - ./tests/fixtures/personalization-website/Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - proxy-config:/config
+    networks:
+      demo:
+        aliases: [crm.nexa.test]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+networks:
+  demo:
+volumes:
+  certificates:
+  proxy-config:

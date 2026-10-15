@@ -106,4 +106,49 @@ and audience selection. Two authenticated WAMP desktop/mobile scenarios passed i
 covering published contextual content plus consent, identity, resolution, GPC and revocation
 through the real HTTP APIs. Fixtures were cleaned up by the existing acceptance runner.
 The PHP integration example passed syntax validation; it is an adapter example, not evidence
-of deployment to an external tenant website. No additional migration follows `0084` here.
+of deployment to an external tenant website. Personalization needs no schema change beyond
+`0084`; the separate tenant-fair scheduler follow-up adds migration `0085`.
+
+## Local HTTPS Customer Website Acceptance
+
+The isolated `compose.personalization.yaml` stack exercises a separate customer website,
+not the Postal administration login. Run it while WAMP serves Nexa at `http://localhost/nexa`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev/verify-personalization-website.ps1 `
+  -PhpPath C:\wamp64\bin\php\php8.2.29\php.exe
+```
+
+Alternatively add `-WebsiteIntegration` to `verify-phase7.ps1`. Docker Desktop, Node/Playwright
+and the existing EspoCRM 9.1.9/Caddy 2.10.2 images are required. Port 8444 must be free. The
+runner refuses to replace an existing demo project or configuration. No migration is needed.
+
+The test generates two disposable tenant fixtures, least-privilege Contact-read API users,
+published pages, cookie settings and separate synthetic website passwords. Only password hashes,
+server-side Contact mappings and API credentials enter the ignored `.local/personalization/`
+configuration. No customer chooses a CRM ID or API key through the website.
+
+The loopback-only website is `https://localhost:8444/a/` (and `/b/`) during the test. An isolated
+Caddy proxy supplies an ephemeral local CA and a private `crm.nexa.test` HTTPS backhaul to
+WAMP. Node verifies the website certificate against that CA; PHP verifies the backhaul certificate
+and hostname using only its public root certificate. Chromium uses a local-test certificate
+exception; no global Windows trust or production adapter TLS setting is weakened.
+
+Desktop and mobile acceptance passed on 15 October 2026 (45.1 seconds). The checks cover:
+
+- Real customer password verification, regenerated secure/HttpOnly/SameSite sessions and logout.
+- CSRF and foreign-Origin rejection, and rejection of browser-supplied Contact IDs.
+- Default content for unknown/unconsented customers; published matching content after consent/login.
+- Existing cookie receipt integration using the same session visitor UUID.
+- Withdrawal, GPC, expired proof and revoked identity returning default content.
+- Tenant and independent-browser separation, escaped rendering and no-store cache headers.
+- Generic, non-personalized failure when an integration API key is invalid.
+- No API keys, password hashes or Contact IDs in rendered HTML or direct browser-to-CRM requests.
+
+Only sanitized signed-out screenshots and aggregate acceptance results are attached. Traces and
+automatic failure screenshots are disabled. The owned containers, volumes, private configuration
+and disposable fixture data are cleaned afterward; append-only audit evidence remains retained.
+
+This is repeatable **local HTTPS integration evidence for #159**, not public DNS, internet reachability
+or installation on a real tenant website. Owner-controlled external deployment acceptance remains
+pending. Postal and the shared global scheduler are unchanged.

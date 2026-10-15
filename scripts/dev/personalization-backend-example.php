@@ -49,7 +49,7 @@ final class NexaPersonalizationBackendExample
             $response=curl_exec($curl);$status=(int)curl_getinfo($curl,CURLINFO_RESPONSE_CODE);
             if ($response===false || $status<200 || $status>=300) {
                 // Do not expose upstream responses, credentials or session evidence to visitors.
-                throw new RuntimeException('Customer personalization is temporarily unavailable.');
+                throw new RuntimeException('Customer personalization is temporarily unavailable.', $status);
             }
             $decoded=json_decode($response,true,32,JSON_THROW_ON_ERROR);
             if (!is_array($decoded)) throw new RuntimeException('Unexpected personalization response.');

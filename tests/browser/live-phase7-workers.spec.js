@@ -28,6 +28,61 @@ async function race(tenants,operations){
     return settled.map(item=>item.value);
 }
 
+test('Global queue selection rotates busy and small tenants across independent selectors',async({},info)=>{
+    test.setTimeout(180000);
+    test.skip(process.env.NEXA_AUTOMATION_ACCEPTANCE!=='1','Use the explicit local acceptance runner.');
+    const suffix=randomBytes(6).toString('hex');let tenants=['a','b'].map(label=>({id:randomUUID(),slug:`automation-acceptance-${suffix}-${label}`}));let failure;
+    const call=(command,options={})=>fixture(command,tenants,options).result;
+    try{
+        tenants=await call('setup');
+        await call('scoring-concurrency-setup',{contacts:40});await call('scoring-concurrency-setup',{contacts:20,index:1});
+        await call('queue-setup',{count:40});await call('queue-setup',{count:10,index:1});
+        expect(await call('queue-selection-failure')).toEqual({cursorUnchanged:true,transactionReleased:true});
+        const started=Date.now();
+        for(let round=0;round<20;round++){
+            const rows=await race(tenants,[{command:'queue-select',limit:1},{command:'queue-select',limit:1}]);
+            expect(rows.every(batch=>batch.length===1)).toBe(true);
+            expect(new Set(rows.map(batch=>batch[0].tenantId))).toEqual(new Set(tenants.map(tenant=>tenant.id)));
+            expect(rows.flat().every(row=>row.serviceId===tenants[0].serviceId)).toBe(true);
+        }
+        expect((await call('queue-inspect')).every(row=>row.status==='Pending')).toBe(true);
+        expect(await call('queue-selection-failure')).toEqual({cursorUnchanged:true,transactionReleased:true});
+        await call('queue-process',{limit:2});
+        expect((await call('scoring-inspect')).evaluations).toHaveLength(10);
+        expect((await call('scoring-inspect',{index:1})).evaluations).toHaveLength(10);
+        const jobs=await call('queue-inspect');
+        for(const tenant of tenants)expect(jobs.filter(row=>row.tenant_id===tenant.id&&row.status==='Success')).toHaveLength(1);
+        await info.attach('global-queue-selection.json',{body:JSON.stringify({independentSelectors:2,rounds:20,slotsPerSelector:1,busyBacklog:40,smallBacklog:10,seconds:(Date.now()-started)/1000,scope:'Selection fairness and native execution, not a wall-clock completion SLA.'}),contentType:'application/json'});
+    }catch(error){failure=error;}finally{try{await call('cleanup');}catch(error){if(!failure)failure=error;}}
+    if(failure)throw failure;
+});
+
+test('Prefetched native scheduled jobs keep claim deduplication and cancellation safety',async()=>{
+    test.setTimeout(120000);
+    test.skip(process.env.NEXA_AUTOMATION_ACCEPTANCE!=='1','Use the explicit local acceptance runner.');
+    const suffix=randomBytes(6).toString('hex');let tenants=['a','b'].map(label=>({id:randomUUID(),slug:`automation-acceptance-${suffix}-${label}`}));let failure,pending;
+    const call=(command,options={})=>fixture(command,tenants,options).result;
+    try{
+        tenants=await call('setup');await call('scoring-concurrency-setup',{contacts:35});
+        await call('queue-setup',{count:1,scheduled:true});
+        await race(tenants,[{command:'queue-prefetch-process'},{command:'queue-prefetch-process'}]);
+        const completed=await call('queue-inspect');expect(completed).toHaveLength(1);expect(completed[0].status).toBe('Success');
+        const first=await call('scoring-inspect');expect(first.evaluations).toHaveLength(10);expect(first.evaluations.every(row=>Number(row.copies)===1)).toBe(true);
+        await call('scoring-wake');
+        const cancel=await call('queue-setup',{count:1,scheduled:true});
+        pending=fixture('queue-prefetch-process',tenants,{barrier:true});
+        await pending.ready;
+        await call('queue-cancel',{jobId:cancel.ids[0]});pending.release();await pending.result;pending=null;
+        const removed=(await call('queue-inspect')).find(row=>row.id===cancel.ids[0]);
+        expect(Number(removed.deleted)).toBe(1);expect(removed.status).toBe('Pending');
+        expect((await call('scoring-inspect')).evaluations).toEqual(first.evaluations);
+    }catch(error){failure=error;}finally{
+        if(pending){pending.release();await pending.result.catch(()=>{});}
+        try{await call('cleanup');}catch(error){if(!failure)failure=error;}
+    }
+    if(failure)throw failure;
+});
+
 test('Independent Phase 7 workers enforce scoring, ABM, archive and quota boundaries',async()=>{
     test.setTimeout(180000);
     test.skip(process.env.NEXA_AUTOMATION_ACCEPTANCE!=='1','Use the explicit local Phase7Workers acceptance runner.');

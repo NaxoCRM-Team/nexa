@@ -14,17 +14,47 @@ Status: **In progress**. Functional acceptance is not production-scale acceptanc
 | Read-only personalization decision history | Implemented locally | Scoped reader tests, retained published snapshots and browser coverage |
 | Scoring history presentation | Bounded | Latest 20 evaluations and 50 adjustments; explicit overflow flags; older rows retained, not deleted |
 | Combined functional acceptance | Passed locally, 15 October 2026 | Seven native suites, 95 responsive browser tests and six authenticated WAMP scenarios |
-| Clean and incremental schema migration through 0084 | Passed locally, 15 October 2026 | Disposable databases; existing Contact/Account preserved; clean/incremental column definitions match; repeated Phase 7 DDL passes |
-| Fresh native application installation and checksum ledger | Passed locally, 15 October 2026 | Real runner applies 84 migrations, skips all unchanged entries and rejects an altered applied copy without ledger changes; native administrator, CRM persistence, Phase 7 services and idempotent bootstrap verified |
+| Clean and incremental schema migration through 0085 | Passed locally, 15 October 2026 | Disposable databases; existing Contact/Account and dispatch cursor preserved; clean/incremental column definitions match; repeated Phase 7 DDL passes |
+| Fresh native application installation and checksum ledger | Passed locally, 15 October 2026 | Real runner applies 85 migrations, skips all unchanged entries and rejects an altered applied copy without ledger changes; native administrator, CRM persistence, Phase 7 services and idempotent bootstrap verified |
 | Independent scoring/ABM worker contention and archive safety | Passed locally, 15 October 2026 | Separate PHP processes with a start barrier; exact batch counts, no duplicate evaluations, one ABM refresh, stale-edit conflict and archive race |
 | Quota and supported-capacity acceptance | Passed for documented backend bounds, 15 October 2026 | 2,043 volume checks; explicit maximum/overflow rejection and retained history verified; not a production-throughput SLA |
 | Repeated native worker execution across tenants | Passed locally, 15 October 2026 | 20 concurrent busy/small tenant rounds through native JobRunner; small tenant advances each round |
-| Global queue-selection fairness | Approval required | [#157](https://github.com/NaxoCRM-Team/nexa/issues/157); native platform enumeration is FIFO by job number; changing shared scheduling requires approval |
+| Global queue-selection fairness | Implemented and verified locally, 15 October 2026 | [#157](https://github.com/NaxoCRM-Team/nexa/issues/157) tracks Git delivery; migration 0085, persisted queue/group turns, 201 native checks and independent-process acceptance |
 | External tenant website integration | Not deployed | [#159](https://github.com/NaxoCRM-Team/nexa/issues/159); server-side PHP example provided; owner-controlled website deployment required |
+| Isolated local HTTPS customer website | Passed locally, 15 October 2026 | Separate Docker website, real customer login and least-privilege API user; desktop/mobile consent, proof, revocation, isolation and fail-closed tests; not public deployment |
 
 Fresh application installation and the real migration runner's checksum ledger are tracked in
 [#158](https://github.com/NaxoCRM-Team/nexa/issues/158). The Phase 7 umbrella
 [#156](https://github.com/NaxoCRM-Team/nexa/issues/156) remains open while its required gates remain unresolved.
+
+## Approved Scheduler Follow-Up
+
+The owner explicitly approved the shared scheduler change on 15 October 2026. Migration `0085`
+and `TenantFairQueue` now add persisted, platform-only queue/group rotation while leaving
+native claim and execution paths unchanged. The following results extend the historical
+pre-0085 evidence below:
+
+- 201 rollback-only scheduler checks, five tenants, two slots and 30 native processing rounds.
+- Deterministic independent-process prefetch/claim deduplication and cancellation checks.
+- 20 rounds of independent selectors against 40-job/10-job backlogs.
+- Seven broader native regressions passed: queue fairness, workflow runtime (1,762 checks,
+  including 36 trigger/action permission rows), email bindings (27), marketing dispatch,
+  transactional policy, Customer foundation isolation and Case/SLA jobs.
+- Clean/incremental/repeated DDL through 0085 passed, retaining existing CRM rows and cursor state.
+- Fresh CLI installation through all 85 migrations passed, including checksum skips/rejection,
+  administrator verification, native CRM persistence and idempotent bootstrap. Verification
+  reports 266 tables, 253 tenant columns and 237 service columns. Disposable resources cleaned.
+- The complete five-test Phase 7 worker suite passed in 6.3 minutes, including independent global
+  selection/claim/cancellation, scoring/ABM/archive/quota contention, 2,043 capacity assertions and
+  20 repeated native busy/small tenant execution rounds. Capacity stage timings were Accounts
+  17.150 seconds, audiences 200.423 seconds, scoring 36.674 seconds and history 8.134 seconds;
+  these include fixture creation and multiple operations, not single-request response times.
+- Final repository source/security verification passed. No working configuration or existing
+  business records were rewritten; migration 0085 was applied locally.
+
+See [Tenant-Fair Native Job Dispatch](tenant-fair-job-dispatch.md) for selection guarantees,
+native no-lock semantics and migration-before-worker rollout order. Git delivery and merge status
+are tracked in #157; public website/Postal deployment is not implied by these tests.
 
 Do not close the Phase 7 umbrella while required migration, concurrency and supported-capacity
 evidence is missing. Do not conflate the separately blocked public Postal/HTTPS acceptance with
@@ -48,7 +78,7 @@ To include disposable-database migration replay, supply
 The standalone test is `tests/development/Phase7MigrationReplayTest.ps1`. It generates unique
 database names, creates without claiming an existing database, and drops only databases it
 successfully created. It never targets the working `espocrm` database. The incremental
-baseline ends at migration 0078; migrations 0079 through 0084 add the Phase 7 schema.
+baseline ends at migration 0078; migrations 0079 through 0085 add the Phase 7 schema.
 Direct DDL replay is distinct from a complete application installation and from checksum-ledger
 skip behavior; neither of those is claimed solely from this test.
 
@@ -147,9 +177,9 @@ Repeated-load verification passed separately in 1.3 minutes: a 501-Contact busy 
 a 21-Contact smaller tenant run native background jobs concurrently for 20 rounds. The busy
 tenant produces 200 unique evaluations and retains a cursor/backlog. The smaller tenant
 advances in every round and completes repeated scans. This proves bounded execution progress
-when both tenant jobs are dispatched; it does not prove that the global FIFO selector will
-dispatch them fairly. No shared QueueUtil production change has been applied. Such a change
-affects all platform job types and needs explicit approval and wider scheduler regression tests.
+when both tenant jobs are dispatched; this earlier run did not prove global selection fairness.
+At that point no shared QueueUtil change had been applied. The approved scheduler follow-up
+above now provides separate evidence through the actual global selector.
 
 Final standalone maximum-capacity verification passed: 2,043 assertions in 4.4 minutes on
 15 October 2026. Stage durations were Accounts 13.917 seconds, audiences 198.734 seconds,
