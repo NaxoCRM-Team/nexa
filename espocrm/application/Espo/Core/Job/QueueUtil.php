@@ -52,7 +52,8 @@ class QueueUtil
         private Config $config,
         private EntityManager $entityManager,
         private ScheduleUtil $scheduleUtil,
-        private MetadataProvider $metadataProvider
+        private MetadataProvider $metadataProvider,
+        private TenantFairQueue $tenantFairQueue,
     ) {}
 
     public function isJobPending(string $id): bool
@@ -79,10 +80,11 @@ class QueueUtil
     {
         $queue = $params->getQueue();
         $group = $params->getGroup();
-        $limit = $params->getLimit();
 
         $builder = $this->entityManager
-            ->getRDBRepositoryByClass(JobEntity::class)
+            ->getQueryBuilder()
+            ->select()
+            ->from(JobEntity::ENTITY_TYPE)
             ->select([
                 Attribute::ID,
                 'tenantId',
@@ -105,13 +107,19 @@ class QueueUtil
                 'queue' => $queue,
                 'group' => $group,
             ])
-            ->order('number');
+            ->order('number')
+            ->build();
 
-        if ($limit) {
-            $builder->limit(0, $limit);
-        }
-
-        return $builder->sth()->find();
+        return $this->tenantFairQueue->select($params, function (?string $tenantId, int $offset, int $size) use ($builder) {
+            $portion = $this->entityManager->getRDBRepositoryByClass(JobEntity::class)->clone($builder);
+            if ($tenantId !== null) {
+                $portion->where(['tenantId' => $tenantId]);
+            }
+            if ($size > 0) {
+                $portion->limit($offset, $size);
+            }
+            return $portion->sth()->find();
+        });
     }
 
     public function isScheduledJobRunning(

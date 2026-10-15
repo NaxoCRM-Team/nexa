@@ -82,6 +82,10 @@ foreach ($tenants as $tenant) {
 
 if ($command === 'cleanup') {
     $atomic(function () use ($tenants,$execute): void {
+        $fixtureQueue='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
+        foreach ([null,'other'] as $group) {
+            $execute('DELETE FROM nexa_job_dispatch_rotation WHERE scope_key=?',[hash('sha256',json_encode([$fixtureQueue,$group],JSON_THROW_ON_ERROR))]);
+        }
         $tables = $execute("SELECT DISTINCT c.TABLE_NAME FROM information_schema.COLUMNS c INNER JOIN information_schema.TABLES t ON t.TABLE_SCHEMA=c.TABLE_SCHEMA AND t.TABLE_NAME=c.TABLE_NAME AND t.TABLE_TYPE='BASE TABLE' WHERE c.TABLE_SCHEMA=DATABASE() AND c.COLUMN_NAME='tenant_id'")->fetchAll(PDO::FETCH_COLUMN);
         foreach ($tenants as $tenant) {
             // Native login/CRM audit is immutable, including test evidence. Never disable its triggers.
@@ -112,13 +116,91 @@ if ($command === 'cleanup') {
 
 $tenant = $tenants[$input['index'] ?? 0];
 $context = new TenantContext($tenant['id'],$tenant['slug'],'automation-acceptance','Automation acceptance fixture',$tenant['serviceId']);
-$result = $contexts->runWith($context, function () use ($input,$command,$tenant,$factory,$em,$pdo,$execute,$atomic,$container): mixed {
+$result = $contexts->runWith($context, function () use ($input,$command,$tenant,$tenants,$factory,$em,$pdo,$execute,$atomic,$container): mixed {
     $worker = $factory->create(WorkflowService::class);
     $webhooks = $factory->create(WorkflowWebhookService::class);
     $user = $em->getEntityById('User',$tenant['userId']);
     $admin = $factory->createWith(WorkflowService::class,['user'=>$user]);
-    if (!empty($input['barrier']) && $command!=='hold-quota') { echo "READY\n"; flush(); if (trim((string)fgets(STDIN)) !== 'GO') throw new RuntimeException('Worker barrier was not released.'); }
+    if (!empty($input['barrier']) && !in_array($command,['hold-quota','queue-prefetch-process'],true)) { echo "READY\n"; flush(); if (trim((string)fgets(STDIN)) !== 'GO') throw new RuntimeException('Worker barrier was not released.'); }
     switch ($command) {
+        case 'queue-setup':
+            $queueName='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
+            $scheduled=null;
+            if (!empty($input['scheduled'])) {
+                $scheduled=$em->createEntity('ScheduledJob',['name'=>'Queue acceptance schedule','job'=>'RecalculateScoringModels','scheduling'=>'* * * * *','status'=>'Inactive']);
+            }
+            $ids=[];
+            for ($i=0;$i<max(1,min(1000,(int)($input['count']??1)));$i++) {
+                $job=$em->createEntity('Job',['name'=>'Queue acceptance job','queue'=>$queueName,'status'=>'Pending','executeTime'=>gmdate('Y-m-d H:i:s',time()-10),
+                    'className'=>\Espo\Custom\Jobs\RecalculateScoringModels::class,'scheduledJobId'=>$scheduled?->getId()]);
+                $ids[]=$job->getId();
+            }
+            return ['ids'=>$ids];
+        case 'queue-select':
+        case 'queue-process':
+        case 'queue-prefetch-process':
+            $queueName='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
+            $params=\Espo\Core\Job\QueueProcessor\Params::create()->withQueue($queueName)->withLimit(max(1,min(10,(int)($input['limit']??1))));
+            $queue=$factory->create(\Espo\Core\Job\QueueUtil::class);
+            if ($command==='queue-prefetch-process') {
+                require_once __DIR__.'/QueueDispatchBarrier.php';
+                $queue=$factory->create(QueueDispatchBarrier::class);
+            }
+            return $container->getByClass(\Espo\Core\Tenant\PlatformExecutionGateway::class)->run('Disposable queue acceptance',function () use ($command,$params,$queue,$factory,$execute,$queueName) {
+                if ($command==='queue-select') {
+                    $rows=[];
+                    foreach ($queue->getPendingJobList($params) as $job) {$rows[]=['id'=>$job->getId(),'tenantId'=>$job->get('tenantId'),'serviceId'=>$job->get('serviceId')];}
+                    return $rows;
+                }
+                $factory->createWith(\Espo\Core\Job\QueueProcessor::class,['queueUtil'=>$queue])->process($params);
+                return $execute('SELECT tenant_id,status,COUNT(*) AS total FROM job WHERE queue=? AND deleted=0 GROUP BY tenant_id,status ORDER BY tenant_id,status',[$queueName])->fetchAll(PDO::FETCH_ASSOC);
+            });
+        case 'queue-cancel':
+            $queueName='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
+            $job=$em->getEntityById('Job',(string)$input['jobId']);
+            if (!$job || $job->get('queue')!==$queueName || $job->get('tenantId')!==$tenant['id'] || $job->get('serviceId')!==$tenant['serviceId']) { throw new RuntimeException('Only owned fixture jobs may be cancelled.'); }
+            $em->removeEntity($job);
+            return ['cancelled'=>true];
+        case 'queue-inspect':
+            $queueName='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
+            return $execute('SELECT id,tenant_id,service_id,status,deleted FROM job WHERE queue=? ORDER BY number',[$queueName])->fetchAll(PDO::FETCH_ASSOC);
+        case 'queue-selection-failure':
+            $queueName='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
+            $scope=hash('sha256',json_encode([$queueName,null],JSON_THROW_ON_ERROR));
+            $before=$execute('SELECT last_tenant_id FROM nexa_job_dispatch_rotation WHERE scope_key=?',[$scope])->fetchColumn();
+            try {
+                $container->getByClass(\Espo\Core\Tenant\PlatformExecutionGateway::class)->run('Disposable failed selection acceptance',
+                    fn ()=>$factory->create(\Espo\Core\Job\TenantFairQueue::class)->select(
+                        \Espo\Core\Job\QueueProcessor\Params::create()->withQueue($queueName)->withLimit(1),
+                        static function () { throw new RuntimeException('Expected queue selection failure.'); },
+                    ));
+                throw new LogicException('Selection did not fail.');
+            } catch (RuntimeException $error) {
+                if ($error->getMessage()!=='Expected queue selection failure.') { throw $error; }
+            }
+            $after=$execute('SELECT last_tenant_id FROM nexa_job_dispatch_rotation WHERE scope_key=?',[$scope])->fetchColumn();
+            return ['cursorUnchanged'=>$before===$after,'transactionReleased'=>!$pdo->inTransaction()];
+        case 'website-personalization-setup':
+            $acl=$container->getByClass(\Espo\Core\AclManager::class)->createUserAcl($user);
+            $cookies=$factory->createWith(\Espo\Custom\Tools\Consent\CookieConsentService::class,['user'=>$user,'acl'=>$acl]);
+            $banner=$cookies->getWorkspace()['banner'];$banner['isPublished']=true;$cookies->save((object)$banner);
+            $contact=$em->getEntityById('Contact',$tenant['contactId']);$contact->set('leadStatus','New');$em->saveEntity($contact);
+            $pages=$factory->createWith(\Espo\Custom\Tools\LandingPage\LandingPageService::class,['user'=>$user,'acl'=>$acl]);
+            $page=$pages->save((object)['name'=>'HTTPS customer demo','slug'=>'https-'.$tenant['slug'],'locale'=>'en','blocks'=>[(object)[
+                'id'=>'hero','type'=>'hero','heading'=>'Public offer '.$tenant['slug'],'text'=>'Unidentified visitor',
+                'personalization'=>(object)['field'=>'customer:leadStatus','value'=>'New','heading'=>'Verified offer '.$tenant['slug'],'text'=>'<img src=x onerror=alert(1)>'],
+            ]]]);
+            $pages->publish($page['id']);
+            $api=$em->createEntity('User',['userName'=>$tenant['slug'].'-website','type'=>'api','isActive'=>true]);
+            $key=bin2hex(random_bytes(20));$execute("UPDATE user SET api_key=?,auth_method='ApiKey' WHERE id=? AND tenant_id=?",[$key,$api->getId(),$tenant['id']]);
+            $role=$em->createEntity('Role',['name'=>'Customer demo read only','data'=>['Contact'=>['read'=>'all','edit'=>'no','create'=>'no','delete'=>'no']]]);
+            $em->getRDBRepository('User')->getRelation($api,'roles')->relate($role);
+            $password=bin2hex(random_bytes(18));
+            return ['apiKey'=>$key,'apiUserId'=>$api->getId(),'contactId'=>$contact->getId(),'pageId'=>$page['id'],'publicKey'=>$banner['publicKey'],
+                'email'=>$tenant['slug'].'-customer@example.test','password'=>$password,'passwordHash'=>password_hash($password,PASSWORD_BCRYPT)];
+        case 'website-personalization-expire':
+            $execute('UPDATE nexa_personalization_identity_proof SET expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE tenant_id=? AND service_id=?',[$tenant['id'],$tenant['serviceId']]);
+            return ['expired'=>true];
         case 'phase7-capacity':
             $checks=require __DIR__.'/Phase7CapacityChecks.php';
             return $checks($em,$factory,$container,$user,$tenant);

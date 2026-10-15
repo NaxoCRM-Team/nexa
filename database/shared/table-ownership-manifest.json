@@ -12,6 +12,12 @@
               },
     "tables":  [
                    {
+                       "name":  "nexa_job_dispatch_rotation",
+                       "classification":  "platformGlobal",
+                       "tenantColumn":  null,
+                       "serviceScope":  "none"
+                   },
+                   {
                        "name":  "nexa_schema_migration",
                        "classification":  "platformGlobal",
                        "tenantColumn":  null,

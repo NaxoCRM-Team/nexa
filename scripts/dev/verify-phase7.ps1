@@ -3,6 +3,7 @@ param(
     [string] $PhpPath = 'php',
     [string] $MigrationClientPath = '',
     [switch] $FreshInstallation,
+    [switch] $WebsiteIntegration,
     [switch] $Live,
     [string] $BaseUrl = 'http://localhost/nexa'
 )
@@ -10,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not (Get-Command $PhpPath -ErrorAction SilentlyContinue)) { throw 'PHP executable not found.' }
 $native = @(
+    'TenantQueueFairnessTest.php',
     'TenantScoringDefinitionTest.php',
     'TenantScoringModelTest.php',
     'TenantAbmTest.php',
@@ -49,6 +51,9 @@ try {
         }
         & "$PSScriptRoot/verify-automation-acceptance.ps1" -Suite Phase7Workers -PhpPath $PhpPath -BaseUrl $BaseUrl -Projects 'desktop'
     }
+    if ($WebsiteIntegration) {
+        & "$PSScriptRoot/verify-personalization-website.ps1" -PhpPath $PhpPath
+    }
     Write-Host 'Combined Phase 7 functional acceptance passed.'
-    Write-Warning 'Migration replay requires -MigrationClientPath. Live worker/capacity checks are bounded local evidence, not proof of production throughput, global queue-selection fairness or external website delivery.'
+    Write-Warning 'Migration replay requires -MigrationClientPath. Worker, capacity and global selector checks provide bounded local evidence, not production throughput or public website acceptance.'
 } finally { Pop-Location }

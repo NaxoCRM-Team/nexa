@@ -344,6 +344,9 @@ $phpRoots = @(
 $phpFiles = Get-ChildItem -LiteralPath $phpRoots -Filter '*.php' -File -Recurse -ErrorAction SilentlyContinue
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\JobRunner.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\QueueUtil.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\TenantFairQueue.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\TenantQueueFairnessTest.php')
+$phpFiles += Get-Item -LiteralPath (Join-Path $root 'tests\tenant\QueueDispatchBarrier.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\ScheduleProcessor.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\Core\Job\ScheduleUtil.php')
 $phpFiles += Get-Item -LiteralPath (Join-Path $root 'espocrm\application\Espo\ORM\QueryComposer\BaseQueryComposer.php')
@@ -581,6 +584,8 @@ if ($php) {
     & php (Join-Path $root 'tests\workflows\LandingPageWorkspaceContractTest.php')
     if ($LASTEXITCODE -eq 0) { Pass 'Landing page workspace contract suite' } else { Fail 'Landing page workspace contract suite failed.' }
     if (-not $Ci) {
+        & php (Join-Path $root 'tests\tenant\TenantQueueFairnessTest.php')
+        if ($LASTEXITCODE -eq 0) { Pass 'Native global queue tenant fairness and retry acceptance' } else { Fail 'Global queue fairness suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantWorkflowRuntimeTest.php')
         if ($LASTEXITCODE -eq 0) { Pass 'Scoped workflow publication, enrollment and runtime suite' } else { Fail 'Workflow runtime suite failed.' }
         & php (Join-Path $root 'tests\tenant\TenantWorkflowAbRoutingTest.php')

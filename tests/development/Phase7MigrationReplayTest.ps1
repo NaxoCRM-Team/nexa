@@ -34,7 +34,7 @@ try {
     $env:MYSQL_PWD = if ($Password) { $Password } else { $null }
     Assert-NexaMariaDbVersion (@(Invoke-Sql 'SELECT VERSION();')[0]) 'MariaDB server' | Out-Null
     $migrations = @(Get-ChildItem (Join-Path $root 'database/shared/migrations') -Filter '*.sql' -File | Sort-Object Name)
-    if ($migrations[-1].Name -ne '0084_add_personalization_identity_proof.sql') { throw 'Review the Phase 7 migration endpoint before extending this gate.' }
+    if ($migrations[-1].Name -ne '0085_add_job_dispatch_rotation.sql') { throw 'Review the Phase 7 migration endpoint before extending this gate.' }
     $base = Get-Item (Join-Path $root 'database/shared/testing/0000_espocrm_9_1_9_schema.sql')
     $seeds = @(Get-ChildItem (Join-Path $root 'database/shared/seeds') -Filter '*.sql' -File | Sort-Object Name)
     foreach ($database in $databases) {
@@ -64,12 +64,15 @@ VALUES ('p7account000001','Preserved Company',0,UTC_TIMESTAMP(),'30000000-0000-4
         Assert-Value $database "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$database' AND table_name IN ($list);" '6' 'Phase 7 tables are missing.'
         Assert-Value $database "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='$database' AND table_name IN ($list) AND column_name IN ('tenant_id','service_id') AND is_nullable='NO';" '12' 'Required tenant/service ownership is missing.'
         Assert-Value $database "SELECT COUNT(*) FROM information_schema.referential_constraints WHERE constraint_schema='$database' AND table_name='nexa_personalization_identity_proof';" '2' 'Identity proof foreign keys are missing.'
+        Assert-Value $database "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$database' AND table_name='nexa_job_dispatch_rotation';" '1' 'Global dispatch cursor is missing.'
     }
-    $shape = "SELECT table_name,column_name,column_type,is_nullable,COALESCE(column_default,'<NULL>'),extra FROM information_schema.columns WHERE table_schema=DATABASE() AND (table_name IN ($list) OR table_name='account') ORDER BY table_name,ordinal_position;"
+    $shape = "SELECT table_name,column_name,column_type,is_nullable,COALESCE(column_default,'<NULL>'),extra FROM information_schema.columns WHERE table_schema=DATABASE() AND (table_name IN ($list) OR table_name IN ('account','nexa_job_dispatch_rotation')) ORDER BY table_name,ordinal_position;"
     $a = @(Invoke-Sql $shape $clean); $b = @(Invoke-Sql $shape $upgrade)
     if (Compare-Object $a $b) { throw 'Clean and incremental Phase 7 column definitions differ.' }
     # Direct replay checks idempotent DDL separately from the normal checksum-ledger runner.
+    Invoke-Sql "INSERT INTO nexa_job_dispatch_rotation (scope_key,last_tenant_id) VALUES (REPEAT('a',64),'preserved-dispatch-turn');" $upgrade | Out-Null
     foreach ($migration in $phase7) { Replay $migration $upgrade }
+    Assert-Value $upgrade "SELECT last_tenant_id FROM nexa_job_dispatch_rotation WHERE scope_key=REPEAT('a',64);" 'preserved-dispatch-turn' 'Replay reset an existing dispatch cursor.'
     Assert-Value $upgrade "SELECT COUNT(*) FROM contact WHERE id='p7existing000001' AND first_name='Preserved';" '1' 'Repeated Phase 7 replay changed an existing Contact.'
     Write-Host 'Phase 7 clean, incremental and repeated DDL migration replay passed.' -ForegroundColor Green
 } finally {
