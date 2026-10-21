@@ -1,0 +1,26 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__,2).'/espocrm/bootstrap.php';
+use Espo\Custom\Tools\Conversation\TwilioMediaFetcher;
+use Espo\Core\Exceptions\BadRequest;
+$checks=0;$assert=function(bool $ok,string $why)use(&$checks){$checks++;if(!$ok)throw new RuntimeException($why);};
+$deny=function(callable $fn,string $why)use($assert){try{$fn();}catch(BadRequest $error){$assert(true,$why);return;}$assert(false,$why);};
+$account='AC'.str_repeat('1',32);$message='MM'.str_repeat('2',32);$url='https://api.twilio.com/2010-04-01/Accounts/'.$account.'/Messages/'.$message.'/Media/ME'.str_repeat('3',32);
+$assert(TwilioMediaFetcher::url($url,$account,$message)===$url,'Exact provider reference accepted.');
+foreach(['http://api.twilio.com','https://evil.example','https://api.twilio.com.evil.example','https://user:pass@api.twilio.com','https://api.twilio.com:444'] as $origin)$deny(fn()=>TwilioMediaFetcher::url(str_replace('https://api.twilio.com',$origin,$url),$account,$message),'Unsafe URL rejected.');
+foreach([$url.'?x=1',$url.'#fragment',str_replace($account,'AC'.str_repeat('4',32),$url),str_replace($message,'MM'.str_repeat('4',32),$url),$url.'.json'] as $bad)$deny(fn()=>TwilioMediaFetcher::url($bad,$account,$message),'Resource substitution rejected.');
+foreach(['127.0.0.1','10.1.2.3','172.16.0.1','192.168.1.1','169.254.169.254','100.64.0.1','198.18.0.1','0.0.0.0','::1'] as $ip)$assert(!TwilioMediaFetcher::publicIp($ip),'Non-public DNS address rejected.');
+$assert(TwilioMediaFetcher::publicIp('8.8.8.8'),'Public IPv4 supported.');
+foreach(['https://evil.example/x','https://mms.twiliocdn.com.evil.example/x','https://u:p@mms.twiliocdn.com/x','http://mms.twiliocdn.com/x','https://s3-external-1.amazonaws.com/x'] as $bad)$deny(fn()=>TwilioMediaFetcher::cdn($bad),'Redirect host denied.');
+$http=new class extends TwilioMediaFetcher{public array $calls=[];public array $responses=[];protected function request(string $url,?string $account,?string $secret):array{$this->calls[]=[$url,$account,$secret];return array_shift($this->responses);}};
+$http->responses=[['status'=>302,'location'=>'https://mms.twiliocdn.com/signed?token=fixture','body'=>''],['status'=>200,'location'=>'','body'=>'content']];
+$assert($http->fetch($url,$account,$message,'test-secret')==='content','Controlled CDN redirect downloaded.');
+$assert($http->calls[0][1]===$account&&$http->calls[0][2]==='test-secret'&&$http->calls[1][1]===null&&$http->calls[1][2]===null,'Credentials never reach the CDN.');
+$http->responses=[['status'=>302,'location'=>'https://mms.twiliocdn.com/x','body'=>''],['status'=>302,'location'=>'https://mms.twiliocdn.com/y','body'=>'']];$deny(fn()=>$http->fetch($url,$account,$message,'secret'),'A second redirect is not followed.');
+$unsafe=new class extends TwilioMediaFetcher{protected function resolve(string $host):array{return ['8.8.8.8','127.0.0.1'];}};$deny(fn()=>$unsafe->fetch($url,$account,$message,'secret'),'Mixed public/private DNS fails before a network request.');
+$png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1kAAAAASUVORK5CYII=');
+$assert(TwilioMediaFetcher::inspect($png,'image/png')['mimeType']==='image/png','Actual raster image inspected.');
+foreach([['<svg xmlns="http://www.w3.org/2000/svg"/>','image/svg+xml'],['<html><script>alert(1)</script></html>','image/png'],[$png,'image/jpeg'],['','text/plain'],[str_repeat('x',TwilioMediaFetcher::MAX_BYTES+1),'text/plain']] as [$bytes,$type])$deny(fn()=>TwilioMediaFetcher::inspect($bytes,$type),'Unsafe, mismatched or oversized content rejected.');
+$large=substr(str_repeat("Acceptance text with normal sentences.\n",230000),0,TwilioMediaFetcher::MAX_BYTES);
+$assert(TwilioMediaFetcher::inspect($large,'text/plain')['size']===TwilioMediaFetcher::MAX_BYTES,'Exact 8 MB content boundary accepted.');
+echo "Incoming media fetch/content checks passed: {$checks} (fake HTTP; no network calls).\n";

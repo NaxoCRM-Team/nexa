@@ -19,7 +19,10 @@ $assert(str_starts_with($encrypted,'nexa:v1:key-2026:'),'New ciphertext must car
 $assert($cipher->decryptFor($encrypted,$tenantA,$service,'mailbox-oauth:refresh')==='top-secret','Scoped ciphertext did not decrypt.');
 $denied=false;try{$cipher->decryptFor($encrypted,$tenantB,$service,'mailbox-oauth:refresh');}catch(RuntimeException){$denied=true;}
 $assert($denied,'Ciphertext copied to another tenant must be rejected.');
-$tampered=substr($encrypted,0,-2).'AA';$denied=false;try{$cipher->decryptFor($tampered,$tenantA,$service,'mailbox-oauth:refresh');}catch(RuntimeException){$denied=true;}
+// Flip an actual encrypted byte; replacing base64 padding can leave the decoded bytes unchanged.
+$parts=explode(':',$encrypted,4);$bytes=base64_decode($parts[3],true);
+$bytes[strlen($bytes)-1]=chr(ord($bytes[strlen($bytes)-1])^1);$parts[3]=base64_encode($bytes);
+$tampered=implode(':',$parts);$denied=false;try{$cipher->decryptFor($tampered,$tenantA,$service,'mailbox-oauth:refresh');}catch(RuntimeException){$denied=true;}
 $assert($denied,'Tampered ciphertext must be rejected.');
 putenv('NEXA_SECRET_ACTIVE_KEY_ID=key-2025');$oldEnvelope=$cipher->encryptFor('rotate-me',$tenantA,$service,'integration:api');
 putenv('NEXA_SECRET_ACTIVE_KEY_ID=key-2026');$plain=$cipher->decryptFor($oldEnvelope,$tenantA,$service,'integration:api');$newEnvelope=$cipher->encryptFor($plain,$tenantA,$service,'integration:api');

@@ -284,6 +284,18 @@ class Cleanup implements JobDataLess
         return $datetime->format(DateTimeUtil::SYSTEM_DATE_TIME_FORMAT);
     }
 
+    private function managedAttachmentExclusion(): array
+    {
+        $scopes = array_values(array_filter(array_keys($this->metadata->get(['scopes']) ?? []),
+            fn (string $scope) => $this->metadata->get(['scopes', $scope, 'cleanupManagedExternally'])));
+        $conditions = [['OR' => [['field' => null], ['field!=' => 'nexaIncomingMediaStaging'], ['parentType' => null], ['parentType!=' => 'NexaMessagingConversation']]]];
+        if ($scopes) {
+            $conditions[] = ['OR' => [['parentType' => null], ['parentType!=' => $scopes]]];
+            $conditions[] = ['OR' => [['relatedType' => null], ['relatedType!=' => $scopes]]];
+        }
+        return ['AND' => $conditions];
+    }
+
     private function cleanupAttachments(): void
     {
         $period = '-' . $this->config->get('cleanupAttachmentsPeriod', $this->cleanupAttachmentsPeriod);
@@ -305,6 +317,7 @@ class Cleanup implements JobDataLess
                 ],
                 'createdAt<' => $datetime->format(DateTimeUtil::SYSTEM_DATE_TIME_FORMAT),
             ])
+            ->where($this->managedAttachmentExclusion())
             ->limit(0, 5000)
             ->find();
 
@@ -327,6 +340,7 @@ class Cleanup implements JobDataLess
                 'createdAt<' => $datetime->format(DateTimeUtil::SYSTEM_DATE_TIME_FORMAT),
                 'createdAt>' => '2018-01-01 00:00:00',
             ]);
+            $orphanQueryBuilder->where($this->managedAttachmentExclusion());
 
             $collection = $this->entityManager
                 ->getRDBRepository(Attachment::ENTITY_TYPE)
@@ -348,6 +362,7 @@ class Cleanup implements JobDataLess
         $scopeList = array_keys($this->metadata->get(['scopes']));
 
         foreach ($scopeList as $scope) {
+            if ($this->metadata->get(['scopes', $scope, 'cleanupManagedExternally'])) continue;
             if (!$this->metadata->get(['scopes', $scope, 'entity'])) {
                 continue;
             }
@@ -452,6 +467,7 @@ class Cleanup implements JobDataLess
                 'isBeingUploaded' => true,
                 'createdAt<' => $datetime->format(DateTimeUtil::SYSTEM_DATE_TIME_FORMAT),
             ])
+            ->where($this->managedAttachmentExclusion())
             ->find();
 
         foreach ($isBeingUploadedCollection as $e) {
@@ -466,6 +482,7 @@ class Cleanup implements JobDataLess
                 Attribute::DELETED => true,
                 'createdAt<' => $datetime->format(DateTimeUtil::SYSTEM_DATE_TIME_FORMAT),
             ])
+            ->where($this->managedAttachmentExclusion())
             ->build();
 
         $this->entityManager->getQueryExecutor()->execute($delete);
@@ -611,7 +628,7 @@ class Cleanup implements JobDataLess
                 continue;
             }
 
-            if ($scope === Attachment::ENTITY_TYPE) {
+            if ($scope === Attachment::ENTITY_TYPE || $this->metadata->get(['scopes', $scope, 'cleanupManagedExternally'])) {
                 continue;
             }
 

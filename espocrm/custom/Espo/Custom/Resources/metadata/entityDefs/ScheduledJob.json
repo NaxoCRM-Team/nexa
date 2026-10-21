@@ -1,5 +1,12 @@
 {
     "jobs": {
+        "PurgeChatHistory": {"name": "Purge Chat History", "isSystem": true, "scheduling": "15 * * * *"},
+        "RouteConversations": {"name": "Route Conversations", "isSystem": true, "scheduling": "* * * * *"},
+        "RecoverMessengerReplies": {"name": "Recover Messenger Replies", "isSystem": true, "scheduling": "* * * * *"},
+        "DispatchSms": {"name": "Dispatch SMS", "isSystem": true, "scheduling": "* * * * *"},
+        "DispatchWhatsApp": {"name": "Dispatch WhatsApp", "isSystem": true, "scheduling": "* * * * *"},
+        "RecoverMessagingConversations": {"name": "Recover Messaging Conversations", "isSystem": true, "scheduling": "* * * * *"},
+        "RecoverConversationReceipts": {"name": "Recover Shared Inbox Receipts", "isSystem": true, "scheduling": "* * * * *"},
         "RefreshTargetAccounts": {"name": "Refresh Target Accounts", "isSystem": true, "scheduling": "*/5 * * * *"},
         "RecalculateScoringModels": {
             "name": "Recalculate Scoring Models",

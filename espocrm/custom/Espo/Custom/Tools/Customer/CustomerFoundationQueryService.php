@@ -6,6 +6,10 @@ use Espo\Core\Acl;
 use Espo\Core\Exceptions\BadRequest;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Tenant\TenantContextStore;
+use Espo\Core\InjectableFactory;
+use Espo\Entities\User;
+use Espo\Custom\Tools\Conversation\MessagingConversationService;
+use Espo\Custom\Tools\Conversation\ChatService;
 use Espo\ORM\EntityManager;
 use PDO;
 
@@ -16,6 +20,8 @@ final class CustomerFoundationQueryService
         private EntityManager $entityManager,
         private TenantContextStore $tenantContextStore,
         private Acl $acl,
+        private InjectableFactory $factory,
+        private User $user,
     ) {}
 
     /** @return array<string, mixed> */
@@ -55,10 +61,26 @@ final class CustomerFoundationQueryService
                 $accountId,
                 $timelineLimit,
             ),
+            'messaging' => $contactId ? $this->messagingHistory($contactId,$timelineLimit) : [],
+            'liveChat' => $contactId ? $this->factory->createWith(ChatService::class,
+                ['acl'=>$this->acl,'user'=>$this->user])->contactTimeline($contactId,$timelineLimit) : [],
         ];
     }
 
     /** @return array<int, array<string, mixed>> */
+    private function messagingHistory(string $contactId,int $limit): array
+    {
+        $items=[];
+        foreach(['sms','whatsapp'] as $channel){
+            $items=array_merge($items,$this->factory->createWith(MessagingConversationService::class,
+                ['acl'=>$this->acl,'user'=>$this->user,'channel'=>$channel])->contactTimeline($contactId,$limit));
+        }
+        $items=array_merge($items,$this->factory->createWith(\Espo\Custom\Tools\Conversation\MessengerService::class,
+            ['acl'=>$this->acl,'user'=>$this->user])->contactTimeline($contactId,$limit));
+        usort($items,fn($a,$b)=>strcmp($b['createdAt'],$a['createdAt'])?:strcmp($b['id'],$a['id']));
+        return array_slice($items,0,$limit);
+    }
+
     private function identities(string $tenantId, string $contactId): array
     {
         $statement = $this->entityManager->getPDO()->prepare(

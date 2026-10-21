@@ -405,6 +405,11 @@ Existing installations receive forward migrations through `apply-shared-schema.p
 - `scripts/dev/verify-local-install.php`: validates schema counts, migrations, demo administrators and tenant-scoped records.
 - `scripts/dev/verify.ps1`: validates shareable files, JSON, PHP, secrets and Compose.
 - `scripts/dev/verify-phase7.ps1`: runs Phase 7 native and responsive acceptance; `-Live` adds authenticated WAMP and worker/capacity tests. Optional `-MigrationClientPath` and `-FreshInstallation` add isolated schema and fresh-install/checksum checks. See [Phase 7 evidence and open gates](docs/development/phase-7-exit-gate.md).
+- Phase 8 Shared Inbox uses native Email records and group mailboxes. See [conversation delivery checklist and verification](docs/development/phase-8-conversations.md).
+- Production-only checks are tracked in [Phase 8 external acceptance](docs/development/phase-8-external-acceptance.md) and [GitHub #163](https://github.com/NaxoCRM-Team/nexa/issues/163). The [recovery runbook](docs/operations/recovery.md) includes a disposable local database restore drill; it does not claim production disaster recovery.
+- Local SMTP/IMAP acceptance uses `scripts/dev/verify-conversation-mailbox.ps1 -PhpPath <php-executable>` with a disposable Docker mail sandbox; Nexa itself stays on WAMP.
+- Phase 8 website chat uses native Chat roles, an origin-bound visitor widget, guided automated greetings/choices and persisted staff handoff. See [live chat setup and verification](docs/development/phase-8-live-chat.md).
+- Phase 8 provider settings, SMS and WhatsApp conversations, consent-aware composers, approved WhatsApp templates, dispatch/recovery, SMS opt-in review, delivery tracking and tenant quotas are documented in [messaging providers](docs/development/phase-8-messaging-providers.md). Real sending remains deployment-gated; public provider delivery acceptance is pending. Local Messenger scope is documented [separately](docs/development/phase-8-messenger.md).
 
 ## Team Workflow
 

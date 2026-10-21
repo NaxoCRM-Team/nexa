@@ -267,6 +267,14 @@ final class WorkflowService
                     $outcome = 'skipped'; $reason = null; $runId = null;
                     try {
                         $this->contact($event['contact_id'], $actor);
+                        if($definition['trigger']['event']==='conversation.received'){
+                            $type=$event['source_type']??'';
+                            if(!in_array($type,['NexaMessagingConversation','NexaChatConversation'],true))throw new Forbidden('Invalid conversation source.');
+                            $acl=$this->aclManager->createUserAcl($actor);
+                            if(!$acl->checkScope($type,'read')||!$acl->checkField($type,'messages','read')||($type==='NexaMessagingConversation'&&!$acl->checkField($type,'contactAssociation','read')))throw new Forbidden('Conversation enrollment permission is required.');
+                            $source=$this->records->createForUser($type,$actor)->getEntity($event['source_id']);$context=$this->contexts->require();
+                            if(!$source||$source->get('deleted')||$source->get('tenantId')!==$context->tenantId||$source->get('serviceId')!==$context->serviceId||!$acl->checkEntity($source,'read'))throw new Forbidden('Conversation enrollment source is unavailable.');
+                        }
                         if(in_array($definition['trigger']['event'],['opportunity.stage_changed','activity.completed'],true)){
                             $sourceType=$event['source_type'] ?? '';
                             if(!in_array($sourceType,$definition['trigger']['event']==='opportunity.stage_changed'?['Opportunity']:['Task','Call','Meeting'],true))throw new Forbidden('Invalid enrollment source.');

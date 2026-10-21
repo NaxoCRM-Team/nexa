@@ -147,15 +147,7 @@ final class TwilioClient
 
         $authToken = $this->env('TWILIO_AUTH_TOKEN', 'nexaTwilioAuthToken');
 
-        ksort($postParams);
-        $data = $fullUrl;
-        foreach ($postParams as $key => $value) {
-            $data .= $key . $value;
-        }
-
-        $expected = base64_encode(hash_hmac('sha1', $data, $authToken, true));
-
-        return hash_equals($expected, $signatureHeader);
+        return \Espo\Custom\Tools\Conversation\TwilioWebhookSignature::verify($fullUrl, $postParams, $signatureHeader, $authToken);
     }
 
     private const TWILIO_ERROR_ALREADY_VERIFIED = 21450;

@@ -1036,7 +1036,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                     <button type="button" class="btn btn-default nexa-activity-filter-toggle" data-nexa-activity-filter-toggle aria-expanded="true"><span class="fas fa-sliders-h" aria-hidden="true"></span><span>Filters</span></button>
                     <div class="nexa-activity-filters" data-nexa-activity-filters>
                         <select class="form-control" data-nexa-activity-type aria-label="Activity type">
-                            <option value="all">All activities</option><option value="call">Calls</option><option value="meeting">Meetings</option><option value="email">Emails</option><option value="task">Tasks</option><option value="note">Notes</option><option value="marketing">Marketing events</option><option value="website">Website visits</option><option value="case">Cases created</option><option value="opportunity">Opportunities created</option><option value="document">Documents created</option><option value="preference">Communication preferences</option><option value="other">Other activity</option>
+                            <option value="all">All activities</option><option value="call">Calls</option><option value="meeting">Meetings</option><option value="email">Emails</option><option value="sms">SMS</option><option value="whatsapp">WhatsApp</option><option value="messenger">Messenger</option><option value="live_chat">Live chat</option><option value="task">Tasks</option><option value="note">Notes</option><option value="marketing">Marketing events</option><option value="website">Website visits</option><option value="case">Cases created</option><option value="opportunity">Opportunities created</option><option value="document">Documents created</option><option value="preference">Communication preferences</option><option value="other">Other activity</option>
                         </select>
                         <select class="form-control" data-nexa-activity-period aria-label="Date range">${this.notePeriodOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select>
                     </div>
@@ -4233,7 +4233,7 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                 // carry a taskRef/meetingRef (see contactTaskCard/contactMeetingCard
                 // below) - a logged interaction never has one, so it must never be
                 // mapped to those two types or the card renderer crashes.
-                const typeMap = {Call: 'call', Email: 'email'};
+                const typeMap = {Call: 'call', Email: 'email', SMS: 'sms', 'Live chat': 'live_chat'};
                 const type = typeMap[interaction.channelLabel] || 'other';
                 activities.push({
                     id: `interaction-${interaction.id}`,
@@ -4334,6 +4334,35 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
                             behaviorDetails: details,
                         };
                     });
+                this.contactBehaviorActivities.push(...(payload.messaging || []).map(message => ({
+                    id: `${message.channel || 'sms'}-${message.direction || 'incoming'}-${message.id}`,
+                    type: message.channel || 'sms',
+                    title: `${({sms: 'SMS', whatsapp: 'WhatsApp', messenger: 'Messenger'})[message.channel || 'sms']} ${message.direction === 'outgoing' ? 'sent' : 'received'}`,
+                    text: message.body ?? 'Message content unavailable',
+                    date: this.contactNoteDate(message.createdAt),
+                    href: `#NexaConversations/${['sms', 'whatsapp', 'messenger'].includes(message.channel) ? message.channel : 'sms'}`,
+                    behaviorDetails: [
+                        ['Channel', ({sms: 'SMS', whatsapp: 'WhatsApp', messenger: 'Messenger'})[message.channel || 'sms']],
+                        ['Connection', message.connectionName],
+                        ['Message', message.body ?? 'Message content unavailable'],
+                        ...(message.direction === 'outgoing' ? [['Delivery status', message.deliveryStatus || 'Submitted']] : []),
+                        ...(message.mediaCount ? [['Attachments', `${message.mediaCount} (open conversation)`]] : []),
+                    ],
+                })));
+                this.contactBehaviorActivities.push(...(payload.liveChat || []).map(message => ({
+                    id: `live-chat-${message.id}`,
+                    type: 'live_chat',
+                    title: message.author === 'bot' ? 'Automated chat message' : message.author === 'staff' ? 'Live chat reply' : 'Live chat message received',
+                    text: message.body,
+                    date: this.contactNoteDate(message.createdAt),
+                    actor: message.author === 'staff' ? (message.authorName || 'Staff member') : message.author === 'bot' ? 'Automated assistant' : '',
+                    href: '#NexaConversations/chat',
+                    behaviorDetails: [
+                        ['Channel', 'Website chat'],
+                        ['Author', message.author === 'visitor' ? 'Contact' : message.author === 'bot' ? 'Automated assistant' : (message.authorName || 'Staff member')],
+                        ['Message', message.body],
+                    ],
+                })));
             } catch (error) {
                 this.contactBehaviorActivities = [];
             }
@@ -5111,11 +5140,11 @@ define('custom:views/contact/record/detail-workspace', ['crm:views/contact/recor
         }
 
         contactActivityTypeLabel(type) {
-            return {call: 'Call', meeting: 'Meeting', email: 'Email', task: 'Task', note: 'Note', marketing: 'Marketing activity', website: 'Website activity', preference: 'Communication preference', case: 'Case created', opportunity: 'Opportunity created', document: 'Document created', other: 'CRM activity'}[type] || 'CRM activity';
+            return {call: 'Call', meeting: 'Meeting', email: 'Email', sms: 'SMS', whatsapp: 'WhatsApp', messenger: 'Messenger', live_chat: 'Live chat', task: 'Task', note: 'Note', marketing: 'Marketing activity', website: 'Website activity', preference: 'Communication preference', case: 'Case created', opportunity: 'Opportunity created', document: 'Document created', other: 'CRM activity'}[type] || 'CRM activity';
         }
 
         contactActivityTypeIcon(type) {
-            return {call: 'fa-phone-alt', meeting: 'fa-calendar-check', email: 'fa-envelope', task: 'fa-check-square', note: 'fa-sticky-note', marketing: 'fa-bullhorn', website: 'fa-globe', preference: 'fa-ban', case: 'fa-briefcase', opportunity: 'fa-dollar-sign', document: 'fa-file-alt', other: 'fa-history'}[type] || 'fa-history';
+            return {call: 'fa-phone-alt', meeting: 'fa-calendar-check', email: 'fa-envelope', sms: 'fa-sms', whatsapp: 'fa-comment-dots', messenger: 'fa-comments', live_chat: 'fa-comments', task: 'fa-check-square', note: 'fa-sticky-note', marketing: 'fa-bullhorn', website: 'fa-globe', preference: 'fa-ban', case: 'fa-briefcase', opportunity: 'fa-dollar-sign', document: 'fa-file-alt', other: 'fa-history'}[type] || 'fa-history';
         }
 
         contactActivityRows(panel) {

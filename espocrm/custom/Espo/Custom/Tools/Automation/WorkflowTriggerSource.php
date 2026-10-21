@@ -9,7 +9,7 @@ use PDO;
 /** Read committed native events without consuming another module's outbox. */
 final class WorkflowTriggerSource
 {
-    public const EVENTS = ['contact.created','contact.updated','contact.field_changed','lifecycle.changed','score.reached','segment.entered','segment.exited','email.opened','email.clicked','opportunity.stage_changed','activity.completed','date.reached'];
+    public const EVENTS = ['contact.created','contact.updated','contact.field_changed','lifecycle.changed','score.reached','segment.entered','segment.exited','email.opened','email.clicked','opportunity.stage_changed','activity.completed','date.reached','conversation.received'];
 
     public function __construct(private EntityManager $em, private TenantContextStore $contexts) {}
 
@@ -18,6 +18,7 @@ final class WorkflowTriggerSource
         $context=$this->contexts->require();
         $scope=[$context->tenantId,$context->serviceId];
         $event=$trigger['event'];
+        if($event==='conversation.received')return $this->conversations($publishedAt,$workflowId);
         if($event==='date.reached')return $this->dates($trigger,$publishedAt,$workflowId);
         $params=[...$scope];
         if (in_array($event,['segment.entered','segment.exited'],true)) {
@@ -49,6 +50,24 @@ final class WorkflowTriggerSource
         $sql.=$source==='t'?" ORDER BY t.source_entity_id,t.contact_id LIMIT 25":" ORDER BY $source.$time,$source.id LIMIT 25";
         $query=$this->em->getPDO()->prepare($sql);$query->execute($params);
         return $query->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private function conversations(string $publishedAt,string $workflowId): array
+    {
+        $ctx=$this->contexts->require();$scope=[$ctx->tenantId,$ctx->serviceId];
+        // Read verified, committed channel receipts; never consume or copy message bodies.
+        $parts=[];$params=[];
+        foreach([
+            ['nexa_messaging_receipt','received_at',"r.kind='inbound' AND p.provider='twilio' AND p.channel IN ('sms','whatsapp')",'twilio'],
+            ['nexa_messenger_event','provider_at',"p.provider='meta' AND p.channel='messenger'",'messenger'],
+        ] as [$table,$time,$filter,$kind]){
+            $parts[]="SELECT MD5(CONCAT('$kind:',r.id)) AS id,c.contact_id,c.id AS source_id,'NexaMessagingConversation' AS source_type,r.$time AS occurred_at FROM $table r JOIN nexa_messaging_conversation c ON c.id=r.conversation_id AND c.tenant_id=r.tenant_id AND c.service_id=r.service_id AND c.connection_id=r.connection_id JOIN nexa_messaging_connection p ON p.id=c.connection_id AND p.tenant_id=c.tenant_id AND p.service_id=c.service_id JOIN contact k ON k.id=c.contact_id AND k.tenant_id=c.tenant_id AND k.service_id=c.service_id AND k.deleted=0 WHERE r.tenant_id=? AND r.service_id=? AND c.deleted=0 AND $filter AND r.$time>=? AND r.$time<=UTC_TIMESTAMP(6)";
+            $params=array_merge($params,[...$scope,$publishedAt]);
+        }
+        $parts[]="SELECT MD5(CONCAT('chat:',m.id)) AS id,v.contact_id,c.id AS source_id,'NexaChatConversation' AS source_type,m.created_at AS occurred_at FROM nexa_chat_message m JOIN nexa_chat_conversation c ON c.id=m.conversation_id AND c.tenant_id=m.tenant_id AND c.service_id=m.service_id JOIN nexa_visitor_identity v ON v.id=c.visitor_identity_id AND v.tenant_id=c.tenant_id AND v.service_id=c.service_id AND v.visitor_key_hash=c.visitor_key_hash JOIN nexa_personalization_identity_proof p ON p.visitor_identity_id=v.id AND p.tenant_id=c.tenant_id AND p.service_id=c.service_id AND p.contact_id=v.contact_id AND p.issuer_user_id=c.identity_issuer_id JOIN user u ON u.id=p.issuer_user_id AND u.tenant_id=c.tenant_id AND u.service_id=c.service_id AND u.is_active=1 AND u.deleted=0 JOIN contact k ON k.id=v.contact_id AND k.tenant_id=c.tenant_id AND k.service_id=c.service_id AND k.deleted=0 WHERE m.tenant_id=? AND m.service_id=? AND c.deleted=0 AND m.author_kind='visitor' AND p.revoked_at IS NULL AND p.expires_at>UTC_TIMESTAMP(6) AND m.created_at>=? AND m.created_at<=UTC_TIMESTAMP(6)";
+        $params=array_merge($params,[...$scope,$publishedAt,...$scope,$workflowId]);
+        $sql='SELECT e.* FROM ('.implode(' UNION ALL ',$parts).') e WHERE NOT EXISTS (SELECT 1 FROM nexa_workflow_trigger_receipt r WHERE r.tenant_id=? AND r.service_id=? AND r.workflow_id=? AND r.event_id=e.id) ORDER BY e.occurred_at,e.id LIMIT 25';
+        $query=$this->em->getPDO()->prepare($sql);$query->execute($params);return $query->fetchAll(PDO::FETCH_ASSOC);
     }
 
     private function dates(array $trigger,string $publishedAt,string $workflowId): array

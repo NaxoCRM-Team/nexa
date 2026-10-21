@@ -107,6 +107,16 @@ final class CustomerFoundationRecorder
         $this->audit($this->tenantContextStore->require(),'score.model_primary.changed','ScoringModel',$model['id'],$this->uuid(),['entityType'=>$model['entity_type'],'enabled'=>$enabled,'previousModelId'=>$previousModelId]);
     }
 
+    public function conversationRecorded(string $emailId, array $metadata): void
+    {
+        $this->audit($this->tenantContextStore->require(), 'conversation.updated', 'Email', $emailId, $this->uuid(), $metadata, true);
+    }
+
+    public function chatRecorded(string $id, string $operation, array $metadata = []): void
+    {
+        $this->audit($this->tenantContextStore->require(), 'chat.'.$operation, $operation === 'widget_saved' ? 'NexaChatWidget' : 'NexaChatConversation', $id, $this->uuid(), $metadata, true);
+    }
+
     public function abmRecorded(string $action,string $listId,array $metadata): void
     {
         $this->audit($this->tenantContextStore->require(),$action,'TargetList',$listId,$this->uuid(),$metadata);

@@ -236,6 +236,7 @@ class SendService
 
             $errorData = [
                 'id' => $entity->getId(),
+                'versionNumber' => $entity->get('versionNumber'),
                 'message' => $e->getMessage(),
             ];
 

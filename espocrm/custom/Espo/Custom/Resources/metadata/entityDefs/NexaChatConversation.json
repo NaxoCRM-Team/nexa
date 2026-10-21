@@ -1,0 +1,40 @@
+{
+    "skipRebuild": true,
+    "optimisticConcurrencyControl": true,
+    "fields": {
+        "privacyDeletedAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "privacyErasingAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "routingState": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "routingReason": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "routingCheckedAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "routingAssignedAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "routingTeamId": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "name": {"type": "varchar", "readOnly": true},
+        "status": {"type": "enum", "options": ["Open", "Pending", "Closed"], "default": "Open"},
+        "assignedUser": {"type": "link"},
+        "messages": {"type": "text", "notStorable": true},
+        "botSnapshot": {"type": "text", "readOnly": true, "directAccessDisabled": true},
+        "botState": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "botStep": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "botReceipts": {"type": "text", "readOnly": true, "directAccessDisabled": true},
+        "handoffRequestedAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "handoffAnsweredAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "widgetId": {"type": "varchar", "maxLength": 36, "readOnly": true, "directAccessDisabled": true},
+        "origin": {"type": "varchar", "maxLength": 500, "readOnly": true, "directAccessDisabled": true},
+        "tokenHash": {"type": "varchar", "maxLength": 64, "readOnly": true, "directAccessDisabled": true},
+        "visitorKeyHash": {"type": "varchar", "maxLength": 64, "readOnly": true, "directAccessDisabled": true},
+        "startNonce": {"type": "varchar", "maxLength": 36, "readOnly": true, "directAccessDisabled": true},
+        "expiresAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "visitorIdentityId": {"type": "varchar", "maxLength": 36, "readOnly": true, "directAccessDisabled": true},
+        "identityIssuerId": {"type": "varchar", "maxLength": 24, "readOnly": true, "directAccessDisabled": true},
+        "createdAt": {"type": "datetime", "readOnly": true},
+        "modifiedAt": {"type": "datetime", "readOnly": true},
+        "createdBy": {"type": "link", "readOnly": true},
+        "modifiedBy": {"type": "link", "readOnly": true}
+    },
+    "links": {
+        "assignedUser": {"type": "belongsTo", "entity": "User"},
+        "createdBy": {"type": "belongsTo", "entity": "User"},
+        "modifiedBy": {"type": "belongsTo", "entity": "User"}
+    }
+}

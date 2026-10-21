@@ -1,0 +1,31 @@
+{
+    "skipRebuild": true,
+    "optimisticConcurrencyControl": true,
+    "fields": {
+        "routingState": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "routingReason": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "routingCheckedAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "routingAssignedAt": {"type": "datetime", "readOnly": true, "directAccessDisabled": true},
+        "routingTeamId": {"type": "varchar", "readOnly": true, "directAccessDisabled": true},
+        "name": {"type": "varchar", "readOnly": true},
+        "status": {"type": "enum", "options": ["Open", "Pending", "Closed"], "default": "Open"},
+        "assignedUser": {"type": "link"},
+        "contact": {"type": "link", "readOnly": true, "directAccessDisabled": true},
+        "contactAssociation": {"type": "varchar", "notStorable": true},
+        "messages": {"type": "text", "notStorable": true},
+        "peer": {"type": "varchar", "notStorable": true},
+        "connectionId": {"type": "varchar", "maxLength": 36, "readOnly": true, "directAccessDisabled": true},
+        "peerHash": {"type": "varchar", "maxLength": 64, "readOnly": true, "directAccessDisabled": true},
+        "peerEncrypted": {"type": "text", "readOnly": true, "directAccessDisabled": true},
+        "createdAt": {"type": "datetime", "readOnly": true},
+        "modifiedAt": {"type": "datetime", "readOnly": true},
+        "createdBy": {"type": "link", "readOnly": true},
+        "modifiedBy": {"type": "link", "readOnly": true}
+    },
+    "links": {
+        "contact": {"type": "belongsTo", "entity": "Contact"},
+        "assignedUser": {"type": "belongsTo", "entity": "User"},
+        "createdBy": {"type": "belongsTo", "entity": "User"},
+        "modifiedBy": {"type": "belongsTo", "entity": "User"}
+    }
+}

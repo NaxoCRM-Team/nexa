@@ -99,10 +99,18 @@ try {
         $checksum = (Get-FileHash -LiteralPath $migration.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         $started = Get-Date
         
-        $trackingExists = @((Invoke-Query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$Database' AND table_name='nexa_schema_migration';"))[0] -eq '1'
+        $trackingRows = @(Invoke-Query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$Database' AND table_name='nexa_schema_migration';")
+        if ($trackingRows.Count -ne 1 -or $trackingRows[0] -notin @('0','1')) {
+            throw 'The migration ledger could not be inspected. No migration was applied.'
+        }
+        $trackingExists = $trackingRows[0] -eq '1'
         if ($trackingExists) {
-            $stored = @((Invoke-Query "SELECT checksum_sha256 FROM $Database.nexa_schema_migration WHERE migration_id='$($migration.Name)';"))
-            if ($stored.Count -gt 0) {
+            # An empty client response is not proof that a migration is missing.
+            $stored = @(Invoke-Query "SELECT COALESCE((SELECT checksum_sha256 FROM $Database.nexa_schema_migration WHERE migration_id='$($migration.Name)'), '__NEXA_MISSING__');")
+            if ($stored.Count -ne 1 -or ($stored[0] -ne '__NEXA_MISSING__' -and $stored[0] -notmatch '^[a-fA-F0-9]{64}$')) {
+                throw 'The migration checksum could not be read. No migration was applied.'
+            }
+            if ($stored[0] -ne '__NEXA_MISSING__') {
                 if ($stored[0] -ne $checksum) {
                     throw "Applied migration $($migration.Name) has changed. Restore it and create a new numbered migration."
                 }

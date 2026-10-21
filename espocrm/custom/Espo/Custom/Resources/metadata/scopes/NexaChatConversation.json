@@ -1,0 +1,13 @@
+{
+    "entity": true,
+    "cleanupManagedExternally": true,
+    "object": true,
+    "tab": false,
+    "acl": true,
+    "aclActionList": ["read", "edit", "delete"],
+    "aclLevelList": ["all", "own", "no"],
+    "customizable": false,
+    "layouts": false,
+    "importable": false,
+    "exportable": false
+}

@@ -1,0 +1,5 @@
+{
+    "entity": true, "object": true, "tab": false, "acl": true,
+    "aclActionList": ["read", "edit"], "aclLevelList": ["all", "own", "no"],
+    "customizable": false, "layouts": false, "importable": false, "exportable": false
+}

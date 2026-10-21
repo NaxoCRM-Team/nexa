@@ -1,5 +1,6 @@
 {
     "schemaVersion":  1,
+    "additionalTenantScopedTables": ["nexa_chat_widget", "nexa_chat_conversation", "nexa_chat_message", "nexa_messaging_connection", "nexa_messaging_outbox", "nexa_messaging_receipt", "nexa_messaging_conversation", "nexa_sms_attempt", "nexa_messenger_event", "nexa_messenger_reply", "nexa_messenger_receipt", "nexa_messenger_media", "nexa_messaging_media", "nexa_conversation_routing_rule", "nexa_conversation_presence", "nexa_chat_privacy_policy", "nexa_chat_erasure"],
     "status":  "espo-9.1.9-tenant-service-runtime-enforced",
     "unclassifiedBehavior":  "deny",
     "description":  "Table ownership contract for the Nexa shared-schema tenant conversion.",
@@ -11,6 +12,23 @@
                   "tenantRegistry":  "the primary key is the tenant identity"
               },
     "tables":  [
+                   {"name": "nexa_chat_privacy_policy", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_chat_erasure", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_conversation_routing_rule", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_conversation_presence", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messenger_receipt", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messenger_media", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messaging_media", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messenger_event", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messenger_reply", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_sms_attempt", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messaging_conversation", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messaging_receipt", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messaging_connection", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_messaging_outbox", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_chat_widget", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_chat_conversation", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
+                   {"name": "nexa_chat_message", "classification": "serviceOwned", "tenantColumn": "tenant_id", "serviceScope": "required"},
                    {
                        "name":  "nexa_job_dispatch_rotation",
                        "classification":  "platformGlobal",

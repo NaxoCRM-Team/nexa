@@ -80,14 +80,70 @@ foreach ($tenants as $tenant) {
     if (!$row && $command !== 'cleanup') throw new RuntimeException('Acceptance fixture is unavailable.');
 }
 
+if (str_starts_with($command, 'conversation-mailbox-')) {
+    if (getenv('NEXA_MAILBOX_ACCEPTANCE') !== '1') throw new RuntimeException('Explicit local mailbox acceptance opt-in is required.');
+    require __DIR__.'/ConversationMailboxFixture.php';
+    exit;
+}
+
+if ($command === 'conversation-setup') {
+    $result = $atomic(function () use ($tenants, $contexts, $em, $input): array {
+        $result = [];
+        foreach ($tenants as $tenant) {
+            $context = new TenantContext($tenant['id'], $tenant['slug'], 'conversation-acceptance', '', $tenant['serviceId']);
+            $result[] = $contexts->runWith($context, function () use ($tenant, $em, $input): array {
+                $mailbox = $em->createEntity('InboundEmail', ['name' => 'Acceptance shared mailbox', 'emailAddress' => 'shared-'.$tenant['slug'].'@example.test', 'status' => 'Inactive']);
+                $ancestor = !empty($input['history']) ? $em->createEntity('Email', ['name' => 'Private original message', 'status' => 'Archived', 'body' => 'PRIVATE ORIGINAL - NOT SHARED']) : null;
+                $email = $em->createEntity('Email', ['name' => 'Delivery question', 'status' => 'Archived', 'body' => '<p>Can you confirm the delivery date?</p>', 'isHtml' => true, 'assignedUserId' => $tenant['userId'], 'parentType' => 'Contact', 'parentId' => $tenant['contactId'], 'dateSent' => '2026-10-15 09:00:00', 'repliedId' => $ancestor?->getId()]);
+                $em->getRDBRepository('Email')->getRelation($email, 'inboundEmails')->relate($mailbox);
+                $user = $em->getEntityById('User', $tenant['userId']);
+                $em->getRDBRepository('Email')->getRelation($email, 'users')->relate($user, ['isRead' => false]);
+                $reply = $em->createEntity('Email', ['name' => 'Re: Delivery question', 'status' => 'Archived', 'body' => 'We are checking your delivery.', 'repliedId' => $email->getId(), 'dateSent' => '2026-10-15 09:10:00']);
+                $em->getRDBRepository('InboundEmail')->getRelation($mailbox, 'emails')->relate($reply);
+                $private = $em->createEntity('Email', ['name' => 'Private staff email', 'status' => 'Archived']);
+                $branch = null; $branchSent = null; $otherShared = null;
+                if (!empty($input['history'])) {
+                    $branch = $em->createEntity('Email', ['name' => 'Private branch', 'body' => 'PRIVATE BRANCH - NOT SHARED', 'status' => 'Archived', 'repliedId' => $email->getId()]);
+                    $branchSent = $em->createEntity('Email', ['name' => 'Private branch response', 'body' => 'PRIVATE RESPONSE - NOT SHARED', 'status' => 'Sent', 'repliedId' => $branch->getId()]);
+                    $otherShared = $em->createEntity('Email', ['name' => 'A separate shared enquiry', 'body' => 'Only this shared branch is visible.', 'status' => 'Archived', 'repliedId' => $branch->getId()]);
+                    $em->getRDBRepository('InboundEmail')->getRelation($mailbox, 'emails')->relate($otherShared);
+                }
+                return ['emailId' => $email->getId(), 'replyId' => $reply->getId(), 'privateId' => $private->getId(), 'ancestorId' => $ancestor?->getId(), 'branchId' => $branch?->getId(), 'branchSentId' => $branchSent?->getId(), 'otherSharedId' => $otherShared?->getId()];
+            });
+        }
+        return $result;
+    });
+    echo json_encode($result, JSON_THROW_ON_ERROR); exit;
+}
+
+if ($command === 'conversation-incoming') {
+    $tenant = $tenants[0];
+    $context = new TenantContext($tenant['id'], $tenant['slug'], 'conversation-acceptance', '', $tenant['serviceId']);
+    $result = $contexts->runWith($context, function () use ($em, $input, $tenant, $factory): array {
+        $root = $em->getEntityById('Email', (string) ($input['emailId'] ?? ''));
+        if (!$root || $root->get('name') !== 'Delivery question' || $factory->create(\Espo\Custom\Tools\Conversation\ConversationTopology::class)->anchor($root->getId()) !== $root->getId()) throw new RuntimeException('Fixture shared root unavailable.');
+        $reply = $em->createEntity('Email', ['name' => 'Customer follow-up', 'status' => 'Archived', 'body' => 'Please confirm the updated date.', 'repliedId' => $root->getId(), 'dateSent' => gmdate('Y-m-d H:i:s')], ['isBeingImported' => true]);
+        $mailbox = $em->getRDBRepository('Email')->getRelation($root, 'inboundEmails')->findOne();
+        if (!$mailbox) throw new RuntimeException('Fixture group mailbox unavailable.');
+        $em->getRDBRepository('InboundEmail')->getRelation($mailbox, 'emails')->relate($reply);
+        $user = $em->getEntityById('User', $tenant['userId']);
+        $em->getRDBRepository('Email')->getRelation($reply, 'users')->relate($user, ['isRead' => false]);
+        return ['id' => $reply->getId()];
+    });
+    echo json_encode($result, JSON_THROW_ON_ERROR); exit;
+}
+
 if ($command === 'cleanup') {
-    $atomic(function () use ($tenants,$execute): void {
+    $atomic(function () use ($tenants,$execute,$contexts,$em,$container): void {
         $fixtureQueue='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
         foreach ([null,'other'] as $group) {
             $execute('DELETE FROM nexa_job_dispatch_rotation WHERE scope_key=?',[hash('sha256',json_encode([$fixtureQueue,$group],JSON_THROW_ON_ERROR))]);
         }
         $tables = $execute("SELECT DISTINCT c.TABLE_NAME FROM information_schema.COLUMNS c INNER JOIN information_schema.TABLES t ON t.TABLE_SCHEMA=c.TABLE_SCHEMA AND t.TABLE_NAME=c.TABLE_NAME AND t.TABLE_TYPE='BASE TABLE' WHERE c.TABLE_SCHEMA=DATABASE() AND c.COLUMN_NAME='tenant_id'")->fetchAll(PDO::FETCH_COLUMN);
         foreach ($tenants as $tenant) {
+            $contexts->runWith(new TenantContext($tenant['id'],$tenant['slug'],'fixture-file-cleanup','',$tenant['serviceId']),function()use($tenant,$execute,$em,$container):void{
+                foreach($execute("SELECT id FROM attachment WHERE tenant_id=? AND service_id=? AND storage='EspoUploadDir' AND parent_type='NexaMessagingConversation'",[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_COLUMN) as $id){$attachment=$em->getEntityById('Attachment',$id);if($attachment)$container->get('fileStorageManager')->unlink($attachment);}
+            });
             // Native login/CRM audit is immutable, including test evidence. Never disable its triggers.
             $pending = array_values(array_diff($tables,['nexa_audit_event']));
             for ($pass=0; $pass<20 && $pending; $pass++) {
@@ -120,9 +176,60 @@ $result = $contexts->runWith($context, function () use ($input,$command,$tenant,
     $worker = $factory->create(WorkflowService::class);
     $webhooks = $factory->create(WorkflowWebhookService::class);
     $user = $em->getEntityById('User',$tenant['userId']);
+    // Synthetic work is advanced explicitly by fixture workers, never by live cron.
+    $execute("UPDATE scheduled_job SET status='Inactive' WHERE tenant_id=? AND service_id=? AND job IN ('RecoverMessagingConversations','RouteConversations')",[$tenant['id'],$tenant['serviceId']]);
     $admin = $factory->createWith(WorkflowService::class,['user'=>$user]);
     if (!empty($input['barrier']) && !in_array($command,['hold-quota','queue-prefetch-process'],true)) { echo "READY\n"; flush(); if (trim((string)fgets(STDIN)) !== 'GO') throw new RuntimeException('Worker barrier was not released.'); }
     switch ($command) {
+        case 'incoming-media-seed':
+        case 'incoming-media-run':
+            return require __DIR__.'/IncomingMediaAcceptanceFixture.php';
+        case 'privacy-seed':
+        case 'privacy-state':
+            return require __DIR__.'/ChatPrivacyAcceptanceFixture.php';
+        case 'routing-seed':
+        case 'routing-run':
+        case 'routing-state':
+            return require __DIR__.'/ConversationRoutingAcceptanceFixture.php';
+        case 'whatsapp-dispatch-seed':
+            return require __DIR__.'/WhatsAppDispatchFixture.php';
+        case 'sms-dispatch-seed':
+        case 'whatsapp-settings-proof':
+        case 'sms-dispatch-run':
+        case 'sms-dispatch-inspect':
+        case 'sms-dispatch-release':
+        case 'sms-dispatch-poll':
+            return require __DIR__.'/SmsDispatchFixture.php';
+        case 'messenger-seed':
+        case 'messenger-fake-reply':
+        case 'messenger-enhance':
+            return require __DIR__.'/MessengerAcceptanceFixture.php';
+        case 'messaging-conversation-project':
+            $pending=(int)$execute("SELECT COUNT(*) FROM nexa_messaging_receipt WHERE tenant_id=? AND service_id=? AND kind='inbound' AND conversation_id IS NULL",[$tenant['id'],$tenant['serviceId']])->fetchColumn();
+            $factory->create(\Espo\Custom\Tools\Conversation\MessagingConversationProjector::class)->recover();
+            $projected=$pending-(int)$execute("SELECT COUNT(*) FROM nexa_messaging_receipt WHERE tenant_id=? AND service_id=? AND kind='inbound' AND conversation_id IS NULL",[$tenant['id'],$tenant['serviceId']])->fetchColumn();
+            $roots=$execute('SELECT id FROM nexa_messaging_conversation WHERE tenant_id=? AND service_id=? AND deleted=0',[$tenant['id'],$tenant['serviceId']])->fetchAll(PDO::FETCH_COLUMN);
+            $role=$em->createEntity('Role',['name'=>'SMS own acceptance','data'=>['NexaMessagingConversation'=>['read'=>'own','edit'=>'no']]]);
+            $email=$tenant['slug'].'-sms-staff@example.test';$password=bin2hex(random_bytes(24));
+            $staff=$em->createEntity('User',['userName'=>$tenant['slug'].'-sms-staff','emailAddress'=>$email,'loginEmail'=>$email,'firstName'=>'Acceptance','lastName'=>'SMS staff','type'=>'regular','isActive'=>true]);
+            $em->getRDBRepository('User')->getRelation($staff,'roles')->relate($role);
+            $execute('UPDATE user SET password=? WHERE tenant_id=? AND service_id=? AND id=?',[password_hash($password,PASSWORD_BCRYPT),$tenant['id'],$tenant['serviceId'],$staff->getId()]);
+            return ['projected'=>$projected,'ids'=>$roots,'staff'=>['slug'=>$tenant['slug'],'username'=>$email,'password'=>$password,'userId'=>$staff->getId()]];
+        case 'messaging-inbox-seed':
+            // Synthetic encrypted fixtures only; never enable a provider or submit a message.
+            $cipher=$factory->create(\Espo\Custom\Tools\Auth\ProviderSecretCipher::class);
+            $connection=\Espo\Custom\Tools\Conversation\ChatStore::uuid();
+            $execute("INSERT INTO nexa_messaging_connection (id,tenant_id,service_id,name,channel,account_sid,sender,secret_encrypted,status,created_by_id) VALUES (?,?,?,'SMS acceptance','sms',?,'+14155550100',?,'unverified',?)",
+                [$connection,$tenant['id'],$tenant['serviceId'],'AC'.bin2hex(random_bytes(16)),$cipher->encryptFor(bin2hex(random_bytes(16)),$tenant['id'],$tenant['serviceId'],'messaging:'.$connection),$tenant['userId']]);
+            $ids=[];
+            for($i=0;$i<53;$i++) {
+                $id=\Espo\Custom\Tools\Conversation\ChatStore::uuid();$ids[]=$id;
+                $payload=['provider'=>'twilio','channel'=>'sms','kind'=>'inbound','messageId'=>'SM'.bin2hex(random_bytes(16)),'from'=>'+14155550101','to'=>'+14155550100','body'=>'Synthetic incoming SMS <script>window.messagingXss=true</script> '.$i,'media'=>[['url'=>'https://api.twilio.com/private-fixture','contentType'=>'image/png']]];
+                if($i<2)$payload['optOutType']=$i===0?'STOP':'START';
+                $execute("INSERT INTO nexa_messaging_receipt (id,tenant_id,service_id,connection_id,kind,provider_message_id,event_key,payload_hash,payload_encrypted,connection_version,disposition,received_at) VALUES (?,?,?,?,'inbound',?,?,?,?,1,'received',UTC_TIMESTAMP())",
+                    [$id,$tenant['id'],$tenant['serviceId'],$connection,$payload['messageId'],hash('sha256',$id),hash('sha256',json_encode($payload)),$cipher->encryptFor(json_encode($payload),$tenant['id'],$tenant['serviceId'],'messaging-receipt:'.$id)]);
+            }
+            return ['ids'=>$ids,'connectionId'=>$connection];
         case 'queue-setup':
             $queueName='fair-'.substr(hash('sha256',$tenants[0]['id']),0,20);
             $scheduled=null;
