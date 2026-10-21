@@ -23,8 +23,9 @@ test('Received SMS uses the existing safe Contact timeline and isolated card lay
         return view.contactBehaviorActivities;
     });
     expect(result.map(item=>item.type)).toEqual(['sms','sms']);
-    await expect(page.locator('[data-nexa-activity-id="sms-message"] .nexa-activity-details')).toContainText('Hello <img src=x onerror="window.smsXss=true">');
-    await expect(page.locator('[data-nexa-activity-id="sms-unavailable"]')).toContainText('Message content unavailable');
+    expect(result.map(item=>item.id)).toEqual(['sms-incoming-message','sms-incoming-unavailable']);
+    await expect(page.locator('[data-nexa-activity-id="sms-incoming-message"] .nexa-activity-details')).toContainText('Hello <img src=x onerror="window.smsXss=true">');
+    await expect(page.locator('[data-nexa-activity-id="sms-incoming-unavailable"]')).toContainText('Message content unavailable');
     expect(await page.evaluate(()=>window.smsXss)).toBeUndefined();
     await expect(page.locator('main img,main [data-nexa-activity-actions],main [data-nexa-activity-comment-form]')).toHaveCount(0);
     await expect(page.locator('main .fa-sms')).toHaveCount(2);
