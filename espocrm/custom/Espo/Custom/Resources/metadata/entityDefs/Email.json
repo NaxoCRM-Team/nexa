@@ -1,5 +1,24 @@
 {
+    "optimisticConcurrencyControl": true,
     "fields": {
+        "conversationImportPendingAt": {
+            "type": "datetime",
+            "readOnly": true,
+            "directAccessDisabled": true,
+            "directUpdateDisabled": true,
+            "customizationDisabled": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        },
+        "conversationStatus": {
+            "type": "enum",
+            "options": ["Open", "Pending", "Closed"],
+            "default": "Open",
+            "audited": true,
+            "layoutMassUpdateDisabled": true
+        },
         "body": {
             "view": "custom:views/fields/nexa-rich-text"
         },

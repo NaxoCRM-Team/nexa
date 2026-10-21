@@ -1,0 +1,80 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__,2).'/espocrm/bootstrap.php';
+use Espo\Core\{Application,AclManager,InjectableFactory};
+use Espo\Core\ORM\EntityManager;
+use Espo\Core\Tenant\{TenantContext,TenantContextStore};
+use Espo\Core\Exceptions\{Forbidden,NotFound};
+use Espo\Core\FileStorage\Manager;
+use Espo\Entities\Attachment;
+use Espo\Custom\Tools\Conversation\{IncomingMediaService,TwilioMediaFetcher,ChatStore,MessagingConversationService};
+$old=[];foreach(['NEXA_SECRET_ACTIVE_KEY_ID','NEXA_SECRET_KEYS'] as $key)$old[$key]=getenv($key);putenv('NEXA_SECRET_ACTIVE_KEY_ID=incoming-fixture');putenv('NEXA_SECRET_KEYS='.json_encode(['incoming-fixture'=>base64_encode(random_bytes(32))]));
+$app=new Application();$app->setupSystemUser();$c=$app->getContainer();$em=$c->getByClass(EntityManager::class);$factory=$c->getByClass(InjectableFactory::class);$contexts=$c->getByClass(TenantContextStore::class);$store=$factory->create(ChatStore::class);
+set_exception_handler(static function(Throwable $e):void{fwrite(STDERR,$e->getMessage()."\n".$e->getTraceAsString()."\n");exit(1);});
+$checks=0;$assert=function(bool $ok,string $why)use(&$checks){$checks++;if(!$ok)throw new RuntimeException($why);};$deny=function(callable $fn,string $why)use($assert){try{$fn();}catch(Forbidden|NotFound $e){$assert(true,$why);return;}$assert(false,$why);};
+$png=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1kAAAAASUVORK5CYII=');
+$fetch=new class($png) extends TwilioMediaFetcher{public int $calls=0;public bool $fail=false;public $during=null;public function __construct(public string $bytes){}public function fetch(string $url,string $account,string $message,string $secret):string{self::url($url,$account,$message);$this->calls++;if($this->during)($this->during)();if($this->fail)throw new RuntimeException('Synthetic HTTP outage');return $this->bytes;}};
+$storage=new class extends Manager{public array $files=[];public bool $fail=false;public $during=null;public function __construct(){}public function putContents(Attachment $file,string $contents):void{if($this->during)($this->during)($file);if($this->fail)throw new RuntimeException('Synthetic storage outage');$this->files[$file->getId()]=$contents;}public function getContents(Attachment $file):string{return $this->files[$file->getId()]??throw new RuntimeException('Missing synthetic file');}public function exists(Attachment $file):bool{if($this->fail)throw new RuntimeException('Storage unavailable');return isset($this->files[$file->getId()]);}public function unlink(Attachment $file):void{if($this->fail)throw new RuntimeException('Storage unavailable');unset($this->files[$file->getId()]);}};
+$worker=$factory->createWith(IncomingMediaService::class,['fetcher'=>$fetch,'storage'=>$storage]);$make=require __DIR__.'/IncomingMediaFixture.php';
+$tx=$em->getTransactionManager();$tx->start();
+try{
+    $suffix=bin2hex(random_bytes(6));$fixtures=[];
+    foreach(['a','b'] as $label){$ctx=new TenantContext(ChatStore::uuid(),'incoming-'.$suffix.'-'.$label,'incoming-media-test');
+        $store->execute("INSERT INTO nexa_tenant (id,slug,display_name,status,region,timezone) VALUES (?,?,'Rollback media fixture','active','local','UTC')",[$ctx->tenantId,$ctx->slug]);$store->execute("INSERT INTO nexa_tenant_service (tenant_id,service_id,status) VALUES (?,?,'active')",[$ctx->tenantId,$ctx->serviceId]);
+        $fixtures[$label]=$contexts->runWith($ctx,function()use($em,$c,$suffix,$label,$ctx){$user=$em->createEntity('User',['userName'=>'incoming-'.$suffix.'-'.$label,'emailAddress'=>'incoming-'.$suffix.'-'.$label.'@example.test','type'=>'admin','isActive'=>true]);$user=$em->getEntityById('User',$user->getId());return ['context'=>$ctx,'user'=>$user,'acl'=>$c->getByClass(AclManager::class)->createUserAcl($user)];});
+    }
+    $a=$fixtures['a'];$b=$fixtures['b'];$call=fn($fn)=>$contexts->runWith($a['context'],$fn);$other=fn($fn)=>$contexts->runWith($b['context'],$fn);
+    $sms=$call(fn()=>$make($em,$factory,$c,$a['user'],'sms'));$wa=$call(fn()=>$make($em,$factory,$c,$a['user'],'whatsapp'));$beta=$other(fn()=>$make($em,$factory,$c,$b['user'],'sms'));
+    $row=fn($id)=>$call(fn()=>$store->rows('SELECT * FROM nexa_messaging_media WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$id]))[0];
+    $assert($row($sms['mediaId'])['status']==='pending'&&!str_contains($row($sms['mediaId'])['source_encrypted'],'api.twilio.com'),'Signed source URLs are encrypted and begin pending.');
+    $assert($call(fn()=>$worker->recover())===2&&$fetch->calls===2,'One worker handles at most two files, across SMS and WhatsApp.');
+    $assert($call(fn()=>$worker->recover())===0&&$fetch->calls===2,'Ready media is not downloaded twice.');
+    $assert($other(fn()=>$worker->recover())===1,'Independent tenant media makes progress.');
+    foreach([$sms,$wa] as $f){$r=$row($f['mediaId']);$file=$call(fn()=>$em->getEntityById('Attachment',$r['attachment_id']));
+        $assert($r['status']==='ready'&&$file&&$file->get('parentId')===$f['rootId']&&!$file->get('global'),'Published file retains private native parent ownership.');
+        $assert($file->get('storage')===$c->get('config')->get('defaultFileStorage'),'Configured storage is retained, not forced to local disk.');
+        $bytes=$call(fn()=>$worker->file($f['rootId'],$f['mediaId'],$a['acl']));$assert(base64_decode($bytes['data'])===$png,'Authorized download returns exactly the validated bytes.');
+        $service=$factory->createWith(MessagingConversationService::class,['user'=>$a['user'],'acl'=>$a['acl'],'channel'=>$f===$sms?'sms':'whatsapp']);$thread=$call(fn()=>$service->process((object)['op'=>'thread','id'=>$f['rootId']]));
+        $assert($thread['messages'][0]['media'][0]['status']==='ready'&&!str_contains(json_encode($thread),'api.twilio.com'),'Thread exposes safe file state, never provider URLs or credentials.');
+    }
+    $deny(fn()=>$other(fn()=>$worker->file($sms['rootId'],$sms['mediaId'],$b['acl'])),'Known file IDs do not cross tenants.');
+    $deny(fn()=>$call(fn()=>$worker->file($wa['rootId'],$sms['mediaId'],$a['acl'])),'A file cannot be fetched under a different conversation.');
+    $hidden=$call(fn()=>$em->createEntity('User',['userName'=>'hidden-'.$suffix,'emailAddress'=>'hidden-'.$suffix.'@example.test','type'=>'regular','isActive'=>true]));
+    $role=$call(fn()=>$em->createEntity('Role',['name'=>'Hidden media','data'=>['NexaMessagingConversation'=>['read'=>'all'],'Attachment'=>['read'=>'all']],'fieldData'=>['NexaMessagingConversation'=>['messages'=>['read'=>'no','edit'=>'no']]]]));$call(fn()=>$em->getRDBRepository('User')->getRelation($hidden,'roles')->relate($role));$hidden=$call(fn()=>$em->getEntityById('User',$hidden->getId()));$hiddenAcl=$c->getByClass(AclManager::class)->createUserAcl($hidden);
+    $deny(fn()=>$call(fn()=>$worker->file($sms['rootId'],$sms['mediaId'],$hiddenAcl)),'Broad Attachment access cannot bypass hidden message fields.');
+    $staffWorker=$factory->createWith(IncomingMediaService::class,['user'=>$hidden,'fetcher'=>$fetch,'storage'=>$storage]);$deny(fn()=>$call(fn()=>$staffWorker->recover()),'Regular staff cannot invoke the download worker.');
+    $library=$factory->createWith(\Espo\Custom\Tools\TenantFile\TenantImageLibrary::class,['user'=>$a['user'],'acl'=>$a['acl']]);$files=$call(fn()=>$library->getFilePage('received-',0,48));
+    $assert(count($files['list'])===2,'Both received channel files appear in the authorized tenant library.');
+    $blockedLibrary=$factory->createWith(\Espo\Custom\Tools\TenantFile\TenantImageLibrary::class,['user'=>$hidden,'acl'=>$hiddenAcl]);$assert($call(fn()=>$blockedLibrary->getFilePage('received-',0,48))['list']===[],'Hidden channel files do not appear in library searches.');
+    $retry=$call(fn()=>$make($em,$factory,$c,$a['user'],'sms'));$storage->fail=true;$assert($call(fn()=>$worker->recover($retry['mediaId']))===0,'Storage outage does not report successful publication.');$pending=$row($retry['mediaId']);
+    $assert($pending['status']==='pending'&&$pending['retry_at']!==null&&$call(fn()=>$em->getEntityById('Attachment',$pending['attachment_id']))===null,'Failed provisional bytes remain hidden with durable backoff.');
+    $calls=$fetch->calls;$call(fn()=>$worker->recover($retry['mediaId']));$assert($fetch->calls===$calls,'Backoff prevents repeated provider requests.');
+    $storage->fail=false;$call(fn()=>$store->execute('UPDATE nexa_messaging_media SET retry_at=UTC_TIMESTAMP() WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$retry['mediaId']]));$assert($call(fn()=>$worker->recover($retry['mediaId']))===1,'A later worker recovers after storage repair.');
+    $assert($row($retry['mediaId'])['attachment_id']!==$pending['attachment_id'],'A retry owns a fresh file so stale uploads cannot overwrite it.');
+    $poison=$call(fn()=>$make($em,$factory,$c,$a['user'],'whatsapp'));$fetch->bytes='<html>Not an image</html>';
+    for($i=0;$i<3;$i++){$call(fn()=>$store->execute('UPDATE nexa_messaging_media SET retry_at=UTC_TIMESTAMP() WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$poison['mediaId']]));$call(fn()=>$worker->recover($poison['mediaId']));}
+    $assert($row($poison['mediaId'])['status']==='failed'&&(int)$row($poison['mediaId'])['attempts']===3&&$row($poison['mediaId'])['attachment_id']===null,'Spoofed content fails after three bounded attempts without a published file.');$fetch->bytes=$png;
+    $revoked=$call(fn()=>$make($em,$factory,$c,$a['user'],'sms'));$fetch->during=function()use($call,$store,$revoked){$call(fn()=>$store->execute("UPDATE nexa_messaging_connection SET status='disabled',version_number=version_number+1 WHERE tenant_id=? AND service_id=? AND id=?",[...$store->scope(),$revoked['connectionId']]));};$call(fn()=>$worker->recover($revoked['mediaId']));$fetch->during=null;
+    $assert($row($revoked['mediaId'])['status']!=='ready'&&$row($revoked['mediaId'])['attachment_id']===null,'Connection revocation during fetch prevents file admission.');
+    $crash=$call(fn()=>$make($em,$factory,$c,$a['user'],'sms'));$claim=new ReflectionMethod($worker,'claim');$leased=$call(fn()=>$claim->invoke($worker,$crash['mediaId']));$assert($leased!==null&&$call(fn()=>$claim->invoke($worker,$crash['mediaId']))===null,'Only one worker claims a pending file.');
+    $call(fn()=>$store->execute('UPDATE nexa_messaging_media SET modified_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE) WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$crash['mediaId']]));$assert($call(fn()=>$worker->recover($crash['mediaId']))===1,'Expired download lease recovers without a duplicate ready file.');
+    $legacy=$call(fn()=>$make($em,$factory,$c,$a['user'],'sms'));$call(fn()=>$store->execute('DELETE FROM nexa_messaging_media WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$legacy['mediaId']]));$call(fn()=>$store->execute('UPDATE nexa_messaging_receipt SET media_indexed=0 WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$legacy['receiptId']]));$call(fn()=>$worker->recover());
+    $assert((int)$call(fn()=>$store->rows('SELECT COUNT(*) n FROM nexa_messaging_media WHERE tenant_id=? AND service_id=? AND receipt_id=?',[...$store->scope(),$legacy['receiptId']]))[0]['n']===1,'Historical projected receipts are indexed without duplicating messages.');
+    $race=$call(fn()=>$make($em,$factory,$c,$a['user'],'sms'));$oldFile=null;
+    $storage->during=function($file)use($call,$store,$race,$storage,$worker,&$oldFile){$oldFile=$file->getId();$storage->during=null;$call(fn()=>$store->execute('UPDATE nexa_messaging_media SET modified_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 3 MINUTE) WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$race['mediaId']]));$call(fn()=>$worker->recover($race['mediaId']));};
+    $call(fn()=>$worker->recover($race['mediaId']));$winner=$row($race['mediaId']);
+    $assert($winner['status']==='ready'&&$winner['attachment_id']!==$oldFile,'A recovered worker can publish without an older storage completion overwriting its claim.');
+    $assert($call(fn()=>$em->getEntityById('Attachment',$oldFile))===null,'The losing provisional upload remains hidden for native cleanup.');
+    $own=$call(fn()=>$em->createEntity('User',['userName'=>'own-'.$suffix,'emailAddress'=>'own-'.$suffix.'@example.test','type'=>'regular','isActive'=>true]));$ownRole=$call(fn()=>$em->createEntity('Role',['name'=>'Own media','data'=>['NexaMessagingConversation'=>['read'=>'own'],'Attachment'=>['read'=>'all']]]));$call(fn()=>$em->getRDBRepository('User')->getRelation($own,'roles')->relate($ownRole));$own=$call(fn()=>$em->getEntityById('User',$own->getId()));$ownAcl=$c->getByClass(AclManager::class)->createUserAcl($own);
+    $call(function()use($em,$sms,$own){$root=$em->getEntityById('NexaMessagingConversation',$sms['rootId']);$root->set('assignedUserId',$own->getId());$em->saveEntity($root);});
+    $assert(base64_decode($call(fn()=>$worker->file($sms['rootId'],$sms['mediaId'],$ownAcl))['data'])===$png,'Native own-record read permissions permit an assigned conversation file.');
+    $deny(fn()=>$call(fn()=>$worker->file($wa['rootId'],$wa['mediaId'],$ownAcl)),'An own-record role cannot download an unassigned conversation file.');
+    for($i=0;$i<3;$i++){$inactive=$call(fn()=>$make($em,$factory,$c,$a['user'],'sms'));$call(fn()=>$store->execute("UPDATE nexa_messaging_connection SET status='disabled' WHERE tenant_id=? AND service_id=? AND id=?",[...$store->scope(),$inactive['connectionId']]));$call(fn()=>$store->execute('UPDATE nexa_messaging_media SET created_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 DAY) WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$inactive['mediaId']]));}
+    $eligible=$call(fn()=>$make($em,$factory,$c,$a['user'],'whatsapp'));$assert($call(fn()=>$worker->recover())===1&&$row($eligible['mediaId'])['status']==='ready','Older ineligible rows cannot occupy both bounded worker slots and starve a verified connection.');
+    $call(fn()=>$store->execute('UPDATE attachment SET created_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 2 DAY) WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$oldFile]));
+    $cleanup=$factory->create(\Espo\Classes\Jobs\Cleanup::class);$exclusion=(new ReflectionMethod($cleanup,'managedAttachmentExclusion'))->invoke($cleanup);$query=$em->getQueryBuilder()->select()->from('Attachment')->withDeleted()->where(['id'=>$oldFile])->where($exclusion)->build();
+    $assert(count($call(fn()=>$em->getRDBRepository('Attachment')->clone($query)->find()))===0,'Generic cleanup cannot discard staging metadata before object cleanup.');
+    $storage->fail=true;$call(fn()=>$worker->recover());$assert(isset($storage->files[$oldFile])&&(int)$call(fn()=>$store->rows('SELECT COUNT(*) n FROM attachment WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$oldFile]))[0]['n']===1,'Storage cleanup failure retains both the hidden object and its metadata for retry.');
+    $storage->fail=false;$call(fn()=>$worker->recover());$assert(!isset($storage->files[$oldFile])&&(int)$call(fn()=>$store->rows('SELECT COUNT(*) n FROM attachment WHERE tenant_id=? AND service_id=? AND id=?',[...$store->scope(),$oldFile]))[0]['n']===0,'A later job removes abandoned bytes before deleting their scoped metadata.');
+    echo "Incoming media tenant checks passed: {$checks} (rollback-only; fake HTTP and storage).\n";
+}finally{$tx->rollback();foreach($old as $key=>$value)$value===false?putenv($key):putenv($key.'='.$value);}

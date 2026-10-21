@@ -42,6 +42,12 @@ final class TenantImageLibrary
         'jpeg' => ['image/jpeg'],
         'gif' => ['image/gif'],
         'webp' => ['image/webp'],
+        'mp3' => ['audio/mpeg'],
+        'ogg' => ['audio/ogg'],
+        'wav' => ['audio/wav', 'audio/x-wav'],
+        'm4a' => ['audio/mp4', 'audio/x-m4a'],
+        'mp4' => ['video/mp4'],
+        'webm' => ['video/webm', 'audio/webm'],
     ];
 
     public function __construct(
@@ -64,7 +70,10 @@ final class TenantImageLibrary
         $attachments = $this->entityManager
             ->getRDBRepository(Attachment::ENTITY_TYPE)
             ->where([
-                'role' => Attachment::ROLE_INLINE_ATTACHMENT,
+                'OR' => [
+                    ['role' => Attachment::ROLE_INLINE_ATTACHMENT],
+                    ['role' => Attachment::ROLE_ATTACHMENT, 'parentType' => 'NexaMessagingConversation', 'field' => 'messages'],
+                ],
                 'isBeingUploaded' => false,
             ])
             ->order('createdAt', 'DESC')
@@ -72,6 +81,9 @@ final class TenantImageLibrary
             ->find();
 
         foreach ($attachments as $attachment) {
+            if (!$this->acl->checkEntity($attachment, Table::ACTION_READ)) {
+                continue;
+            }
             $mimeType = strtolower(trim((string) $attachment->getType()));
             $name = trim((string) $attachment->getName());
 
@@ -113,12 +125,21 @@ final class TenantImageLibrary
         $items = [];
         $attachments = $this->entityManager
             ->getRDBRepository(Attachment::ENTITY_TYPE)
-            ->where(['role' => Attachment::ROLE_INLINE_ATTACHMENT, 'isBeingUploaded' => false])
+            ->where([
+                'isBeingUploaded' => false,
+                'OR' => [
+                    ['role' => Attachment::ROLE_INLINE_ATTACHMENT],
+                    ['role' => Attachment::ROLE_ATTACHMENT, 'parentType' => 'NexaMessagingConversation', 'field' => 'messages'],
+                ],
+            ])
             ->order('createdAt', 'DESC')
             ->limit(self::MAX_SCAN_SIZE)
             ->find();
 
         foreach ($attachments as $attachment) {
+            if (!$this->acl->checkEntity($attachment, Table::ACTION_READ)) {
+                continue;
+            }
             $name = trim((string) $attachment->getName());
             if ($needle !== '' && !str_contains(mb_strtolower($name), $needle)) {
                 continue;

@@ -327,10 +327,14 @@ try {
     else {
         Pass 'Shared-schema table ownership manifest'
         $runtimeOwnership = Get-Content -LiteralPath (Join-Path $root 'espocrm/application/Espo/Resources/tenant-table-ownership.json') -Raw | ConvertFrom-Json
-        $expected = @($manifest.espoCoreConversion.tenantScopedTables | Sort-Object)
+        $expected = @((@($manifest.espoCoreConversion.tenantScopedTables) + @($manifest.additionalTenantScopedTables)) | Sort-Object)
         $actual = @($runtimeOwnership.tenantScopedTables | Sort-Object)
         if (Compare-Object $expected $actual) { Fail 'Runtime tenant ownership metadata differs from the database manifest.' }
         else { Pass 'Runtime tenant ownership metadata' }
+        foreach ($table in @($manifest.additionalTenantScopedTables)) {
+            $entry = @($manifest.tables | Where-Object { $_.name -eq $table -and $_.classification -eq 'serviceOwned' -and $_.serviceScope -eq 'required' })
+            if ($entry.Count -ne 1 -or $table -in $runtimeOwnership.platformGlobalTables) { Fail "Additional runtime table must remain tenant/service-owned: $table" }
+        }
     }
 } catch {
     Fail "Invalid table ownership manifest: $ownershipManifest"

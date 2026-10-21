@@ -1,0 +1,5 @@
+<section class="nexa-conversations nexa-messenger-workspace" aria-label="Messenger conversations">
+    <header class="nc-heading"><h3>Messenger</h3><div class="nc-heading-actions"><a class="btn btn-default messenger-settings" href="#NexaConversations/messengerSettings" aria-label="Messenger connections" title="Messenger connections" hidden><span class="fas fa-plug" aria-hidden="true"></span></a><button class="btn btn-default" data-action="refresh" aria-label="Refresh Messenger" title="Refresh Messenger"><span class="fas fa-sync-alt" aria-hidden="true"></span></button></div></header>
+    <div class="nc-error" role="alert" hidden></div>
+    <div class="nc-layout"><aside class="nc-inbox" aria-label="Messenger conversations"><div class="nc-filters"><input class="form-control nc-search" type="search" aria-label="Search Messenger conversations" placeholder="Search conversations" maxlength="100"></div><div class="nc-list" aria-live="polite"></div><button class="btn btn-default nc-more" data-action="more" hidden>Load more</button></aside><main class="nc-thread" aria-label="Messenger messages"><div class="nc-empty">Select a conversation</div></main></div>
+</section>

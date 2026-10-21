@@ -1,0 +1,3 @@
+{
+    "fields": {"name": "Conversation", "status": "Status", "assignedUser": "Conversation owner", "messages": "Messages"}
+}

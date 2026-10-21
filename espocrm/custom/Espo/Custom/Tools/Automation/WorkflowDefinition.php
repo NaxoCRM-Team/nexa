@@ -7,7 +7,7 @@ use Espo\Core\Exceptions\BadRequest;
 /** Immutable graph validation, not action execution or permission authorization. */
 final class WorkflowDefinition
 {
-    public const TRIGGERS = ['manual', 'form.submitted', 'page.viewed', 'asset.downloaded', 'email.opened', 'email.clicked', 'email.replied', 'api.event', 'contact.created', 'contact.updated', 'contact.field_changed', 'segment.entered', 'segment.exited', 'score.reached', 'lifecycle.changed', 'opportunity.stage_changed', 'activity.completed', 'date.reached'];
+    public const TRIGGERS = ['manual', 'form.submitted', 'page.viewed', 'asset.downloaded', 'email.opened', 'email.clicked', 'email.replied', 'api.event', 'contact.created', 'contact.updated', 'contact.field_changed', 'segment.entered', 'segment.exited', 'score.reached', 'lifecycle.changed', 'opportunity.stage_changed', 'activity.completed', 'date.reached', 'conversation.received'];
     public const ACTIONS = ['email.send', 'segment.add', 'segment.remove', 'score.increase', 'score.decrease', 'lifecycle.set', 'task.create', 'opportunity.create', 'case.create', 'owner.assign', 'webhook.send', 'notification.create','tags.add','tags.remove','contact.update','account.update','opportunity.update','team.notify'];
 
     public function validate(array $input): array

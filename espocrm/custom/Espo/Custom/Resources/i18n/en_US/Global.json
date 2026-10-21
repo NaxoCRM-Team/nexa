@@ -1,0 +1,4 @@
+{
+    "scopeNames": {"NexaChatConversation": "Live Chat", "NexaMessagingConversation": "SMS Conversation"},
+    "scopeNamesPlural": {"NexaChatConversation": "Live Chat", "NexaMessagingConversation": "SMS Conversations"}
+}

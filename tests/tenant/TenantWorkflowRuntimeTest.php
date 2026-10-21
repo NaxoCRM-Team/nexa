@@ -1166,6 +1166,8 @@ try {
     $busyRuns=$callA(fn()=>$serviceA->history($busy['id']))['runs'];
     $assert(count(array_filter($busyRuns,fn($r)=>$r['status']==='completed'))===5,'Per-workflow batching must enforce its fairness bound.');
     // Catalogue-wide authorization checks reuse real drafts, not mocked services.
+    $conversationDraft=$create(['schemaVersion'=>1,'trigger'=>['event'=>'conversation.received','reenrollment'=>'never'],'entry'=>'end','nodes'=>[['id'=>'end','type'=>'end']]],'Conversation trigger permission matrix');
+    $callA(fn()=>$serviceA->publish($conversationDraft['id'],1));
     $updatePermissionDraft = $create($nativeAction('opportunity.update', ['opportunityId' => $stageRecord->getId(), 'field' => 'description', 'value' => 'Permission matrix']));
     $callA(fn () => $serviceA->publish($updatePermissionDraft['id'], 1));
     $permissionCases = [];

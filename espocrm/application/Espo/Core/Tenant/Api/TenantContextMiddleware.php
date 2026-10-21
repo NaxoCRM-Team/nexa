@@ -94,6 +94,7 @@ final class TenantContextMiddleware implements MiddlewareInterface
         // under any subfolder (see PortableSubfolderTest), and this URI's path
         // isn't guaranteed to already be stripped of that prefix at this point.
         $path = (string) $request->getUri()->getPath();
+        if(in_array($method,['GET','POST'],true)&&preg_match('#/api/v1/Nexa/public/messenger/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$#D',$path)===1)return true;
 
         $postRouteSuffixes = [
             '/api/v1/Nexa/signup',
@@ -111,6 +112,10 @@ final class TenantContextMiddleware implements MiddlewareInterface
         ];
 
         if ($method === 'POST') {
+            // Only the signed messaging boundary may resolve a connection-owned scope.
+            if (preg_match('#/api/v1/Nexa/public/messaging/[a-f0-9-]{36}/(?:inbound|status(?:/[a-f0-9-]{36})?)$#D', $path) === 1) {
+                return true;
+            }
             foreach ($postRouteSuffixes as $suffix) {
                 if (str_ends_with($path, $suffix)) {
                     return true;

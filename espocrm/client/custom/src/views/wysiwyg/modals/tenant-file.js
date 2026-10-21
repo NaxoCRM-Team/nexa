@@ -40,7 +40,7 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
                 this.showError(this.options.maxFileSize ? `Files cannot be larger than ${Math.round(maxSize / 1024 / 1024)} MB.` : (isImage ? 'Images cannot be larger than 8 MB.' : 'Files cannot be larger than 25 MB.'));
                 return;
             }
-            if (!/\.(?:pdf|docx?|xlsx?|pptx?|csv|txt|rtf|zip|png|jpe?g|gif|webp)$/i.test(file.name)) {
+            if (!/\.(?:pdf|docx?|xlsx?|pptx?|csv|txt|rtf|zip|png|jpe?g|gif|webp|mp3|ogg|wav|m4a|mp4|webm)$/i.test(file.name)) {
                 this.showError('Choose a supported image, PDF, Office, CSV, TXT, RTF or ZIP file.');
                 return;
             }
@@ -62,6 +62,8 @@ define('custom:views/wysiwyg/modals/tenant-file', ['views/modal'], Dep => class 
         this.element.querySelector('[data-nexa-file-list]').addEventListener('click', event => {
             const button = event.target.closest('[data-nexa-file-id]');
             if (!button) return;
+            if(this.options.maxFileSize&&Number(button.dataset.nexaFileSize)>this.options.maxFileSize){this.showError(`Files cannot be larger than ${Math.round(this.options.maxFileSize/1024/1024)} MB.`);return;}
+            if(this.options.accept&&!this.options.accept.split(',').some(extension=>button.dataset.nexaFileName.toLowerCase().endsWith(extension.trim().toLowerCase()))){this.showError('Choose a supported file type.');return;}
             this.trigger('insert', {id: button.dataset.nexaFileId, name: button.dataset.nexaFileName, mimeType: button.dataset.nexaFileType, size: Number(button.dataset.nexaFileSize)});
             this.close();
         });

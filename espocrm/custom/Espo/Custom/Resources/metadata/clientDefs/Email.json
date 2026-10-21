@@ -1,0 +1,5 @@
+{
+    "recordViews": {
+        "compose": "custom:views/conversation/compose-email"
+    }
+}

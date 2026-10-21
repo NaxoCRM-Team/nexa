@@ -1,0 +1,16 @@
+name: nexa-mailbox-acceptance
+services:
+  mailbox:
+    image: greenmail/standalone:2.1.13
+    environment:
+      GREENMAIL_OPTS: >-
+        -Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imap
+        -Dgreenmail.hostname=0.0.0.0
+        -Dgreenmail.users=alpha:local-test-only@conversation.test,beta:local-test-only@conversation.test,customer:local-test-only@conversation.test
+    ports:
+      - "127.0.0.1:13025:3025"
+      - "127.0.0.1:13143:3143"
+    networks: [mailbox-test]
+networks:
+  mailbox-test:
+    driver: bridge
