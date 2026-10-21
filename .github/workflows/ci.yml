@@ -57,6 +57,11 @@ jobs:
           coverage: none
       - name: Install MariaDB client
         run: sudo apt-get update && sudo apt-get install --yes mariadb-client
+      - name: Configure disposable loopback database client
+        run: |
+          # This job uses only the private CI service, not a production database.
+          printf '[client]\nssl=FALSE\n' > "$HOME/.my.cnf"
+          chmod 600 "$HOME/.my.cnf"
       - name: Load pinned EspoCRM schema fixture
         run: mariadb --host=127.0.0.1 --port=3306 --user=root --password=ci_root_password nexa_shared_test < database/shared/testing/0000_espocrm_9_1_9_schema.sql
       - name: Apply shared-schema migrations
