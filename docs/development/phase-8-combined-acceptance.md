@@ -5,10 +5,11 @@ production provider approval, public callbacks or an external delivery test.
 The executable runner fails on the first unsuccessful package; it never marks
 an unexecuted package as passed.
 
-Status on 21 October 2026: all included native checks and 55 browser scenarios
-passed across the main run and targeted reruns. This was not one uninterrupted
-green exit-gate invocation. Phase 8 remains open for the explicitly listed
-unsupported and external paths below.
+Status on 21 October 2026: the updated local exit gate passed in one uninterrupted
+invocation: 2,152 backend checks, three migration-response checks, all 60 browser
+scenarios, repository verification and whitespace checks. Historical partial runs
+below are not used as the final pass. Phase 8 production acceptance remains open
+under [#163](https://github.com/NaxoCRM-Team/nexa/issues/163).
 
 ## Run
 
@@ -70,7 +71,43 @@ tracked in [GitHub #163](https://github.com/NaxoCRM-Team/nexa/issues/163).
 The [recovery runbook](../operations/recovery.md) provides a synthetic local
 database restore drill, separate from real infrastructure recovery acceptance.
 
-## Evidence: 21 October 2026
+## Final Local Gate: 21 October 2026
+
+- `verify-phase8.ps1 -PhpPath C:\wamp64\bin\php\php8.2.29\php.exe -Live`
+  completed successfully with all five default viewport configurations.
+- Backend checks: 79 native email, 153 chat/bot/privacy, 635 messaging/media/routing,
+  201 native queue fairness, 1,072 capacity/load and 12 same-Contact cross-channel
+  checks (2,152 total), plus three fail-closed migration-client response checks.
+- All 60 authenticated browser scenarios passed in 26.3 minutes in this invocation.
+  The full browser package took 1,597.61 seconds including runner startup/teardown.
+  Repository verification then passed in 75.5 seconds; whitespace passed too.
+- Capacity diagnostics: 10,001 message rows, 320 routed conversations, three tenants,
+  12 native worker rounds, 24.094 seconds and 20 MiB incremental peak allocation.
+  These are bounded local observations, not production throughput guarantees.
+- Readiness checks now wait for authenticated shell/API state. Visitor reload
+  verifies an HTTP 200 history response with both messages before checking the DOM;
+  background cursor polls cannot satisfy that assertion. Contact linking verifies
+  its actual successful response. No permission or isolation assertion was removed.
+- Synthetic routing and media recovery are driven explicitly by fixture workers,
+  not live cron. No active acceptance tenants created on 21 October remained after
+  cleanup. Eight older active fixtures dated 14-17 October were left unchanged;
+  immutable audits and suspended fixture tenants are retained by design.
+- Desktop SMS and mobile WhatsApp screenshots were inspected. Image previews,
+  decoded pixels, downloads, authorized library visibility and foreign-tenant
+  denial passed in the incoming-media scenarios.
+- GitHub CI for executable revision `b70a2a53` passed source validation, the MariaDB
+  schema/upgrade job and shell accessibility/visual validation: 450 frontend cases
+  passed and 280 live-only cases were skipped there. Those skips are not presented
+  as passes; the 60 WAMP cases above are separate live-local acceptance.
+- CI's disposable loopback database client now explicitly disables TLS for that
+  isolated non-TLS service. Production/provider TLS settings were not changed.
+- The [synthetic restore drill](../operations/recovery.md) also passed through
+  migration 0109: 394 snapshot checks and unchanged replay of all 109 migrations.
+- Delivery is tracked by [PR #164](https://github.com/NaxoCRM-Team/nexa/pull/164)
+  and [local acceptance #165](https://github.com/NaxoCRM-Team/nexa/issues/165).
+  The external gate remains [#163](https://github.com/NaxoCRM-Team/nexa/issues/163).
+
+## Earlier Checkpoints: 21 October 2026
 
 - Initial focused capacity/load suite: 1,072 checks passed. It created 10,001
   message rows across independent tenants and routed a 320-conversation backlog.

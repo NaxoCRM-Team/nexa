@@ -5,9 +5,10 @@
 Phase 8 covers M14 Conversations/Bots and M15 Messaging Channels. The calendar
 iteration is Sprint 07 (12-25 October); phase numbers are not sprint numbers.
 
-The accumulated local implementation is on `phase8/conversations-acceptance-20261021`.
-The release is not yet merged. This note will be reconciled against the final
-acceptance result and GitHub release state before delivery.
+The implementation and final local acceptance are delivered through
+[PR #164](https://github.com/NaxoCRM-Team/nexa/pull/164). Its GitHub state is the
+authoritative publication/review record. Local acceptance is tracked separately
+in [#165](https://github.com/NaxoCRM-Team/nexa/issues/165); live acceptance is #163.
 
 ## Fixed Local Checklist
 
@@ -24,14 +25,16 @@ acceptance result and GitHub release state before delivery.
 - [x] Synthetic database restore drill through migration 0109, preserving tenant
   records and ledger state, followed by unchanged migration replay.
 - [x] Fail-closed migration inspection and three fake-client response regressions.
-- [ ] One clean updated combined acceptance run, including all 60 browser cases.
-- [ ] Commit, push, review and reconcile GitHub delivery status.
+- [x] One clean updated combined acceptance run, including all 60 browser cases.
+- [x] Commit/push the implementation, provide the delivery PR and separate local
+  acceptance/publication from blocked deployment work on the GitHub board.
 
-The native gate passed 2,152 checks; three additional migration-response checks
-also passed. The first updated browser run passed 57/60; the three previously
-failing cases passed a targeted rerun after readiness/API-response adjustments.
-That is not recorded as a clean uninterrupted combined pass. The next full run
-and release verification are in progress. See [combined evidence](phase-8-combined-acceptance.md).
+The final gate passed 2,152 backend checks, three migration-response checks and
+all 60 browser scenarios (26.3 minutes), followed by repository and whitespace
+verification, in one invocation. Earlier failing/targeted runs are not counted
+as this final result. GitHub source, schema/upgrade and visual CI passed for
+executable revision `b70a2a53` (450 frontend cases passed; 280 live-only skips).
+See [combined evidence](phase-8-combined-acceptance.md).
 
 ## External Gate
 
@@ -45,7 +48,8 @@ The WAMP log also reports rejected Google mailbox token refreshes. Reconnection
 and live receive/reply acceptance require the mailbox owner's authorization;
 credentials were not reset or disabled by this work.
 
-Phase 8 umbrella #162 must remain open until its remaining gate is accepted.
-Native shared-inbox issue #131 can close after its local implementation is merged.
+Phase 8 umbrella #162 must remain open until external gate #163 is accepted.
+Native shared-inbox #131 and local acceptance #165 close through PR #164; they are
+not evidence that real-provider or production-infrastructure acceptance is done.
 Phase 7 public-website gate #159 and Postal public-delivery gate #152 remain
 separate; this Phase 8 work does not close them.

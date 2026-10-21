@@ -1,6 +1,6 @@
 # Phase 8: Conversations and Omnichannel Messaging
 
-Status: in progress. Modules M14 and M15. Nexa runs on WAMP; existing personal mailbox connections and Postal marketing delivery are unchanged.
+Status: local implementation and combined acceptance passed; production acceptance remains blocked by external gate #163. Modules M14 and M15. Nexa runs on WAMP; existing personal mailbox connections and Postal marketing delivery are unchanged. Delivery is tracked in PR #164 and local acceptance #165.
 
 ## Fixed Delivery Checklist
 
@@ -20,7 +20,7 @@ Status: in progress. Modules M14 and M15. Nexa runs on WAMP; existing personal m
 - [x] Enforce known SMS opt-outs at preparation and dispatch, retain signed STOP/START/HELP evidence, recover historical preference indexes and display staff warnings. START does not confer consent. Administrator-reviewed, purpose-specific suppression release requires fresh explicit consent and current signed evidence; release never clears DNC or revives old blocked messages.
 - [x] Connect locally implemented chat, SMS, WhatsApp and Messenger history into the governed Contact timeline and automation-event sources, with explicit identity/link permissions and revocation.
 - [x] Show currently verified website chat in the existing Contact Activities timeline, with visitor/staff/bot attribution and native ownership/field permissions. Proof expiry and revocation remove association visibility; four-channel automation integration is covered by the unified timeline item above.
-- [x] Complete local combined failure, bounded load/fairness, accessibility and end-to-end acceptance for the implemented paths. All 55 browser scenarios passed across the main run and targeted reruns, not one uninterrupted green run; external and unsupported media paths remain open.
+- [x] Complete local combined failure, bounded load/fairness, accessibility and end-to-end acceptance: 2,152 backend checks, three migration-response checks, all 60 browser scenarios, repository verification and whitespace passed in one uninterrupted invocation. Live provider/infrastructure acceptance remains open under #163.
 - [x] Add website-chat retention, recoverable deletion, administrator erasure, legal hold and durable file-cleanup retry.
 - [x] Fetch signed SMS/WhatsApp incoming attachments into private native tenant-library files, with type/size validation, authorized downloads and retryable staging cleanup. See [incoming media](phase-8-incoming-media.md); real provider/Cloudflare acceptance is separate.
 - [x] Route chat/SMS/WhatsApp/Messenger through native Team queues and assigned users, explicit leased availability, capacity checks and background reconsideration. Assignment alone does not claim an agent has replied.

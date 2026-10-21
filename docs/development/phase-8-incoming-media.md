@@ -90,9 +90,10 @@ No provider credentials, storage settings or live sending flags were changed.
 Run the existing `verify-messaging-providers.ps1 -Database` for native checks, or
 `-Live` for authenticated provider UI coverage. The combined `verify-phase8.ps1`
 now includes this spec (60 browser scenarios across five viewports). That expanded
-60-scenario gate is being rerun as one package; a clean combined pass has not yet
-been recorded. The earlier 55-scenario evidence and the focused five-viewport
-acceptance remain separate results until that gate passes.
+gate passed in one invocation on 21 October 2026, including all 60 browser cases,
+2,152 backend checks, three migration-response checks and repository verification.
+See [the combined evidence](phase-8-combined-acceptance.md). Earlier focused runs
+remain historical evidence, not a substitute for this combined result.
 
 Release status is tracked in [the dated delivery note](delivery-status-2026-10-21.md).
 Real Twilio/WhatsApp ingress, authenticated provider downloads, public callbacks

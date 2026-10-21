@@ -71,7 +71,7 @@ Priority and Workstream are Project fields, not labels. Phase is a milestone, an
 
 ## Sprint Cadence
 
-Current reconciliation (13 October 2026): the calendar iteration is **Sprint 07**, 12-25 October. Phase 6 local delivery is under review in [PR #155](https://github.com/NaxoCRM-Team/nexa/pull/155); #151/#153/#154 are In Review. Phase 6 umbrella #150 and public transport gate #152 remain Blocked without a future sprint commitment. Phase 7 scoring work is In Progress in #156. See [the dated delivery status](delivery-status-2026-10-13.md); the original sprint goals below are planning history, not proof that open issues are completed.
+Current reconciliation (21 October 2026): the calendar iteration is **Sprint 07**, 12-25 October. Phase 8 local implementation and the combined acceptance gate passed and are delivered through [PR #164](https://github.com/NaxoCRM-Team/nexa/pull/164), shared-inbox #131 and local acceptance #165. Phase 8 umbrella #162 remains open for external acceptance #163; that deployment gate is Blocked without a future sprint commitment. Phase 7 public-website #159 and Postal public-transport #152 remain separate external gates. See [the current dated delivery status](delivery-status-2026-10-21.md); the original sprint goals below are planning history, not proof that open issues are completed.
 
 Sprints run for two weeks. During planning:
 
