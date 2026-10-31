@@ -10,7 +10,7 @@
         "@playwright/test": "1.61.1"
     },
     "dependencies": {
-        "dompurify": "3.4.16",
+        "dompurify": "3.4.17",
         "flag-icons": "7.5.0",
         "grapesjs": "0.23.6",
         "grapesjs-preset-newsletter": "1.0.2"
